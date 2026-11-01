@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>我單方面辭退老闆後，開了一間夢想中的咖啡店｜2.5D 原型</title>
+<title>我單方面辭退老闆後，開了一間夢想中的咖啡店｜測試版</title>
 <style>
   :root { --ink: #3b2a20; --paper: #f6efe2; --accent: #c4382c; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -17,27 +17,46 @@
   .top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
   .title { background: rgba(246,239,226,.92); padding: 6px 12px; border-radius: 14px; font-size: 13px; line-height: 1.35; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
   .title b { display: block; font-size: 14px; }
+  .top-right { display: flex; gap: 8px; align-items: center; }
   .temp { background: var(--accent); color: #fff; padding: 6px 12px; border-radius: 14px; font-weight: 700; font-size: 15px; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+  /* 溫度上升時輕輕亮一下 */
+  .temp.rise { animation: rise 2.6s ease-out; }
+  @keyframes rise { 0% { transform: scale(1); box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+    20% { transform: scale(1.12); box-shadow: 0 0 0 6px rgba(255,190,110,.55), 0 2px 12px rgba(0,0,0,.25); }
+    100% { transform: scale(1); box-shadow: 0 2px 8px rgba(0,0,0,.2); } }
+  #menu-btn { pointer-events: auto; width: 44px; height: 44px; padding: 0; border-radius: 14px; font-size: 22px; line-height: 44px; }
   .bottom { position: absolute; left: 12px; right: 12px; bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
   .hint { align-self: center; background: rgba(30,22,16,.72); color: #f6efe2; padding: 6px 12px; border-radius: 12px; font-size: 13px; }
   .row { display: flex; gap: 8px; }
-  .row button { flex: 1; }
-  button { font: inherit; border: 0; border-radius: 14px; padding: 12px 10px; font-size: 15px; font-weight: 600;
+  .row button { flex: 1 1 auto; white-space: nowrap; padding-left: 8px; padding-right: 8px; } /* 窄欄（桌機上約 330px）也不換行 */
+  /* 手機點擊目標至少 44px */
+  button { font: inherit; border: 0; border-radius: 14px; padding: 12px 10px; font-size: 15px; font-weight: 600; min-height: 48px; min-width: 44px;
     background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.2); }
   button:disabled { opacity: .5; }
   button.primary { background: var(--ink); color: var(--paper); }
-  #speed { position: absolute; top: 64px; right: 12px; padding: 6px 10px; font-size: 12px; border-radius: 10px; opacity: .85; }
-  #labels .seat-label { position: absolute; left: 0; top: 0; padding: 6px 12px; font-size: 13px; border-radius: 12px;
+  [hidden] { display: none !important; }
+  #speed { position: absolute; top: 68px; right: 12px; min-height: 44px; padding: 8px 12px; font-size: 13px; border-radius: 12px; opacity: .85; }
+  #labels .seat-label { position: absolute; left: 0; top: 0; min-height: 44px; padding: 10px 14px; font-size: 15px; border-radius: 14px;
     background: rgba(246,239,226,.95); border: 2px solid var(--ink); white-space: nowrap; }
+  /* 關於面板：蓋在畫面上，點外面關閉 */
+  #about { position: absolute; inset: 0; background: rgba(20,14,10,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 10; }
+  #about .card { width: 100%; max-width: 320px; background: var(--paper); border-radius: 18px; padding: 20px 18px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+  #about h2 { margin: 0 0 4px; font-size: 17px; line-height: 1.4; }
+  #about .sub { margin: 0 0 14px; font-size: 13px; opacity: .75; }
+  #about dl { margin: 0 0 14px; font-size: 15px; }
+  #about dt { font-size: 12px; opacity: .7; margin-top: 6px; }
+  #about dd { margin: 0; }
+  #about .links { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  #about .links a { display: flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 12px; background: #fff;
+    border: 2px solid var(--ink); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; }
+  #about .links a span { margin-left: auto; font-weight: 400; font-size: 13px; opacity: .7; }
+  #about-close { width: 100%; }
   #bubble { position: absolute; left: 0; top: 0; max-width: 220px; background: #fffaf0; border: 2px solid var(--ink);
     border-radius: 14px; padding: 8px 12px; font-size: 14px; line-height: 1.4; pointer-events: none;
     opacity: 0; transition: opacity .3s; }
   #bubble.show { opacity: 1; }
   #bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -8px; border: 8px solid transparent;
     border-top-color: var(--ink); border-bottom: 0; }
-  #toast { position: absolute; left: 50%; top: 78px; transform: translate(-50%, -10px); background: #fff3d6; border: 2px solid #c48a2c;
-    padding: 8px 14px; border-radius: 12px; font-size: 13px; opacity: 0; transition: all .4s; white-space: nowrap; pointer-events: none; }
-  #toast.show { opacity: 1; transform: translate(-50%, 0); }
 </style>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
@@ -45,12 +64,14 @@
 <div id="app">
   <div class="top">
     <div class="title"><b>東山・第一間店</b>德叔在吧台</div>
-    <div class="temp" id="temp">20.0°C</div>
+    <div class="top-right">
+      <div class="temp" id="temp">20.0°C</div>
+      <button id="menu-btn" aria-label="選單" aria-controls="about" aria-expanded="false">≡</button>
+    </div>
   </div>
-  <button id="speed">正常速度</button>
+  <button id="speed" hidden>正常速度</button>
   <div id="labels"></div>
   <div id="bubble"></div>
-  <div id="toast"></div>
   <div class="bottom">
     <div class="hint" id="hint"></div>
     <div class="row">
@@ -58,6 +79,18 @@
       <button id="stand">站起來</button>
       <button id="brew" class="primary">請德叔沖一杯</button>
       <button id="night">白天</button>
+    </div>
+  </div>
+  <div id="about" hidden role="dialog" aria-modal="true" aria-labelledby="about-title">
+    <div class="card">
+      <h2 id="about-title">我單方面辭退老闆後，開了一間夢想中的咖啡店</h2>
+      <p class="sub">測試版・台南東山</p>
+      <dl><dt>開發者</dt><dd>SY</dd></dl>
+      <div class="links">
+        <a href="https://github.com/SY19870627" target="_blank" rel="noopener">GitHub<span>SY19870627</span></a>
+        <a href="https://x.com/nelsonyehfon" target="_blank" rel="noopener">X<span>@nelsonyehfon</span></a>
+      </div>
+      <button id="about-close" class="primary">回到店裡</button>
     </div>
   </div>
 </div>

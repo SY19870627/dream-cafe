@@ -463,4 +463,18 @@ export function blob() {
   return c;
 }
 
+// 溫度上升時溫度計後面的暖光（白色徑向漸層，顏色由材質決定）
+export function glow() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.5, 'rgba(255,255,255,0.45)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+  return c;
+}
+
 export const SIZES = { PPM };

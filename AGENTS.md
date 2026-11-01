@@ -37,11 +37,15 @@
 - `src/main.js`：場景、座位、德叔的沖煮動畫、貓、佈置、溫度任務、觸控。
 - `src/art.js`：所有 Canvas 程式繪製的美術，之後換成手繪圖只要改這裡的同名函式。
 - `vendor/three.module.min.js`：Three.js 0.187 打包檔。
-- 本機測試：`python3 -m http.server 8000` 後開 http://localhost:8000，視窗請用手機直立尺寸（例如 390×844）。
+- `tests/serve.mjs`：Node 內建 http 靜態伺服器（`npm run serve`）；`tests/smoke.mjs`：Playwright 冒煙測試（`npm test`）。`package.json` 只有 `playwright` 一個 devDependency，遊戲本身沒有建置步驟。
+- 開發者模式：網址加 `?dev=1`（快轉鈕、`window.__cafe` 測試介面），`&speed=N` 指定動作倍率。
+- 本機測試：`npm run serve` 或 `python3 -m http.server 8000` 後開 http://localhost:8000，視窗請用手機直立尺寸（例如 390×844）。
+- 開發進度、自行做的決定、待作者決定與【待定】文本清單：[docs/第一版開發計畫.md](docs/第一版開發計畫.md)。自行補寫的文本在程式中以 `// 【待定】` 標記。
 
 ## 協作慣例
 
 - 回覆與註解使用繁體中文。
 - 不要在任何地方寫出擁有者的中文全名。
 - 技術判斷要分清楚已確認與推測；無法確定就寫「目前無法確定，需要實測」。
-- 改完先用 Playwright 在 390×844 截圖確認畫面，再 commit。
+- 改完先用 Playwright 在 390×844 截圖確認畫面，並確認 `npm test` 通過，再 commit。
+- 可點的按鈕與標籤至少 44px；任務完成由角色一句話或動作帶出，不跳任務清單或提示框。

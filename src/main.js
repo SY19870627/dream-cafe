@@ -6,6 +6,11 @@ import * as A from './art.js';
 const PPM = A.SIZES.PPM;
 const $ = (id) => document.getElementById(id);
 
+/* ---------- 開發者模式：網址加 ?dev=1（測試可再加 &speed=20 讓動作加速） ---------- */
+const params = new URLSearchParams(location.search);
+const DEV = params.get('dev') === '1';
+const DEV_SPEED = DEV ? Math.max(1, Number(params.get('speed')) || 1) : 1;
+
 /* ---------- 基本設定 ---------- */
 const app = $('app');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -21,6 +26,7 @@ function resize() {
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  fitOverview();
 }
 window.addEventListener('resize', resize);
 
@@ -74,6 +80,12 @@ const thermoMat = new THREE.MeshLambertMaterial({ transparent: true, alphaTest: 
 const thermo = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.9), thermoMat);
 thermo.position.set(1.4, 1.65, -ROOM.d / 2 + 0.02);
 scene.add(thermo);
+// 溫度上升時，溫度計後面亮起一圈暖光
+const thermoGlow = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.4),
+  new THREE.MeshBasicMaterial({ map: A.tex(A.glow()), color: '#ffb066', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+thermoGlow.position.set(1.4, 1.65, -ROOM.d / 2 + 0.01);
+thermoGlow.visible = false;
+scene.add(thermoGlow);
 
 // 吧台（實體盒子；大型家具用立體，小擺飾與人物用紙片）
 const wood = new THREE.MeshLambertMaterial({ color: '#8a5a3b' });
@@ -172,18 +184,18 @@ const SEATS = [
   {
     id: 'window', name: '窗邊座',
     eye: new THREE.Vector3(-1.9, 1.15, 0.3), look: new THREE.Vector3(-1.75, 0.85, -3.6),
-    cup: new THREE.Vector3(-2.05, tA.h + 0.02, -0.4), serve: new THREE.Vector3(-1.55, 0, -0.9),
+    cup: new THREE.Vector3(-1.9, tA.h + 0.02, -0.62), serve: new THREE.Vector3(-1.55, 0, -0.9),
     prop: paper(A.chair(), -1.9, 0.15, { name: 'chair' }),
   },
   {
     id: 'bar', name: '吧台座',
     eye: new THREE.Vector3(0.75, 1.42, -0.9), look: new THREE.Vector3(2.6, 1.4, -1.6),
-    cup: new THREE.Vector3(1.75, 1.06, -1.0), serve: null,
+    cup: new THREE.Vector3(1.72, 1.06, -1.22), serve: null,
     prop: paper(A.stool(), 1.3, -1.0, { name: 'stool' }),
   },
   {
     id: 'sofa', name: '角落沙發',
-    eye: new THREE.Vector3(-2.05, 1.0, 3.25), look: new THREE.Vector3(1.0, 1.15, -2.4),
+    eye: new THREE.Vector3(-2.05, 1.0, 3.25), look: new THREE.Vector3(1.0, 0.95, -2.4),
     cup: new THREE.Vector3(-1.35, tC.h + 0.02, 2.3), serve: new THREE.Vector3(-0.8, 0, 2.0),
     prop: paper(A.sofa(), -2.1, 3.3, { base: Math.PI * 0.85, clamp: 0.7, name: 'sofa' }),
   },
@@ -230,8 +242,11 @@ brewer.position.set(1.95, TOP, -1.7);
 scene.add(brewer);
 
 // 咖啡杯（每次沖煮做一個新的，端走後留在客人桌上）
+const CUP_SCALE = 1.25; // 原本直徑 8 公分在手機上太不明顯，放大一點
+const CUP_H = 0.07 * CUP_SCALE;
 function makeCup() {
   const g = new THREE.Group();
+  g.scale.setScalar(CUP_SCALE);
   const body = cyl(0.04, 0.034, 0.07, M.ceramic); body.position.y = 0.035;
   const saucer = cyl(0.07, 0.065, 0.008, M.ceramic); saucer.position.y = 0.004;
   const handle = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.005, 8, 16), M.ceramic);
@@ -314,30 +329,51 @@ function updateSteam(dt) {
 }
 
 /* ---------- 溫度與任務 ---------- */
-const state = { temp: 20, tasks: new Set(), sat: new Set(), speed: 1, night: false, mode: 'overview', seat: null, placing: false, selected: null };
+const state = { temp: 20, tasks: new Set(), sat: new Set(), devSpeed: DEV_SPEED, hold: false, night: false, mode: 'overview', seat: null, placing: false, selected: null };
+// 遊戲時間的流速：開發者模式的倍率 × 沖煮中按住畫面的 ×3
+const HOLD_SPEED = 3;
+const speedNow = () => state.devSpeed * (state.hold && brewing ? HOLD_SPEED : 1);
+
+let shownTemp = state.temp; // 畫面上顯示的溫度，會慢慢追上 state.temp
+let drawnTemp = null;
 function drawThermo() {
+  const t = Math.round(shownTemp * 10) / 10;
+  if (t === drawnTemp) return;
+  drawnTemp = t;
   thermoMat.map?.dispose();
-  thermoMat.map = A.tex(A.thermometer(state.temp));
+  thermoMat.map = A.tex(A.thermometer(t));
   thermoMat.needsUpdate = true;
-  $('temp').textContent = state.temp.toFixed(1) + '°C';
+  $('temp').textContent = t.toFixed(1) + '°C';
 }
 drawThermo();
 
-function task(id, label, dT) {
-  if (state.tasks.has(id)) return;
-  state.tasks.add(id);
+// 溫度上升：數字與老溫度計用約兩秒慢慢爬上去，右上角與溫度計輕輕亮一下
+function riseTemp(dT) {
   state.temp += dT;
-  drawThermo();
-  toast(`溫度任務：${label}　+${dT}°C`);
+  const from = shownTemp, to = state.temp;
+  const badge = $('temp');
+  badge.classList.remove('rise');
+  void badge.offsetWidth; // 重新觸發 CSS 動畫
+  badge.classList.add('rise');
+  thermoGlow.visible = true;
+  let t = 0;
+  realWaiters.push((dt) => {
+    t += dt;
+    const k = Math.min(1, t / 2);
+    shownTemp = from + (to - from) * ease(k);
+    thermoGlow.material.opacity = Math.sin(Math.PI * Math.min(1, t / 3)) * 0.85;
+    drawThermo();
+    if (t >= 3) { thermoGlow.visible = false; return true; }
+    return false;
+  });
 }
 
-let toastTimer;
-function toast(msg) {
-  const t = $('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+// 完成溫度任務：不跳任務清單，由角色的反應帶出（反應由呼叫端安排）
+function task(id, dT) {
+  if (state.tasks.has(id)) return false;
+  state.tasks.add(id);
+  riseTemp(dT);
+  return true;
 }
 
 /* ---------- 對話泡泡（只用在角色說話） ---------- */
@@ -353,14 +389,15 @@ function say(text, ms = 3500, who = deshu) {
   if (ms) bubbleTimer = setTimeout(() => bubble.classList.remove('show'), ms);
 }
 
-const waiters = [];
+const waiters = []; // 依遊戲時間推進（會被快轉、按住加速）
+const realWaiters = []; // 依真實時間推進（介面動畫）
 const wait = (sec) => animate(sec, () => {});
 // 依遊戲時間推進的補間動畫；fn 收到 0→1 的進度
 function animate(sec, fn) {
   return new Promise((r) => {
     let t = 0;
     waiters.push((dt) => {
-      t += dt * state.speed;
+      t += dt * speedNow();
       const k = Math.min(1, t / sec);
       fn(k);
       if (k >= 1) { r(); return true; }
@@ -374,7 +411,7 @@ function walk(p, to, speed = 0.7) {
   return new Promise((r) => {
     waiters.push((dt) => {
       const d = new THREE.Vector3(to.x - p.position.x, 0, to.z - p.position.z);
-      const step = speed * dt * state.speed;
+      const step = speed * dt * speedNow();
       if (d.length() <= step) { p.position.x = to.x; p.position.z = to.z; r(); return true; }
       d.setLength(step);
       p.position.add(d);
@@ -384,9 +421,18 @@ function walk(p, to, speed = 0.7) {
   });
 }
 
+// 「看了一眼」：紙片轉向另一邊一會兒再轉回來，不說話
+async function glance(p, sec = 1.6) {
+  const m = p.userData.mesh;
+  await animate(0.35, (k) => { m.scale.x = 1 - 2 * ease(k); });
+  await wait(sec);
+  await animate(0.35, (k) => { m.scale.x = -1 + 2 * ease(k); });
+  m.scale.x = 1;
+}
+
 /* ---------- 德叔沖咖啡：用動作呈現，不用文字描述 ---------- */
 // 把手沖壺移到某個目標上方並傾斜
-function moveKettle(target, sec = 1.2) {
+function moveKettle(target, sec = 0.9) {
   const from = kettle.position.clone(), fromRot = kettle.rotation.z;
   const to = target ? target.clone().add(new THREE.Vector3(0.18, 0.2, 0)) : KETTLE_REST.clone();
   const rot = target ? 0.5 : 0;
@@ -399,21 +445,33 @@ function moveKettle(target, sec = 1.2) {
 }
 
 const steamSources = new Set();
+// brewing：從按下沖咖啡到杯子放上桌為止。
+// phase：'wait'（等德叔走回吧台）→ 'brew'（吧台沖煮）→ 'serve'（端過來）
 let brewing = false;
+let phase = null;
+let deshuReturning = null; // 德叔端完杯子走回吧台，是獨立的背景動作
 const cups = [];
 const CLOSE = { pos: new THREE.Vector3(0.95, 1.62, -0.35), look: new THREE.Vector3(2.3, 1.36, -1.65) };
+const WALK = 0.85; // 德叔端杯的走速（公尺／秒）
 
+// 正常速度下吧台沖煮約 19 秒：六個動作都保留，只縮短停頓與注水
 async function brew(seat) {
   if (brewing) return;
   brewing = true;
+  if (deshuReturning) {
+    phase = 'wait';
+    updateUI();
+    await deshuReturning;
+  }
+  phase = 'brew';
   say('好，等我一下。', 2500);
   state.closeup = true;
   cam.yaw = 0; cam.pitch = 0;
-  moveCamera(CLOSE.pos, CLOSE.look);
+  moveCamera(CLOSE.pos, CLOSE.look, 1.2);
   updateUI();
-  await wait(1.6);
+  await wait(1.2);
 
-  const cupTop = CUP_SPOT.clone().add(new THREE.Vector3(0, 0.07, 0));
+  const cupTop = CUP_SPOT.clone().add(new THREE.Vector3(0, CUP_H, 0));
   const dripTop = brewer.position.clone().add(new THREE.Vector3(0, 0.19, 0));
   const cupSteam = cupTop.clone().add(new THREE.Vector3(0, 0.02, 0));
   const dripSteam = dripTop.clone();
@@ -423,30 +481,30 @@ async function brew(seat) {
   await moveKettle(cupTop);
   stream.visible = true;
   steamSources.add(cupSteam);
-  await animate(2.2, () => updateStream(cupTop.y));
+  await animate(1.6, () => updateStream(cupTop.y));
   stream.visible = false;
-  await moveKettle(null, 1);
+  await moveKettle(null, 0.7);
   setPaper(deshu, deshuCanvas.idle);
 
   // 2. 磨豆：把手轉動，濾杯裡的粉慢慢堆起來
-  await wait(0.6);
+  await wait(0.3);
   setPaper(deshu, deshuCanvas.pour);
-  await animate(4.5, (k) => {
-    gHandle.rotation.y = k * Math.PI * 14;
-    grinder.position.x = 2.05 + Math.sin(k * 90) * 0.002;
+  await animate(3.0, (k) => {
+    gHandle.rotation.y = k * Math.PI * 10;
+    grinder.position.x = 2.05 + Math.sin(k * 60) * 0.002;
     groundsBed.scale.y = Math.max(0.01, k);
   });
   setPaper(deshu, deshuCanvas.idle);
-  await wait(0.6);
+  await wait(0.3);
 
   // 3. 悶蒸：少量注水，粉層膨脹冒泡
   setPaper(deshu, deshuCanvas.pour);
   await moveKettle(dripTop);
   stream.visible = true;
-  await animate(1.4, (k) => { updateStream(dripTop.y - 0.04); bloom.scale.set(k * 0.8, k * 0.5, k * 0.8); });
+  await animate(1.0, (k) => { updateStream(dripTop.y - 0.04); bloom.scale.set(k * 0.8, k * 0.5, k * 0.8); });
   stream.visible = false;
   steamSources.add(dripSteam);
-  await animate(3.5, (k) => {
+  await animate(2.2, (k) => {
     const b = 0.8 + 0.2 * ease(k);
     bloom.scale.set(b, 0.5 + 0.5 * ease(k), b);
   });
@@ -454,21 +512,21 @@ async function brew(seat) {
   // 4. 注水：手沖壺繞小圈，下壺的咖啡慢慢升起
   stream.visible = true;
   const base = kettle.position.clone();
-  await animate(8, (k) => {
-    const a = k * Math.PI * 8;
+  await animate(4.6, (k) => {
+    const a = k * Math.PI * 6;
     kettle.position.set(base.x + Math.cos(a) * 0.012, base.y, base.z + Math.sin(a) * 0.012);
     updateStream(dripTop.y - 0.04);
     serverLiquid.scale.y = 0.001 + k * 0.085;
     serverLiquid.position.y = serverLiquid.scale.y / 2 + 0.002;
   });
   stream.visible = false;
-  await moveKettle(null, 1);
+  await moveKettle(null, 0.7);
   setPaper(deshu, deshuCanvas.idle);
-  await wait(1);
+  await wait(0.4);
 
   // 5. 倒進杯子
   stationCup.userData.liquid.visible = true;
-  await animate(1.5, (k) => {
+  await animate(1.2, (k) => {
     serverLiquid.scale.y = 0.086 * (1 - k) + 0.001;
     serverLiquid.position.y = serverLiquid.scale.y / 2 + 0.002;
   });
@@ -476,35 +534,29 @@ async function brew(seat) {
   steamSources.delete(dripSteam);
 
   // 6. 端上桌
+  phase = 'serve';
   const cup = stationCup;
   const atSeat = () => state.mode === 'seat' && state.seat === seat;
   state.closeup = false;
-  if (atSeat()) moveCamera(seat.eye, seat.look);
+  if (atSeat()) { cam.yaw = 0; cam.pitch = 0; moveCamera(seat.eye, seat.look); }
   updateUI();
+  const path = [new THREE.Vector3(2.6, 0, 0.6), new THREE.Vector3(1.3, 0, 0.8), seat.serve];
   if (seat.serve) {
     say('好了，我端過去。', 2500);
     deshu.attach(cup);
     cup.position.set(0.32, 0.98, 0.12);
     cup.rotation.set(0, 0, 0);
-    const path = [new THREE.Vector3(2.6, 0, 0.6), new THREE.Vector3(1.3, 0, 0.8), seat.serve];
-    for (const pt of path) await walk(deshu, pt);
+    for (const pt of path) await walk(deshu, pt, WALK);
     deshu.userData.mesh.position.y = 0;
     scene.attach(cup);
     const from = cup.position.clone();
     await animate(0.8, (k) => { cup.position.lerpVectors(from, seat.cup, ease(k)); cup.position.y += Math.sin(Math.PI * k) * 0.05; });
-    cup.rotation.set(0, 0, 0);
-    say('東山的豆，就是窗外那片山。', 4500);
-    await wait(2.5);
-    for (const pt of [new THREE.Vector3(1.3, 0, 0.8), new THREE.Vector3(2.6, 0, 0.6), HOME]) await walk(deshu, pt);
-    deshu.userData.mesh.position.y = 0;
   } else {
     const from = cup.position.clone();
-    await animate(1.2, (k) => cup.position.lerpVectors(from, seat.cup, ease(k)));
-    say('東山的豆，就是窗外那片山。', 4500);
+    await animate(1.2, (k) => { cup.position.lerpVectors(from, seat.cup, ease(k)); cup.position.y += Math.sin(Math.PI * k) * 0.03; });
   }
-  cups.push(cup);
-  cup.userData.steamAt = cup.position.clone().add(new THREE.Vector3(0, 0.09, 0));
-  cup.userData.age = 0;
+  placeCup(cup, seat);
+  say('東山的豆，就是窗外那片山。', 4500);
 
   // 收拾吧台，準備下一杯
   groundsBed.scale.y = 0.01;
@@ -513,15 +565,55 @@ async function brew(seat) {
   stationCup.position.copy(CUP_SPOT);
   scene.add(stationCup);
 
-  task('first-coffee', '第一次坐下喝德叔的咖啡', 0.5);
+  // 杯子上桌就算數：沖咖啡結束、按鈕恢復，溫度在這一刻上升
   brewing = false;
+  phase = null;
+  state.hold = false;
   updateUI();
+  const firstCup = task('first-coffee', 0.5);
+
+  // 德叔走回吧台：背景動作，期間再按沖咖啡會等他回到吧台
+  deshuReturning = (async () => {
+    await wait(firstCup ? 2.6 : 1.8);
+    if (firstCup) await glance(deshu); // 劇本：「德叔看了一眼溫度計，沒說話。」
+    if (seat.serve) {
+      for (const pt of [path[1], path[0], HOME]) await walk(deshu, pt, WALK);
+      deshu.userData.mesh.position.y = 0;
+    }
+    deshuReturning = null;
+  })();
 }
 
-function backToSeat() {
-  if (!state.closeup || !state.seat) return;
-  state.closeup = false;
-  moveCamera(state.seat.eye, state.seat.look);
+// 杯子落桌：輕輕一沉一彈、冒一陣熱氣；同一個座位只留最新的一杯
+function placeCup(cup, seat) {
+  for (let i = cups.length - 1; i >= 0; i--) {
+    if (cups[i].userData.seat === seat.id) { scene.remove(cups[i]); cups.splice(i, 1); }
+  }
+  cup.position.copy(seat.cup);
+  cup.rotation.set(0, 0, 0);
+  cup.userData.seat = seat.id;
+  cup.userData.steamAt = cup.position.clone().add(new THREE.Vector3(0, CUP_H + 0.02, 0));
+  cup.userData.age = 0;
+  cups.push(cup);
+  for (let i = 0; i < 4; i++) emitSteam(cup.userData.steamAt);
+  let t = 0;
+  realWaiters.push((dt) => {
+    t += dt;
+    const k = Math.min(1, t / 0.45);
+    const s = 1 - Math.sin(Math.PI * k) * 0.12;
+    cup.scale.set(CUP_SCALE * (2 - s), CUP_SCALE * s, CUP_SCALE * (2 - s));
+    if (k >= 1) { cup.scale.setScalar(CUP_SCALE); return true; }
+    return false;
+  });
+}
+
+// 沖煮中可以在吧台特寫與自己的座位之間切換
+function toggleCloseup() {
+  if (!state.seat) return;
+  state.closeup = !state.closeup;
+  cam.yaw = 0; cam.pitch = 0;
+  if (state.closeup) moveCamera(CLOSE.pos, CLOSE.look);
+  else moveCamera(state.seat.eye, state.seat.look);
   updateUI();
 }
 
@@ -559,8 +651,41 @@ function applyLight() {
 
 /* ---------- 鏡頭 ---------- */
 const OVER = { pos: new THREE.Vector3(-0.3, 11.8, 7.4), look: new THREE.Vector3(0, 0, 0.1) };
+const OVER_DIR = OVER.pos.clone().sub(OVER.look).normalize();
 const cam = { pos: OVER.pos.clone(), look: OVER.look.clone(), yaw: 0, pitch: 0 };
 let tween = null;
+
+// 依畫面寬高比調整俯瞰距離：整間店的地板、後牆的溫度計高度、三個座位標籤，
+// 都要落在上方標題列與下方按鈕之間（直立窄畫面原本會把角落沙發切掉一半）
+const FIT_ROOM = [];
+for (const x of [-ROOM.w / 2, ROOM.w / 2]) for (const z of [-ROOM.d / 2, ROOM.d / 2]) FIT_ROOM.push(new THREE.Vector3(x, 0, z));
+FIT_ROOM.push(new THREE.Vector3(-ROOM.w / 2, 2.1, -ROOM.d / 2), new THREE.Vector3(ROOM.w / 2, 2.1, -ROOM.d / 2));
+const UI_SPACE = { top: 64, bottom: 140, labelW: 62, labelH: 52 }; // 介面佔用的像素（約略）
+function fitOverview() {
+  const w = app.clientWidth, h = app.clientHeight;
+  if (!w || !h) return;
+  const probe = new THREE.PerspectiveCamera(50, w / h, 0.05, 80);
+  const v = new THREE.Vector3();
+  const top = 1 - (2 * UI_SPACE.top) / h, bottom = -1 + (2 * UI_SPACE.bottom) / h;
+  const fits = (d) => {
+    probe.position.copy(OVER.look).addScaledVector(OVER_DIR, d);
+    probe.lookAt(OVER.look);
+    probe.updateMatrixWorld();
+    for (const p of FIT_ROOM) {
+      v.copy(p).project(probe);
+      if (Math.abs(v.x) > 0.96 || v.y > top || v.y < bottom) return false;
+    }
+    for (const s of SEATS) {
+      v.copy(s.prop.position).setY(1.1).project(probe);
+      if (Math.abs(v.x) > 1 - (2 * UI_SPACE.labelW) / w || v.y > top - (2 * UI_SPACE.labelH) / h || v.y < bottom) return false;
+    }
+    return true;
+  };
+  let lo = 6, hi = 60;
+  for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
+  OVER.pos.copy(OVER.look).addScaledVector(OVER_DIR, hi);
+  if (state.mode === 'overview' && !tween) cam.pos.copy(OVER.pos);
+}
 function moveCamera(pos, look, dur = 1.4) {
   tween = { from: cam.pos.clone(), fromLook: cam.look.clone(), to: pos.clone(), toLook: look.clone(), t: 0, dur };
 }
@@ -600,7 +725,8 @@ function sit(seat) {
   updateUI();
   state.sat.add(seat.id);
   if (state.sat.size === 1) setTimeout(() => say('不急，咖啡會等人，人也該等咖啡。'), 1500);
-  if (state.sat.size === SEATS.length) task('all-seats', '每個座位都坐過一次', 1);
+  // 【待定】坐遍三個座位時德叔的一句話（劇本只寫了任務，沒寫台詞）
+  if (state.sat.size === SEATS.length && task('all-seats', 1)) setTimeout(() => say('每張椅子，都認得老闆了。'), 1800);
 }
 
 function stand() {
@@ -630,27 +756,47 @@ function updateUI() {
   $('labels').style.display = over && !state.placing ? '' : 'none';
   $('stand').style.display = over ? 'none' : '';
   $('brew').style.display = over ? 'none' : '';
-  $('brew').disabled = brewing && !state.closeup;
-  $('brew').textContent = !brewing ? '請德叔沖一杯' : state.closeup ? '回座位' : '沖咖啡中…';
+  $('brew').disabled = phase === 'wait' || phase === 'serve';
+  $('brew').textContent = !brewing ? '請德叔沖一杯'
+    : phase === 'wait' ? '德叔走回吧台…'
+    : phase === 'serve' ? '德叔端過來了'
+    : state.closeup ? '回座位' : '看德叔沖';
   $('place').style.display = over ? '' : 'none';
   $('place').textContent = state.placing ? '完成佈置' : '佈置';
   $('hint').textContent = over
     ? (state.placing ? (state.selected ? `已選：${state.selected.userData.name}，點地板放到那裡` : '點一件擺飾，再點地板移動它') : '點座位坐下，用客人的角度看看這間店')
-    : state.closeup ? '德叔正在沖你的咖啡' : '左右拖曳環顧四周，點人物可以搭話';
+    : brewing ? (state.hold ? '時間走快了一點……' : '按住畫面可以讓時間走快一點')
+    : '左右拖曳環顧四周，點人物可以搭話';
 }
 
 $('stand').onclick = stand;
-$('brew').onclick = () => { if (state.closeup) backToSeat(); else if (state.seat) brew(state.seat); };
+$('brew').onclick = () => { if (phase === 'brew') toggleCloseup(); else if (!brewing && state.seat) brew(state.seat); };
 $('night').onclick = () => { state.night = !state.night; applyLight(); };
 $('place').onclick = () => {
   state.placing = !state.placing;
   select(null);
   updateUI();
 };
+// 測試用的快轉鈕只在開發者模式出現
+const speedLabel = () => (state.devSpeed === 1 ? '正常速度' : `快轉 ×${state.devSpeed}`);
+$('speed').hidden = !DEV;
+$('speed').textContent = speedLabel();
 $('speed').onclick = () => {
-  state.speed = state.speed === 1 ? 4 : 1;
-  $('speed').textContent = state.speed === 1 ? '正常速度' : '快轉 ×4';
+  state.devSpeed = state.devSpeed === 1 ? (DEV_SPEED > 1 ? DEV_SPEED : 4) : 1;
+  $('speed').textContent = speedLabel();
 };
+
+/* ---------- 選單：關於（開發者資訊）；之後的設定也放這裡 ---------- */
+const about = $('about');
+function openAbout(open) {
+  about.hidden = !open;
+  $('menu-btn').setAttribute('aria-expanded', String(open));
+  if (open) $('about-close').focus();
+}
+$('menu-btn').onclick = () => openAbout(about.hidden);
+$('about-close').onclick = () => openAbout(false);
+about.addEventListener('click', (e) => { if (e.target === about) openAbout(false); }); // 點面板外面關閉
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !about.hidden) openAbout(false); });
 
 function select(p) {
   if (state.selected) state.selected.userData.mesh.material.color.set('#ffffff');
@@ -663,9 +809,18 @@ function select(p) {
 const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 let down = null;
+// 沖煮中按住畫面：德叔的動作 ×3，放開恢復
+function setHold(on) {
+  on = on && brewing;
+  if (state.hold === on) return;
+  state.hold = on;
+  updateUI();
+}
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  down = { x: e.clientX, y: e.clientY, t: performance.now(), yaw: cam.yaw, pitch: cam.pitch };
+  down = { x: e.clientX, y: e.clientY, t: performance.now(), yaw: cam.yaw, pitch: cam.pitch, held: brewing };
+  setHold(true);
 });
+for (const ev of ['pointerup', 'pointercancel', 'blur']) window.addEventListener(ev, () => setHold(false));
 renderer.domElement.addEventListener('pointermove', (e) => {
   if (!down) return;
   const dx = e.clientX - down.x, dy = e.clientY - down.y;
@@ -679,8 +834,9 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!down) return;
   const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+  const longHold = down.held && performance.now() - down.t > 400; // 按住加速後放開，不算點擊
   down = null;
-  if (moved > 10) return;
+  if (moved > 10 || longHold) return;
   const rect = renderer.domElement.getBoundingClientRect();
   ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
@@ -696,7 +852,8 @@ renderer.domElement.addEventListener('pointerup', (e) => {
       if (x > 1.45 && z < 0.4) x = 1.45; // 不能放進吧台
       state.selected.position.x = x;
       state.selected.position.z = z;
-      task('first-decor', '第一次調整店裡的擺設', 0.5);
+      // 劇本任務 #2「擺上第一件擺飾」；階段 2 有倉庫與購買後改成真的「擺上」
+      if (task('first-decor', 0.5)) say('這個放這裡，從吧台看過去剛好。');
       select(null);
     }
   }
@@ -726,14 +883,19 @@ function talkTo(r) {
 /* ---------- 主迴圈 ---------- */
 let last = performance.now();
 const tmp = new THREE.Vector3();
-function project(pos, el, yOff = 0) {
+const clampN = THREE.MathUtils.clamp;
+// 把 3D 位置投影成畫面上的標籤或泡泡；座位標籤與泡泡都夾在畫面內，不會被切掉
+function project(pos, el, yOff = 0, pinned = false) {
   tmp.copy(pos); tmp.y += yOff;
   tmp.project(camera);
-  const visible = tmp.z < 1 && Math.abs(tmp.x) < 1.15 && Math.abs(tmp.y) < 1.15;
+  const W = app.clientWidth, H = app.clientHeight;
+  const visible = tmp.z < 1 && (pinned || (Math.abs(tmp.x) < 1.15 && Math.abs(tmp.y) < 1.15));
   el.style.opacity = visible ? '' : '0';
-  let x = ((tmp.x + 1) / 2) * app.clientWidth;
-  if (el === bubble) { const half = el.offsetWidth / 2 + 8; x = Math.min(Math.max(x, half), app.clientWidth - half); } // 泡泡不要超出畫面
-  el.style.transform = `translate(-50%,-100%) translate(${x}px, ${((1 - tmp.y) / 2) * app.clientHeight}px)`;
+  const half = el.offsetWidth / 2 + 8;
+  const x = clampN(((tmp.x + 1) / 2) * W, half, W - half);
+  let y = ((1 - tmp.y) / 2) * H;
+  y = clampN(y, el.offsetHeight + UI_SPACE.top, pinned ? H - UI_SPACE.bottom : H);
+  el.style.transform = `translate(-50%,-100%) translate(${x}px, ${y}px)`;
 }
 
 let steamAcc = 0;
@@ -742,6 +904,7 @@ function loop() {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
   for (let i = waiters.length - 1; i >= 0; i--) if (waiters[i](dt)) waiters.splice(i, 1);
+  for (let i = realWaiters.length - 1; i >= 0; i--) if (realWaiters[i](dt)) realWaiters.splice(i, 1);
   updateCamera(dt);
   faceCamera();
   // 龍眼睡覺時的呼吸
@@ -757,7 +920,7 @@ function loop() {
   updateSteam(dt);
   lampLight.position.set(lamp.position.x, 1.5, lamp.position.z);
   if (speaker) project(speaker.position, bubble, HEAD.get(speaker) || 2.0);
-  SEATS.forEach((s, i) => project(s.prop.position, labels[i], 1.1));
+  SEATS.forEach((s, i) => project(s.prop.position, labels[i], 1.1, true));
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
@@ -769,3 +932,25 @@ applyLight();
 updateUI();
 loop();
 setTimeout(() => say('老闆，歡迎回來。', 3500), 800);
+
+// 開發者模式：給冒煙測試讀狀態用（一般玩家不會有這個物件）
+if (DEV) {
+  window.__cafe = {
+    get temp() { return state.temp; },
+    get shownTemp() { return shownTemp; },
+    get brewing() { return brewing; },
+    get phase() { return phase; },
+    get speed() { return speedNow(); },
+    get mode() { return state.mode; },
+    get closeup() { return !!state.closeup; },
+    get tasks() { return [...state.tasks]; },
+    get deshuHome() { return !deshuReturning; },
+    // 某個座位上那杯咖啡在畫面上的位置（相對 #app 的像素）
+    cupOnScreen(seatId) {
+      const c = cups.find((x) => x.userData.seat === seatId);
+      if (!c) return null;
+      const v = c.position.clone().add(new THREE.Vector3(0, CUP_H / 2, 0)).project(camera);
+      return { x: ((v.x + 1) / 2) * app.clientWidth, y: ((1 - v.y) / 2) * app.clientHeight, inFront: v.z < 1 };
+    },
+  };
+}

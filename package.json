@@ -1,0 +1,13 @@
+{
+  "name": "dream-cafe",
+  "private": true,
+  "description": "我單方面辭退老闆後，開了一間夢想中的咖啡店",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/smoke.mjs",
+    "serve": "node tests/serve.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0"
+  }
+}
