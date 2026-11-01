@@ -739,7 +739,10 @@ const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 let sayEnds = 0; // 這句話什麼時候說完（老先生的信要等店裡安靜下來才交）
 // who：說話的人的紙片，或 'player'（老闆自己說的話，泡泡固定在畫面下方）；name：覆寫泡泡上的名字
 function say(text, ms = 3500, who = deshu, name = null) {
+  if (!String(text ?? '').trim()) { bubble.classList.remove('show'); return; } // 沒有字的泡泡不畫
   speaker = who;
+  // 對話中（熟客的場景、客人模式的聊天）：說話的人轉進畫面裡
+  if (conversing() && state.mode === 'seat' && !state.closeup && who && who !== 'player' && who.visible && isPerson(who) && who !== focusP) lookToward(who, 2.3);
   sayEnds = performance.now() + (ms || 4000);
   bubble.classList.toggle('me', who === 'player');
   bubble.innerHTML = `<b>${name ?? (who === 'player' ? '你' : nameOf(who))}</b>${esc(text)}`; // 台詞可能帶著玩家自己寫的名字
@@ -867,7 +870,8 @@ let brewing = false;
 let phase = null;
 let deshuReturning = null; // 德叔端完杯子走回吧台，是獨立的背景動作
 const cups = [];
-const CLOSE = { pos: new THREE.Vector3(0.95, 1.62, -0.35), look: new THREE.Vector3(2.3, 1.36, -1.65) };
+// 看德叔沖：正對吧台，磨豆機、濾杯、杯子排成一列在畫面中間，德叔的臉在上方約 1/3（美術評分修正 a：原本斜看，直立畫面只看得到吧台一角）
+const CLOSE = { pos: new THREE.Vector3(-0.1, 1.55, -1.7), look: new THREE.Vector3(2.6, 1.41, -1.68) };
 const WALK = 0.85; // 德叔端杯的走速（公尺／秒）
 
 // 正常速度下吧台沖煮約 19 秒：六個動作都保留，只縮短停頓與注水
@@ -1250,40 +1254,99 @@ function applyLight() {
 
 /* ---------- 鏡頭 ---------- */
 const OVER = { pos: new THREE.Vector3(-0.3, 11.8, 7.4), look: new THREE.Vector3(0, 0, 0.1) };
-const OVER_DIR = OVER.pos.clone().sub(OVER.look).normalize();
 const cam = { pos: OVER.pos.clone(), look: OVER.look.clone(), yaw: 0, pitch: 0 };
 let tween = null;
 
-// 依畫面寬高比調整俯瞰距離：整間店的地板、後牆的溫度計高度、三個座位標籤，
-// 都要落在上方標題列與下方按鈕之間（直立窄畫面原本會把角落沙發切掉一半）
+// 依可用的高度調整俯瞰鏡頭（美術評分修正 a）：扣掉頂部介面（量出來的，含第二列的「略過開場」與快轉）與底部按鈕列＋提示，
+// 在剩下的範圍裡找最大的房間：仰角在 58°～66° 之間挑一個讓房間最高的，距離用二分法，房間在可用範圍裡垂直置中。
+// 整間店的地板、後牆的溫度計高度、三個座位與它們上方的標籤，都要落在範圍裡（直立窄畫面原本下半部空了一大塊）
 const FIT_ROOM = [];
 for (const x of [-ROOM.w / 2, ROOM.w / 2]) for (const z of [-ROOM.d / 2, ROOM.d / 2]) FIT_ROOM.push(new THREE.Vector3(x, 0, z));
 FIT_ROOM.push(new THREE.Vector3(-ROOM.w / 2, 2.1, -ROOM.d / 2), new THREE.Vector3(ROOM.w / 2, 2.1, -ROOM.d / 2));
-const UI_SPACE = { top: 64, bottom: 140, labelW: 62, labelH: 52 }; // 介面佔用的像素（約略）
+const FIT_FRONT = [1, 3]; // FIT_ROOM 裡地板靠鏡頭（z＝ROOM.d / 2）的兩個角
+// 介面佔用的像素：top＝頂部介面最下緣（measureUi() 量），bottom＝底部按鈕列＋一行提示；labelH＝座位標籤（含小三角）的高度
+const UI_SPACE = { top: 64, bottom: 112, labelW: 48, labelH: 44 };
+const UI_GAP = 8; // 泡泡、標籤和頂部介面之間至少留的距離
+// 量頂部介面的最下緣（相對於 #app）；變了就回傳 true
+function measureUi() {
+  const a = app.getBoundingClientRect();
+  let top = 0;
+  for (const el of document.querySelectorAll('.top, #speed, #op-skip-shop')) {
+    if (el.hidden) continue;
+    const r = el.getBoundingClientRect();
+    if (r.height) top = Math.max(top, r.bottom - a.top);
+  }
+  top = Math.ceil(top) || 64;
+  const changed = top !== UI_SPACE.top;
+  UI_SPACE.top = top;
+  return changed;
+}
+const OVER_BASE = { yaw: Math.atan2(OVER.pos.x - OVER.look.x, OVER.pos.z - OVER.look.z), look: OVER.look.clone() };
+const propTop = (p) => p.userData.mesh.geometry.parameters.height + p.userData.mesh.position.y;
 function fitOverview() {
   const w = app.clientWidth, h = app.clientHeight;
   if (!w || !h) return;
+  measureUi();
   const probe = new THREE.PerspectiveCamera(50, w / h, 0.05, 80);
-  const v = new THREE.Vector3();
-  const top = 1 - (2 * UI_SPACE.top) / h, bottom = -1 + (2 * UI_SPACE.bottom) / h;
-  const fits = (d) => {
-    probe.position.copy(OVER.look).addScaledVector(OVER_DIR, d);
-    probe.lookAt(OVER.look);
-    probe.updateMatrixWorld();
-    for (const p of FIT_ROOM) {
-      v.copy(p).project(probe);
-      if (Math.abs(v.x) > 0.96 || v.y > top || v.y < bottom) return false;
+  const v = new THREE.Vector3(), up = new THREE.Vector3(), right = new THREE.Vector3();
+  const top = 1 - (2 * (UI_SPACE.top + UI_GAP)) / h, bottom = -1 + (2 * UI_SPACE.bottom) / h;
+  const labelUp = (2 * (UI_SPACE.labelH + 10)) / h, labelSide = 1 - (2 * UI_SPACE.labelW) / w;
+  const pts = [...FIT_ROOM];
+  for (const st of SEATS) pts.push(st.prop.position.clone(), st.prop.position.clone().setY(propTop(st.prop)));
+  const look = new THREE.Vector3();
+  // 放好鏡頭（仰角 e、距離 d），把整間店在可用範圍裡垂直置中；回傳是否放得下與房間的高度（NDC）
+  const place = (e, d) => {
+    const dir = new THREE.Vector3(Math.sin(OVER_BASE.yaw) * Math.cos(e), Math.sin(e), Math.cos(OVER_BASE.yaw) * Math.cos(e));
+    look.copy(OVER_BASE.look);
+    let lo = 0, hi = 0, ok = true;
+    for (let it = 0; it < 4; it++) {
+      probe.position.copy(look).addScaledVector(dir, d);
+      probe.lookAt(look);
+      probe.updateMatrixWorld();
+      lo = Infinity; hi = -Infinity; ok = true;
+      pts.forEach((p, i) => {
+        v.copy(p).project(probe);
+        lo = Math.min(lo, v.y); hi = Math.max(hi, v.y);
+        // 地板靠鏡頭的兩個角是空地板：可以切掉一點；其他點（後牆、座位）都要完整在畫面裡
+        if (Math.abs(v.x) > (FIT_FRONT.includes(i) ? 1.1 : 0.96)) ok = false;
+      });
+      right.set(1, 0, 0).applyQuaternion(probe.quaternion);
+      for (const st of SEATS) {
+        const half = st.prop.userData.mesh.geometry.parameters.width / 2;
+        for (const sgn of [-1, 1]) {
+          v.copy(st.prop.position).addScaledVector(right, sgn * half).project(probe);
+          if (Math.abs(v.x) > 0.97) ok = false;
+        }
+      }
+      for (const st of SEATS) {
+        v.copy(st.prop.position).setY(propTop(st.prop)).project(probe);
+        hi = Math.max(hi, v.y + labelUp);
+        if (Math.abs(v.x) > labelSide) ok = false;
+      }
+      if (it === 3) break;
+      // 往上下平移，讓房間（含標籤）的中心對齊可用範圍的中心
+      const shift = ((lo + hi) / 2 - (top + bottom) / 2) * d * Math.tan(THREE.MathUtils.degToRad(25));
+      up.set(0, 1, 0).applyQuaternion(probe.quaternion);
+      look.addScaledVector(up, shift);
     }
-    for (const s of SEATS) {
-      v.copy(s.prop.position).setY(1.1).project(probe);
-      if (Math.abs(v.x) > 1 - (2 * UI_SPACE.labelW) / w || v.y > top - (2 * UI_SPACE.labelH) / h || v.y < bottom) return false;
-    }
-    return true;
+    // 房間看起來多大：地板四個角在畫面上的高度
+    let f0 = Infinity, f1 = -Infinity;
+    for (let i = 0; i < 4; i++) { v.copy(FIT_ROOM[i]).project(probe); f0 = Math.min(f0, v.y); f1 = Math.max(f1, v.y); }
+    return { ok: ok && hi <= top + 0.01 && lo >= bottom - 0.01, span: f1 - f0, dir };
   };
-  let lo = 6, hi = 60;
-  for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
-  OVER.pos.copy(OVER.look).addScaledVector(OVER_DIR, hi);
-  if (state.mode === 'overview' && !tween) cam.pos.copy(OVER.pos);
+  let best = null;
+  for (let deg = 58; deg <= 66; deg += 2) {
+    const e = THREE.MathUtils.degToRad(deg);
+    let lo = 6, hi = 60;
+    for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (place(e, mid).ok) hi = mid; else lo = mid; }
+    const r = place(e, hi);
+    if (r.ok && (!best || r.span > best.span + 0.02)) best = { deg, span: r.span, pos: look.clone().addScaledVector(r.dir, hi), look: look.clone() };
+  }
+  if (!best) return;
+  OVER.deg = best.deg;
+  OVER.pos.copy(best.pos);
+  OVER.look.copy(best.look);
+  if (state.mode === 'overview' && !tween) { cam.pos.copy(OVER.pos); cam.look.copy(OVER.look); }
 }
 function moveCamera(pos, look, dur = 1.4) {
   tween = { from: cam.pos.clone(), fromLook: cam.look.clone(), to: pos.clone(), toLook: look.clone(), t: 0, dur };
@@ -1296,7 +1359,7 @@ function updateCamera(dt) {
     cam.look.lerpVectors(tween.fromLook, tween.toLook, k);
     if (tween.t >= 1) tween = null;
   }
-  const targetFov = state.mode === 'overview' ? 50 : state.closeup ? 52 : 72;
+  const targetFov = state.mode === 'overview' ? 50 : state.closeup ? 52 : state.focus ? FOCUS_FOV : SEAT_FOV;
   if (Math.abs(camera.fov - targetFov) > 0.05) { camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   if (state.mode === 'overview') {
     const off = cam.pos.clone().sub(OVER.look).applyAxisAngle(new THREE.Vector3(0, 1, 0), cam.yaw);
@@ -1320,6 +1383,7 @@ function sit(seat) {
   frontWall.visible = true;
   ceiling.visible = true;
   seat.prop.visible = false;
+  focusP = null; lookTok++;
   moveCamera(seat.eye, seat.look);
   state.satAt = performance.now();
   catShoo(); // 椅子上（或旁邊）睡著龍眼的話，他跳下來讓位
@@ -1354,6 +1418,7 @@ function sit(seat) {
 
 function stand() {
   const seat = state.seat;
+  focusP = null; lookTok++;
   const satSec = ((performance.now() - (state.satAt || performance.now())) / 1000) * DEV_SPEED;
   state.closeup = false;
   state.seat.prop.visible = true;
@@ -1371,7 +1436,7 @@ function stand() {
 const labels = SEATS.map((s) => {
   const b = document.createElement('button');
   b.className = 'seat-label';
-  b.textContent = s.name;
+  b.innerHTML = `<span>${s.name}</span>`;
   b.onclick = () => sit(s);
   $('labels').appendChild(b);
   return b;
@@ -1432,6 +1497,9 @@ function updateUI() {
     : placingHint();
   $('hint').textContent = hint;
   $('hint').hidden = !hint;
+  if (measureUi()) fitOverview(); // 「略過開場」出現或收起：俯瞰鏡頭跟著可用的高度重算
+  endFocus();
+  $('vignette').classList.toggle('on', !!state.focus && state.mode === 'seat' && !state.closeup);
 }
 
 /* ---------- 佈置：移動、倉庫、德叔的型錄 ---------- */
@@ -1837,7 +1905,26 @@ NAMES.set(deshu, '德叔').set(yuan, '予安').set(cat, '龍眼').set(zhe, '阿�
 const WHO = { 德叔: deshu, 予安: yuan, 龍眼: cat, 阿哲: zhe, 凱文: kevin }; // tasks.js 台詞裡的說話者
 const HEAD = new Map([[deshu, 2.0], [cat, 0.5]]);
 // 泡泡的高度：紙片的頭頂（姿勢不同，高度不同）
-const headOf = (p) => (HEAD.get(p) ?? p.userData.mesh.geometry.parameters.height + 0.06) + p.userData.mesh.position.y; // 龍眼睡在書架上、椅子上時泡泡跟著高
+// 美術評分修正 a：圖的上面常有留白（例如坐著的予安），改用圖裡第一列有畫東西的高度，泡泡與對話鏡頭才對得準頭
+const inkCache = new WeakMap();
+function inkTop(img) {
+  if (!img?.getContext) return 0;
+  if (inkCache.has(img)) return inkCache.get(img);
+  let empty = 0;
+  try {
+    const { data } = img.getContext('2d').getImageData(0, 0, img.width, img.height);
+    let row = 0;
+    find: for (; row < img.height; row++) for (let x = 3; x < img.width * 4; x += 16) if (data[row * img.width * 4 + x] > 40) break find;
+    empty = row < img.height ? row / img.height : 0;
+  } catch { empty = 0; }
+  inkCache.set(img, empty);
+  return empty;
+}
+const headOf = (p) => {
+  const m = p.userData.mesh;
+  const h = m.geometry.parameters.height;
+  return (HEAD.get(p) ?? h * (1 - inkTop(m.material.map?.image)) + 0.06) + m.position.y; // 龍眼睡在書架上、椅子上時泡泡跟著高
+};
 const LINES = new Map([
   [deshu, ['不急。', '老闆，今天想坐哪裡？', '水溫九十度，剛好。', '這間店，慢慢會有自己的樣子。']],
 ]);
@@ -2327,19 +2414,80 @@ async function laugh(w) {
 
 // 坐著的時候，鏡頭慢慢轉向說話的人；max：最多轉幾度（客人模式聽人聊天時可以轉過身去看）
 // p 為 null：轉回座位原本的視線（看著自己桌上的杯子）
+// 坐著的時候把視線轉向某個人（p＝null：回到座位原本的方向）。
+// 美術評分修正 a：對話時說話的人要完整入鏡——水平置中、臉放在畫面上方約 1/3（同時算 yaw 與 pitch）；
+// 熟客的場景與客人模式裡，畫面略微推近（FOCUS_FOV）、四周加一點暗角；前景擋住臉的人由 updateOcclusion() 淡掉
+const FOCUS_FOV = 62, SEAT_FOV = 72;
+const FACE_DROP = 0.2; // 臉的中心在頭頂（headOf）往下多少
+let focusP = null;
+let lookTok = 0;
+const isPerson = (p) => p === cat || Object.values(PEOPLE).includes(p);
+const conversing = () => !!state.scene || (!!state.guest && state.guest !== 'enter' && state.guest !== 'sit'); // 客人模式：坐下之後的點單、上桌、聊天
 function lookToward(p, max = 1.2) {
   if (state.mode !== 'seat' || !state.seat || p === undefined) return;
   const s = state.seat;
+  const person = !!p && isPerson(p);
+  focusP = person ? p : null;
+  if (person && conversing()) state.focus = true;
+  $('vignette').classList.toggle('on', !!state.focus && !state.closeup);
   const b = s.look.clone().sub(s.eye), t = p ? p.position.clone().sub(s.eye) : b;
   const yaw = THREE.MathUtils.clamp(wrapAngle(Math.atan2(t.x, t.z) - Math.atan2(b.x, b.z)), -max, max);
+  let pitch = 0;
+  if (person) {
+    const fov = THREE.MathUtils.degToRad(state.focus ? FOCUS_FOV : SEAT_FOV);
+    const fy = p.position.y + headOf(p) - FACE_DROP - s.eye.y;
+    const want = Math.atan2(fy, Math.hypot(t.x, t.z)) - Math.atan((1 / 3) * Math.tan(fov / 2)); // 臉在畫面上方 1/3
+    pitch = THREE.MathUtils.clamp(want - Math.atan2(b.y, Math.hypot(b.x, b.z)), -0.6, 0.5);
+  }
   const from = cam.yaw, fromPitch = cam.pitch;
+  const my = ++lookTok;
   let k = 0;
   realWaiters.push((dt) => {
+    if (my !== lookTok) return true; // 又轉向別人了
     k = Math.min(1, k + dt * 1.2 * DEV_SPEED);
     cam.yaw = from + (yaw - from) * ease(k);
-    cam.pitch = fromPitch * (1 - ease(k));
+    cam.pitch = fromPitch + (pitch - fromPitch) * ease(k);
     return k >= 1;
   });
+}
+// 對話結束（場景演完、客人模式聊完）：推近與暗角收起來，視線回到座位原本的方向
+function endFocus() {
+  if (!state.focus || conversing()) return;
+  state.focus = false;
+  $('vignette').classList.remove('on');
+  if (state.mode === 'seat' && !state.closeup) lookToward(null);
+  focusP = null;
+}
+// 前景的人擋住說話的人的臉：淡成半透明；沒擋住就慢慢恢復
+const occ = new THREE.Vector3();
+function updateOcclusion(dt) {
+  const f = state.mode === 'seat' && !state.closeup && focusP && focusP.visible ? focusP : null;
+  let face = null;
+  const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  if (f) {
+    occ.copy(f.position); occ.y += headOf(f) - FACE_DROP;
+    const d = camera.position.distanceTo(occ);
+    occ.project(camera);
+    if (occ.z < 1) face = { x: occ.x, y: occ.y, d, ry: 0.2 / (d * tanH), rx: 0.16 / (d * tanH * camera.aspect) };
+  }
+  for (const q of [...Object.values(PEOPLE), cat]) {
+    const m = q.userData.mesh, mat = m.material;
+    let target = 1;
+    if (face && q !== f && q.visible) {
+      const prm = m.geometry.parameters;
+      occ.copy(q.position); occ.y += m.position.y + prm.height / 2;
+      const d = camera.position.distanceTo(occ);
+      if (d < face.d - 0.3) {
+        occ.project(camera);
+        const hx = (prm.width * 0.35) / (d * tanH * camera.aspect), hy = (prm.height * 0.45) / (d * tanH); // 圖的四周有留白：只算中間的身體
+        if (occ.z < 1 && Math.abs(occ.x - face.x) < hx + face.rx && Math.abs(occ.y - face.y) < hy + face.ry) target = 0.35;
+      }
+    }
+    if (Math.abs(mat.opacity - target) < 0.005) continue;
+    mat.opacity += (target - mat.opacity) * Math.min(1, dt * 6);
+    if (Math.abs(mat.opacity - target) < 0.005) mat.opacity = target;
+    mat.alphaTest = mat.opacity < 0.99 ? 0.08 : 0.35;
+  }
 }
 
 // 颱風夜：天色一下子暗下來，窗外的雨斜著打，風雨聲
@@ -2379,7 +2527,7 @@ async function playStep(s, tok) {
   switch (s.do) {
     case 'say': { const ms = sayMs(s.text); say(s.text, ms / DEV_SPEED, personOf(s.who), s.name || null); return realWait(ms + 450); }
     case 'wait': return realWait(s.sec * 1000);
-    case 'look': lookToward(personOf(s.who)); return realWait(500);
+    case 'look': lookToward(personOf(s.who), 2.3); return realWait(500); // 和對話時轉向說話的人一樣，可以轉到身後
     case 'pose': setPose(s.who, s.pose); return realWait(350);
     case 'enter': {
       if (S.REGULAR_IDS.includes(s.who)) { S.arrive(save, s.who, today()); live.arrived.add(s.who); }
@@ -3286,6 +3434,69 @@ function project(pos, el, yOff = 0, pinned = false, edge = false) {
   el.style.transform = `translate(-50%,-100%) translate(${x}px, ${y}px)`;
 }
 
+/* ---------- 泡泡與座位標籤的位置（美術評分修正 a） ---------- */
+// 泡泡：頂部介面（標題、溫度、選單、略過開場、快轉）是禁區，上緣至少在介面最下緣往下 8px，左右各留 12px；
+// 尾巴指向說話的人（泡泡被推開、指不到人時不畫尾巴）。
+// 座位標籤：小三角指向家具的上緣；標籤之間、標籤和泡泡之間重疊時往上推（推到介面下緣還是重疊，就改放到下面）。
+const EDGE = 12;
+const sv = new THREE.Vector3();
+const rectHit = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+function placeBubble(W, H) {
+  if (!speaker || !bubble.textContent.trim() || getComputedStyle(bubble).visibility === 'hidden') return null;
+  const bw = bubble.offsetWidth, bh = bubble.offsetHeight;
+  const minTop = UI_SPACE.top + UI_GAP;
+  let x = W / 2, top = minTop, aim = null;
+  if (speaker === 'player') top = H - 120 - bh; // 老闆自己說的話：固定在畫面下方的按鈕上面
+  else {
+    sv.copy(speaker.position); sv.y += headOf(speaker); sv.project(camera);
+    if (sv.z < 1 && Math.abs(sv.x) <= 1.05 && Math.abs(sv.y) <= 1.05) {
+      x = aim = ((sv.x + 1) / 2) * W;
+      top = ((1 - sv.y) / 2) * H - 9 - bh;
+    }
+  }
+  const left = clampN(x - bw / 2, EDGE, W - EDGE - bw);
+  const want = top;
+  top = clampN(top, minTop, H - EDGE - bh - 9);
+  const tail = speaker === 'player' || (aim !== null && Math.abs(top - want) < 2);
+  bubble.classList.toggle('notail', !tail);
+  bubble.style.setProperty('--tail', aim !== null && tail ? `${clampN(aim - left, 18, bw - 18)}px` : '50%');
+  bubble.style.opacity = '';
+  bubble.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  return bubble.classList.contains('show') ? { l: left, t: top, r: left + bw, b: top + bh + 9 } : null;
+}
+function placeLabels(W, H, avoid) {
+  if ($('labels').style.display === 'none') return;
+  const minTop = UI_SPACE.top + UI_GAP, maxBottom = H - UI_SPACE.bottom;
+  const items = SEATS.map((st, i) => {
+    const el = labels[i];
+    // 家具在畫面上的上緣：底部與頂部投影比較高（畫面上比較上面）的那一個
+    sv.copy(st.prop.position).setY(propTop(st.prop)).project(camera);
+    const y1 = ((1 - sv.y) / 2) * H, x = ((sv.x + 1) / 2) * W;
+    sv.copy(st.prop.position).project(camera);
+    const y0 = ((1 - sv.y) / 2) * H;
+    return { el, x, tip: Math.min(y0, y1) - 6, w: el.offsetWidth, h: el.offsetHeight };
+  }).sort((a, b) => b.tip - a.tip); // 從畫面下面的標籤開始放：上面的被推的時候往上走
+  const placed = avoid ? [avoid] : [];
+  for (const it of items) {
+    const left = clampN(it.x - it.w / 2, EDGE, W - EDGE - it.w);
+    let top = clampN(it.tip - it.h, minTop, maxBottom - it.h);
+    let below = false;
+    for (let n = 0; n < 8; n++) {
+      const hit = placed.find((p) => rectHit({ l: left, t: top, r: left + it.w, b: top + it.h }, p));
+      if (!hit) break;
+      if (hit.t - 4 - it.h >= minTop) top = hit.t - 4 - it.h;
+      else { top = hit.b + 4; below = true; }
+    }
+    placed.push({ l: left, t: top, r: left + it.w, b: top + it.h });
+    it.el.classList.toggle('below', below);
+    it.el.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  }
+}
+function layoutOverlays() {
+  const W = app.clientWidth, H = app.clientHeight;
+  placeLabels(W, H, placeBubble(W, H));
+}
+
 // 每 2 秒算一次 FPS；開店前 6 秒（著色器編譯、貼圖上傳）不算；分頁在背景時不算
 function perfTick(raw) {
   PERF.frames++;
@@ -3319,6 +3530,7 @@ function loop() {
   for (let i = realWaiters.length - 1; i >= 0; i--) if (realWaiters[i](dt)) realWaiters.splice(i, 1);
   updateCamera(dt);
   faceCamera(dt);
+  updateOcclusion(dt);
   // 龍眼睡覺時的呼吸
   if (!catBusy) cat.userData.mesh.scale.y = 1 + Math.sin(performance.now() / 900) * 0.03;
   // 予安偶爾低頭打字
@@ -3332,11 +3544,7 @@ function loop() {
     for (const p of steamSources) emitSteam(p);
   }
   updateSteam(dt);
-  if (speaker === 'player') {
-    // 老闆自己說的話：泡泡固定在畫面下方的按鈕上面
-    bubble.style.opacity = '';
-    bubble.style.transform = `translate(-50%,-100%) translate(${app.clientWidth / 2}px, ${app.clientHeight - UI_SPACE.bottom + 20}px)`;
-  } else if (speaker) project(speaker.position, bubble, headOf(speaker), false, true);
+  layoutOverlays();
   // 雨絲往下捲；颱風夜偶爾閃電、吊燈閃一下
   if (state.weather !== 'clear') {
     const tx = state.weather === 'typhoon' ? rainTex.typhoon : rainTex.rain;
@@ -3349,7 +3557,6 @@ function loop() {
   }
   updateLights(dt);
   updateWipe(dt);
-  SEATS.forEach((s, i) => project(s.prop.position, labels[i], 1.1, true));
   if (lightsEl.style.display !== 'none') for (const l of lightLabels) project(l.pos, l.el, 0.12);
   if (sceneHidden()) PERF.skipped++;
   else renderer.render(scene, camera);
@@ -3414,6 +3621,7 @@ if (DEV) {
     get phase() { return phase; },
     get speed() { return speedNow(); },
     get mode() { return state.mode; },
+    get overDeg() { return OVER.deg; },
     get closeup() { return !!state.closeup; },
     get tasks() { return save.tasks.map((d) => d.id); },
     get fund() { return balance(save); },

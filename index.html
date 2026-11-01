@@ -36,8 +36,14 @@
   button.primary { background: var(--ink); color: var(--paper); }
   [hidden] { display: none !important; }
   #speed { position: absolute; top: 68px; right: 12px; min-height: 44px; padding: 8px 12px; font-size: 13px; border-radius: 12px; opacity: .85; }
-  #labels .seat-label { position: absolute; left: 0; top: 0; min-height: 44px; padding: 10px 14px; font-size: 15px; border-radius: 14px;
-    background: rgba(246,239,226,.95); border: 2px solid var(--ink); white-space: nowrap; }
+  /* 座位標籤：看得到的是小一號的牌子＋指向家具的小三角；按得到的範圍仍是 44px（透明的外框） */
+  #labels .seat-label { position: absolute; left: 0; top: 0; min-height: 44px; padding: 0 0 7px; background: none; box-shadow: none; border-radius: 0;
+    display: flex; align-items: flex-end; justify-content: center; white-space: nowrap; }
+  #labels .seat-label span { position: relative; display: block; padding: 5px 10px; font-size: 13px; line-height: 1.3; border-radius: 11px;
+    background: rgba(246,239,226,.96); border: 2px solid var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+  #labels .seat-label span::after { content: ""; position: absolute; left: 50%; bottom: -8px; margin-left: -6px; border: 6px solid transparent;
+    border-top-color: var(--ink); border-bottom: 0; }
+  #labels .seat-label.below span::after { display: none; }
   /* 關於面板：蓋在畫面上，點外面關閉 */
   #about { position: absolute; inset: 0; background: rgba(20,14,10,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 10; }
   #about .card { width: 100%; max-width: 320px; max-height: 100%; overflow-y: auto; touch-action: pan-y; background: var(--paper); border-radius: 18px; padding: 20px 18px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
@@ -90,12 +96,18 @@
   .sheet-row .info span { font-size: 12.5px; opacity: .78; }
   .sheet-row .info small { font-size: 12.5px; color: #7a4a2c; }
   .sheet-row button { flex: none; min-width: 72px; }
+  /* 泡泡：位置由 main.js 的 layoutOverlays() 決定（避開頂部介面與座位標籤）；收起來時淡出後整個不畫 */
   #bubble { position: absolute; left: 0; top: 0; max-width: 220px; background: #fffaf0; border: 2px solid var(--ink);
     border-radius: 14px; padding: 8px 12px; font-size: 14px; line-height: 1.4; pointer-events: none;
-    opacity: 0; transition: opacity .3s; }
-  #bubble.show { opacity: 1; }
-  #bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -8px; border: 8px solid transparent;
+    opacity: 0; visibility: hidden; transition: opacity .2s, visibility 0s .2s; --tail: 50%; }
+  #bubble.show { opacity: 1; visibility: visible; transition: opacity .3s; }
+  #bubble::after { content: ""; position: absolute; left: var(--tail); bottom: -9px; margin-left: -8px; border: 8px solid transparent;
     border-top-color: var(--ink); border-bottom: 0; }
+  #bubble.notail::after { display: none; }
+  /* 對話時的聚焦：畫面略微推近，四周暗一點 */
+  #vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .9s;
+    background: radial-gradient(ellipse 75% 60% at 50% 40%, rgba(0,0,0,0) 55%, rgba(20,12,6,.5) 100%); }
+  #vignette.on { opacity: 1; }
   /* ---------- 階段 3：開場、營業日誌、老先生的信 ---------- */
   :root { --hand: "Kaiti TC", "STKaiti", "BiauKai", "DFKai-SB", "標楷體", "KaiTi", "AR PL UKai TW", serif; }
   #opening { position: absolute; inset: 0; z-index: 20; background: #15171c; color: #f1ece2; overflow: hidden; transition: opacity .9s; }
@@ -137,16 +149,20 @@
   .op-credit a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; justify-content: center; padding: 0 8px; color: inherit; }
   /* 第二幕：信箱與律師信 */
   .op-mailbox { background: #23262d; }
+  /* 辭呈與信箱：內容在畫面裡垂直置中（內容比畫面高時照常從上面開始捲） */
+  .op-office::before, .op-mailbox::before { content: ""; margin-top: auto; }
+  .op-office::after, .op-mailbox::after { content: ""; margin-bottom: auto; }
   .op-box-btn { padding: 0; background: none; box-shadow: none; border-radius: 12px; overflow: hidden; flex: none; }
   .op-box-btn img { display: block; width: 100%; height: auto; }
   .op-box-btn.shake { animation: shake .22s ease-in-out 5; }
   @keyframes shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-1.6deg) translateX(-3px); } 75% { transform: rotate(1.6deg) translateX(3px); } }
-  .op-lawyer { background: #fbf8f1; color: #2a2622; border-radius: 6px; padding: 18px 16px 14px; font-family: "PMingLiU", "MingLiU", "Songti TC", "Noto Serif TC", serif;
-    font-size: 15px; line-height: 1.75; box-shadow: 0 8px 28px rgba(0,0,0,.4); animation: unfold .8s ease-out both; flex: none; }
+  /* 律師信：不透明的紙色卡片配深色字（比照辭呈那張）；展開只動形狀，不從透明淡入，任何時候截圖都看得清楚 */
+  .op-lawyer { background: #fbf8f1; color: #2a2622; border: 1px solid #d9ccb3; border-radius: 6px; padding: 18px 16px 14px; font-family: "PMingLiU", "MingLiU", "Songti TC", "Noto Serif TC", serif;
+    font-size: 15px; line-height: 1.75; box-shadow: 0 8px 28px rgba(0,0,0,.4); animation: unfold .8s ease-out both; flex: none; opacity: 1; transform-origin: 50% 0; }
   .op-lawyer h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: 6px; text-align: center; color: #6c5f50; border-bottom: 3px double #b9ab95; padding-bottom: 6px; font-weight: 600; }
   .op-lawyer p { margin: 0 0 8px; }
   .op-lawyer .key { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6c5f50; margin-top: 6px; }
-  @keyframes unfold { from { opacity: 0; transform: scaleY(.6) translateY(-20px); } to { opacity: 1; transform: none; } }
+  @keyframes unfold { from { transform: scaleY(.82) translateY(-12px); } to { transform: none; } }
   /* 第三幕：175 縣道 */
   .op-road { background: #1f1a22; padding: 0; justify-content: flex-end; }
   .op-road img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 55%; }
@@ -227,6 +243,7 @@
 </head>
 <body>
 <div id="app">
+  <div id="vignette"></div>
   <div class="top">
     <div class="title"><b>東山・第一間店</b><span id="day">開店第 1 天</span></div>
     <div class="top-right">

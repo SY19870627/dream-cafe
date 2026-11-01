@@ -59,12 +59,50 @@ async function labelsInside(page) {
   });
 }
 
+// 美術評分修正 a：泡泡不碰頂部介面（上緣在介面最下緣往下 ≥ 8px、左右各留 12px）；
+// 座位標籤彼此不重疊、也不和泡泡重疊；房間在可用高度裡（地板下緣離按鈕列不遠）
+async function overlayProblems(page) {
+  return page.evaluate(() => {
+    const out = [];
+    const app = document.getElementById('app').getBoundingClientRect();
+    let uiBottom = 0;
+    for (const el of document.querySelectorAll('.top, #speed, #op-skip-shop')) {
+      if (el.hidden) continue;
+      const r = el.getBoundingClientRect();
+      if (r.height) uiBottom = Math.max(uiBottom, r.bottom);
+    }
+    const b = document.getElementById('bubble');
+    const rects = [];
+    if (b.classList.contains('show')) {
+      const r = b.getBoundingClientRect();
+      if (r.top < uiBottom + 8 - 0.5) out.push(`泡泡上緣 ${Math.round(r.top)} 碰到頂部介面（${Math.round(uiBottom)}）`);
+      if (r.left < app.left + 12 - 0.5 || r.right > app.right - 12 + 0.5) out.push('泡泡左右沒有留 12px');
+      if (!b.textContent.trim()) out.push('畫出了空的泡泡');
+      rects.push(['泡泡', r]);
+    }
+    if (document.getElementById('labels').style.display !== 'none') {
+      for (const el of document.querySelectorAll('.seat-label span')) rects.push([el.textContent, el.getBoundingClientRect()]);
+    }
+    for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+      const [n1, a] = rects[i], [n2, c] = rects[j];
+      if (a.left < c.right && c.left < a.right && a.top < c.bottom && c.top < a.bottom) out.push(`「${n1}」和「${n2}」重疊`);
+    }
+    return out;
+  });
+}
+
 try {
   /* ---------- 手機 390×844，開發者模式加速 ---------- */
   console.log('手機 390×844（?dev=1&speed=20）');
   {
     const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
     for (const l of await labelsInside(page)) check(l.ok, `座位標籤「${l.name}」完整顯示`);
+    { const p = await overlayProblems(page); check(p.length === 0, `俯瞰：泡泡不碰頂部介面、標籤和泡泡彼此不重疊 ${p.join('；')}`); }
+    {
+      // 俯瞰鏡頭依可用高度縮放：房間（座位）不會擠在上半部，角落沙發的標籤落在畫面下半部
+      const y = await page.evaluate(() => [...document.querySelectorAll('.seat-label')].find((e) => e.textContent === '角落沙發').getBoundingClientRect().bottom);
+      check(y > 844 * 0.6, `俯瞰：房間填滿直立畫面（角落沙發的標籤在 ${Math.round(y)}px）`);
+    }
     const small = await smallTargets(page);
     check(small.length === 0, `可點目標都 ≥ 44px ${small.length ? JSON.stringify(small) : ''}`);
     check(await page.isVisible('#speed'), '開發者模式顯示快轉鈕');
@@ -271,6 +309,11 @@ try {
     await page.click('#op-env');
     await page.waitForSelector('.op-lawyer');
     check((await page.textContent('.op-lawyer')).includes('若您尚未辭職，請先辭職'), '第二幕：律師信');
+    {
+      // 律師信一出現就是不透明的紙色卡片配深色字（不從透明淡入）
+      const st = await page.evaluate(() => { const e = document.querySelector('.op-lawyer'); const s = getComputedStyle(e); return { o: Number(s.opacity), bg: s.backgroundColor, c: s.color }; });
+      check(st.o === 1 && st.bg === 'rgb(251, 248, 241)' && st.c === 'rgb(42, 38, 34)', `律師信一出現就看得清楚 ${JSON.stringify(st)}`);
+    }
     await page.screenshot({ path: OUT + 'phone-opening-letter.png' });
     await page.click('.op-mailbox #op-next');
     await page.waitForSelector('.op-road.on');
@@ -280,6 +323,7 @@ try {
     check(await page.evaluate(() => window.__cafe.mode === 'door'), '推門進去：鏡頭在門口');
     await page.waitForFunction(() => window.__cafe.tutorial === 'sit', null, { timeout: 10000 });
     check(await page.isHidden('#place') && await page.isVisible('#op-skip-shop'), '第四幕：「先坐。」只留座位，佈置鈕先收起來');
+    { const p = await overlayProblems(page); check(p.length === 0, `第四幕：泡泡與標籤避開「略過開場」與快轉 ${p.join('；')}`); }
     check(!(await cafe('yuanHere')), '開店第 1 天予安還沒來');
     check((await cafe('stored')).length === 0, '初始擺飾還沒送');
     await page.click('.seat-label >> text=窗邊座');
@@ -778,6 +822,7 @@ try {
   {
     const { page, errors } = await open({ width: 1280, height: 720 }, '?dev=1&speed=20&opening=0&regulars=0');
     for (const l of await labelsInside(page)) check(l.ok, `座位標籤「${l.name}」完整顯示`);
+    { const p = await overlayProblems(page); check(p.length === 0, `桌機俯瞰：泡泡與標籤 ${p.join('；')}`); }
     const small = await smallTargets(page);
     check(small.length === 0, `可點目標都 ≥ 44px ${small.length ? JSON.stringify(small) : ''}`);
     await page.screenshot({ path: OUT + 'desktop-overview.png' });

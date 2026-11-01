@@ -771,7 +771,7 @@ export function envelope() {
 
 // 第二幕：租屋處樓下的信箱，一格露出牛皮紙信封
 export function mailboxes() {
-  const W = 3.9, H = 3;
+  const W = 3.9, H = 2.4; // 美術評分修正 a：下方原本有一條很寬的深色地板，裁掉只留一道邊
   const { c, g } = canvas(W, H);
   const bg = g.createLinearGradient(0, 0, 0, H);
   bg.addColorStop(0, '#3a3f4a'); bg.addColorStop(1, '#262a31');
