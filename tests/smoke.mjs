@@ -8,6 +8,8 @@
 // 階段 5：龍眼（睡覺的地方跟著擺飾、跳上老闆的椅子、點太多次走開）、打烊後（最後一杯、關燈、咖啡日記、明天見、重新整理）、
 // 一次客人模式（推門、點單、聽熟客聊天、任務 #17）；三條線的測試裡，予安念稿改由打烊觸發。
 // 階段 6：從 36.5°C 走完徵店長與告別（七段）、第二封信、咖啡地圖、常態店（凱文顧店）與重新整理。
+// 階段 7：聲音（點過畫面後出聲、沖咖啡有磨豆與注水聲、選單的音樂／音量／店裡的聲音）、效能（解析度倍率、貼圖數）、
+// 試玩心得連結、常態店的按鈕寫「請凱文沖一杯」。從新存檔玩到結尾的全流程另見 tests/playthrough.mjs（npm run playthrough）。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -93,6 +95,14 @@ try {
     await page.waitForFunction(() => document.getElementById('temp').textContent === '20.5°C', null, { timeout: 5000 });
     check(true, '右上角溫度爬到 20.5°C');
     await page.waitForTimeout(1200); // 鏡頭回到座位
+    // 階段 7：聲音（WebAudio 合成）與效能
+    const au = await page.evaluate(() => window.__cafe.audio);
+    check(au.started && au.ctx === 'running', `點過畫面之後聲音開始（${au.ctx}）`);
+    check(au.sfx.grind >= 1 && au.sfx.pour >= 3 && au.sfx.pourCup >= 1 && au.sfx.cup >= 1 && au.loops.length === 0, `沖咖啡：磨豆、注水、倒進杯子、杯子上桌都有聲音，沖完就停 ${JSON.stringify(au.sfx)}`);
+    check(au.bars >= 1 && au.want.inShop && au.want.volume === 0, `店裡有背景音樂（${au.bars} 小節），音量預設「小」`);
+    check((await page.evaluate(() => window.__cafe.audioPeak())) < 0.5, '音量小的時候不會爆音');
+    const perf = await page.evaluate(() => window.__cafe.perf);
+    check(perf.ratio <= 2 && perf.ratio >= 1 && perf.textures < 80 && perf.calls < 150, `效能：解析度 ×${perf.ratio}、貼圖 ${perf.textures} 張、每幀繪製 ${perf.calls} 次`);
     const cup = await page.evaluate(() => window.__cafe.cupOnScreen('window'));
     const band = await page.evaluate(() => {
       const app = document.getElementById('app').getBoundingClientRect();
@@ -114,6 +124,16 @@ try {
     check(links.some(([h]) => h === 'https://github.com/SY19870627') && links.some(([h]) => h === 'https://x.com/nelsonyehfon'), '面板有 GitHub 與 X 連結');
     check(links.every(([, t, r]) => t === '_blank' && r.includes('noopener')), '連結另開分頁（noopener）');
     check((await page.textContent('#about')).includes('SY'), '面板寫著開發者 SY');
+    check(links.some(([h]) => h.startsWith('https://github.com/SY19870627/dream-cafe/issues/new')) && (await page.textContent('#about')).includes('試玩版'), '面板有「留下試玩心得」連結、寫著試玩版');
+    // 聲音的開關：音樂、音量（小 → 中 → 大 → 小）、店裡的聲音；存進存檔
+    check((await page.textContent('#music-toggle')) === '音樂：開' && (await page.textContent('#volume-btn')) === '音量：小' && (await page.textContent('#sound-toggle')) === '店裡的聲音：開', '選單：音樂開、音量小、店裡的聲音開');
+    await page.click('#volume-btn');
+    await page.click('#music-toggle');
+    check((await page.textContent('#volume-btn')) === '音量：中' && (await page.textContent('#music-toggle')) === '音樂：關', '可以調音量、關掉音樂');
+    const st = await page.evaluate(() => ({ s: window.__cafe.settings, a: window.__cafe.audio.want }));
+    check(st.s.volume === 1 && st.s.music === false && st.a.music === false && st.a.volume === 1, '設定存進存檔，聲音跟著變');
+    await page.click('#volume-btn'); await page.click('#volume-btn'); await page.click('#music-toggle');
+    check((await page.textContent('#volume-btn')) === '音量：小' && (await page.textContent('#music-toggle')) === '音樂：開', '音量轉一圈回到「小」、音樂打開');
     check((await smallTargets(page)).length === 0, '面板裡的按鈕與連結都 ≥ 44px');
     await page.screenshot({ path: OUT + 'phone-about.png' });
     await page.mouse.click(box.x + 10, box.y + 10); // 點面板外面
@@ -587,9 +607,10 @@ try {
     await page.waitForFunction(() => window.__cafe.tasks.includes('rain-window'), null, { timeout: 5000 });
     check(true, '雨天坐窗邊喝一杯：溫度任務完成');
     await page.click('#menu-btn');
-    check(await page.isVisible('#sound-toggle') && (await page.textContent('#sound-toggle')).includes('開'), '選單裡可以關掉風雨聲');
+    check(await page.isVisible('#sound-toggle') && (await page.textContent('#sound-toggle')).includes('開'), '選單裡可以關掉店裡的聲音（含風雨聲）');
+    check((await page.evaluate(() => window.__cafe.audio.want.weather)) === 'rain', '雨聲跟著店裡的天氣');
     await page.click('#sound-toggle');
-    check((await page.textContent('#sound-toggle')).includes('關'), '風雨聲：關');
+    check((await page.textContent('#sound-toggle')).includes('關') && (await page.evaluate(() => window.__cafe.audio.want.sfx)) === false, '店裡的聲音：關');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }
@@ -924,6 +945,7 @@ try {
     await page.waitForFunction(() => window.__cafe.brewing, null, { timeout: 5000 });
     await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 20000 });
     check(true, '常態店裡可以請凱文沖一杯');
+    check((await page.textContent('#brew')) === '請凱文沖一杯', '常態店的按鈕寫「請凱文沖一杯」（德叔已經去下一站）');
     await page.click('#stand');
     await page.click('#menu-btn');
     await page.click('#open-notebook');

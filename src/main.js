@@ -9,11 +9,12 @@ import { dayIndex, daysOpen, dateLabel, JUMP_DAY_MS } from './clock.js';
 import { LETTERS, LAWYER_LETTER, letterById, dueLetter, markRead } from './letters.js';
 import { writeJournal, keepPage } from './journal.js';
 import { runOpening } from './opening.js';
-import { weatherOn } from './weather.js';
+import { weatherOn, rainFloorDue, RAIN_HINT } from './weather.js';
 import * as S from './story.js';
 import { catSpotOn, tryNewSpot, placedSet, petCat, jumpsOnChair, PURR, CAT_LINES } from './cat.js';
 import * as H from './afterhours.js';
 import * as F from './farewell.js';
+import { createAudio, VOLUMES, VOLUME_NAMES } from './audio.js';
 
 const PPM = A.SIZES.PPM;
 const $ = (id) => document.getElementById(id);
@@ -51,10 +52,15 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('pagehide', persist);
 setInterval(persist, 60000);
 
+const audio = createAudio(); // 聲音與音樂（src/audio.js）；接到場景的部分見「聲音與音樂」一節
+
 /* ---------- 基本設定 ---------- */
 const app = $('app');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// 效能（階段 7）：解析度最高 2 倍；中低階手機連續幾秒畫不到 40 FPS 時，每次往下降 0.25（最低 1 倍），見 perfTick()
+const PERF = { cap: Math.min(window.devicePixelRatio || 1, 2), ratio: 1, frames: 0, acc: 0, fps: 0, low: 0, since: performance.now(), drops: 0, skipped: 0 };
+PERF.ratio = PERF.cap;
+renderer.setPixelRatio(PERF.ratio);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 app.appendChild(renderer.domElement);
 
@@ -184,6 +190,10 @@ for (const z of [-2.5, -0.7]) {
   scene.add(shade, cord, light);
   pendants.push({ shade, light, level: 1, pos: new THREE.Vector3(2.0, 2.45, z) });
 }
+// 夜裡吧台正面（客人那一側）的補光：吊燈在吧台正上方，正面原本只剩一片暗（階段 7）；跟著吊燈一起開關
+const barFill = new THREE.PointLight('#ffc58a', 0, 3.2, 1.4);
+barFill.position.set(0.9, 1.5, -1.5);
+scene.add(barFill);
 
 /* ---------- 光線 ---------- */
 const hemi = new THREE.HemisphereLight('#dfe8ff', '#a8865f', 1.6);
@@ -212,7 +222,7 @@ function paper(canvas, x, z, opt = {}) {
     group.userData.shadow = s;
   }
   group.position.set(x, 0, z);
-  group.userData = { ...group.userData, mesh, base: opt.base ?? 0, clamp: opt.clamp ?? Math.PI, name: opt.name };
+  group.userData = { ...group.userData, mesh, base: opt.base ?? 0, clamp: opt.clamp ?? Math.PI, name: opt.name, overClamp: !!opt.overClamp };
   scene.add(group);
   papers.push(group);
   return group;
@@ -248,12 +258,25 @@ function removePaper(p) {
 }
 
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
-function faceCamera() {
+// 紙片轉向鏡頭。階段 7 打磨：
+// 1. 俯瞰時店前半部的紙片幾乎是從正上方看，只剩一條線：不靠牆的紙片往後仰一點（鏡頭越高越仰，最多約 27°），坐下時不仰
+// 2. 角落沙發平常只能小角度轉（坐下看起來才自然），俯瞰時整張轉向鏡頭，不再是側面；轉的時候慢慢轉
+function faceCamera(dt = 0) {
+  const over = state.mode === 'overview';
   for (const p of papers) {
     const yaw = Math.atan2(camera.position.x - p.position.x, camera.position.z - p.position.z);
-    const d = THREE.MathUtils.clamp(wrapAngle(yaw - p.userData.base), -p.userData.clamp, p.userData.clamp);
-    p.rotation.y = p.userData.base + d;
+    const clamp = over && p.userData.overClamp ? Math.PI : p.userData.clamp;
+    const d = THREE.MathUtils.clamp(wrapAngle(yaw - p.userData.base), -clamp, clamp);
+    const target = p.userData.base + d;
+    if (p.userData.overClamp && dt) p.rotation.y += wrapAngle(target - p.rotation.y) * Math.min(1, dt * 4);
+    else p.rotation.y = target;
     if (p.userData.shadow) p.userData.shadow.rotation.z = -p.rotation.y; // 影子保持朝地
+    if (p.userData.clamp >= Math.PI - 1e-6 || p.userData.overClamp) {
+      const m = p.userData.mesh;
+      const h = m.geometry.parameters.height * 0.5 + m.position.y;
+      const elev = Math.atan2(camera.position.y - h, Math.hypot(camera.position.x - p.position.x, camera.position.z - p.position.z));
+      m.rotation.x = -THREE.MathUtils.clamp((elev - 0.5) * 0.6, 0, 0.47);
+    }
   }
 }
 
@@ -279,7 +302,7 @@ const SEATS = [
     id: 'sofa', name: '角落沙發',
     eye: new THREE.Vector3(-2.05, 1.0, 3.25), look: new THREE.Vector3(1.0, 0.95, -2.4),
     cup: new THREE.Vector3(-1.35, tC.h + 0.02, 2.3), serve: new THREE.Vector3(-0.8, 0, 2.0),
-    prop: paper(A.sofa(), -2.1, 3.3, { base: Math.PI * 0.85, clamp: 0.7, name: 'sofa' }),
+    prop: paper(A.sofa(), -2.1, 3.3, { base: Math.PI * 0.85, clamp: 0.7, name: 'sofa', overClamp: true }),
   },
 ];
 const stoolMid = paper(A.stool(), 1.3, -2.1);
@@ -509,12 +532,24 @@ function orient(item, x, z) {
 // 新擺出來的東西先找一個空位
 // 先挑靠牆與角落的位置，避開三個座位往前看的視線
 const FREE_SPOTS = [[2.4, 1.6], [-2.5, -2.3], [0.4, -3.5], [2.4, 3.2], [1.2, 3.5], [-0.3, 3.5], [-1.3, -3.4], [0.9, 2.5], [-2.5, 1.4], [0.8, -0.3], [0.3, 0.9], [-0.6, 0.0], [0.2, 2.2], [-0.9, 0.9]];
+// 階段 7：靠牆的家具（書櫃、碗櫥、唱機……）先沿三面牆找空位，不再落到店中間；
+// 高的東西不放在店中間那幾個點（窗邊座、吧台座看出去的視線上），真的沒地方了才放
+const WALL_SPOTS = [[-1.3, -3.6], [0.4, -3.6], [-2.8, 1.5], [2.8, 2.0],
+  ...[-2.4, -0.3, 0.6, 2.2].map((x) => [x, -3.6]), ...[-3.3, -2.3, 1.0, 2.4].map((z) => [-2.8, z]), ...[1.2, 2.8, 3.5].map((z) => [2.8, z])];
+const MID_SPOTS = new Set(['0.8,-0.3', '0.3,0.9', '-0.6,0', '0.2,2.2', '-0.9,0.9']);
 function freeSpot(item, entries) {
   const taken = entries.filter((e) => e.placed);
-  const spots = item.wall ? [[-1.3, -3.6], [0.4, -3.6], [-2.8, 1.5], [2.8, 2.0], ...FREE_SPOTS] : FREE_SPOTS;
-  for (const [x, z] of spots) {
+  const half = artFor(item).width / PPM / 2;
+  const tall = artFor(item).height / PPM > 1.05;
+  const free = (o) => taken.every((e) => {
+    const w = artFor(itemById(e.item)).width / PPM / 2;
+    return Math.hypot(e.x - o.x, e.z - o.z) > Math.max(0.7, half + w * 0.8);
+  });
+  const open = tall ? FREE_SPOTS.filter(([x, z]) => !MID_SPOTS.has(`${x},${z}`)) : FREE_SPOTS;
+  const spots = item.wall ? [...WALL_SPOTS, ...open] : open;
+  for (const [x, z] of [...spots, ...FREE_SPOTS]) {
     const o = orient(item, x, z);
-    if (taken.every((e) => Math.hypot(e.x - o.x, e.z - o.z) > 0.7)) return o;
+    if (free(o)) return o;
   }
   return orient(item, 0.3, 0.9);
 }
@@ -548,6 +583,7 @@ function renderDecor() {
   lampLights.length = 0;
   for (const e of entries()) if (e.placed) decorPapers.set(e, decorPaper(e));
   applyLamps();
+  applySound(); // 擺了黑膠唱機，音樂多一點唱針的沙沙聲
   buildLightLabels();
 }
 
@@ -610,10 +646,27 @@ function weatherToday() {
   if (DEV_WEATHER === 'rain' || DEV_WEATHER === 'typhoon' || DEV_WEATHER === 'clear') return DEV_WEATHER;
   if (state.scene?.id === 'zhe3' || (save.story.typhoonDay && save.story.typhoonDay === today())) return 'typhoon';
   const t = now();
-  return weatherOn(dayIndex(t), new Date(t).getMonth(), seedOf(save));
+  const d = today();
+  if (save.story.rainFloorDay === d) return 'rain';
+  const w = weatherOn(dayIndex(t), new Date(t).getMonth(), seedOf(save));
+  // 保底雨天（weather.js）：「在雨天坐窗邊喝一杯」還沒完成時，隔一陣子老闆在的那天就下雨
+  if (w === 'clear' && save.flags.seenOpening && !keeper() && rainFloorDue({ day: d, done: isDone(save, 'rain-window'), last: save.story.rainFloorDay })) {
+    save.story.rainFloorDay = d;
+    return 'rain';
+  }
+  return w;
 }
 state.weather = weatherToday();
-if (state.weather === 'typhoon') state.night = true;
+// 下班後進店是夜裡的光線（決定 D11、D104）：設定的下班時間（預設 18:00）到清晨 6 點。開場第一次進店照劇本是傍晚，不切。
+// 開發者模式不看時鐘（測試才算得準），用 &night=1 指定
+function afterWork() {
+  if (DEV) return params.get('night') === '1';
+  const d = new Date();
+  const [h, m] = String(save.settings.offWork || '18:00').split(':').map(Number);
+  const mins = d.getHours() * 60 + d.getMinutes();
+  return mins >= (h || 18) * 60 + (m || 0) || mins < 6 * 60;
+}
+if (state.weather === 'typhoon' || (save.flags.seenOpening && afterWork())) state.night = true;
 // 遊戲時間的流速：開發者模式的倍率 × 沖煮中按住畫面的 ×3
 const HOLD_SPEED = 3;
 const speedNow = () => state.devSpeed * (state.hold && brewing ? HOLD_SPEED : 1);
@@ -729,14 +782,55 @@ function animate(sec, fn) {
 }
 const ease = (k) => 0.5 - Math.cos(Math.PI * k) / 2;
 
+// 走路時繞開店裡的擺飾（階段 7）：擺飾當成圓形的障礙，往前看到擋路的就往旁邊偏；
+// 目的地或出發點本身就在某件擺飾旁邊（例如德叔走到唱機旁、龍眼去睡書櫃）時，那一件不算；
+// 走了比直走久很多還沒到（繞不出去），就直接走過去，不會卡住
+function obstacles(from, to) {
+  const out = [];
+  for (const d of decorPapers.values()) {
+    const w = d.userData.mesh.geometry.parameters.width;
+    const r = THREE.MathUtils.clamp(w * 0.28, 0.15, 0.5);
+    const o = { x: d.position.x, z: d.position.z, r };
+    if (Math.hypot(to.x - o.x, to.z - o.z) < r + 0.3 || Math.hypot(from.x - o.x, from.z - o.z) < r + 0.1) continue;
+    out.push(o);
+  }
+  return out;
+}
+const AHEAD = 1.1; // 往前看多遠（公尺）
 function walk(p, to, speed = 0.7) {
+  const obs = obstacles(p.position, to);
+  let budget = (Math.hypot(to.x - p.position.x, to.z - p.position.z) / speed) * 2 + 3; // 遊戲時間（秒）
   return new Promise((r) => {
     waiters.push((dt) => {
       const d = new THREE.Vector3(to.x - p.position.x, 0, to.z - p.position.z);
       const step = speed * dt * speedNow();
-      if (d.length() <= step) { p.position.x = to.x; p.position.z = to.z; r(); return true; }
-      d.setLength(step);
+      const dist = d.length();
+      if (dist <= step) { p.position.x = to.x; p.position.z = to.z; r(); return true; }
+      budget -= dt * speedNow();
+      d.divideScalar(dist);
+      if (obs.length && budget > 0) {
+        const px = -d.z, pz = d.x; // 往左的垂直方向
+        let sx = 0, sz = 0;
+        for (const o of obs) {
+          const rx = o.x - p.position.x, rz = o.z - p.position.z;
+          const along = rx * d.x + rz * d.z;
+          if (along < -o.r || along > Math.min(dist, AHEAD) + o.r) continue;
+          const lat = rx * px + rz * pz; // 障礙在左邊為正
+          const clear = o.r + 0.18;
+          if (Math.abs(lat) >= clear) continue;
+          const side = lat >= 0 ? -1 : 1;
+          const k = ((clear - Math.abs(lat)) / clear) * (1 - Math.max(0, along) / (AHEAD + o.r)) * 2.2;
+          sx += px * side * k; sz += pz * side * k;
+        }
+        d.x += sx; d.z += sz;
+        d.normalize();
+      }
+      d.multiplyScalar(step);
       p.position.add(d);
+      if (budget > 0) for (const o of obs) { // 還是撞進去了：推回邊緣
+        const ox = p.position.x - o.x, oz = p.position.z - o.z, od = Math.hypot(ox, oz);
+        if (od < o.r && od > 1e-4) { p.position.x = o.x + (ox / od) * o.r; p.position.z = o.z + (oz / od) * o.r; }
+      }
       p.userData.mesh.position.y = Math.abs(Math.sin(performance.now() / 160)) * 0.03; // 走路時輕微起伏
       return false;
     });
@@ -817,7 +911,9 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   await moveKettle(cupTop);
   stream.visible = true;
   steamSources.add(cupSteam);
+  audio.start('pour');
   await animate(1.6, () => updateStream(cupTop.y));
+  audio.stop('pour');
   stream.visible = false;
   await moveKettle(null, 0.7);
   setPaper(deshu, deshuCanvas.idle);
@@ -825,11 +921,13 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   // 2. 磨豆：把手轉動，濾杯裡的粉慢慢堆起來
   await wait(0.3);
   setPaper(deshu, deshuCanvas.pour);
+  audio.start('grind');
   await animate(3.0, (k) => {
     gHandle.rotation.y = k * Math.PI * 10;
     grinder.position.x = 2.05 + Math.sin(k * 60) * 0.002;
     groundsBed.scale.y = Math.max(0.01, k);
   });
+  audio.stop('grind');
   setPaper(deshu, deshuCanvas.idle);
   await wait(0.3);
 
@@ -837,7 +935,9 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   setPaper(deshu, deshuCanvas.pour);
   await moveKettle(dripTop);
   stream.visible = true;
+  audio.start('pour');
   await animate(1.0, (k) => { updateStream(dripTop.y - 0.04); bloom.scale.set(k * 0.8, k * 0.5, k * 0.8); });
+  audio.stop('pour');
   stream.visible = false;
   steamSources.add(dripSteam);
   await animate(2.2, (k) => {
@@ -848,6 +948,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   // 4. 注水：手沖壺繞小圈，下壺的咖啡慢慢升起
   stream.visible = true;
   const base = kettle.position.clone();
+  audio.start('pour');
   await animate(4.6, (k) => {
     const a = k * Math.PI * 6;
     kettle.position.set(base.x + Math.cos(a) * 0.012, base.y, base.z + Math.sin(a) * 0.012);
@@ -855,6 +956,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
     serverLiquid.scale.y = 0.001 + k * 0.085;
     serverLiquid.position.y = serverLiquid.scale.y / 2 + 0.002;
   });
+  audio.stop('pour');
   stream.visible = false;
   await moveKettle(null, 0.7);
   setPaper(deshu, deshuCanvas.idle);
@@ -862,10 +964,12 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
 
   // 5. 倒進杯子
   stationCup.userData.liquid.visible = true;
+  audio.start('pourCup');
   await animate(1.2, (k) => {
     serverLiquid.scale.y = 0.086 * (1 - k) + 0.001;
     serverLiquid.position.y = serverLiquid.scale.y / 2 + 0.002;
   });
+  audio.stop('pourCup');
   steamSources.delete(cupSteam);
   steamSources.delete(dripSteam);
 
@@ -943,6 +1047,7 @@ function placeCup(cup, seat) {
   cup.userData.steamAt = cup.position.clone().add(new THREE.Vector3(0, CUP_H + 0.02, 0));
   cup.userData.age = 0;
   cups.push(cup);
+  audio.play('cup', { enamel: !!cup.userData.enamel });
   for (let i = 0; i < 4; i++) emitSteam(cup.userData.steamAt);
   let t = 0;
   realWaiters.push((dt) => {
@@ -1140,6 +1245,7 @@ function applyLight() {
   scene.background = new THREE.Color(n ? '#13151d' : '#ece2d0');
   renderer.toneMappingExposure = n ? 1.15 : 1.0;
   $('night').textContent = n ? '夜晚 2700K' : '白天 5200K';
+  applySound();
 }
 
 /* ---------- 鏡頭 ---------- */
@@ -1273,6 +1379,7 @@ const labels = SEATS.map((s) => {
 
 const show = (id, on) => { $(id).hidden = !on; };
 function updateUI() {
+  applySound(); // 音樂跟著店裡的狀態（打烊後、明天見之後）；只有變了才會動
   const over = state.mode === 'overview';
   const placing = state.placing, sel = !!state.selected;
   // 演出中（讀信後的鏡頭、推門進店、熟客的里程碑、客人模式、打烊時客人離開）：下面的按鈕都先收起來；有選項時只留選項
@@ -1305,10 +1412,11 @@ function updateUI() {
   show('p-revert', placing);
   show('p-done', placing);
   $('brew').disabled = phase === 'wait' || phase === 'serve';
-  $('brew').textContent = !brewing ? '請德叔沖一杯'
-    : phase === 'wait' ? '德叔走回吧台…'
-    : phase === 'serve' ? '德叔端過來了'
-    : state.closeup ? '回座位' : '看德叔沖';
+  const bar = keeper() ? '凱文' : '德叔'; // 離開東山之後，吧台後面是凱文
+  $('brew').textContent = !brewing ? `請${bar}沖一杯`
+    : phase === 'wait' ? `${bar}走回吧台……`
+    : phase === 'serve' ? `${bar}端過來了`
+    : state.closeup ? '回座位' : `看${bar}沖`;
   $('day').textContent = `開店第 ${today()} 天`;
   // 打烊後沒有任何提示（企劃：沒有任何任務）；沖煮中的「按住畫面」與佈置的操作說明照常
   const hint = choosing ? state.choicePrompt || ''
@@ -1597,6 +1705,11 @@ notebook.addEventListener('click', (e) => { if (e.target === notebook) openNoteb
 
 // 開發者工具：跳天數、加基金、重置存檔（只在 ?dev=1 出現）
 show('dev-tools', DEV);
+// 開發者工具：畫面效能（FPS、解析度倍率、每幀繪製次數、貼圖數）
+function refreshPerfLine() {
+  const m = renderer.info;
+  $('dev-perf').textContent = `${Math.round(PERF.fps)} FPS・解析度 ×${PERF.ratio}（上限 ×${PERF.cap}）・繪製 ${m.render.calls} 次・貼圖 ${m.memory.textures} 張`;
+}
 function refreshDevTools() {
   if (!DEV) return;
   const prog = S.REGULAR_IDS.map((w) => `${S.REGULARS[w].short} ${save.regulars[w].milestones.length}/6`).join('・');
@@ -1761,9 +1874,10 @@ const DOOR = { from: new THREE.Vector3(0.1, 1.6, 3.9), to: new THREE.Vector3(0.4
 let tutToken = 0; // 略過時讓還在等的段落作廢
 
 function startOpening() {
-  const op = runOpening({ root: $('opening'), save, persist, art: A, speed: DEV_SPEED });
+  const op = runOpening({ root: $('opening'), save, persist, art: A, speed: DEV_SPEED, sound: { stage: () => applySound(), play: (n) => audio.play(n) } });
   op.done.then(({ lines }) => enterShop(lines));
   openingCtl = op;
+  applySound();
 }
 let openingCtl = null;
 
@@ -1776,6 +1890,7 @@ async function enterShop(lines) {
   cam.yaw = 0; cam.pitch = 0;
   cam.pos.copy(DOOR.from); cam.look.copy(DOOR.look);
   moveCamera(DOOR.to, DOOR.look, 2.6); // 推門進去，往吧台走兩步
+  audio.play('door'); audio.play('bell');
   updateUI();
   await realWait(1700);
   // 劇本第三幕：吧台後的人抬頭
@@ -2083,6 +2198,7 @@ async function enterPerson(w, spot, walkPose, thenPose, fast) {
   setPose(w, walkPose || (w === 'kevin' ? 'walk' : 'stand'));
   p.position.copy(DOOR_IN);
   p.visible = true;
+  if (!(w === 'grandpa' && PEOPLE.zhe.visible && PEOPLE.zhe.position.distanceTo(DOOR_IN) < 1)) audio.play('bell'); // 有人推門進來（阿公跟在阿哲後面，鈴只響一次）
   await walkPath(p, route(DOOR_IN, spot.pos), walkSpeed(w, fast));
   if (tok !== live.token) return; // 走到一半換了一天（開發者跳天數）
   settle(w, spot);
@@ -2108,7 +2224,7 @@ async function leavePerson(w) {
   setPose(w, w === 'kevin' ? 'walk' : w === 'grandpa' ? 'stand' : poses[w]);
   const tok = live.token;
   await walkPath(p, route(p.position, DOOR_IN), walkSpeed(w));
-  if (tok === live.token) p.visible = false;
+  if (tok === live.token) { p.visible = false; if (w !== 'grandpa') audio.play('bell'); }
 }
 function removeGuestCup(w) {
   const c = live.cups.get(w);
@@ -2188,6 +2304,7 @@ async function catTo(w, lap) {
 // 德叔把音樂調小：走到黑膠唱機或收音機旁（沒有的話就是吧台後面的音響），音符縮小、淡掉
 const noteTex = A.tex(A.note());
 async function musicDown() {
+  audio.duck(0.35, 120); // 真的把音樂調小
   const src = [...decorPapers.values()].find((d) => d.userData.item.id === 'record-player' || d.userData.item.id === 'radio');
   const pos = src ? src.position.clone() : V2(2.85, -1.6);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: noteTex, transparent: true, depthWrite: false }));
@@ -2614,6 +2731,7 @@ async function keeperArrive() {
   tween = null;
   cam.pos.copy(DOOR.from); cam.look.copy(DOOR.look);
   moveCamera(DOOR.to, DOOR.look, 2.6);
+  audio.play('door'); audio.play('bell');
   await realWait(1700);
   const f = F.fw(save);
   const lines = f.keeperGreeted ? [F.KEEPER.greet[Math.floor(Math.random() * F.KEEPER.greet.length)]] : F.KEEPER.firstGreet;
@@ -2690,45 +2808,32 @@ function devToFarewell() {
 }
 $('dev-fw').onclick = devToFarewell;
 
-/* ---------- 風雨聲（WebAudio 即時合成，不用音檔；預設很小聲，選單裡可以關） ---------- */
-const sound = { ctx: null };
-function audioInit() {
-  if (sound.ctx || !window.AudioContext) return;
-  try {
-    const ctx = new AudioContext();
-    const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-    const src = ctx.createBufferSource();
-    src.buffer = buf; src.loop = true;
-    const master = ctx.createGain(); master.gain.value = 0; master.connect(ctx.destination);
-    const rainF = ctx.createBiquadFilter(); rainF.type = 'bandpass'; rainF.frequency.value = 2400; rainF.Q.value = 0.5;
-    const rainG = ctx.createGain(); rainG.gain.value = 0;
-    src.connect(rainF).connect(rainG).connect(master);
-    const windF = ctx.createBiquadFilter(); windF.type = 'lowpass'; windF.frequency.value = 420;
-    const windG = ctx.createGain(); windG.gain.value = 0;
-    src.connect(windF).connect(windG).connect(master);
-    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.12; // 一陣一陣的風
-    const lfoG = ctx.createGain(); lfoG.gain.value = 0;
-    lfo.connect(lfoG).connect(windG.gain);
-    lfo.start(); src.start();
-    Object.assign(sound, { ctx, master, rainG, windG, lfoG });
-  } catch { sound.ctx = null; }
-}
-const soundKind = () => (save.settings.sound ? (state.weather === 'typhoon' ? 'typhoon' : state.weather === 'rain' ? 'rain' : null) : null);
+/* ---------- 聲音與音樂（src/audio.js：WebAudio 即時合成，不用音檔；預設音量小，選單裡可以分別關掉） ---------- */
+// 音樂只在店裡（開場的辦公室沒有音樂，推門進店才開始）；打烊後換成更慢、更暗的版本；「明天見」之後安靜下來
+const audioScene = () => ({
+  music: !!save.settings.music,
+  sfx: !!save.settings.sound,
+  volume: save.settings.volume,
+  weather: state.weather,
+  night: state.night,
+  closingStyle: !!state.closing || state.night,
+  vinyl: [...decorPapers.values()].some((d) => d.userData.item.id === 'record-player'),
+  inShop: (!openingCtl || openingCtl.stage === 'shop') && (save.flags.seenOpening || !!openingCtl) && $('closed').hidden,
+  office: openingCtl?.stage === 'office',
+});
+let audioKey = '';
 function applySound() {
-  const kind = soundKind();
-  if (kind) audioInit();
-  if (!sound.ctx) return;
-  if (kind && sound.ctx.state === 'suspended') sound.ctx.resume().catch(() => {});
-  const t = sound.ctx.currentTime;
-  sound.master.gain.setTargetAtTime(kind ? 0.5 : 0, t, 0.8);
-  sound.rainG.gain.setTargetAtTime(kind === 'typhoon' ? 0.16 : kind === 'rain' ? 0.07 : 0, t, 0.8);
-  sound.windG.gain.setTargetAtTime(kind === 'typhoon' ? 0.32 : 0, t, 0.8);
-  sound.lfoG.gain.setTargetAtTime(kind === 'typhoon' ? 0.22 : 0, t, 0.8);
+  const sc = audioScene();
+  const k = JSON.stringify(sc);
+  if (k === audioKey) return;
+  audioKey = k;
+  audio.set(sc);
 }
 // 瀏覽器要等玩家點過畫面才能出聲
-window.addEventListener('pointerdown', () => { if (soundKind()) applySound(); }, { passive: true });
+const unlockAudio = () => { applySound(); audio.unlock(); };
+window.addEventListener('pointerdown', unlockAudio, { passive: true });
+window.addEventListener('keydown', unlockAudio);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') audio.pause(); else audio.resume(); });
 function refreshWeather() {
   const w = weatherToday();
   if (w === state.weather) return;
@@ -2738,13 +2843,21 @@ function refreshWeather() {
   applyLight();
   applySound();
 }
-const soundLabel = () => `店裡的風雨聲：${save.settings.sound ? '開' : '關'}`;
-$('sound-toggle').textContent = soundLabel();
-$('sound-toggle').onclick = () => {
-  save.settings.sound = !save.settings.sound;
+const onOff = (v) => (v ? '開' : '關');
+function soundLabels() {
+  $('music-toggle').textContent = `音樂：${onOff(save.settings.music)}`;
+  $('sound-toggle').textContent = `店裡的聲音：${onOff(save.settings.sound)}`;
+  $('volume-btn').textContent = `音量：${VOLUME_NAMES[save.settings.volume] || VOLUME_NAMES[0]}`;
+}
+soundLabels();
+$('music-toggle').onclick = () => { save.settings.music = !save.settings.music; persist(); soundLabels(); applySound(); };
+$('sound-toggle').onclick = () => { save.settings.sound = !save.settings.sound; persist(); soundLabels(); applySound(); };
+$('volume-btn').onclick = () => {
+  save.settings.volume = ((Number(save.settings.volume) || 0) + 1) % VOLUMES.length;
   persist();
-  $('sound-toggle').textContent = soundLabel();
+  soundLabels();
   applySound();
+  audio.play('cup'); // 聽一下現在多大聲
 };
 
 /* ---------- 打烊後模式（src/afterhours.js） ---------- */
@@ -2819,7 +2932,7 @@ function exitClosing() {
   if (!state.closing) return;
   closeTok++;
   state.closing = null;
-  state.night = state.weather === 'typhoon';
+  state.night = state.weather === 'typhoon' || afterWork();
   $('closed').hidden = true;
   $('diary').hidden = true;
   applyLight();
@@ -2866,6 +2979,7 @@ function buildLightLabels() {
     b.dataset.light = l.id;
     b.onclick = () => {
       H.toggleLight(save, l.id);
+      audio.play('click');
       persist();
       applyLamps();
       refreshLightLabels();
@@ -2896,6 +3010,8 @@ function updateLights(dt) {
     p.light.intensity = I;
     p.shade.material.color.copy(SHADE_OFF).lerp(SHADE_ON, p.level);
   });
+  const avg = pendants.reduce((a, p) => a + p.level, 0) / pendants.length;
+  barFill.intensity = state.night ? 2.2 * avg : 0;
   if (!state.closing) { closeGlow = 1; return; }
   const all = lightList();
   const on = all.length ? all.filter((l) => lightOn(l.id)).length / all.length : 1;
@@ -2966,6 +3082,18 @@ function openDiary(mode) {
   }
   diaryEl.hidden = false;
   if (write) setTimeout(() => $('dy-text').focus(), 50); else $('dy-close').focus();
+}
+// 手機鍵盤：iOS 與新版 Android Chrome 打開鍵盤時只縮小 visualViewport，版面不動，置中的日記卡片會被鍵盤蓋住。
+// 量出鍵盤擋住的高度，讓卡片往上移（Android 另有 viewport 的 interactive-widget=resizes-content）
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const onVV = () => {
+    const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    app.style.setProperty('--kb', `${Math.round(kb)}px`);
+    app.classList.toggle('kb', kb > 80);
+  };
+  vv.addEventListener('resize', onVV);
+  vv.addEventListener('scroll', onVV);
 }
 function diaryCount() { $('dy-count').textContent = `${[...$('dy-text').value].length}／${H.DIARY_MAX}`; }
 function closeDiary() { diaryEl.hidden = true; $('dy-text').blur(); updateUI(); }
@@ -3056,6 +3184,7 @@ async function guestEnter(tok) {
   await fade(false);
   if (tok !== guestTok) return;
   moveCamera(DOOR.to, DOOR.look, 2.6); // 推門進去
+  audio.play('door'); audio.play('bell');
   await realWait(1700);
   say(H.GUEST.welcome, 3800);
   await realWait(2400);
@@ -3157,16 +3286,39 @@ function project(pos, el, yOff = 0, pinned = false, edge = false) {
   el.style.transform = `translate(-50%,-100%) translate(${x}px, ${y}px)`;
 }
 
+// 每 2 秒算一次 FPS；開店前 6 秒（著色器編譯、貼圖上傳）不算；分頁在背景時不算
+function perfTick(raw) {
+  PERF.frames++;
+  PERF.acc += raw;
+  if (PERF.acc < 2) return;
+  PERF.fps = PERF.frames / PERF.acc;
+  PERF.frames = 0; PERF.acc = 0;
+  if (performance.now() - PERF.since < 6000 || document.visibilityState !== 'visible') return;
+  PERF.low = PERF.fps < 40 ? PERF.low + 1 : 0;
+  if (PERF.low >= 2 && PERF.ratio > 1) {
+    PERF.ratio = Math.max(1, PERF.ratio - 0.25);
+    PERF.low = 0;
+    PERF.drops++;
+    renderer.setPixelRatio(PERF.ratio);
+    resize();
+  }
+  if (DEV) refreshPerfLine();
+}
+// 開場第一～三幕是整片不透明的畫面：底下的店先不畫（省電）
+const sceneHidden = () => !!openingCtl && openingCtl.stage !== 'shop' && openingCtl.stage !== null;
+
 let steamAcc = 0;
 let flash = 0;
 function loop() {
   const now = performance.now();
-  const dt = Math.min((now - last) / 1000, 0.1);
+  const raw = (now - last) / 1000;
+  const dt = Math.min(raw, 0.1);
   last = now;
+  perfTick(raw);
   for (let i = waiters.length - 1; i >= 0; i--) if (waiters[i](dt)) waiters.splice(i, 1);
   for (let i = realWaiters.length - 1; i >= 0; i--) if (realWaiters[i](dt)) realWaiters.splice(i, 1);
   updateCamera(dt);
-  faceCamera();
+  faceCamera(dt);
   // 龍眼睡覺時的呼吸
   if (!catBusy) cat.userData.mesh.scale.y = 1 + Math.sin(performance.now() / 900) * 0.03;
   // 予安偶爾低頭打字
@@ -3191,7 +3343,7 @@ function loop() {
     tx.offset.y += dt * (state.weather === 'typhoon' ? 1.6 : 0.7);
     if (state.weather === 'typhoon') {
       tx.offset.x += dt * 0.25;
-      if (Math.random() < dt * 0.09) flash = 0.18;
+      if (Math.random() < dt * 0.09) { flash = 0.18; audio.play('thunder'); }
       if (flash > 0) { flash -= dt; hemi.intensity = flash > 0 ? 2.4 : state.closing ? hemi.intensity : 0.8; }
     }
   }
@@ -3199,7 +3351,8 @@ function loop() {
   updateWipe(dt);
   SEATS.forEach((s, i) => project(s.prop.position, labels[i], 1.1, true));
   if (lightsEl.style.display !== 'none') for (const l of lightLabels) project(l.pos, l.el, 0.12);
-  renderer.render(scene, camera);
+  if (sceneHidden()) PERF.skipped++;
+  else renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
 
@@ -3230,8 +3383,16 @@ function greet() {
   }
   say(returningDay ? '燈亮了。老闆，今天想坐哪裡？' : '老闆，歡迎回來。', 3500);
   checkTasks({ delay: 3800 });
+  rainHint();
   readyAt = performance.now() + 5000 / DEV_SPEED;
   startDay();
+}
+// 下雨的日子、老闆還沒在雨天坐過窗邊：德叔提一句窗邊（一天一次）
+function rainHint() {
+  if (state.weather !== 'rain' || isDone(save, 'rain-window') || keeper() || save.flags.rainHintDay === today()) return;
+  save.flags.rainHintDay = today();
+  persist();
+  announce([['德叔', RAIN_HINT]], 4600);
 }
 if (!save.flags.seenOpening) {
   startOpening(); // 新存檔：從 16:49 的辦公室開始
@@ -3334,6 +3495,11 @@ if (DEV) {
     get poses() { return { ...poses }; },
     get departureDue() { return F.departureDue(save, today()); },
     get enamelOnTable() { return cups.some((c) => c.userData.enamel); },
+    // 階段 7：聲音與效能
+    get audio() { return audio.state; },
+    audioPeak() { return audio.peak(); },
+    get perf() { const m = renderer.info; return { fps: Math.round(PERF.fps), ratio: PERF.ratio, cap: PERF.cap, drops: PERF.drops, skipped: PERF.skipped, calls: m.render.calls, triangles: m.render.triangles, textures: m.memory.textures, geometries: m.memory.geometries }; },
+    get settings() { return { ...save.settings }; },
     // 某個座位上那杯咖啡在畫面上的位置（相對 #app 的像素）
     cupOnScreen(seatId) {
       const c = cups.find((x) => x.userData.seat === seatId);

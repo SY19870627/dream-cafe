@@ -90,7 +90,7 @@ function dayCtx(save, ts, opts) {
   const placed = new Set(placedItems(save).map((o) => o.item));
   return {
     day, ts, idx: dayIndex(ts),
-    rain: weatherOn(dayIndex(ts), d.getMonth(), seedOf(save)) === 'rain',
+    rain: weatherOn(dayIndex(ts), d.getMonth(), seedOf(save)) === 'rain' || save.story?.rainFloorDay === day, // 保底雨天（weather.js）也算
     placed, books: bookCount(save.owned),
     met: (opts.met || defaultMet)(day),
     keeper: !!opts.keeper, // 離開東山之後：凱文顧店

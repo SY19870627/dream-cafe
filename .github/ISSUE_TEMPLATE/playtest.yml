@@ -1,0 +1,47 @@
+name: 試玩心得
+description: 玩過《我單方面辭退老闆後，開了一間夢想中的咖啡店》之後，留下感想（每一題都可以不填）
+title: "試玩心得："
+body:
+  - type: markdown
+    attributes:
+      value: |
+        謝謝你來店裡坐坐。這裡沒有標準答案，想到什麼寫什麼就好。
+        遊戲不會收集任何資料，你寫在這裡的就是我們知道的全部。
+  - type: input
+    id: device
+    attributes:
+      label: 用什麼玩的？
+      description: 例如 iPhone 13 / Safari、Pixel 7 / Chrome、筆電 Chrome
+  - type: input
+    id: progress
+    attributes:
+      label: 玩到哪裡了？
+      description: 例如 開店第 5 天、28°C、看完告別了
+  - type: textarea
+    id: relax
+    attributes:
+      label: 下班後打開它，有覺得放鬆一點嗎？哪一刻最放鬆？
+  - type: textarea
+    id: work
+    attributes:
+      label: 有沒有哪裡讓你覺得「像在上班」、被催、或有壓力？
+  - type: textarea
+    id: lost
+    attributes:
+      label: 有沒有哪裡不知道該做什麼、卡住、或按了沒反應？
+  - type: textarea
+    id: people
+    attributes:
+      label: 德叔、予安、阿哲、凱文、龍眼，你最喜歡誰？有哪句話記得特別清楚？
+  - type: textarea
+    id: sound
+    attributes:
+      label: 音樂和店裡的聲音（磨豆、注水、門鈴、雨）聽起來怎麼樣？有沒有開著？
+  - type: textarea
+    id: smooth
+    attributes:
+      label: 畫面順不順？手機會不會發燙、字會不會太小？
+  - type: textarea
+    id: other
+    attributes:
+      label: 其他想說的

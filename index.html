@@ -2,8 +2,8 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>我單方面辭退老闆後，開了一間夢想中的咖啡店｜測試版</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">
+<title>我單方面辭退老闆後，開了一間夢想中的咖啡店｜試玩版</title>
 <style>
   :root { --ink: #3b2a20; --paper: #f6efe2; --accent: #c4382c; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -40,7 +40,7 @@
     background: rgba(246,239,226,.95); border: 2px solid var(--ink); white-space: nowrap; }
   /* 關於面板：蓋在畫面上，點外面關閉 */
   #about { position: absolute; inset: 0; background: rgba(20,14,10,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 10; }
-  #about .card { width: 100%; max-width: 320px; background: var(--paper); border-radius: 18px; padding: 20px 18px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+  #about .card { width: 100%; max-width: 320px; max-height: 100%; overflow-y: auto; touch-action: pan-y; background: var(--paper); border-radius: 18px; padding: 20px 18px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
   #about h2 { margin: 0 0 4px; font-size: 17px; line-height: 1.4; }
   #about .sub { margin: 0 0 14px; font-size: 13px; opacity: .75; }
   #about dl { margin: 0 0 14px; font-size: 15px; }
@@ -51,7 +51,7 @@
     border: 2px solid var(--ink); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; }
   #about .links a span { margin-left: auto; font-weight: 400; font-size: 13px; opacity: .7; }
   #about-close, .wide { width: 100%; }
-  #open-notebook, #sound-toggle { margin-bottom: 10px; }
+  #open-notebook, .sound-grid { margin-bottom: 10px; }
   #dev-tools { border-top: 1px dashed rgba(59,42,32,.4); padding-top: 10px; margin-bottom: 12px; }
   #dev-tools .sub { margin-bottom: 8px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -60,6 +60,8 @@
   #place.rise { animation: rise 2.6s ease-out; }
   /* 店的記事本 */
   .overlay { position: absolute; inset: 0; background: rgba(20,14,10,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 11; }
+  /* 手機鍵盤打開時（--kb＝鍵盤擋住的高度），卡片往上移到鍵盤上面 */
+  #app.kb .overlay { padding-bottom: calc(12px + var(--kb, 0px)); padding-top: 12px; }
   .overlay .card { width: 100%; max-width: 340px; max-height: calc(100% - 20px); display: flex; flex-direction: column; background: var(--paper);
     border-radius: 18px; padding: 20px 18px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
   .overlay h2 { margin: 0 0 6px; font-size: 18px; }
@@ -262,17 +264,24 @@
   <div id="about" hidden role="dialog" aria-modal="true" aria-labelledby="about-title">
     <div class="card">
       <h2 id="about-title">我單方面辭退老闆後，開了一間夢想中的咖啡店</h2>
-      <p class="sub">測試版・台南東山</p>
+      <p class="sub">試玩版・台南東山</p>
       <p class="sub" id="save-note" hidden>這台裝置目前沒辦法存檔（可能是私密瀏覽）。店照常營業，只是關掉後進度不會留下。</p>
       <button id="open-notebook" class="wide">店的記事本</button>
-      <button id="sound-toggle" class="wide">店裡的風雨聲：開</button>
+      <div class="grid sound-grid">
+        <button id="music-toggle">音樂：開</button>
+        <button id="volume-btn">音量：小</button>
+        <button id="sound-toggle" class="span2">店裡的聲音：開</button>
+      </div>
       <dl><dt>開發者</dt><dd>SY</dd></dl>
       <div class="links">
         <a href="https://github.com/SY19870627" target="_blank" rel="noopener">GitHub<span>SY19870627</span></a>
         <a href="https://x.com/nelsonyehfon" target="_blank" rel="noopener">X<span>@nelsonyehfon</span></a>
+        <a id="feedback-link" href="https://github.com/SY19870627/dream-cafe/issues/new?template=playtest.yml" target="_blank" rel="noopener">留下試玩心得<span>GitHub</span></a>
       </div>
+      <p class="sub">沒有 GitHub 帳號，也可以在 X 私訊，或直接傳訊息給開發者。</p>
       <div id="dev-tools" hidden>
         <p class="sub" id="dev-day"></p>
+        <p class="sub" id="dev-perf"></p>
         <div class="grid">
           <button id="dev-day1">跳到明天</button>
           <button id="dev-day7">跳 7 天</button>

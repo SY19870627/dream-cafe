@@ -7,8 +7,9 @@ import { RESIGNATIONS, RESIGNATION_MAIL, LAWYER_LETTER } from './letters.js';
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
 // root：#opening；save／persist：存檔；art：src/art.js；speed：開發者模式的倍率（只縮短等待時間）
+// sound：{ stage(name) 換幕時通知（辦公室有日光燈的嗡嗡聲）、play(name) 單發的聲音（鍵盤、送出、鑰匙） }
 // 回傳 Promise：玩家推門進店時 resolve({ lines: true })；第三幕被略過時 resolve({ lines: false })
-export function runOpening({ root, save, persist, art, speed = 1 }) {
+export function runOpening({ root, save, persist, art, speed = 1, sound = {} }) {
   const T = (ms) => ms / speed;
   const sleep = (ms) => new Promise((r) => setTimeout(r, T(ms)));
   let finish;
@@ -30,6 +31,7 @@ export function runOpening({ root, save, persist, art, speed = 1 }) {
   function show(name, html) {
     stage = name;
     token++;
+    sound.stage?.(name);
     for (const old of root.querySelectorAll('.op-stage')) {
       old.classList.remove('on');
       setTimeout(() => old.remove(), T(700));
@@ -65,12 +67,27 @@ export function runOpening({ root, save, persist, art, speed = 1 }) {
       b.onclick = () => {
         choice = b.dataset.id;
         for (const o of el.querySelectorAll('.op-choices button')) o.setAttribute('aria-pressed', String(o === b));
-        el.querySelector('.op-ending-text').textContent = b.textContent;
+        typeOut(el.querySelector('.op-ending-text'), b.textContent);
         el.querySelector('#op-send').disabled = false;
       };
     }
+    // 結尾一個字一個字打進郵件裡（喀噠、喀噠）
+    let typing = 0;
+    async function typeOut(target, text) {
+      const my = ++typing;
+      target.textContent = '';
+      for (const ch of text) {
+        if (my !== typing) return;
+        target.textContent += ch;
+        if (ch.trim()) sound.play?.('key');
+        await sleep(55 + Math.random() * 45);
+      }
+    }
     el.querySelector('#op-send').onclick = async () => {
       const my = token;
+      typing++;
+      el.querySelector('.op-ending-text').textContent = RESIGNATIONS.find((r) => r.id === choice)?.text || '';
+      sound.play?.('enter');
       save.player.resignation = choice;
       save.player.name = name.value.trim().slice(0, 12);
       persist();
@@ -92,7 +109,7 @@ export function runOpening({ root, save, persist, art, speed = 1 }) {
     // 【待定】標題畫面的按鈕「下班」是自行補寫的
     const el = show('title', `
       <h1>我單方面辭退老闆後，<br>開了一間夢想中的咖啡店</h1>
-      <p class="sub">測試版・台南東山</p>
+      <p class="sub">試玩版・台南東山</p>
       <button id="op-next" class="primary">下班</button>
       <div class="op-credit">開發者 SY・<a href="https://github.com/SY19870627" target="_blank" rel="noopener">GitHub</a>・<a href="https://x.com/nelsonyehfon" target="_blank" rel="noopener">X</a></div>`);
     el.querySelector('#op-next').onclick = mailbox;
@@ -113,6 +130,7 @@ export function runOpening({ root, save, persist, art, speed = 1 }) {
       btn.disabled = true;
       const my = token;
       btn.classList.add('shake');
+      sound.play?.('keys');
       el.querySelector('#op-cap').textContent = '搖起來，有鑰匙的聲音。';
       el.querySelector('#op-tap').remove();
       await sleep(1300);
@@ -147,6 +165,7 @@ export function runOpening({ root, save, persist, art, speed = 1 }) {
   function enter(lines) {
     token++;
     stage = 'shop';
+    sound.stage?.('shop');
     setAct(4);
     skip.remove();
     root.classList.add('fade');

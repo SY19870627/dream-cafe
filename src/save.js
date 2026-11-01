@@ -33,7 +33,8 @@ export function defaultSave(now) {
     },
     // 故事的其他狀態：lastPresentDay「在場」里程碑最後演在第幾天、hinted 日誌已經寫過「想等老闆在」的里程碑、
     // typhoonDay 颱風夜是第幾天、answers 玩家在對話裡選的回答
-    story: { lastPresentDay: 0, hinted: [], typhoonDay: 0, answers: {} },
+    // rainFloorDay：最後一次保底雨天是第幾天（weather.js，階段 7）
+    story: { lastPresentDay: 0, hinted: [], typhoonDay: 0, answers: {}, rainFloorDay: 0 },
     menu: ['dongshan'], // 菜單上的東西（story.js 的 MENU）
     flags: {}, // seenOpening、openingAct、metYuan、starterGiven、catOnChair、guestVisit、guestOffered（德叔哪一天問過要不要從門口進來）……
     // 打烊（afterhours.js）：哪一天打烊、喝了最後一杯沒、最後一杯的豆子、關掉的燈、按了「明天見」沒
@@ -46,7 +47,8 @@ export function defaultSave(now) {
     letters: [], // 讀過的老先生的信：[{ id, t, day }]
     journal: [], // 最近幾頁德叔的營業日誌（記事本可以重讀），見 journal.js
     player: { name: '', resignation: '' }, // 開場第一幕：辭呈署名（可留空）與選的結尾（之後凱文的里程碑會用到）
-    settings: { offWork: '18:00', sound: true }, // 下班時間（決定 D11）；sound：店裡的風雨聲
+    // 下班時間（決定 D11）；sound：店裡的聲音（磨豆、注水、門鈴、窗外、風雨；階段 4 起只有風雨聲）；music：背景音樂；volume：0 小／1 中／2 大
+    settings: { offWork: '18:00', sound: true, music: true, volume: 0 },
     dev: { offsetMs: 0 }, // 開發者模式跳天數用的時間偏移；一般模式不採用
   };
   // 德叔送的三件初始擺飾，等開場第四幕（或略過開場）時才由 giveStarters() 放進倉庫
