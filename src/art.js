@@ -3,13 +3,18 @@
 import * as THREE from 'three';
 
 const PPM = 200; // 每公尺像素數
+// 人物與桌上的小東西會被推近看（座位視角、看德叔沖、對話時的推近）：200 不夠，特寫會糊、有像素感（美術評分修正 b）。
+// 改用 2～3 倍：依裝置像素比，桌機 400、手機 600；圖的內容與大小（公尺）不變，只是畫得更細
+const HI = Math.round(PPM * Math.min(3, Math.max(2, (globalThis.devicePixelRatio || 1) * 1.5)));
 
-function canvas(wm, hm) {
+// ppm：這張圖每公尺幾個像素（記在 c.ppm，main.js 用它把像素換回公尺）
+function canvas(wm, hm, ppm = PPM) {
   const c = document.createElement('canvas');
-  c.width = Math.round(wm * PPM);
-  c.height = Math.round(hm * PPM);
+  c.width = Math.round(wm * ppm);
+  c.height = Math.round(hm * ppm);
+  c.ppm = ppm;
   const g = c.getContext('2d');
-  g.scale(PPM, PPM); // 之後一律用公尺為單位繪製
+  g.scale(ppm, ppm); // 之後一律用公尺為單位繪製
   g.lineJoin = 'round';
   g.lineCap = 'round';
   return { c, g };
@@ -18,7 +23,11 @@ function canvas(wm, hm) {
 export function tex(c, repeat) {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
+  t.anisotropy = 8; // 斜著看的地板、桌面比較不糊（超過顯示卡上限時 Three.js 會自己壓到上限）
+  // 縮小時用 mipmap 三線性過濾：人物離遠了不會閃爍、出現鋸齒（美術評分修正 b）
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.magFilter = THREE.LinearFilter;
   if (repeat) {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(repeat[0], repeat[1]);
@@ -239,7 +248,7 @@ export function thermometer(temp) {
 export function deshu(pose) {
   // 德叔：白襯衫、深咖啡背心、灰白頭髮
   const W = 0.9, H = 1.8;
-  const { c, g } = canvas(W, H);
+  const { c, g } = canvas(W, H, HI);
   const cx = W / 2;
   // 褲子
   rr(g, cx - 0.17, 1.05, 0.15, 0.73, 0.04); g.fillStyle = '#3d3a3a'; g.fill(); outline(g);
@@ -313,7 +322,7 @@ function enamelCup(g, x, y) {
 
 export function cat(pose) {
   // 龍眼：橘貓
-  const { c, g } = canvas(0.6, 0.45);
+  const { c, g } = canvas(0.6, 0.45, HI);
   const o = '#e8913a';
   if (pose === 'sleep') {
     ell(g, 0.3, 0.33, 0.24, 0.1); g.fillStyle = o; g.fill(); outline(g, 0.012);
@@ -340,7 +349,7 @@ export function cat(pose) {
 
 // 予安：坐著寫稿的作家。pose：'type'（看筆電）、'napkin'（借了筆在紙巾上寫字）、'read'（念稿子）、'book'（拿著剛印好的書）
 export function yuan(pose = 'type') {
-  const { c, g } = canvas(0.8, 1.35);
+  const { c, g } = canvas(0.8, 1.35, HI);
   const cx = 0.4;
   rr(g, cx - 0.18, 0.5, 0.36, 0.5, 0.1); g.fillStyle = '#7c8f9e'; g.fill(); outline(g);
   rr(g, cx - 0.2, 0.95, 0.4, 0.14, 0.05); g.fillStyle = '#d9cbb3'; g.fill(); outline(g);
@@ -700,7 +709,7 @@ export function bookWall() {
 
 export function kettleSet() {
   // 吧台上的手沖架與磨豆機
-  const { c, g } = canvas(0.7, 0.45);
+  const { c, g } = canvas(0.7, 0.45, HI);
   rr(g, 0.05, 0.05, 0.16, 0.38, 0.03); g.fillStyle = '#5a4a40'; g.fill(); outline(g, 0.012);
   ell(g, 0.13, 0.06, 0.07, 0.03); g.fillStyle = '#7b6455'; g.fill(); outline(g, 0.012);
   g.beginPath(); g.moveTo(0.32, 0.22); g.lineTo(0.48, 0.22); g.lineTo(0.42, 0.3); g.lineTo(0.38, 0.3); g.closePath();
@@ -711,7 +720,7 @@ export function kettleSet() {
 }
 
 export function cup() {
-  const { c, g } = canvas(0.2, 0.14);
+  const { c, g } = canvas(0.2, 0.14, HI);
   ell(g, 0.1, 0.125, 0.09, 0.015); g.fillStyle = '#e8e2d6'; g.fill(); outline(g, 0.008);
   rr(g, 0.045, 0.03, 0.11, 0.09, 0.025); g.fillStyle = '#f6f2ea'; g.fill(); outline(g, 0.008);
   ell(g, 0.1, 0.035, 0.055, 0.012); g.fillStyle = '#5b3420'; g.fill();
@@ -761,7 +770,7 @@ export function glow() {
 
 // 老先生的信封（德叔從吧台抽屜拿出來，放在吧台上）
 export function envelope() {
-  const { c, g } = canvas(0.26, 0.18);
+  const { c, g } = canvas(0.26, 0.18, HI);
   rr(g, 0.01, 0.01, 0.24, 0.16, 0.012); g.fillStyle = '#f3e7cf'; g.fill(); outline(g, 0.01);
   g.beginPath(); g.moveTo(0.015, 0.02); g.lineTo(0.13, 0.1); g.lineTo(0.245, 0.02);
   g.strokeStyle = '#b8a07a'; g.lineWidth = 0.008; g.stroke();
@@ -879,7 +888,7 @@ function face(g, cx, y, opt = {}) {
 // 阿哲：返鄉青農，站著。pose：'stand'（帽子、工作服、沾泥的雨鞋）、'muddy'（颱風夜全身是泥）、'towel'（披著德叔給的毛巾）
 export function zhe(pose = 'stand') {
   const W = 0.9, H = 1.75;
-  const { c, g } = canvas(W, H);
+  const { c, g } = canvas(W, H, HI);
   const cx = W / 2;
   const muddy = pose !== 'stand';
   // 褲子與雨鞋
@@ -931,7 +940,7 @@ export function kevin(pose = 'sit') {
   if (pose === 'shirt' || pose === 'apron') return kevinStand(pose);
   const standing = pose === 'walk';
   const W = 0.8, H = standing ? 1.78 : 1.4;
-  const { c, g } = canvas(W, H);
+  const { c, g } = canvas(W, H, HI);
   const cx = W / 2;
   const shirt = '#d7dde6';
   if (standing) {
@@ -1010,7 +1019,7 @@ function kevinHead(g, cx, hy, smile) {
 // 凱文站著：'shirt' 燙過的白襯衫（面試那天）、'apron' 繫著深色圍裙（當了店長）
 function kevinStand(pose) {
   const W = 0.8, H = 1.78;
-  const { c, g } = canvas(W, H);
+  const { c, g } = canvas(W, H, HI);
   const cx = W / 2;
   rr(g, cx - 0.15, 1.0, 0.13, 0.74, 0.04); g.fillStyle = '#343a46'; g.fill(); outline(g);
   rr(g, cx + 0.02, 1.0, 0.13, 0.74, 0.04); g.fill(); outline(g);
@@ -1040,7 +1049,7 @@ function kevinStand(pose) {
 // 尺寸和德叔相同，沖煮、端杯、打烊的演出都照用
 export function kevinBar(pose = 'idle') {
   const W = 0.9, H = 1.8;
-  const { c, g } = canvas(W, H);
+  const { c, g } = canvas(W, H, HI);
   const cx = W / 2;
   rr(g, cx - 0.16, 1.05, 0.14, 0.73, 0.04); g.fillStyle = '#343a46'; g.fill(); outline(g);
   rr(g, cx + 0.02, 1.05, 0.14, 0.73, 0.04); g.fill(); outline(g);
@@ -1082,7 +1091,7 @@ export function kevinBar(pose = 'idle') {
 export function grandpa(pose = 'stand') {
   const sit = pose === 'sit';
   const W = 0.8, H = sit ? 1.3 : 1.62;
-  const { c, g } = canvas(W, H);
+  const { c, g } = canvas(W, H, HI);
   const cx = W / 2;
   if (sit) {
     rr(g, cx - 0.24, 1.0, 0.48, 0.06, 0.02); g.fillStyle = '#8a5a3b'; g.fill(); outline(g); // 板凳
@@ -1192,7 +1201,7 @@ export function noticeBoard(text = '') {
 
 // 吧台的鑰匙：一把舊的黃銅鑰匙，綁著紅繩
 export function key() {
-  const { c, g } = canvas(0.22, 0.12);
+  const { c, g } = canvas(0.22, 0.12, HI);
   ell(g, 0.05, 0.06, 0.035, 0.035); g.fillStyle = '#c9a24a'; g.fill(); outline(g, 0.008);
   ell(g, 0.05, 0.06, 0.013, 0.013); g.fillStyle = '#6b4b20'; g.fill();
   rr(g, 0.08, 0.05, 0.12, 0.02, 0.006); g.fillStyle = '#c9a24a'; g.fill(); outline(g, 0.006);
@@ -1252,7 +1261,7 @@ export function coffeeMap() {
 
 // 吧台上的那袋龍眼乾（阿哲的阿公送的）
 export function longanBag() {
-  const { c, g } = canvas(0.22, 0.2);
+  const { c, g } = canvas(0.22, 0.2, HI);
   g.beginPath(); g.moveTo(0.03, 0.19); g.lineTo(0.05, 0.05); g.lineTo(0.17, 0.05); g.lineTo(0.19, 0.19); g.closePath();
   g.fillStyle = '#d8b874'; g.fill(); outline(g, 0.01);
   g.beginPath(); g.moveTo(0.05, 0.05); g.lineTo(0.08, 0.02); g.lineTo(0.14, 0.02); g.lineTo(0.17, 0.05); g.fillStyle = '#c9a35e'; g.fill(); outline(g, 0.008);
@@ -1288,4 +1297,6 @@ export function note() {
   return c;
 }
 
-export const SIZES = { PPM };
+export const SIZES = { PPM, HI };
+// 一張圖每公尺幾個像素（程式畫的圖記在 c.ppm；之後換成手繪圖檔時沒有這個欄位，用預設的 PPM）
+export const ppmOf = (c) => c?.ppm || PPM;

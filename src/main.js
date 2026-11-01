@@ -16,7 +16,6 @@ import * as H from './afterhours.js';
 import * as F from './farewell.js';
 import { createAudio, VOLUMES, VOLUME_NAMES } from './audio.js';
 
-const PPM = A.SIZES.PPM;
 const $ = (id) => document.getElementById(id);
 const lightsEl = $('lights'); // 打烊後每盞燈旁邊的「關燈／開燈」
 
@@ -207,7 +206,7 @@ const papers = [];
 const blobTex = A.tex(A.blob());
 
 function paper(canvas, x, z, opt = {}) {
-  const w = canvas.width / PPM, h = canvas.height / PPM;
+  const w = canvas.width / A.ppmOf(canvas), h = canvas.height / A.ppmOf(canvas);
   const group = new THREE.Group();
   const geo = new THREE.PlaneGeometry(w, h).translate(0, h / 2, 0);
   const mat = new THREE.MeshLambertMaterial({ map: A.tex(canvas), transparent: true, alphaTest: 0.35, side: THREE.DoubleSide });
@@ -239,7 +238,7 @@ function setPaper(p, canvas) {
 // 換一張大小不同的圖（例如凱文從站著走進來變成坐下）：平面的尺寸也跟著換
 function setArt(p, canvas) {
   const mesh = p.userData.mesh;
-  const w = canvas.width / PPM, h = canvas.height / PPM;
+  const w = canvas.width / A.ppmOf(canvas), h = canvas.height / A.ppmOf(canvas);
   const prm = mesh.geometry.parameters;
   if (Math.abs(prm.width - w) > 1e-3 || Math.abs(prm.height - h) > 1e-3) {
     mesh.geometry.dispose();
@@ -503,8 +502,8 @@ function alongWall(c, half, lo, hi, keep) {
 }
 function orient(item, x, z) {
   const art = artFor(item);
-  const half = art.width / PPM / 2;
-  const tall = art.height / PPM > 1.05; // 比窗台高，才會擋到窗戶與溫度計
+  const half = art.width / A.ppmOf(art) / 2;
+  const tall = art.height / A.ppmOf(art) > 1.05; // 比窗台高，才會擋到窗戶與溫度計
   x = THREE.MathUtils.clamp(x, -2.7, 2.7);
   z = THREE.MathUtils.clamp(z, -3.75, 3.7);
   if (item.wall) {
@@ -539,10 +538,12 @@ const WALL_SPOTS = [[-1.3, -3.6], [0.4, -3.6], [-2.8, 1.5], [2.8, 2.0],
 const MID_SPOTS = new Set(['0.8,-0.3', '0.3,0.9', '-0.6,0', '0.2,2.2', '-0.9,0.9']);
 function freeSpot(item, entries) {
   const taken = entries.filter((e) => e.placed);
-  const half = artFor(item).width / PPM / 2;
-  const tall = artFor(item).height / PPM > 1.05;
+  const art = artFor(item);
+  const half = art.width / A.ppmOf(art) / 2;
+  const tall = art.height / A.ppmOf(art) > 1.05;
   const free = (o) => taken.every((e) => {
-    const w = artFor(itemById(e.item)).width / PPM / 2;
+    const ea = artFor(itemById(e.item));
+    const w = ea.width / A.ppmOf(ea) / 2;
     return Math.hypot(e.x - o.x, e.z - o.z) > Math.max(0.7, half + w * 0.8);
   });
   const open = tall ? FREE_SPOTS.filter(([x, z]) => !MID_SPOTS.has(`${x},${z}`)) : FREE_SPOTS;
@@ -585,6 +586,7 @@ function renderDecor() {
   applyLamps();
   applySound(); // 擺了黑膠唱機，音樂多一點唱針的沙沙聲
   buildLightLabels();
+  if (!state.placing) fitOverview(true); // 俯瞰鏡頭不能切到家具：擺好之後重算（佈置中不動，免得畫面跟著跳）
 }
 
 function moveDecor(e, x, z) {
@@ -672,6 +674,9 @@ const HOLD_SPEED = 3;
 const speedNow = () => state.devSpeed * (state.hold && brewing ? HOLD_SPEED : 1);
 
 let shownTemp = state.temp; // 畫面上顯示的溫度，會慢慢追上 state.temp
+// 右上角溫度膠囊的底色（美術評分修正 b）：20°C 是偏冷的陶土色，越暖越接近琥珀色；白字的對比都在 4.5 以上
+const TEMP_COOL = new THREE.Color('#7f5546'), TEMP_WARM = new THREE.Color('#b35f1a');
+const tempColor = (t) => '#' + TEMP_COOL.clone().lerp(TEMP_WARM, THREE.MathUtils.clamp((t - 20) / 17, 0, 1)).getHexString();
 let drawnTemp = null;
 function drawThermo() {
   const t = Math.round(shownTemp * 10) / 10;
@@ -681,6 +686,7 @@ function drawThermo() {
   thermoMat.map = A.tex(A.thermometer(t));
   thermoMat.needsUpdate = true;
   $('temp').textContent = t.toFixed(1) + '°C';
+  $('temp').style.backgroundColor = tempColor(t);
 }
 drawThermo();
 
@@ -737,6 +743,7 @@ const NAMES = new Map();
 const nameOf = (who) => (who === kevin && !S.hasMilestone(save, 'kevin', 2) ? '冰美式先生' : NAMES.get(who) || '');
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 let sayEnds = 0; // 這句話什麼時候說完（老先生的信要等店裡安靜下來才交）
+let lastSaid = null; // 最後一句話（誰、什麼時候）：選項出現時，上面那一行就是這句（美術評分修正 b）
 // who：說話的人的紙片，或 'player'（老闆自己說的話，泡泡固定在畫面下方）；name：覆寫泡泡上的名字
 function say(text, ms = 3500, who = deshu, name = null) {
   if (!String(text ?? '').trim()) { bubble.classList.remove('show'); return; } // 沒有字的泡泡不畫
@@ -745,7 +752,9 @@ function say(text, ms = 3500, who = deshu, name = null) {
   if (conversing() && state.mode === 'seat' && !state.closeup && who && who !== 'player' && who.visible && isPerson(who) && who !== focusP) lookToward(who, 2.3);
   sayEnds = performance.now() + (ms || 4000);
   bubble.classList.toggle('me', who === 'player');
-  bubble.innerHTML = `<b>${name ?? (who === 'player' ? '你' : nameOf(who))}</b>${esc(text)}`; // 台詞可能帶著玩家自己寫的名字
+  const label = name ?? (who === 'player' ? '你' : nameOf(who));
+  bubble.innerHTML = `<b>${label}</b>${esc(text)}`; // 台詞可能帶著玩家自己寫的名字
+  lastSaid = who === 'player' ? null : { name: label, text: String(text), at: performance.now() };
   bubble.classList.add('show');
   clearTimeout(bubbleTimer);
   if (ms) bubbleTimer = setTimeout(() => bubble.classList.remove('show'), ms);
@@ -800,15 +809,21 @@ function obstacles(from, to) {
   return out;
 }
 const AHEAD = 1.1; // 往前看多遠（公尺）
-function walk(p, to, speed = 0.7) {
+// own＝熟客走進來、換位子、走出去：同一個人同時只走一段，新的一段開始時舊的那段馬上結束、回傳 false
+// （例如熟客走進來走到一半就打烊，原本走進來和走出去兩段同時推著他，往兩個方向互相抵消，人就停在店中間；
+// 美術評分修正 b 的冒煙測試碰到）。德叔與龍眼照舊
+let walkSeq = 0;
+function walk(p, to, speed = 0.7, own = false) {
   const obs = obstacles(p.position, to);
   let budget = (Math.hypot(to.x - p.position.x, to.z - p.position.z) / speed) * 2 + 3; // 遊戲時間（秒）
+  const id = own ? (p.userData.walkId = ++walkSeq) : null;
   return new Promise((r) => {
     waiters.push((dt) => {
+      if (own && p.userData.walkId !== id) { r(false); return true; } // 被新的一段取代了
       const d = new THREE.Vector3(to.x - p.position.x, 0, to.z - p.position.z);
       const step = speed * dt * speedNow();
       const dist = d.length();
-      if (dist <= step) { p.position.x = to.x; p.position.z = to.z; r(); return true; }
+      if (dist <= step) { p.position.x = to.x; p.position.z = to.z; r(true); return true; }
       budget -= dt * speedNow();
       d.divideScalar(dist);
       if (obs.length && budget > 0) {
@@ -900,7 +915,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   phase = 'brew';
   say(keeper() ? F.KEEPER.brewStart : '好，等我一下。', 2500);
   state.closeup = true;
-  cam.yaw = 0; cam.pitch = 0;
+  cam.yaw = 0; cam.pitch = 0; focusP = null; // 視線回到正前方：下一句話要重新轉向說話的人
   moveCamera(CLOSE.pos, CLOSE.look, 1.2);
   updateUI();
   await wait(1.2);
@@ -982,7 +997,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   const cup = stationCup;
   const atSeat = () => state.mode === 'seat' && state.seat === seat;
   state.closeup = false;
-  if (atSeat()) { cam.yaw = 0; cam.pitch = 0; moveCamera(seat.eye, seat.look); }
+  if (atSeat()) { cam.yaw = 0; cam.pitch = 0; focusP = null; moveCamera(seat.eye, seat.look); }
   updateUI();
   const path = [new THREE.Vector3(2.6, 0, 0.6), new THREE.Vector3(1.3, 0, 0.8), seat.serve];
   if (seat.serve) {
@@ -1068,7 +1083,7 @@ function placeCup(cup, seat) {
 function toggleCloseup() {
   if (!state.seat) return;
   state.closeup = !state.closeup;
-  cam.yaw = 0; cam.pitch = 0;
+  cam.yaw = 0; cam.pitch = 0; focusP = null;
   if (state.closeup) moveCamera(CLOSE.pos, CLOSE.look);
   else moveCamera(state.seat.eye, state.seat.look);
   updateUI();
@@ -1271,7 +1286,7 @@ const UI_GAP = 8; // 泡泡、標籤和頂部介面之間至少留的距離
 function measureUi() {
   const a = app.getBoundingClientRect();
   let top = 0;
-  for (const el of document.querySelectorAll('.top, #speed, #op-skip-shop')) {
+  for (const el of document.querySelectorAll('.top')) { // 快轉併進右上角、「略過開場」移到底部按鈕列之後，頂部只剩一列
     if (el.hidden) continue;
     const r = el.getBoundingClientRect();
     if (r.height) top = Math.max(top, r.bottom - a.top);
@@ -1283,7 +1298,7 @@ function measureUi() {
 }
 const OVER_BASE = { yaw: Math.atan2(OVER.pos.x - OVER.look.x, OVER.pos.z - OVER.look.z), look: OVER.look.clone() };
 const propTop = (p) => p.userData.mesh.geometry.parameters.height + p.userData.mesh.position.y;
-function fitOverview() {
+function fitOverview(smooth = false) {
   const w = app.clientWidth, h = app.clientHeight;
   if (!w || !h) return;
   measureUi();
@@ -1293,10 +1308,39 @@ function fitOverview() {
   const labelUp = (2 * (UI_SPACE.labelH + 10)) / h, labelSide = 1 - (2 * UI_SPACE.labelW) / w;
   const pts = [...FIT_ROOM];
   for (const st of SEATS) pts.push(st.prop.position.clone(), st.prop.position.clone().setY(propTop(st.prop)));
+  // 擺出來的家具也要完整（美術評分修正 b：地板靠鏡頭的角可以多切一點，但不能切到東西）
+  const props = [...SEATS.map((st) => st.prop), ...decorPapers.values()];
   const look = new THREE.Vector3();
+  const fl = [0, 1, 3, 2].map(() => new THREE.Vector3()); // 地板四個角（繞一圈）在畫面上的位置
+  // 線段 a–b 在畫面裡（|x| ≤ 1）那一段的 y 範圍，併進 r＝[最低, 最高]
+  const clipY = (a, b, r) => {
+    for (const [p, q] of [[a, b], [b, a]]) {
+      let y = p.y;
+      if (Math.abs(p.x) > 1) {
+        const edge = Math.sign(p.x);
+        if ((q.x - edge) * edge > 0 || q.x === p.x) continue; // 整條邊都在同一側的畫面外
+        y = p.y + ((edge - p.x) / (q.x - p.x)) * (q.y - p.y);
+      }
+      r[0] = Math.min(r[0], y); r[1] = Math.max(r[1], y);
+    }
+    return r;
+  };
+  const wall = [new THREE.Vector3(), new THREE.Vector3()];
+  // 地板在畫面裡看得到的部分，最低與最高的 y：切到畫面外的角不算，房間才會往下填滿
+  const floorSpan = () => {
+    [0, 1, 3, 2].forEach((k, i) => fl[i].copy(FIT_ROOM[k]).project(probe));
+    const r = [Infinity, -Infinity];
+    for (let i = 0; i < 4; i++) clipY(fl[i], fl[(i + 1) % 4], r);
+    return r;
+  };
+  // 後牆上緣在畫面裡看得到的那一段（兩端的牆角切到畫面外時，用切到的地方）
+  const wallTop = (y = 2.1) => {
+    wall[0].copy(FIT_ROOM[4]).setY(y).project(probe); wall[1].copy(FIT_ROOM[5]).setY(y).project(probe);
+    return clipY(wall[0], wall[1], [Infinity, -Infinity]);
+  };
   // 放好鏡頭（仰角 e、距離 d），把整間店在可用範圍裡垂直置中；回傳是否放得下與房間的高度（NDC）
-  const place = (e, d) => {
-    const dir = new THREE.Vector3(Math.sin(OVER_BASE.yaw) * Math.cos(e), Math.sin(e), Math.cos(OVER_BASE.yaw) * Math.cos(e));
+  const place = (e, d, yaw = OVER_BASE.yaw) => {
+    const dir = new THREE.Vector3(Math.sin(yaw) * Math.cos(e), Math.sin(e), Math.cos(yaw) * Math.cos(e));
     look.copy(OVER_BASE.look);
     let lo = 0, hi = 0, ok = true;
     for (let it = 0; it < 4; it++) {
@@ -1306,16 +1350,28 @@ function fitOverview() {
       lo = Infinity; hi = -Infinity; ok = true;
       pts.forEach((p, i) => {
         v.copy(p).project(probe);
+        // 地板靠鏡頭的兩個角是空地板：可以切掉一些（上下的範圍改用畫面裡看得到的地板）；
+        // 後面的牆角（空牆、空地板）可以切一點點；座位與家具（下面的 props）一定完整在畫面裡
+        if (FIT_FRONT.includes(i)) { if (Math.abs(v.x) > 1.4) ok = false; return; }
+        if (Math.abs(v.x) > (i < 4 ? 1.12 : i < 6 ? 1.16 : 0.96)) ok = false;
+        if (i < 6) return; // 地板與後牆：上下的範圍用畫面裡看得到的那一段（下面）
         lo = Math.min(lo, v.y); hi = Math.max(hi, v.y);
-        // 地板靠鏡頭的兩個角是空地板：可以切掉一點；其他點（後牆、座位）都要完整在畫面裡
-        if (Math.abs(v.x) > (FIT_FRONT.includes(i) ? 1.1 : 0.96)) ok = false;
       });
+      const [f0, f1] = floorSpan(), [, w1] = wallTop();
+      lo = Math.min(lo, f0); hi = Math.max(hi, f1, w1);
       right.set(1, 0, 0).applyQuaternion(probe.quaternion);
-      for (const st of SEATS) {
+      SEATS.forEach((st, i) => { // 座位：整張圖（含留白）都在畫面裡
         const half = st.prop.userData.mesh.geometry.parameters.width / 2;
         for (const sgn of [-1, 1]) {
           v.copy(st.prop.position).addScaledVector(right, sgn * half).project(probe);
           if (Math.abs(v.x) > 0.97) ok = false;
+        }
+      });
+      for (const pr of props.slice(SEATS.length)) { // 擺飾：圖的四周有留白，畫出來的部分（約中間 70%）在畫面裡就好
+        const half = pr.userData.mesh.geometry.parameters.width * 0.35;
+        for (const sgn of [-1, 1]) for (const y of [0, propTop(pr)]) {
+          v.copy(pr.position).setY(y).addScaledVector(right, sgn * half).project(probe);
+          if (Math.abs(v.x) > 1 || v.y < bottom - 0.01) ok = false;
         }
       }
       for (const st of SEATS) {
@@ -1324,29 +1380,37 @@ function fitOverview() {
         if (Math.abs(v.x) > labelSide) ok = false;
       }
       if (it === 3) break;
-      // 往上下平移，讓房間（含標籤）的中心對齊可用範圍的中心
-      const shift = ((lo + hi) / 2 - (top + bottom) / 2) * d * Math.tan(THREE.MathUtils.degToRad(25));
+      // 往上下平移：房間（含標籤）放得下時往下靠，地板貼近按鈕列上面的提示（美術評分修正 b：直立畫面下面不留白），
+      // 上面多出來的是後牆 2.1 公尺以上的牆面；但牆真正的上緣不能掉到頂部介面下面（那裡會變成一塊空白）。放不下就置中
+      const [, wallEdge] = wallTop(ROOM.h);
+      const fits = hi - lo <= top - bottom;
+      const move = fits ? Math.max(Math.min(lo - bottom, wallEdge - top), hi - top) : (lo + hi) / 2 - (top + bottom) / 2; // 正的＝房間往下
+      const shift = move * d * Math.tan(THREE.MathUtils.degToRad(25));
       up.set(0, 1, 0).applyQuaternion(probe.quaternion);
       look.addScaledVector(up, shift);
     }
-    // 房間看起來多大：地板四個角在畫面上的高度
-    let f0 = Infinity, f1 = -Infinity;
-    for (let i = 0; i < 4; i++) { v.copy(FIT_ROOM[i]).project(probe); f0 = Math.min(f0, v.y); f1 = Math.max(f1, v.y); }
+    // 房間看起來多大：畫面裡看得到的地板有多高
+    const [f0, f1] = floorSpan();
     return { ok: ok && hi <= top + 0.01 && lo >= bottom - 0.01, span: f1 - f0, dir };
   };
+  // 仰角 58°～66°、水平方向在原本的角度左右 8° 以內，挑地板看起來最高的（直立畫面原本被寬度卡住，下面留一塊空白）
   let best = null;
-  for (let deg = 58; deg <= 66; deg += 2) {
-    const e = THREE.MathUtils.degToRad(deg);
+  for (let deg = 58; deg <= 74; deg += 2) for (let yd = -8; yd <= 8; yd += 4) {
+    const e = THREE.MathUtils.degToRad(deg), yaw = OVER_BASE.yaw + THREE.MathUtils.degToRad(yd);
     let lo = 6, hi = 60;
-    for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (place(e, mid).ok) hi = mid; else lo = mid; }
-    const r = place(e, hi);
-    if (r.ok && (!best || r.span > best.span + 0.02)) best = { deg, span: r.span, pos: look.clone().addScaledVector(r.dir, hi), look: look.clone() };
+    for (let i = 0; i < 20; i++) { const mid = (lo + hi) / 2; if (place(e, mid, yaw).ok) hi = mid; else lo = mid; }
+    const r = place(e, hi, yaw);
+    if (r.ok && (!best || r.span > best.span + 0.02)) best = { deg, yd, span: r.span, pos: look.clone().addScaledVector(r.dir, hi), look: look.clone() };
   }
   if (!best) return;
   OVER.deg = best.deg;
+  OVER.yd = best.yd;
   OVER.pos.copy(best.pos);
   OVER.look.copy(best.look);
-  if (state.mode === 'overview' && !tween) { cam.pos.copy(OVER.pos); cam.look.copy(OVER.look); }
+  if (state.mode === 'overview' && !tween) {
+    if (smooth) moveCamera(OVER.pos, OVER.look, 1.0);
+    else { cam.pos.copy(OVER.pos); cam.look.copy(OVER.look); }
+  }
 }
 function moveCamera(pos, look, dur = 1.4) {
   tween = { from: cam.pos.clone(), fromLook: cam.look.clone(), to: pos.clone(), toLook: look.clone(), t: 0, dur };
@@ -1484,7 +1548,7 @@ function updateUI() {
     : state.closeup ? '回座位' : `看${bar}沖`;
   $('day').textContent = `開店第 ${today()} 天`;
   // 打烊後沒有任何提示（企劃：沒有任何任務）；沖煮中的「按住畫面」與佈置的操作說明照常
-  const hint = choosing ? state.choicePrompt || ''
+  const hint = choosing ? '' // 選項的問句在選項上面那一行（#ask）
     : film ? ''
     : letter ? '德叔把一封信放在吧台上' // 【待定】
     : tut === 'sit' || g === 'sit' ? '點一張椅子坐下'
@@ -1497,6 +1561,7 @@ function updateUI() {
     : placingHint();
   $('hint').textContent = hint;
   $('hint').hidden = !hint;
+  refreshAsk(choosing);
   if (measureUi()) fitOverview(); // 「略過開場」出現或收起：俯瞰鏡頭跟著可用的高度重算
   endFocus();
   $('vignette').classList.toggle('on', !!state.focus && state.mode === 'seat' && !state.closeup);
@@ -1649,29 +1714,48 @@ $('brew').onclick = async () => {
   if (brewing || !state.seat || state.choice) return;
   const coffees = save.menu.filter((id) => S.MENU[id]?.kind === 'coffee');
   let bean = 'dongshan';
-  if (coffees.length > 1) bean = coffees[await choose(coffees.map((id) => S.MENU[id].name), '今天想喝哪一支豆子？')];
+  if (coffees.length > 1) bean = coffees[await choose(coffees.map((id) => S.MENU[id].name), '今天想喝哪一支豆子？', keeper() ? '凱文' : '德叔')];
   if (!brewing && state.seat) brew(state.seat, bean);
 };
 
 // 畫面下方的選項（≥ 44px）：回傳選了第幾個
-function choose(options, prompt = '') {
+// 選項上面一行是問句（美術評分修正 b）：有 prompt 就用 prompt（asker 是問的人的名字，空字串＝旁白），
+// 沒有的話用剛剛說的那句話（例如凱文問「你當初怎麼敢辭職的？」），泡泡先收起來，免得同一句出現兩次
+function choose(options, prompt = '', asker = '') {
   return new Promise((resolve) => {
     const box = $('choices');
     box.innerHTML = '';
     options.forEach((text, i) => {
       const b = document.createElement('button');
       b.textContent = text;
-      b.onclick = () => { state.choice = false; state.choicePrompt = ''; box.innerHTML = ''; updateUI(); resolve(i); };
+      b.onclick = () => { state.choice = false; state.choiceAsk = null; box.innerHTML = ''; updateUI(); resolve(i); };
       box.appendChild(b);
     });
+    const recent = lastSaid && performance.now() - lastSaid.at < 20000 ? lastSaid : null;
+    state.choiceAsk = prompt ? { name: asker, text: prompt } : recent;
+    bubble.classList.remove('show');
     state.choice = true;
-    state.choicePrompt = prompt;
     updateUI();
   });
 }
+// 選項的問句與後面的漸層：漸層從問句（或第一個選項）上面一點開始，蓋到畫面底
+function refreshAsk(choosing) {
+  const ask = $('ask'), a = choosing ? state.choiceAsk : null;
+  ask.hidden = !a;
+  if (a) ask.innerHTML = `${a.name ? `<b>${esc(a.name)}</b>` : ''}${esc(a.text)}`;
+  app.classList.toggle('choosing', choosing); // 選項出現時泡泡馬上收起來（不等淡出），問句只出現在選項上面那一行
+  const shade = $('shade');
+  shade.classList.toggle('on', choosing);
+  if (choosing) {
+    const top = (a ? ask : $('choices')).getBoundingClientRect().top - app.getBoundingClientRect().top;
+    shade.style.setProperty('--shade-h', `${Math.max(0, Math.round(app.clientHeight - top + 56))}px`);
+  }
+}
 $('night').onclick = () => { state.night = !state.night; applyLight(); };
 // 測試用的快轉鈕只在開發者模式出現
-const speedLabel = () => (state.devSpeed === 1 ? '正常速度' : `快轉 ×${state.devSpeed}`);
+// 併進右上角之後只寫倍率（桌機的直式畫面只有約 330px 寬）；完整的說明在 aria-label
+const speedLabel = () => `×${state.devSpeed}`;
+$('speed').setAttribute('aria-label', '快轉（開發者）');
 $('speed').hidden = !DEV;
 $('speed').textContent = speedLabel();
 $('speed').onclick = () => {
@@ -2097,10 +2181,22 @@ journalEl.addEventListener('click', (e) => { if (e.target === journalEl) closeJo
 const letterEl = $('letter');
 let letterDone = null;
 // 手寫的信：每個字一點點歪，看起來字有點抖（同一封信每次打開都抖得一樣）
+// 避頭點（美術評分修正 b）：每個字各自是一個 inline-block，瀏覽器的 line-break 管不到，
+// 所以句號、逗號、後引號這類不能放在行首的字，和前一個字包在一起；前引號和後一個字包在一起
+const NO_START = new Set([...'，。、；：！？」』）〉》…—,.!?']);
+const NO_END = new Set([...'「『（〈《']);
 function shaky(text, seed) {
   let s = seed;
   const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
-  return [...text].map((ch) => `<i style="transform:rotate(${((r() - 0.5) * 5).toFixed(1)}deg) translateY(${((r() - 0.5) * 1.6).toFixed(1)}px)">${ch}</i>`).join('');
+  const groups = [];
+  let glue = false;
+  for (const ch of text) {
+    if (groups.length && (glue || NO_START.has(ch))) groups[groups.length - 1].push(ch);
+    else groups.push([ch]);
+    glue = NO_END.has(ch);
+  }
+  const one = (ch) => `<i style="transform:rotate(${((r() - 0.5) * 5).toFixed(1)}deg) translateY(${((r() - 0.5) * 1.6).toFixed(1)}px)">${ch}</i>`;
+  return groups.map((g) => (g.length === 1 ? one(g[0]) : `<span class="nb">${g.map(one).join('')}</span>`)).join('');
 }
 function openLetter(letter, onClose = null) {
   letterDone = onClose;
@@ -2125,6 +2221,12 @@ letterEl.addEventListener('click', (e) => { if (e.target === letterEl) closeLett
 // 交信要等店裡安靜下來：開場結束、沒在沖咖啡、沒在佈置、沒有打開的面板、德叔沒在說話
 let readyAt = Infinity;
 const overlayOpen = () => [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map')].some((el) => !el.hidden);
+// 彈窗打開時，場景上的標籤、提示、泡泡、按鈕列都收起來（index.html 的 #app.modal；美術評分修正 b）。
+// 任何彈窗的 hidden 一變就馬上切換，不等下一格
+const syncModal = () => app.classList.toggle('modal', overlayOpen());
+const modalWatch = new MutationObserver(syncModal);
+for (const el of [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map')]) modalWatch.observe(el, { attributes: true, attributeFilter: ['hidden'] });
+syncModal();
 function quiet() {
   return save.flags.seenOpening && !state.tutorial && !state.letter && !state.cinematic && !state.scene && !state.choice && !brewing && !deshuReturning && !state.placing
     && !state.guest && (!state.closing || state.closing === 'after') && !overlayOpen() && !sayBusy && performance.now() > Math.max(readyAt, sayEnds + 1500 / DEV_SPEED);
@@ -2263,9 +2365,11 @@ function route(from, to) {
   pts.push(to.clone());
   return pts;
 }
-async function walkPath(p, pts, speed) {
-  for (const pt of pts) await walk(p, pt, speed);
+// 走完回傳 true；中途被新的一段取代就停下來、回傳 false
+async function walkPath(p, pts, speed, own = false) {
+  for (const pt of pts) if (!(await walk(p, pt, speed, own))) return false;
   p.userData.mesh.position.y = 0;
+  return true;
 }
 function settle(w, spot) {
   if (live.at[w]?.stool) live.at[w].stool.visible = true;
@@ -2286,7 +2390,7 @@ async function enterPerson(w, spot, walkPose, thenPose, fast) {
   p.position.copy(DOOR_IN);
   p.visible = true;
   if (!(w === 'grandpa' && PEOPLE.zhe.visible && PEOPLE.zhe.position.distanceTo(DOOR_IN) < 1)) audio.play('bell'); // 有人推門進來（阿公跟在阿哲後面，鈴只響一次）
-  await walkPath(p, route(DOOR_IN, spot.pos), walkSpeed(w, fast));
+  if (!(await walkPath(p, route(DOOR_IN, spot.pos), walkSpeed(w, fast), true))) return; // 走到一半就要離開了（打烊）
   if (tok !== live.token) return; // 走到一半換了一天（開發者跳天數）
   settle(w, spot);
   setPose(w, thenPose || defaultPose(w));
@@ -2296,7 +2400,7 @@ async function movePerson(w, spot, walkPose, thenPose) {
   if (live.at[w]?.stool) live.at[w].stool.visible = true;
   const tok = live.token;
   if (walkPose) setPose(w, walkPose);
-  await walkPath(p, route(p.position, spot.pos), walkSpeed(w));
+  if (!(await walkPath(p, route(p.position, spot.pos), walkSpeed(w), true))) return;
   if (tok !== live.token) return;
   settle(w, spot);
   setPose(w, thenPose || defaultPose(w));
@@ -2310,8 +2414,8 @@ async function leavePerson(w) {
   removeGuestCup(w);
   setPose(w, w === 'kevin' ? 'walk' : w === 'grandpa' ? 'stand' : poses[w]);
   const tok = live.token;
-  await walkPath(p, route(p.position, DOOR_IN), walkSpeed(w));
-  if (tok === live.token) { p.visible = false; if (w !== 'grandpa') audio.play('bell'); }
+  const out = await walkPath(p, route(p.position, DOOR_IN), walkSpeed(w), true);
+  if (out && tok === live.token) { p.visible = false; if (w !== 'grandpa') audio.play('bell'); }
 }
 function removeGuestCup(w) {
   const c = live.cups.get(w);
@@ -2439,17 +2543,24 @@ function lookToward(p, max = 1.2) {
     const want = Math.atan2(fy, Math.hypot(t.x, t.z)) - Math.atan((1 / 3) * Math.tan(fov / 2)); // 臉在畫面上方 1/3
     pitch = THREE.MathUtils.clamp(want - Math.atan2(b.y, Math.hypot(b.x, b.z)), -0.6, 0.5);
   }
-  const from = cam.yaw, fromPitch = cam.pitch;
+  let from = null, fromPitch = 0;
   const my = ++lookTok;
   let k = 0;
   realWaiters.push((dt) => {
     if (my !== lookTok) return true; // 又轉向別人了
+    // 鏡頭還在移回座位（例如看完德叔沖、端上桌之後）：等它到了再轉。
+    // 轉的角度是相對座位原本的方向算的，移動中先轉，說話的人會被切到畫面邊上（美術評分修正 b：桌機客人模式予安被切掉一半）
+    if (tween) return false;
+    if (state.mode !== 'seat') return true; // 等的時候站起來了
+    if (from === null) { from = cam.yaw; fromPitch = cam.pitch; }
     k = Math.min(1, k + dt * 1.2 * DEV_SPEED);
     cam.yaw = from + (yaw - from) * ease(k);
     cam.pitch = fromPitch + (pitch - fromPitch) * ease(k);
     return k >= 1;
   });
 }
+// 鏡頭移動（例如端上桌之後移回座位）做完：對話的下一句等鏡頭到了再說，說話的人才會在畫面裡（快轉時台詞比鏡頭快很多）
+const camSettled = () => new Promise((r) => { const f = () => (tween ? requestAnimationFrame(f) : r()); f(); });
 // 對話結束（場景演完、客人模式聊完）：推近與暗角收起來，視線回到座位原本的方向
 function endFocus() {
   if (!state.focus || conversing()) return;
@@ -2525,7 +2636,7 @@ async function playSteps(steps, tok) {
 }
 async function playStep(s, tok) {
   switch (s.do) {
-    case 'say': { const ms = sayMs(s.text); say(s.text, ms / DEV_SPEED, personOf(s.who), s.name || null); return realWait(ms + 450); }
+    case 'say': { if (state.mode === 'seat') await camSettled(); const ms = sayMs(s.text); say(s.text, ms / DEV_SPEED, personOf(s.who), s.name || null); return realWait(ms + 450); }
     case 'wait': return realWait(s.sec * 1000);
     case 'look': lookToward(personOf(s.who), 2.3); return realWait(500); // 和對話時轉向說話的人一樣，可以轉到身後
     case 'pose': setPose(s.who, s.pose); return realWait(350);
@@ -3054,7 +3165,7 @@ async function lastCup(seat) {
   if (state.closing !== 'lastcup' || brewing || state.choice) return;
   const coffees = save.menu.filter((id) => S.MENU[id]?.kind === 'coffee');
   let bean = 'dongshan';
-  if (coffees.length > 1) bean = coffees[await choose(coffees.map((id) => S.MENU[id].name), H.CLOSING.chooseBean)];
+  if (coffees.length > 1) bean = coffees[await choose(coffees.map((id) => S.MENU[id].name), H.CLOSING.chooseBean, keeper() ? '凱文' : '德叔')];
   if (state.closing !== 'lastcup' || brewing || state.seat !== seat) return;
   // 告別的最後一晚：德叔用那個琺瑯杯沖（劇本：第一次放在玩家面前）
   brew(seat, bean, { last: true, enamel: REGULARS_ON && !!F.segmentDue(save, today())?.lastNight });
@@ -3369,12 +3480,15 @@ async function guestOrder(seat) {
 // 杯子上桌之後：聽兩位熟客聊這間店，最後德叔過來小聲說兩句
 async function guestListen(seat) {
   const tok = guestTok;
+  await camSettled(); // 端上桌之後鏡頭移回座位：到了再開始聊（德叔那句「東山的豆……」也等鏡頭轉向他）
+  if (tok !== guestTok) return;
   state.guest = 'talk';
   updateUI();
   await realWait(4600); // 先讓德叔端上桌的那句話說完
   for (const l of H.guestTalk(save, guestPair, today())) {
     if (tok !== guestTok) return;
     const p = PEOPLE[l.who];
+    await camSettled();
     lookToward(p, 2.3); // 坐吧台的話，聊天的人在身後
     const ms = sayMs(l.text);
     say(l.text, ms / DEV_SPEED, p);
@@ -3427,7 +3541,7 @@ function project(pos, el, yOff = 0, pinned = false, edge = false) {
   }
   const visible = tmp.z < 1 && (pinned || (Math.abs(tmp.x) < 1.15 && Math.abs(tmp.y) < 1.15));
   el.style.opacity = visible ? '' : '0';
-  const half = el.offsetWidth / 2 + 8;
+  const half = el.offsetWidth / 2 + EDGE; // 左右和底部按鈕列一樣留 12px
   const x = clampN(((tmp.x + 1) / 2) * W, half, W - half);
   let y = ((1 - tmp.y) / 2) * H;
   y = clampN(y, el.offsetHeight + UI_SPACE.top, pinned ? H - UI_SPACE.bottom : H);
@@ -3559,8 +3673,27 @@ function loop() {
   updateWipe(dt);
   if (lightsEl.style.display !== 'none') for (const l of lightLabels) project(l.pos, l.el, 0.12);
   if (sceneHidden()) PERF.skipped++;
-  else renderer.render(scene, camera);
+  else { renderer.render(scene, camera); paintBackdrop(now); }
   requestAnimationFrame(loop);
+}
+
+// 桌機：直式畫面兩側的黑邊鋪上模糊的店內畫面（美術評分修正 b）。
+// 每 0.5 秒把剛畫好的那一格縮成很小的圖（要在 render 之後、同一格裡讀，不需要 preserveDrawingBuffer），CSS 再放大、模糊；
+// 兩側沒有空間（手機）時不畫
+const backdrop = document.getElementById('backdrop');
+let backdropCv = null, backdropAt = 0;
+function paintBackdrop(t) {
+  if (t - backdropAt < 500 || window.innerWidth - app.clientWidth < 40) return;
+  backdropAt = t;
+  if (!backdropCv) {
+    backdropCv = document.createElement('canvas');
+    backdropCv.width = 48; backdropCv.height = 64;
+    backdrop.appendChild(backdropCv);
+  }
+  try {
+    backdropCv.getContext('2d').drawImage(renderer.domElement, 0, 0, backdropCv.width, backdropCv.height);
+    backdropCv.classList.add('on');
+  } catch { /* 讀不到畫面就維持紙張紋理 */ }
 }
 
 frontWall.visible = false;
@@ -3622,6 +3755,22 @@ if (DEV) {
     get speed() { return speedNow(); },
     get mode() { return state.mode; },
     get overDeg() { return OVER.deg; },
+    // 美術評分修正 b：德叔的材質（每公尺像素、mipmap、三線性過濾）
+    get artInfo() { const m = deshu.userData.mesh.material.map; return { ppm: A.ppmOf(m.image), mip: m.generateMipmaps, trilinear: m.minFilter === THREE.LinearMipmapLinearFilter }; },
+    // 俯瞰：畫面裡看得到的地板最下緣，離提示（或按鈕列）上緣還有幾 px
+    overviewGap() {
+      const H = app.clientHeight, W = app.clientWidth, v = new THREE.Vector3();
+      const c = [[-ROOM.w / 2, -ROOM.d / 2], [-ROOM.w / 2, ROOM.d / 2], [ROOM.w / 2, ROOM.d / 2], [ROOM.w / 2, -ROOM.d / 2]];
+      let low = 0;
+      for (let i = 0; i < 4; i++) for (let k = 0; k <= 60; k++) {
+        const [x0, z0] = c[i], [x1, z1] = c[(i + 1) % 4];
+        v.set(x0 + (x1 - x0) * k / 60, 0, z0 + (z1 - z0) * k / 60).project(camera);
+        if (Math.abs(v.x) <= 1 && v.z < 1) low = Math.max(low, ((1 - v.y) / 2) * H);
+      }
+      const ui = $('hint').hidden ? document.querySelector('.bottom .row') : $('hint');
+      return ui.getBoundingClientRect().top - app.getBoundingClientRect().top - low;
+    },
+    get overYaw() { return OVER.yd; },
     get closeup() { return !!state.closeup; },
     get tasks() { return save.tasks.map((d) => d.id); },
     get fund() { return balance(save); },

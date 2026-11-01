@@ -8,23 +8,34 @@
   :root { --ink: #3b2a20; --paper: #f6efe2; --accent: #c4382c; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: #1a1612; overflow: hidden;
-    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; color: var(--ink); }
+    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; color: var(--ink); line-break: strict; }
+  /* 桌機：直式畫面兩側不留黑邊，鋪上模糊的店內畫面（main.js 每隔一下把畫面縮小畫進來）；還沒畫之前是紙張紋理 */
+  #backdrop { position: fixed; inset: 0; pointer-events: none; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 40%, rgba(120,80,45,.35), rgba(26,22,18,0) 70%),
+      repeating-linear-gradient(90deg, rgba(255,240,215,.025) 0 2px, rgba(0,0,0,.03) 2px 5px),
+      repeating-linear-gradient(0deg, rgba(255,240,215,.02) 0 3px, rgba(0,0,0,.025) 3px 7px), #2a211a; }
+  #backdrop canvas { position: absolute; inset: -6%; width: 112%; height: 112%; object-fit: cover; filter: blur(22px) saturate(.9) brightness(.62);
+    opacity: 0; transition: opacity 1.2s; }
+  #backdrop canvas.on { opacity: 1; }
   /* 手機直立：在寬螢幕上也維持直式比例 */
   #app { position: relative; height: 100%; max-width: calc(100vh * 9 / 19.5); margin: 0 auto; overflow: clip; touch-action: none; }
   #labels { position: absolute; inset: 0; overflow: clip; pointer-events: none; }
   #labels .seat-label { pointer-events: auto; }
   #app canvas { display: block; }
   .top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
-  .title { background: rgba(246,239,226,.92); padding: 6px 12px; border-radius: 14px; font-size: 13px; line-height: 1.35; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
-  .title b { display: block; font-size: 14px; }
-  .top-right { display: flex; gap: 8px; align-items: center; }
-  .temp { background: var(--accent); color: #fff; padding: 6px 12px; border-radius: 14px; font-weight: 700; font-size: 15px; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+    /* 頂部只有一列：標題、（開發者的快轉）、溫度、選單，四個膠囊一樣高（44px）、一樣圓（美術評分修正 b） */
+  .title, .temp, #menu-btn, #speed { height: 44px; border-radius: 22px; box-shadow: 0 2px 8px rgba(0,0,0,.18); white-space: nowrap; }
+  .title { background: rgba(246,239,226,.94); padding: 0 14px; font-size: 12px; line-height: 16px; display: flex; flex-direction: column; justify-content: center; }
+  .title b { display: block; font-size: 13.5px; line-height: 18px; }
+  .top-right { display: flex; gap: 6px; align-items: center; }
+  /* 溫度：依溫度從偏冷的陶土色漸變到琥珀色（main.js 的 tempColor()），不用飽和的正紅 */
+  .temp { background: #7f5546; color: #fff; padding: 0 12px; font-weight: 700; font-size: 15px; line-height: 44px; transition: background-color 1.5s; }
   /* 溫度上升時輕輕亮一下 */
   .temp.rise { animation: rise 2.6s ease-out; }
   @keyframes rise { 0% { transform: scale(1); box-shadow: 0 2px 8px rgba(0,0,0,.2); }
     20% { transform: scale(1.12); box-shadow: 0 0 0 6px rgba(255,190,110,.55), 0 2px 12px rgba(0,0,0,.25); }
     100% { transform: scale(1); box-shadow: 0 2px 8px rgba(0,0,0,.2); } }
-  #menu-btn { pointer-events: auto; width: 44px; height: 44px; padding: 0; border-radius: 14px; font-size: 22px; line-height: 44px; }
+  #menu-btn { pointer-events: auto; width: 44px; min-height: 44px; padding: 0; font-size: 22px; line-height: 44px; }
   .bottom { position: absolute; left: 12px; right: 12px; bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
   .hint { align-self: center; background: rgba(30,22,16,.72); color: #f6efe2; padding: 6px 12px; border-radius: 12px; font-size: 13px; }
   .row { display: flex; gap: 8px; }
@@ -35,7 +46,8 @@
   button:disabled { opacity: .5; }
   button.primary { background: var(--ink); color: var(--paper); }
   [hidden] { display: none !important; }
-  #speed { position: absolute; top: 68px; right: 12px; min-height: 44px; padding: 8px 12px; font-size: 13px; border-radius: 12px; opacity: .85; }
+  /* 開發者的快轉：併進右上角，和溫度、選單同一列 */
+  #speed { pointer-events: auto; min-height: 44px; padding: 0 12px; font-size: 13px; line-height: 44px; background: rgba(246,239,226,.94); }
   /* 座位標籤：看得到的是小一號的牌子＋指向家具的小三角；按得到的範圍仍是 44px（透明的外框） */
   #labels .seat-label { position: absolute; left: 0; top: 0; min-height: 44px; padding: 0 0 7px; background: none; box-shadow: none; border-radius: 0;
     display: flex; align-items: flex-end; justify-content: center; white-space: nowrap; }
@@ -72,7 +84,10 @@
     border-radius: 18px; padding: 20px 18px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
   .overlay h2 { margin: 0 0 6px; font-size: 18px; }
   .overlay .sub { margin: 0 0 6px; font-size: 13px; opacity: .8; }
-  .card.paper { background: #fbf5e6 repeating-linear-gradient(#fbf5e6 0 27px, #eadfc8 27px 28px); }
+  /* 紙：橫線只畫在寫字的地方（.ruled），間距＝文字的 line-height，線在每一行的底下（基線下方），跟著內容一起捲（美術評分修正 b） */
+  .card.paper { background: #fbf5e6; }
+  .ruled { --lh: 28px; --rule: #e6d8bc; background-image: repeating-linear-gradient(transparent 0 calc(var(--lh) - 1px), var(--rule) calc(var(--lh) - 1px) var(--lh));
+    background-attachment: local; }
   #nb-list { list-style: none; margin: 8px 0 14px; padding: 0; }
   #nb-list li { padding: 8px 2px; border-bottom: 1px dashed rgba(59,42,32,.3); display: flex; flex-direction: column; gap: 2px; }
   #nb-list small { font-size: 12px; opacity: .65; }
@@ -80,7 +95,7 @@
   #nb-list span { font-size: 13px; opacity: .8; }
   .nb-empty { font-size: 14px; margin: 12px 0 16px; }
   /* 德叔的型錄／倉庫 */
-  #sheet { position: absolute; inset: 0; z-index: 9; display: flex; flex-direction: column; justify-content: flex-end; background: rgba(20,14,10,.25); }
+  #sheet { position: absolute; inset: 0; z-index: 9; display: flex; flex-direction: column; justify-content: flex-end; background: rgba(20,14,10,.45); }
   #sheet .card { background: var(--paper); border-radius: 18px 18px 0 0; padding: 14px 14px 10px; max-height: 64%; display: flex; flex-direction: column;
     box-shadow: 0 -6px 24px rgba(0,0,0,.3); }
   .sheet-head { display: flex; align-items: center; justify-content: space-between; }
@@ -169,27 +184,39 @@
   .op-road-ui { position: relative; padding: 40px 18px 18px; display: flex; flex-direction: column; gap: 12px;
     background: linear-gradient(rgba(20,16,22,0), rgba(20,16,22,.78) 45%); }
   /* 進店後的「略過」 */
-  #op-skip-shop { position: absolute; top: 68px; left: 12px; min-height: 44px; padding: 8px 14px; font-size: 13px; border-radius: 12px; opacity: .88; }
+  /* 放在底部按鈕列的最左邊，不再壓在場景上（美術評分修正 b） */
+  .row #op-skip-shop { flex: none; padding-left: 14px; padding-right: 14px; font-size: 14px; font-weight: 500; background: rgba(246,239,226,.82); }
   /* 營業日誌與信：手寫風的紙 */
   .hand { font-family: var(--hand); }
   #journal .card, #letter .card { max-width: 350px; }
   .jr-scroll, .lt-scroll { overflow-y: auto; flex: 1 1 auto; min-height: 0; margin: 4px 0 12px; touch-action: pan-y; }
-  .jr-day { margin: 10px 0 2px; font-size: 13px; opacity: .7; font-weight: 600; }
-  .jr-day:first-child { margin-top: 2px; }
+  .jr-day { margin: 0; font-size: 13px; line-height: 28px; color: rgba(59,42,32,.72); font-weight: 600; }
+  .jr-day:not(:first-child) { margin-top: 28px; } /* 空一行，還是落在橫線上 */
   .jr-list { list-style: none; margin: 0; padding: 0; }
   .jr-list li { font-size: 17px; line-height: 28px; padding-left: 1em; text-indent: -1em; }
   .jr-list li::before { content: "・"; }
-  .jr-sum { font-size: 16px; line-height: 28px; margin: 0 0 4px; }
-  #letter .card { background: #fbf3df repeating-linear-gradient(#fbf3df 0 31px, #e8d9b9 31px 32px); }
-  .lt-scroll p { margin: 0 0 6px; font-size: 18px; line-height: 32px; text-indent: 2em; }
+  .jr-sum { font-size: 16px; line-height: 28px; margin: 0; }
+  #letter .card { background: #fbf3df; }
+  #letter .lt-scroll { --lh: 32px; --rule: #e3d2ae; }
+  .lt-scroll p { margin: 0; font-size: 18px; line-height: 32px; text-indent: 2em; } /* 段落之間不加空隙：每一行都剛好落在橫線上 */
   .lt-scroll p:first-child { text-indent: 0; }
   .lt-scroll i { font-style: normal; display: inline-block; text-indent: 0; } /* 每個字一點點歪：字有點抖 */
+  .lt-scroll .nb { display: inline-block; white-space: nowrap; text-indent: 0; } /* 避頭點：標點和前一個字一起換行 */
   .nb-links { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 4px; }
   .nb-links button { font-size: 14px; padding: 8px 10px; text-align: left; background: #fff; border: 1px solid rgba(59,42,32,.35); box-shadow: none; }
   /* ---------- 階段 4：熟客 ---------- */
   /* 選項：畫面下方，一個一行 */
   #choices { display: flex; flex-direction: column; gap: 8px; }
   #choices button { text-align: left; line-height: 1.4; white-space: normal; }
+  /* 選項的上下文（美術評分修正 b）：上面一行是說話的人問的那句（沿用泡泡的樣子），
+     選項區後面墊一層由下往上的漸層，和桌上的杯子分開 */
+  #ask { align-self: flex-start; max-width: 100%; background: #fffaf0; border: 2px solid var(--ink); border-radius: 14px; padding: 8px 12px;
+    font-size: 14px; line-height: 1.4; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+  #ask b { display: block; font-size: 12px; opacity: .7; }
+  #shade { position: absolute; left: 0; right: 0; bottom: 0; height: var(--shade-h, 0px); pointer-events: none; opacity: 0; transition: opacity .4s;
+    background: linear-gradient(to top, rgba(20,14,10,.82) 0%, rgba(20,14,10,.62) 55%, rgba(20,14,10,0) 100%); }
+  #shade.on { opacity: 1; }
+  #app.choosing #bubble { visibility: hidden; transition: none; }
   /* 老闆自己說的話：泡泡固定在畫面下方 */
   #bubble.me { background: #3b2a20; color: #f6efe2; border-color: #f6efe2; }
   #bubble.me::after { border-top-color: #f6efe2; }
@@ -202,15 +229,17 @@
   .nb-person span { font-size: 13px; opacity: .8; }
   /* ---------- 階段 5：打烊後、咖啡日記、客人模式 ---------- */
   #lights { position: absolute; inset: 0; overflow: clip; pointer-events: none; }
-  #lights .light-label { pointer-events: auto; position: absolute; left: 0; top: 0; min-height: 44px; min-width: 56px; padding: 8px 12px; font-size: 14px;
-    border-radius: 22px; background: rgba(255,226,170,.95); border: 2px solid #8a5a2b; color: #3b2a20; box-shadow: 0 0 14px rgba(255,200,120,.55); }
+  /* 開燈／關燈：和底部按鈕一樣大（48px 高、圓角 14px），左右也和按鈕列一樣留 12px */
+  #lights .light-label { pointer-events: auto; position: absolute; left: 0; top: 0; min-height: 48px; min-width: 76px; padding: 0 16px; font-size: 15px;
+    border-radius: 14px; background: rgba(255,226,170,.95); border: 2px solid #8a5a2b; color: #3b2a20; box-shadow: 0 0 14px rgba(255,200,120,.55); }
   #lights .light-label.off { background: rgba(40,44,60,.88); color: #e6e2f0; border-color: rgba(230,226,240,.5); box-shadow: none; }
   /* 咖啡日記 */
-  #dy-text { width: 100%; font: inherit; font-family: var(--hand); font-size: 18px; line-height: 28px; padding: 6px 8px; border: 1px solid rgba(59,42,32,.35);
-    border-radius: 8px; background: rgba(255,255,255,.6); color: var(--ink); resize: none; margin: 6px 0 2px; }
-  #dy-count { display: block; text-align: right; font-size: 12px; opacity: .6; margin-bottom: 10px; }
+  #dy-text { width: 100%; font: inherit; font-family: var(--hand); font-size: 18px; line-height: 28px; padding: 4px 8px 0; border: 1px solid rgba(59,42,32,.35);
+    border-radius: 8px; color: var(--ink); resize: none; margin: 6px 0 2px; height: 62px;
+    background: rgba(255,255,255,.6) repeating-linear-gradient(transparent 0 27px, #e6d8bc 27px 28px) 0 4px / 100% 28px; background-attachment: local; }
+  #dy-count { display: block; text-align: right; font-size: 13px; font-weight: 600; color: #5a4232; margin-bottom: 10px; } /* 字數：深一點，看得清楚 */
   #dy-write .row button { flex: 1 1 0; }
-  .dy-entry { margin: 0 0 4px; font-size: 17px; line-height: 28px; }
+  .dy-entry { margin: 0; font-size: 17px; line-height: 28px; }
   /* 打烊之後的畫面 */
   #closed { position: absolute; inset: 0; z-index: 15; background: rgba(9,10,16,.9); color: #efe9dc; display: flex; align-items: center; justify-content: center;
     padding: 24px; text-align: center; animation: floatin 1.6s ease-out both; }
@@ -225,41 +254,51 @@
   #fade.on { opacity: 1; pointer-events: auto; }
   /* ---------- 階段 6：你的咖啡地圖 ---------- */
   .grid .span2 { grid-column: 1 / -1; }
-  #map { z-index: 16; background: rgba(9,10,16,.82); animation: floatin 1.6s ease-out both; }
+  #map { z-index: 16; background: rgba(9,10,16,.82); animation: dim-in 1.2s ease-out both; }
+  /* 彈窗：只有背景遮罩淡入，卡片本身從第一格就不透明，只往上浮一點（美術評分修正 b） */
+  #map .card { animation: card-in 1.2s ease-out both; }
+  @keyframes dim-in { from { background-color: rgba(9,10,16,.45); } }
+  @keyframes card-in { from { transform: translateY(14px); } to { transform: none; } }
+  /* 彈窗打開時：場景上的標籤、提示、泡泡、按鈕列都收起來，不從遮罩後面透出來 */
+  #app.modal #labels, #app.modal #lights, #app.modal #bubble, #app.modal .bottom, #app.modal #shade { visibility: hidden; transition: none; } /* 泡泡收起來時的延遲也不要 */
   .map-card { align-items: stretch; }
   .map-wrap { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; margin: 4px 0 6px; }
   .map-wrap img { display: block; max-width: 100%; max-height: 100%; height: auto; object-fit: contain; border-radius: 10px;
     box-shadow: inset 0 0 0 1px rgba(59,42,32,.2); }
   #map-list { list-style: none; margin: 0 0 4px; padding: 0; flex: none; }
-  #map-list li { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 8px; padding: 5px 2px; border-bottom: 1px dashed rgba(59,42,32,.3); font-size: 14px; opacity: .6; }
+  /* 兩欄固定：左邊地名、右邊說明，不折行（窄的時候說明縮小一點） */
+  #map-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 8px; padding: 5px 2px; border-bottom: 1px dashed rgba(59,42,32,.3); font-size: 14px; opacity: .6; }
   #map-list li.lit { opacity: 1; }
   #map-list li.lit b::before { content: "●"; color: #e0892f; margin-right: 6px; text-shadow: 0 0 6px rgba(255,180,90,.9); }
   #map-list li:not(.lit) b::before { content: "○"; margin-right: 6px; }
   #map-list b { white-space: nowrap; }
-  #map-list span { font-size: 13px; margin-left: auto; }
+  #map-list span { font-size: 12.5px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .map-line { margin: 6px 0 10px; font-size: 16px; text-align: center; flex: none; }
 </style>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
 <body>
+<div id="backdrop"></div>
 <div id="app">
   <div id="vignette"></div>
   <div class="top">
     <div class="title"><b>東山・第一間店</b><span id="day">開店第 1 天</span></div>
     <div class="top-right">
+      <button id="speed" hidden>正常速度</button>
       <div class="temp" id="temp">20.0°C</div>
       <button id="menu-btn" aria-label="選單" aria-controls="about" aria-expanded="false">≡</button>
     </div>
   </div>
-  <button id="speed" hidden>正常速度</button>
-  <button id="op-skip-shop" hidden>略過開場</button>
   <div id="labels"></div>
   <div id="lights"></div>
   <div id="bubble"></div>
+  <div id="shade"></div>
   <div class="bottom">
     <div class="hint" id="hint"></div>
+    <div id="ask" hidden></div>
     <div id="choices" hidden></div>
     <div class="row">
+      <button id="op-skip-shop" hidden>略過開場</button>
       <button id="place">佈置</button>
       <button id="stand">站起來</button>
       <button id="brew" class="primary">請德叔沖一杯</button>
@@ -338,7 +377,7 @@
     <div class="card paper hand">
       <h2 id="jr-title">德叔的營業日誌</h2>
       <p class="sub" id="jr-sub"></p>
-      <div class="jr-scroll" id="jr-body"></div>
+      <div class="jr-scroll ruled" id="jr-body"></div>
       <button id="jr-close" class="primary wide">收好</button>
     </div>
   </div>
@@ -346,7 +385,7 @@
   <div id="letter" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="lt-title">
     <div class="card hand">
       <h2 id="lt-title">第一封信</h2>
-      <div class="lt-scroll" id="lt-body"></div>
+      <div class="lt-scroll ruled" id="lt-body"></div>
       <button id="lt-close" class="primary wide">收好</button>
     </div>
   </div>
@@ -360,7 +399,7 @@
         <small id="dy-count"></small>
         <div class="row"><button id="dy-cancel">先不寫</button><button id="dy-save" class="primary">寫好了</button></div>
       </div>
-      <div class="jr-scroll" id="dy-read" hidden></div>
+      <div class="jr-scroll ruled" id="dy-read" hidden></div>
       <button id="dy-close" class="primary wide" hidden>闔上</button>
     </div>
   </div>

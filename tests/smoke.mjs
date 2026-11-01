@@ -66,7 +66,7 @@ async function overlayProblems(page) {
     const out = [];
     const app = document.getElementById('app').getBoundingClientRect();
     let uiBottom = 0;
-    for (const el of document.querySelectorAll('.top, #speed, #op-skip-shop')) {
+    for (const el of document.querySelectorAll('.top')) { // 美術評分修正 b：快轉併進 .top、「略過開場」移到底部
       if (el.hidden) continue;
       const r = el.getBoundingClientRect();
       if (r.height) uiBottom = Math.max(uiBottom, r.bottom);
@@ -91,6 +91,45 @@ async function overlayProblems(page) {
   });
 }
 
+// 美術評分修正 b：彈窗打開時，場景上的標籤、泡泡、提示與按鈕列收起來；遮罩至少 .45、卡片完全不透明
+async function modalProblems(page, sel) {
+  return page.evaluate((sel) => {
+    const out = [];
+    const dlg = document.querySelector(sel), card = dlg.querySelector('.card') || dlg;
+    for (const s of ['#labels', '#bubble', '.bottom', '#lights']) {
+      const el = document.querySelector(s);
+      if (getComputedStyle(el).visibility !== 'hidden' && el.style.display !== 'none' && el.getBoundingClientRect().height) out.push(`${s} 從遮罩後面透出來`);
+    }
+    const alpha = (c) => { const m = c.match(/rgba?\(([^)]+)\)/); if (!m) return 1; const v = m[1].split(',').map(Number); return v.length > 3 ? v[3] : 1; };
+    const bg = alpha(getComputedStyle(dlg).backgroundColor);
+    if (bg < 0.45) out.push(`遮罩只有 ${bg}`);
+    const cs = getComputedStyle(card);
+    if (alpha(cs.backgroundColor) < 1 || Number(cs.opacity) < 1) out.push(`卡片不是完全不透明（${cs.backgroundColor}, ${cs.opacity}）`);
+    return out;
+  }, sel);
+}
+// 美術評分修正 b：信紙／日誌的橫線間距＝文字的行高、段落之間沒有多出來的空隙；行首沒有句號、逗號、後引號
+async function paperProblems(page, sel, lh) {
+  return page.evaluate(([sel, lh]) => {
+    const out = [];
+    const box = document.querySelector(sel);
+    if (getComputedStyle(box).getPropertyValue('--lh').trim() !== `${lh}px`) out.push(`橫線間距不是 ${lh}px`);
+    for (const el of box.querySelectorAll('p, li, h3')) {
+      const cs = getComputedStyle(el);
+      if (cs.lineHeight !== `${lh}px`) out.push(`「${el.textContent.slice(0, 6)}」的行高 ${cs.lineHeight}`);
+      if ((parseFloat(cs.marginTop) + parseFloat(cs.marginBottom)) % lh) out.push(`「${el.textContent.slice(0, 6)}」的段落間距不在橫線上`);
+    }
+    const NO_START = '，。、；：！？」』）〉》…—';
+    for (const p of box.querySelectorAll('p')) {
+      let top = -1;
+      for (const c of p.children) {
+        if (c.offsetTop > top + 4) { if (top >= 0 && NO_START.includes(c.textContent[0])) out.push(`行首是「${c.textContent[0]}」`); top = c.offsetTop; }
+      }
+    }
+    return out;
+  }, [sel, lh]);
+}
+
 try {
   /* ---------- 手機 390×844，開發者模式加速 ---------- */
   console.log('手機 390×844（?dev=1&speed=20）');
@@ -106,6 +145,22 @@ try {
     const small = await smallTargets(page);
     check(small.length === 0, `可點目標都 ≥ 44px ${small.length ? JSON.stringify(small) : ''}`);
     check(await page.isVisible('#speed'), '開發者模式顯示快轉鈕');
+    {
+      // 美術評分修正 b：頂部只有一列（快轉併進右上角），標題、快轉、溫度、選單一樣高；溫度不是飽和的正紅
+      const top = await page.evaluate(() => {
+        const hs = ['.title', '#speed', '#temp', '#menu-btn'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().height));
+        const rows = new Set(['.title', '#speed', '#temp', '#menu-btn'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().top)));
+        return { hs, rows: rows.size, inTop: !!document.querySelector('.top #speed'), bg: getComputedStyle(document.getElementById('temp')).backgroundColor };
+      });
+      check(top.inTop && top.rows === 1 && top.hs.every((h) => h === 44), `頂部介面一列、膠囊一樣高 44px ${JSON.stringify(top.hs)}`);
+      check(top.bg !== 'rgb(196, 56, 44)' && top.bg !== 'rgba(0, 0, 0, 0)', `溫度改成陶土色／琥珀色（${top.bg}）`);
+      // 特寫用的人物材質：每公尺至少 400 像素、有 mipmap 與三線性過濾
+      const art = await page.evaluate(() => window.__cafe.artInfo);
+      check(art.ppm >= 400 && art.mip && art.trilinear, `人物材質的解析度與過濾 ${JSON.stringify(art)}`);
+      // 俯瞰：地板下緣離提示不遠（直立畫面下面不留一大塊空白）
+      const gap = await page.evaluate(() => window.__cafe.overviewGap());
+      check(gap < 50, `俯瞰：地板下緣離提示 ${Math.round(gap)}px`);
+    }
     check((await page.textContent('#temp')) === '20.0°C', '一開始溫度 20.0°C');
     await page.screenshot({ path: OUT + 'phone-overview.png' });
 
@@ -247,6 +302,8 @@ try {
     check((await smallTargets(page)).length === 0, '選單裡的按鈕都 ≥ 44px');
     await page.click('#dev-day1');
     check(await page.isVisible('#journal'), '跳到明天：德叔交出營業日誌');
+    { const p = await modalProblems(page, '#journal'); check(p.length === 0, `營業日誌打開時，背景的標籤、泡泡、提示都收起來 ${p.join('；')}`); }
+    { const p = await paperProblems(page, '#jr-body', 28); check(p.length === 0, `日誌的字落在橫線上 ${p.join('；')}`); }
     await page.click('#jr-close');
     await page.click('#menu-btn');
     await page.click('#dev-day1');
@@ -323,6 +380,7 @@ try {
     check(await page.evaluate(() => window.__cafe.mode === 'door'), '推門進去：鏡頭在門口');
     await page.waitForFunction(() => window.__cafe.tutorial === 'sit', null, { timeout: 10000 });
     check(await page.isHidden('#place') && await page.isVisible('#op-skip-shop'), '第四幕：「先坐。」只留座位，佈置鈕先收起來');
+    check(await page.evaluate(() => !!document.querySelector('.bottom .row #op-skip-shop')), '「略過開場」在底部按鈕列，不壓在場景上');
     { const p = await overlayProblems(page); check(p.length === 0, `第四幕：泡泡與標籤避開「略過開場」與快轉 ${p.join('；')}`); }
     check(!(await cafe('yuanHere')), '開店第 1 天予安還沒來');
     check((await cafe('stored')).length === 0, '初始擺飾還沒送');
@@ -399,6 +457,8 @@ try {
     check(await page.isVisible('#letter') && (await page.textContent('#lt-body')).includes('德昌煮的咖啡很慢'), '信紙：第一封老先生的信');
     const shaky = await page.$$eval('#lt-body i', (is) => is.filter((i) => /rotate\(-?\d/.test(i.style.transform)).length);
     check(shaky > 100, `手寫的字有點抖（${shaky} 個字微微旋轉）`);
+    { const p = await modalProblems(page, '#letter'); check(p.length === 0, `信打開時，背景的「讀信」與提示收起來 ${p.join('；')}`); }
+    { const p = await paperProblems(page, '#lt-body', 32); check(p.length === 0, `信紙：橫線對齊每一行、沒有避頭點問題 ${p.join('；')}`); }
     check((await smallTargets(page)).length === 0, '信紙的按鈕都 ≥ 44px');
     await page.screenshot({ path: OUT + 'phone-letter.png' });
     await page.click('#lt-close');
@@ -516,7 +576,7 @@ try {
     await page.waitForSelector('.seat-label >> text=窗邊座', { state: 'visible', timeout: 10000 });
     await page.click('.seat-label >> text=窗邊座');
     const shots = new Set();
-    let choiceSmall = null, kevinOptions = null;
+    let choiceSmall = null, kevinOptions = null, kevinAsk = '';
     const closedFor = new Set();
     let readAfterClosing = false, guestSeen = false;
     // 一天裡要發生的事都發生完：選項就選第一個、信就讀、紙就收好
@@ -536,6 +596,7 @@ try {
         if (await page.isVisible('#choices')) {
           if (s.scene === 'kevin4') {
             kevinOptions = await page.$$eval('#choices button', (bs) => bs.map((b) => b.textContent));
+            kevinAsk = (await page.isVisible('#ask')) ? await page.textContent('#ask') : '';
             choiceSmall = await smallTargets(page);
             await page.screenshot({ path: OUT + 'phone-regulars-choice.png' });
           }
@@ -563,7 +624,8 @@ try {
         if (!s.busy) return true;
         await page.waitForTimeout(120);
       }
-      check(false, `${label}：熟客的事情在時限內發生完`);
+      check(false, `${label}：熟客的事情在時限內發生完 ${JSON.stringify(await page.evaluate(() => ({ w: window.__cafe.waitInfo, scene: window.__cafe.scene, mode: window.__cafe.mode, closeup: window.__cafe.closeup, here: window.__cafe.here })))}`);
+      await page.screenshot({ path: OUT + 'phone-regulars-stuck.png' });
       return false;
     }
     await pump('第 1 天');
@@ -583,6 +645,7 @@ try {
     check(st.typhoonDay >= 8 && shots.has('typhoon'), `第 2 週的颱風夜（第 ${st.typhoonDay} 天）`);
     check(st.zhe.on[4] >= st.zhe.on[3] + 3, '颱風後 3 天，阿哲和阿公一起來');
     check(kevinOptions?.length === 3 && st.answers.kevinQuit === 0, `凱文問「你當初怎麼敢辭職的？」：三選一 ${JSON.stringify(kevinOptions)}`);
+    check(kevinAsk.includes('凱文') && kevinAsk.includes('你當初怎麼敢辭職的？'), `三選一的上面一行是凱文的問句（${kevinAsk}）`);
     check(choiceSmall && choiceSmall.length === 0, '選項按鈕都 ≥ 44px');
     check(shots.has('kevin2') && shots.has('manuscript'), '凱文被罵時龍眼陪他、予安念稿');
     check(closedFor.has('yuan5') && readAfterClosing, '予安念稿：老闆按了「打烊」、喝完最後一杯之後才念');
@@ -598,6 +661,8 @@ try {
     await page.waitForSelector('#brew', { state: 'visible', timeout: 10000 });
     await page.click('#brew');
     check(await page.isVisible('#choices') && (await page.textContent('#choices')).includes('阿哲的豆'), '請德叔沖一杯：先選東山的豆或阿哲的豆');
+    check(await page.isVisible('#ask') && (await page.textContent('#ask')).includes('今天想喝哪一支豆子？') && await page.evaluate(() => document.getElementById('shade').classList.contains('on')),
+      '選項上面有德叔的問句，後面墊一層漸層');
     await page.click('#choices button:has-text("阿哲的豆")');
     await page.waitForFunction(() => window.__cafe.brewing, null, { timeout: 5000 });
     await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 20000 });
@@ -746,6 +811,7 @@ try {
     // 今天的一杯
     await page.click('#diary-btn');
     check(await page.isVisible('#diary') && (await page.textContent('#dy-sub')).includes('東山的豆'), '「今天的一杯」寫著今天喝的豆子');
+    check(await page.evaluate(() => Number(getComputedStyle(document.getElementById('dy-count')).opacity) === 1), '字數（例如 11／40）不再是半透明的淡字');
     check((await smallTargets(page)).length === 0, '日記的按鈕都 ≥ 44px');
     await page.fill('#dy-text', '今天的山很清楚，咖啡也是。');
     await page.screenshot({ path: OUT + 'phone-closing-diary.png' });
@@ -970,6 +1036,11 @@ try {
     check((seen['letter:第二封信'] || '').includes('之後每一個明天，都是公休。'), '德叔拿出第二封信（劇本原文）');
     const map = await page.textContent('#map');
     check(map.includes('你的咖啡地圖') && map.includes('台南・東山') && map.includes('花蓮・舞鶴') && map.includes('待續'), '咖啡地圖：只亮東山一盞燈，下一站「待續」');
+    { const p = await modalProblems(page, '#map'); check(p.length === 0, `咖啡地圖：卡片不透明、背景收起來 ${p.join('；')}`); }
+    {
+      const rows = await page.$$eval('#map-list li', (ls) => ls.map((l) => Math.round(l.getBoundingClientRect().height)));
+      check(rows.length === 2 && rows.every((h) => h < 34), `咖啡地圖：清單每一列都是一行（${rows}）`);
+    }
     check((await smallTargets(page)).length === 0, '地圖的按鈕都 ≥ 44px');
     await page.screenshot({ path: OUT + 'phone-farewell-map.png' });
     await page.click('#map-back');
