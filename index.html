@@ -274,6 +274,19 @@
   #map-list b { white-space: nowrap; }
   #map-list span { font-size: 12.5px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .map-line { margin: 6px 0 10px; font-size: 16px; text-align: center; flex: none; }
+  /* 桌機（視窗比直式畫面寬很多，場景欄約 330px）：字放大（美術評分修正 c）：標籤、提示、清單至少 14px，泡泡與問句的內文 16px */
+  @media (min-aspect-ratio: 3/5) {
+    #bubble { font-size: 16px; max-width: 250px; }
+    #ask { font-size: 16px; }
+    #bubble b, #ask b { font-size: 14px; }
+    #labels .seat-label span { font-size: 15px; }
+    .hint, #speed { font-size: 14px; }
+    .title { font-size: 14px; line-height: 17px; }
+    .title b { font-size: 14px; line-height: 18px; }
+    #about .sub, #about dt, #about .links a span, .overlay .sub, #nb-list small, #nb-list span, #nb-people h3, .nb-person span,
+    #sheet .sub, #sheet-list h3, .sheet-row .info span, .sheet-row .info small, .jr-day, .cl-date, #dy-count, #map-list span { font-size: 14px; }
+    #map-list span { white-space: normal; overflow: visible; } /* 14px 放不下一行：說明在右欄裡折行，不要被刪節號吃掉 */
+  }
 </style>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>

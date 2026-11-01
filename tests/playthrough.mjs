@@ -49,6 +49,11 @@ async function play([W, H]) {
     // 捲動區裡（例如選單、型錄）超出畫面是正常的：只記錄不在捲動區裡的
     if (r.length) bad.push(`${name}: ${JSON.stringify(r)}`);
   }
+  // 美術評分修正 c：等淡入、展開這類動畫跑完再拍（律師信原本在整幕淡入到 0.2 的時候就拍了，截圖整片暗灰）
+  const settled = () => page.evaluate(() => Promise.race([
+    Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {}))),
+    new Promise((r) => setTimeout(r, 3000)),
+  ]));
   const said = [];
   await page.exposeFunction('__said', (t) => said.push(t));
 
@@ -56,19 +61,24 @@ async function play([W, H]) {
   await page.waitForSelector('.op-office.on');
   await page.click('.op-choices button >> nth=0');
   await page.waitForTimeout(400);
+  await settled();
   await shot('opening-office');
   await page.click('#op-send');
   await page.waitForSelector('.op-title.on');
   await page.waitForTimeout(600);
+  await settled();
   await shot('opening-title');
   await page.click('#op-next');
   await page.waitForSelector('.op-mailbox.on');
   await page.click('#op-env');
   await page.waitForSelector('.op-lawyer');
+  await settled();
+  await page.waitForTimeout(300);
   await shot('opening-lawyer-letter');
   await page.click('.op-mailbox #op-next');
   await page.waitForSelector('.op-road.on');
   await page.waitForTimeout(500);
+  await settled();
   await shot('opening-road');
   await page.click('.op-road #op-next');
   await page.waitForFunction(() => window.__cafe.tutorial === 'enter', null, { timeout: 8000 });
@@ -107,7 +117,12 @@ async function play([W, H]) {
         const c = window.__cafe;
         return { busy: c.storyBusy, scene: c.scene, closing: c.closing, guest: c.guest, mode: c.mode, brewing: c.brewing, keeper: c.keeper, map: c.mapOpen, arriving: c.arriving, temp: c.temp, weather: c.weather, placing: c.placing, cin: c.cinematic };
       });
-      if (s.scene) await shot(`scene-${s.scene}`);
+      if (s.scene && !shots.includes(`scene-${s.scene}`)) {
+        // 美術評分修正 c：場景一開始先轉向說話的人，等第一句話的泡泡出來再拍（原本拍到的是還沒開口的那一格）
+        await page.waitForFunction(() => window.__cafe.camStill && document.getElementById('bubble').classList.contains('show'), null, { timeout: 5000, polling: 'raf' }).catch(() => {});
+        await page.waitForTimeout(300); // 泡泡淡入 0.3 秒
+        await shot(`scene-${s.scene}`);
+      }
       if (s.weather === 'typhoon') await shot('typhoon-night');
       if (s.map) { await page.waitForTimeout(1200); await shot('coffee-map'); return 'map'; }
       if (await vis('#choices')) {
