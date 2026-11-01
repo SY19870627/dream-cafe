@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>我單方面辭退老闆後，開了一間夢想中的咖啡店｜2.5D 原型</title>
+<style>
+  :root { --ink: #3b2a20; --paper: #f6efe2; --accent: #c4382c; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #1a1612; overflow: hidden;
+    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; color: var(--ink); }
+  /* 手機直立：在寬螢幕上也維持直式比例 */
+  #app { position: relative; height: 100%; max-width: calc(100vh * 9 / 19.5); margin: 0 auto; overflow: clip; touch-action: none; }
+  #labels { position: absolute; inset: 0; overflow: clip; pointer-events: none; }
+  #labels .seat-label { pointer-events: auto; }
+  #app canvas { display: block; }
+  .top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
+  .title { background: rgba(246,239,226,.92); padding: 6px 12px; border-radius: 14px; font-size: 13px; line-height: 1.35; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+  .title b { display: block; font-size: 14px; }
+  .temp { background: var(--accent); color: #fff; padding: 6px 12px; border-radius: 14px; font-weight: 700; font-size: 15px; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+  .bottom { position: absolute; left: 12px; right: 12px; bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .hint { align-self: center; background: rgba(30,22,16,.72); color: #f6efe2; padding: 6px 12px; border-radius: 12px; font-size: 13px; }
+  .row { display: flex; gap: 8px; }
+  .row button { flex: 1; }
+  button { font: inherit; border: 0; border-radius: 14px; padding: 12px 10px; font-size: 15px; font-weight: 600;
+    background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+  button:disabled { opacity: .5; }
+  button.primary { background: var(--ink); color: var(--paper); }
+  #speed { position: absolute; top: 64px; right: 12px; padding: 6px 10px; font-size: 12px; border-radius: 10px; opacity: .85; }
+  #labels .seat-label { position: absolute; left: 0; top: 0; padding: 6px 12px; font-size: 13px; border-radius: 12px;
+    background: rgba(246,239,226,.95); border: 2px solid var(--ink); white-space: nowrap; }
+  #bubble { position: absolute; left: 0; top: 0; max-width: 220px; background: #fffaf0; border: 2px solid var(--ink);
+    border-radius: 14px; padding: 8px 12px; font-size: 14px; line-height: 1.4; pointer-events: none;
+    opacity: 0; transition: opacity .3s; }
+  #bubble.show { opacity: 1; }
+  #bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -8px; border: 8px solid transparent;
+    border-top-color: var(--ink); border-bottom: 0; }
+  #toast { position: absolute; left: 50%; top: 78px; transform: translate(-50%, -10px); background: #fff3d6; border: 2px solid #c48a2c;
+    padding: 8px 14px; border-radius: 12px; font-size: 13px; opacity: 0; transition: all .4s; white-space: nowrap; pointer-events: none; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<div id="app">
+  <div class="top">
+    <div class="title"><b>東山・第一間店</b>德叔在吧台</div>
+    <div class="temp" id="temp">20.0°C</div>
+  </div>
+  <button id="speed">正常速度</button>
+  <div id="labels"></div>
+  <div id="bubble"></div>
+  <div id="toast"></div>
+  <div class="bottom">
+    <div class="hint" id="hint"></div>
+    <div class="row">
+      <button id="place">佈置</button>
+      <button id="stand">站起來</button>
+      <button id="brew" class="primary">請德叔沖一杯</button>
+      <button id="night">白天</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
