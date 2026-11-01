@@ -2,7 +2,8 @@
 // 以 Chromium 載入遊戲，檢查沒有 JS 錯誤、座位標籤不被切掉、點擊目標 ≥ 44px、
 // 沖一杯咖啡後杯子上桌看得見、按鈕恢復、溫度 20.0 → 20.5°C、開發者資訊面板；
 // 階段 3：開場四幕（與略過、中途重新整理）、營業日誌、第一封老先生的信、舊存檔直接進店。
-// 不測開場的段落用 ?dev=1&opening=0 直接當作看過開場。
+// 不測開場的段落用 ?dev=1&opening=0 直接當作看過開場；不測熟客的段落加 &regulars=0（溫度與基金才算得準）。
+// 階段 4：三位熟客的故事線（快轉天數走完 18 個里程碑、颱風夜、凱文的三選一、記事本、選豆子）、雨天坐窗邊。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -56,7 +57,7 @@ try {
   /* ---------- 手機 390×844，開發者模式加速 ---------- */
   console.log('手機 390×844（?dev=1&speed=20）');
   {
-    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0');
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0');
     for (const l of await labelsInside(page)) check(l.ok, `座位標籤「${l.name}」完整顯示`);
     const small = await smallTargets(page);
     check(small.length === 0, `可點目標都 ≥ 44px ${small.length ? JSON.stringify(small) : ''}`);
@@ -121,7 +122,7 @@ try {
   /* ---------- 階段 2：存檔、佈置與型錄、跳天數、記事本 ---------- */
   console.log('手機 390×844（存檔、佈置、型錄、跳天數）');
   {
-    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0');
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0');
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     const consistent = () => page.evaluate(() => window.__cafe.fund === window.__cafe.ledgerSum);
     check((await cafe('saveStatus')) === 'new' && (await page.textContent('#day')) === '開店第 1 天', '新存檔：開店第 1 天');
@@ -308,7 +309,7 @@ try {
   /* ---------- 階段 3：營業日誌與第一封老先生的信 ---------- */
   console.log('手機 390×844（營業日誌、第一封信）');
   {
-    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0');
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0');
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     const dayLines = () => page.$$eval('#jr-body .jr-list', (uls) => uls.map((u) => u.children.length));
     await page.waitForTimeout(1500);
@@ -429,10 +430,154 @@ try {
     await page.close();
   }
 
+  /* ---------- 階段 4：三位熟客的故事線 ---------- */
+  console.log('手機 390×844（三位熟客：快轉天數走完三條線）');
+  {
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=40&opening=0');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    const story = () => cafe('story');
+    const done = (st) => ['yuan', 'zhe', 'kevin'].reduce((n, w) => n + st[w].milestones.length, 0);
+    // 第 1 天：阿哲拎著龍眼乾來（可離線的里程碑，老闆在就當場演）
+    await page.waitForFunction(() => window.__cafe.here.includes('zhe'), null, { timeout: 15000 });
+    check(true, '第 1 天：阿哲走進店裡');
+    await page.waitForFunction(() => window.__cafe.story.zhe.milestones.includes(1) && !window.__cafe.scene, null, { timeout: 20000 });
+    let st = await story();
+    check(st.menu.includes('longan') && (await cafe('tasks')).includes('zhe-longan'), '阿哲的龍眼乾：菜單多了窯烤龍眼乾、溫度任務完成');
+    await page.screenshot({ path: OUT + 'phone-regulars-zhe.png' });
+    // 坐在窗邊座，之後每天都從這裡看（凱文的問題要老闆坐著才會發生）
+    await page.waitForSelector('.seat-label >> text=窗邊座', { state: 'visible', timeout: 10000 });
+    await page.click('.seat-label >> text=窗邊座');
+    const shots = new Set();
+    let choiceSmall = null, kevinOptions = null;
+    // 一天裡要發生的事都發生完：選項就選第一個、信就讀、紙就收好
+    async function pump(label) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 90000) {
+        const s = await page.evaluate(() => ({ busy: window.__cafe.storyBusy, scene: window.__cafe.scene, weather: window.__cafe.weather, choosing: window.__cafe.choosing }));
+        if (s.scene === 'zhe3' && s.weather === 'typhoon' && !shots.has('typhoon')) {
+          await page.waitForTimeout(150);
+          shots.add('typhoon');
+          await page.screenshot({ path: OUT + 'phone-regulars-typhoon.png' });
+        }
+        if (s.scene === 'kevin2' && !shots.has('kevin2') && (await page.textContent('#bubble')).includes('謝謝。我是說貓')) {
+          shots.add('kevin2');
+          await page.screenshot({ path: OUT + 'phone-regulars-kevin-cat.png' });
+        }
+        if (await page.isVisible('#choices')) {
+          if (s.scene === 'kevin4') {
+            kevinOptions = await page.$$eval('#choices button', (bs) => bs.map((b) => b.textContent));
+            choiceSmall = await smallTargets(page);
+            await page.screenshot({ path: OUT + 'phone-regulars-choice.png' });
+          }
+          await page.click('#choices button >> nth=0');
+          continue;
+        }
+        if (await page.isVisible('#letter')) {
+          if (s.scene === 'yuan5' && !shots.has('manuscript')) { shots.add('manuscript'); await page.screenshot({ path: OUT + 'phone-regulars-manuscript.png' }); }
+          await page.click('#lt-close');
+          continue;
+        }
+        if (await page.isVisible('#read-letter')) { await page.click('#read-letter'); continue; }
+        if (!s.busy) return true;
+        await page.waitForTimeout(120);
+      }
+      check(false, `${label}：熟客的事情在時限內發生完`);
+      return false;
+    }
+    await pump('第 1 天');
+    let day = 1;
+    const journals = [];
+    while (day < 30 && done(await story()) < 18) {
+      await page.click('#menu-btn');
+      await page.click('#dev-day1');
+      day++;
+      if (await page.isVisible('#journal')) { journals.push(await page.textContent('#jr-body')); await page.click('#jr-close'); }
+      if (!(await pump(`第 ${day} 天`))) break;
+    }
+    st = await story();
+    check(done(st) === 18, `快轉到第 ${day} 天，三條線的 18 個里程碑都發生了`);
+    check(['yuan', 'zhe', 'kevin'].every((w) => JSON.stringify(st[w].milestones) === '[1,2,3,4,5,6]'), '每個里程碑只發生一次、照順序');
+    check(day <= 25, `大約三週走完（第 ${day} 天）`);
+    check(st.typhoonDay >= 8 && shots.has('typhoon'), `第 2 週的颱風夜（第 ${st.typhoonDay} 天）`);
+    check(st.zhe.on[4] >= st.zhe.on[3] + 3, '颱風後 3 天，阿哲和阿公一起來');
+    check(kevinOptions?.length === 3 && st.answers.kevinQuit === 0, `凱文問「你當初怎麼敢辭職的？」：三選一 ${JSON.stringify(kevinOptions)}`);
+    check(choiceSmall && choiceSmall.length === 0, '選項按鈕都 ≥ 44px');
+    check(shots.has('kevin2') && shots.has('manuscript'), '凱文被罵時龍眼陪他、予安念稿');
+    const tasks = await cafe('tasks');
+    check(['zhe-longan', 'yuan-pen', 'kevin-scolded', 'yuan-kiln', 'typhoon', 'kevin-no-laptop', 'zhe-grandpa', 'yuan-reading', 'zhe-beans', 'yuan-book'].every((id) => tasks.includes(id)), '熟客的 10 個溫度任務都完成');
+    check((await cafe('fund')) === (await cafe('ledgerSum')), '基金與帳本一致');
+    const owned = await cafe('owned');
+    check(owned.includes('napkin') && owned.includes('yuan-book'), '寫滿字的紙巾、予安的書收進倉庫');
+    check(st.menu.includes('zhe-beans'), '菜單上架「阿哲的豆」');
+    check(journals.length > 0 && !journals.join('').match(/不划算|KPI/), '日誌裡沒有「不划算」之類的字眼');
+    // 選豆子：菜單上有兩支豆子時，先選今天喝哪一支
+    await page.waitForSelector('#brew', { state: 'visible', timeout: 10000 });
+    await page.click('#brew');
+    check(await page.isVisible('#choices') && (await page.textContent('#choices')).includes('阿哲的豆'), '請德叔沖一杯：先選東山的豆或阿哲的豆');
+    await page.click('#choices button:has-text("阿哲的豆")');
+    await page.waitForFunction(() => window.__cafe.brewing, null, { timeout: 5000 });
+    await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 20000 });
+    check(true, '阿哲的豆沖好上桌');
+    // 記事本：店裡的熟客、菜單、予安的稿子與扉頁
+    await page.click('#menu-btn');
+    await page.click('#open-notebook');
+    const nb = await page.textContent('#notebook');
+    check(nb.includes('店裡的熟客') && nb.includes('林予安') && nb.includes('陳柏哲') && nb.includes('張凱文') && nb.includes('阿哲的豆'), '記事本：店裡的熟客與菜單');
+    const links = await page.$$eval('#nb-links button', (bs) => bs.map((b) => b.textContent));
+    check(links.includes('予安念的稿子') && links.includes('予安的書・扉頁'), '記事本可以重讀予安的稿子與扉頁');
+    check((await smallTargets(page)).length === 0, '記事本的按鈕都 ≥ 44px');
+    await page.screenshot({ path: OUT + 'phone-regulars-notebook.png' });
+    await page.click('#nb-links button:has-text("扉頁")');
+    check((await page.textContent('#lt-body')).includes('給一間讓人敢慢下來的店。'), '扉頁：「給一間讓人敢慢下來的店。」');
+    await page.click('#lt-close');
+    // 重新整理：故事進度都在，同一天的予安、凱文還在位子上
+    const before = await story();
+    await page.reload();
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(1500);
+    const after = await story();
+    check(JSON.stringify(after.yuan.milestones) === JSON.stringify(before.yuan.milestones) && after.zhe.visits === before.zhe.visits, '重新整理後熟客的進度都在');
+    check(!(await cafe('scene')), '重新整理不會重演已經發生的里程碑');
+    // 倉庫：熟客送的東西可以擺出來
+    await page.click('#place');
+    await page.click('#p-store');
+    check((await page.textContent('#sheet-list')).includes('寫滿字的紙巾') && (await page.textContent('#sheet-list')).includes('予安的書'), '倉庫裡有寫滿字的紙巾與予安的書');
+    await page.click('.sheet-row:has-text("寫滿字的紙巾") button');
+    await page.click('#p-done');
+    check((await cafe('placed')).includes('napkin'), '紙巾擺進店裡');
+    await page.click('#place');
+    await page.click('#p-catalog');
+    check(!(await page.textContent('#sheet-list')).includes('寫滿字的紙巾'), '熟客送的東西不在型錄上賣');
+    await page.click('#sheet-close');
+    await page.click('#p-done');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+
+  /* ---------- 階段 4：雨天坐窗邊、颱風夜的畫面 ---------- */
+  console.log('手機 390×844（雨天）');
+  {
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0&weather=rain');
+    check((await page.evaluate(() => window.__cafe.weather)) === 'rain', '店裡下雨');
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForTimeout(1600);
+    await page.screenshot({ path: OUT + 'phone-rain-window.png' });
+    await page.click('#brew');
+    await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 20000 });
+    await page.waitForFunction(() => window.__cafe.tasks.includes('rain-window'), null, { timeout: 5000 });
+    check(true, '雨天坐窗邊喝一杯：溫度任務完成');
+    await page.click('#menu-btn');
+    check(await page.isVisible('#sound-toggle') && (await page.textContent('#sound-toggle')).includes('開'), '選單裡可以關掉風雨聲');
+    await page.click('#sound-toggle');
+    check((await page.textContent('#sound-toggle')).includes('關'), '風雨聲：關');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+
   /* ---------- 桌機 1280×720 ---------- */
   console.log('桌機 1280×720');
   {
-    const { page, errors } = await open({ width: 1280, height: 720 }, '?dev=1&opening=0');
+    const { page, errors } = await open({ width: 1280, height: 720 }, '?dev=1&opening=0&regulars=0');
     for (const l of await labelsInside(page)) check(l.ok, `座位標籤「${l.name}」完整顯示`);
     const small = await smallTargets(page);
     check(small.length === 0, `可點目標都 ≥ 44px ${small.length ? JSON.stringify(small) : ''}`);
@@ -451,7 +596,7 @@ try {
     await page.close();
   }
   {
-    const { page, errors } = await open({ width: 1280, height: 720 }, '?dev=1&speed=20');
+    const { page, errors } = await open({ width: 1280, height: 720 }, '?dev=1&speed=20&regulars=0');
     const inApp = (sel) => page.evaluate((q) => {
       const app = document.getElementById('app').getBoundingClientRect();
       return [...document.querySelectorAll(q)].filter((el) => el.offsetParent).every((el) => {

@@ -2,9 +2,13 @@
 // 讀寫失敗（私密模式、儲存空間被關掉）時照常遊戲，只是不存。
 // 純邏輯，不依賴 Three.js；storage 可以注入，方便用 node --test 測試。
 import { STARTER_ITEMS } from './catalog.js';
+import { daysOpen } from './clock.js';
 
 export const SAVE_KEY = 'dream-cafe.save';
-export const SAVE_VERSION = 2; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
+export const SAVE_VERSION = 3; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
+// 3：階段 4 加入熟客故事線（來店次數、里程碑、結算到哪一天）、菜單、颱風那天
+
+const regular = () => ({ visits: 0, milestones: [], on: {}, settled: 0, lastVisit: 0, lastMilestoneDay: 0 });
 
 export function defaultSave(now) {
   const save = {
@@ -17,16 +21,22 @@ export function defaultSave(now) {
     nextUid: 1,
     seatsSat: [], // 坐過的座位
     stats: { cups: 0, rainyWindowCups: 0 },
-    regulars: { // 熟客來店次數與里程碑（階段 4 使用）
-      yuan: { visits: 0, milestones: [] },
-      zhe: { visits: 0, milestones: [] },
-      kevin: { visits: 0, milestones: [] },
+    // 熟客（story.js）：visits 來店次數、milestones 已發生的里程碑、on 每個里程碑發生在開店第幾天、
+    // settled 來店結算到第幾天、lastVisit 最後一次來是第幾天、lastMilestoneDay 最後一個里程碑是第幾天
+    regulars: {
+      yuan: regular(),
+      zhe: regular(),
+      kevin: regular(),
     },
+    // 故事的其他狀態：lastPresentDay「在場」里程碑最後演在第幾天、hinted 日誌已經寫過「想等老闆在」的里程碑、
+    // typhoonDay 颱風夜是第幾天、answers 玩家在對話裡選的回答
+    story: { lastPresentDay: 0, hinted: [], typhoonDay: 0, answers: {} },
+    menu: ['dongshan'], // 菜單上的東西（story.js 的 MENU）
     flags: {}, // seenOpening、openingAct、metYuan、starterGiven、catOnChair、guestVisit……
     letters: [], // 讀過的老先生的信：[{ id, t, day }]
     journal: [], // 最近幾頁德叔的營業日誌（記事本可以重讀），見 journal.js
     player: { name: '', resignation: '' }, // 開場第一幕：辭呈署名（可留空）與選的結尾（之後凱文的里程碑會用到）
-    settings: { offWork: '18:00' }, // 下班時間（決定 D11，階段 3 起使用）
+    settings: { offWork: '18:00', sound: true }, // 下班時間（決定 D11）；sound：店裡的風雨聲
     dev: { offsetMs: 0 }, // 開發者模式跳天數用的時間偏移；一般模式不採用
   };
   // 德叔送的三件初始擺飾，等開場第四幕（或略過開場）時才由 giveStarters() 放進倉庫
@@ -60,6 +70,8 @@ export function migrate(data, now) {
   const save = fill(data, defaultSave(now));
   // 第 1 版的存檔是開場做出來之前開的店：不再播開場，初始擺飾也已經送過了
   if (v < 2) { save.flags.seenOpening = true; save.flags.starterGiven = true; }
+  // 第 3 版以前沒有熟客故事線：過去的日子不補算，熟客從今天開始來（不會一次湧出一大疊里程碑）
+  if (v < 3) for (const r of Object.values(save.regulars)) r.settled = Math.max(r.settled, daysOpen(save.createdAt, now) - 1);
   save.version = SAVE_VERSION;
   save.nextUid = Math.max(save.nextUid, ...save.owned.map((o) => (Number(o.uid) || 0) + 1), 1);
   return save;

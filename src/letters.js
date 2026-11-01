@@ -37,7 +37,7 @@ export const LAWYER_LETTER = {
 // 老先生的信。due：什麼時候由德叔交給玩家；give：德叔拿出來時說的話（依觸發原因）
 export const LETTERS = [
   {
-    id: 'first', title: '第一封信', no: 1,
+    id: 'first', title: '第一封信', no: 1, shaky: true, // shaky：手寫、字有點抖
     // 劇本：開店第 2 天，或溫度達 22°C
     due: (save, ctx) => !!save.flags.seenOpening && (ctx.daysOpen >= 2 || ctx.temp >= 22),
     give: (ctx) => (ctx.daysOpen >= 2

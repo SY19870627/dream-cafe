@@ -1,7 +1,7 @@
 // 德叔的營業日誌：玩家登入時，用和上次離開的時間差結算（劇本「德叔的營業日誌」）。
 // 每天 2～4 條，由「每日片段池＋可離線的熟客里程碑＋龍眼換位子」組成；
 // 離開很多天時只展開最近 3 天，其餘一句帶過。同一天永遠寫出同樣的內容（以存檔與日期為亂數種子）。
-// 熟客里程碑由呼叫端的 story(day, ctx) 提供（階段 4 的里程碑引擎接在這裡）；「在場」里程碑到期時只寫提示句。
+// 熟客里程碑由呼叫端的 story(day, ctx) 提供（main.js 接上 story.js 的里程碑引擎）；「在場」里程碑到期時只寫提示句。
 // 純邏輯，不依賴 Three.js 或 DOM。
 import { dayIndex, daysOpen, dateLabel } from './clock.js';
 import { weatherOn, hash01 } from './weather.js';
@@ -14,7 +14,7 @@ const NUM = ['零', '一', '兩', '三', '四', '五', '六'];
 // 每天固定的一句：今天來了幾位（劇本「每日客人 3～5 位」）
 // tail：句尾可以接的半句；need 為 true 才會選到
 const VISITOR_TAILS = [
-  { text: '冰美式先生還是沒喘過氣。', need: (c) => c.met.kevin && c.day >= 4 }, // 劇本範例句
+  { text: '冰美式先生還是沒喘過氣。', need: (c) => c.met.kevin && c.day >= 4 && !c.met.kevinFree }, // 劇本範例句
   { text: '都坐得很久。' }, // 【待定】
   { text: '有兩位是騎機車上山的。' }, // 【待定】
   { text: '有一位點了第二杯，說不趕。' }, // 【待定】
@@ -26,6 +26,7 @@ export const POOL = [
   { id: 'zhe-orange', text: '阿哲送了一籃橙子來，說阿公叫他送的。他又說了一次他是被逼來的。', need: (c) => c.met.zhe && c.day >= 2 },
   { id: 'yuan-wrote', text: '予安小姐今天寫了很久，沒刪。', need: (c) => c.met.yuan && c.day >= 3 },
   { id: 'shop-name', text: '有一位路過的客人問這間店叫什麼。我說老闆還沒決定。' },
+  { id: 'kevin-again', text: '冰美式先生今天也來了。他沒喘過氣。', need: (c) => c.met.kevin && c.day >= 4 && !c.met.kevinFree },
   // 【待定】以下是自行補寫的片段
   { id: 'fog', text: '傍晚山那邊起霧，店裡的燈看起來比較亮。' },
   { id: 'kettle', text: '水壺今天燒了十一次。豆子剩一半，明天再磨。' },
@@ -80,7 +81,8 @@ const pick = (r, list) => {
   return list[list.length - 1];
 };
 
-// 熟客「見過了沒」：階段 4 之前先用劇本第一個里程碑的天數（阿哲第 1 天、予安第 2 天、凱文第 3 天）
+// 熟客「見過了沒」的預設值（劇本第一個里程碑的天數：阿哲第 1 天、予安第 2 天、凱文第 3 天）；
+// 遊戲裡由 story.js 的 metOn() 依真正發生過的里程碑提供
 export const defaultMet = (day) => ({ zhe: day >= 1, yuan: day >= 2, kevin: day >= 3 });
 
 const seedOf = (save) => (Number(save.createdAt) || 0) % 2147483647;

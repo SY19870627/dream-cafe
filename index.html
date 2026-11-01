@@ -51,7 +51,7 @@
     border: 2px solid var(--ink); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; }
   #about .links a span { margin-left: auto; font-weight: 400; font-size: 13px; opacity: .7; }
   #about-close, .wide { width: 100%; }
-  #open-notebook { margin-bottom: 14px; }
+  #open-notebook, #sound-toggle { margin-bottom: 10px; }
   #dev-tools { border-top: 1px dashed rgba(59,42,32,.4); padding-top: 10px; margin-bottom: 12px; }
   #dev-tools .sub { margin-bottom: 8px; }
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -65,7 +65,7 @@
   .overlay h2 { margin: 0 0 6px; font-size: 18px; }
   .overlay .sub { margin: 0 0 6px; font-size: 13px; opacity: .8; }
   .card.paper { background: #fbf5e6 repeating-linear-gradient(#fbf5e6 0 27px, #eadfc8 27px 28px); }
-  #nb-list { list-style: none; margin: 8px 0 14px; padding: 0; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+  #nb-list { list-style: none; margin: 8px 0 14px; padding: 0; }
   #nb-list li { padding: 8px 2px; border-bottom: 1px dashed rgba(59,42,32,.3); display: flex; flex-direction: column; gap: 2px; }
   #nb-list small { font-size: 12px; opacity: .65; }
   #nb-list b { font-size: 15px; }
@@ -168,6 +168,20 @@
   .lt-scroll i { font-style: normal; display: inline-block; text-indent: 0; } /* 每個字一點點歪：字有點抖 */
   .nb-links { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 4px; }
   .nb-links button { font-size: 14px; padding: 8px 10px; text-align: left; background: #fff; border: 1px solid rgba(59,42,32,.35); box-shadow: none; }
+  /* ---------- 階段 4：熟客 ---------- */
+  /* 選項：畫面下方，一個一行 */
+  #choices { display: flex; flex-direction: column; gap: 8px; }
+  #choices button { text-align: left; line-height: 1.4; white-space: normal; }
+  /* 老闆自己說的話：泡泡固定在畫面下方 */
+  #bubble.me { background: #3b2a20; color: #f6efe2; border-color: #f6efe2; }
+  #bubble.me::after { border-top-color: #f6efe2; }
+  #bubble b { display: block; font-size: 12px; opacity: .7; }
+  /* 記事本：可以捲動的內容 */
+  .nb-scroll { overflow-y: auto; flex: 1 1 auto; min-height: 0; margin: 4px 0 12px; touch-action: pan-y; }
+  #nb-list { overflow: visible; flex: none; margin: 8px 0 4px; }
+  #nb-people h3 { margin: 12px 0 4px; font-size: 13px; opacity: .7; }
+  .nb-person { margin: 0 0 6px; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; }
+  .nb-person span { font-size: 13px; opacity: .8; }
 </style>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
@@ -186,6 +200,7 @@
   <div id="bubble"></div>
   <div class="bottom">
     <div class="hint" id="hint"></div>
+    <div id="choices" hidden></div>
     <div class="row">
       <button id="place">佈置</button>
       <button id="stand">站起來</button>
@@ -208,6 +223,7 @@
       <p class="sub">測試版・台南東山</p>
       <p class="sub" id="save-note" hidden>這台裝置目前沒辦法存檔（可能是私密瀏覽）。店照常營業，只是關掉後進度不會留下。</p>
       <button id="open-notebook" class="wide">店的記事本</button>
+      <button id="sound-toggle" class="wide">店裡的風雨聲：開</button>
       <dl><dt>開發者</dt><dd>SY</dd></dl>
       <div class="links">
         <a href="https://github.com/SY19870627" target="_blank" rel="noopener">GitHub<span>SY19870627</span></a>
@@ -231,9 +247,12 @@
       <h2 id="nb-title">店的記事本</h2>
       <p class="sub" id="nb-summary"></p>
       <p class="sub" id="nb-decor"></p>
-      <div class="nb-links" id="nb-links"></div>
-      <p class="nb-empty" id="nb-empty">還沒有寫下什麼。先坐下來，喝一杯吧。</p>
-      <ol id="nb-list"></ol>
+      <div class="nb-scroll">
+        <div class="nb-links" id="nb-links"></div>
+        <div id="nb-people"></div>
+        <p class="nb-empty" id="nb-empty">還沒有寫下什麼。先坐下來，喝一杯吧。</p>
+        <ol id="nb-list"></ol>
+      </div>
       <button id="nb-close" class="primary wide">闔上</button>
     </div>
   </div>

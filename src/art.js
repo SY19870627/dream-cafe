@@ -116,10 +116,18 @@ export function ceiling(wm, hm) {
   return c;
 }
 
-export function windowView(night) {
+// weather：'clear'、'rain'（灰藍的雨天）、'typhoon'（颱風夜：暗、樹被吹彎）
+export function windowView(night, weather = 'clear') {
   const { c, g } = canvas(1.6, 1.3);
   const sky = g.createLinearGradient(0, 0, 0, 1.3);
-  if (night) {
+  const wet = weather !== 'clear';
+  if (weather === 'typhoon') {
+    sky.addColorStop(0, '#141b22');
+    sky.addColorStop(1, '#33403f');
+  } else if (weather === 'rain') {
+    sky.addColorStop(0, night ? '#151b2a' : '#8d99a6');
+    sky.addColorStop(1, night ? '#2b3445' : '#c4c9c8');
+  } else if (night) {
     sky.addColorStop(0, '#0f1a33');
     sky.addColorStop(1, '#2a3555');
   } else {
@@ -129,7 +137,7 @@ export function windowView(night) {
   g.fillStyle = sky;
   g.fillRect(0, 0, 1.6, 1.3);
   const r = rng(3);
-  if (night) {
+  if (night && !wet) {
     g.fillStyle = '#fff8dc';
     for (let i = 0; i < 40; i++) g.fillRect(r() * 1.6, r() * 0.7, 0.008, 0.008);
     ell(g, 1.25, 0.25, 0.08, 0.08);
@@ -141,12 +149,23 @@ export function windowView(night) {
   g.moveTo(0, 0.85);
   for (let x = 0; x <= 1.6; x += 0.1) g.lineTo(x, 0.7 + Math.sin(x * 3.1) * 0.08 + Math.sin(x * 7) * 0.03);
   g.lineTo(1.6, 1.3); g.lineTo(0, 1.3);
-  g.fillStyle = night ? '#1b2440' : '#8fb38a';
+  g.fillStyle = weather === 'typhoon' ? '#1c2525' : night ? '#1b2440' : wet ? '#7d9283' : '#8fb38a';
   g.fill();
-  // 近處龍眼樹
-  g.fillStyle = night ? '#121a2c' : '#4f7d4a';
+  // 近處龍眼樹（颱風夜被風吹彎）
+  g.fillStyle = weather === 'typhoon' ? '#101716' : night ? '#121a2c' : wet ? '#45624a' : '#4f7d4a';
   for (const [x, y, s] of [[0.2, 0.95, 0.28], [0.55, 1.05, 0.22], [1.3, 1.0, 0.3]]) {
-    ell(g, x, y, s, s * 0.8); g.fill();
+    if (weather === 'typhoon') { g.beginPath(); g.ellipse(x + s * 0.35, y - s * 0.1, s * 1.15, s * 0.55, -0.35, 0, Math.PI * 2); g.fill(); }
+    else { ell(g, x, y, s, s * 0.8); g.fill(); }
+  }
+  // 雨絲
+  if (wet) {
+    const heavy = weather === 'typhoon';
+    g.strokeStyle = heavy ? 'rgba(200,215,220,0.5)' : 'rgba(230,236,240,0.45)';
+    g.lineWidth = 0.006;
+    for (let i = 0; i < (heavy ? 140 : 60); i++) {
+      const x = r() * 1.7, y = r() * 1.3, l = heavy ? 0.12 : 0.07;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x - (heavy ? 0.06 : 0.01), y + l); g.stroke();
+    }
   }
   // 窗框
   g.strokeStyle = '#4a3122';
@@ -157,7 +176,8 @@ export function windowView(night) {
   return c;
 }
 
-export function backBar(wm, hm) {
+// menu：菜單上的東西（阿哲的豆上架後，小黑板多一行）
+export function backBar(wm, hm, menu = []) {
   // 吧台後方牆上的層架與罐子
   const { c, g } = canvas(wm, hm);
   const r = rng(5);
@@ -181,8 +201,16 @@ export function backBar(wm, hm) {
   g.textAlign = 'center';
   g.fillText('今日手沖', wm / 2, 1.3);
   g.font = '0.075px "PingFang TC","Noto Sans TC",sans-serif';
-  g.fillText('東山 日曬', wm / 2, 1.44);
-  g.fillText('阿里山 水洗', wm / 2, 1.56);
+  if (menu.includes('zhe-beans')) {
+    g.fillText('東山 日曬', wm / 2, 1.41);
+    g.fillText('阿里山 水洗', wm / 2, 1.5);
+    g.font = 'bold 0.085px "PingFang TC","Noto Sans TC",sans-serif';
+    g.fillStyle = '#ffd27a';
+    g.fillText('阿哲的豆', wm / 2, 1.61); // 「好啦，寫大一點。」
+  } else {
+    g.fillText('東山 日曬', wm / 2, 1.44);
+    g.fillText('阿里山 水洗', wm / 2, 1.56);
+  }
   return c;
 }
 
@@ -310,8 +338,8 @@ export function cat(pose) {
   return c;
 }
 
-export function yuan() {
-  // 予安：坐著看筆電的作家
+// 予安：坐著寫稿的作家。pose：'type'（看筆電）、'napkin'（借了筆在紙巾上寫字）、'read'（念稿子）、'book'（拿著剛印好的書）
+export function yuan(pose = 'type') {
   const { c, g } = canvas(0.8, 1.35);
   const cx = 0.4;
   rr(g, cx - 0.18, 0.5, 0.36, 0.5, 0.1); g.fillStyle = '#7c8f9e'; g.fill(); outline(g);
@@ -326,6 +354,32 @@ export function yuan() {
   g.strokeStyle = INK; g.lineWidth = 0.012;
   g.beginPath(); g.moveTo(cx - 0.06, 0.34); g.lineTo(cx - 0.02, 0.35); g.stroke();
   g.beginPath(); g.moveTo(cx + 0.02, 0.35); g.lineTo(cx + 0.06, 0.34); g.stroke();
+  const hand = (x, y) => { ell(g, x, y, 0.04, 0.04); g.fillStyle = '#efc9a6'; g.fill(); outline(g, 0.01); };
+  if (pose === 'napkin') {
+    // 紙巾在腿上，一手拿筆
+    g.save(); g.translate(cx + 0.02, 0.86); g.rotate(-0.12);
+    rr(g, -0.12, -0.06, 0.24, 0.13, 0.01); g.fillStyle = '#fbfaf5'; g.fill(); outline(g, 0.01);
+    g.strokeStyle = 'rgba(40,40,60,.6)'; g.lineWidth = 0.006;
+    for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(-0.1, -0.035 + k * 0.028); g.lineTo(0.06 + (k % 2) * 0.04, -0.035 + k * 0.028); g.stroke(); }
+    g.restore();
+    hand(cx - 0.1, 0.86);
+    g.strokeStyle = '#2e4b7a'; g.lineWidth = 0.014; g.beginPath(); g.moveTo(cx + 0.1, 0.84); g.lineTo(cx + 0.16, 0.74); g.stroke();
+    hand(cx + 0.1, 0.86);
+  } else if (pose === 'read') {
+    // 雙手拿著幾張稿紙
+    g.save(); g.translate(cx, 0.68); g.rotate(0.05);
+    rr(g, -0.13, -0.1, 0.26, 0.2, 0.01); g.fillStyle = '#fbf6e8'; g.fill(); outline(g, 0.01);
+    g.strokeStyle = 'rgba(60,40,30,.5)'; g.lineWidth = 0.006;
+    for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(-0.1, -0.06 + k * 0.03); g.lineTo(0.1, -0.06 + k * 0.03); g.stroke(); }
+    g.restore();
+    hand(cx - 0.13, 0.72); hand(cx + 0.13, 0.72);
+  } else if (pose === 'book') {
+    // 拿著剛印好的書，封面朝外
+    rr(g, cx - 0.12, 0.6, 0.24, 0.3, 0.015); g.fillStyle = '#c2683f'; g.fill(); outline(g, 0.012);
+    rr(g, cx - 0.08, 0.66, 0.16, 0.05, 0.01); g.fillStyle = '#f3e7cf'; g.fill();
+    ell(g, cx, 0.8, 0.05, 0.035); g.fillStyle = 'rgba(255,240,210,.7)'; g.fill(); // 封面上的一縷煙
+    hand(cx - 0.13, 0.8); hand(cx + 0.13, 0.8);
+  }
   return c;
 }
 
@@ -803,6 +857,229 @@ export function countyRoad() {
   g.fillStyle = '#7a7a7a'; g.fillRect(2.98, 2.55, 0.03, 0.55);
   rr(g, 2.84, 2.36, 0.32, 0.24, 0.03); g.fillStyle = '#f2f2ee'; g.fill(); outline(g, 0.014);
   g.fillStyle = '#2f5d8a'; g.font = 'bold 0.12px "PingFang TC","Noto Sans TC",sans-serif'; g.textAlign = 'center'; g.fillText('175', 3.0, 2.52);
+  return c;
+}
+
+/* ---------- 階段 4：熟客（之後換手繪只改這些同名函式） ---------- */
+
+const SKIN = '#e9c3a0';
+function face(g, cx, y, opt = {}) {
+  g.strokeStyle = INK; g.lineWidth = 0.013;
+  g.fillStyle = INK; ell(g, cx - 0.05, y, 0.012, 0.016); g.fill(); ell(g, cx + 0.05, y, 0.012, 0.016); g.fill();
+  if (opt.smile) { g.beginPath(); g.moveTo(cx - 0.035, y + 0.07); g.quadraticCurveTo(cx, y + 0.1, cx + 0.035, y + 0.07); g.stroke(); }
+}
+
+// 阿哲：返鄉青農，站著。pose：'stand'（帽子、工作服、沾泥的雨鞋）、'muddy'（颱風夜全身是泥）、'towel'（披著德叔給的毛巾）
+export function zhe(pose = 'stand') {
+  const W = 0.9, H = 1.75;
+  const { c, g } = canvas(W, H);
+  const cx = W / 2;
+  const muddy = pose !== 'stand';
+  // 褲子與雨鞋
+  rr(g, cx - 0.16, 1.0, 0.14, 0.58, 0.04); g.fillStyle = '#41506a'; g.fill(); outline(g);
+  rr(g, cx + 0.02, 1.0, 0.14, 0.58, 0.04); g.fill(); outline(g);
+  rr(g, cx - 0.18, 1.5, 0.17, 0.23, 0.04); g.fillStyle = '#2f3b33'; g.fill(); outline(g);
+  rr(g, cx + 0.01, 1.5, 0.17, 0.23, 0.04); g.fill(); outline(g);
+  g.fillStyle = '#7a5532'; // 鞋子上總是泥
+  for (const [x, y, r] of [[cx - 0.12, 1.66, 0.04], [cx + 0.1, 1.69, 0.05], [cx - 0.05, 1.7, 0.03]]) { ell(g, x, y, r, r * 0.7); g.fill(); }
+  // 上衣：捲起袖子的工作襯衫
+  rr(g, cx - 0.21, 0.46, 0.42, 0.62, 0.1); g.fillStyle = muddy ? '#4f6a45' : '#6b8f5a'; g.fill(); outline(g);
+  rr(g, cx - 0.3, 0.5, 0.1, 0.36, 0.05); g.fill(); outline(g);
+  rr(g, cx + 0.2, 0.5, 0.1, 0.36, 0.05); g.fill(); outline(g);
+  g.fillStyle = SKIN;
+  rr(g, cx - 0.29, 0.8, 0.08, 0.14, 0.04); g.fill(); outline(g, 0.012);
+  rr(g, cx + 0.21, 0.8, 0.08, 0.14, 0.04); g.fill(); outline(g, 0.012);
+  // 頭
+  ell(g, cx, 0.3, 0.14, 0.16); g.fillStyle = SKIN; g.fill(); outline(g);
+  if (pose === 'stand') {
+    g.beginPath(); g.ellipse(cx, 0.2, 0.15, 0.09, 0, Math.PI, Math.PI * 2); g.fillStyle = '#c9a34a'; g.fill(); outline(g); // 帽子
+    rr(g, cx - 0.02, 0.17, 0.2, 0.045, 0.02); g.fill(); outline(g, 0.012);
+    face(g, cx, 0.31, { smile: true });
+  } else {
+    // 濕透的頭髮貼在額頭上
+    g.beginPath(); g.ellipse(cx, 0.24, 0.155, 0.1, 0, Math.PI, Math.PI * 2); g.fillStyle = '#1e1a18'; g.fill();
+    for (const x of [-0.08, -0.02, 0.05]) { rr(g, cx + x, 0.22, 0.035, 0.08, 0.015); g.fill(); }
+    face(g, cx, 0.33);
+    g.fillStyle = 'rgba(110,75,40,.85)'; // 泥
+    const r = rng(41);
+    for (let k = 0; k < 14; k++) { ell(g, cx - 0.2 + r() * 0.4, 0.5 + r() * 1.1, 0.02 + r() * 0.03, 0.015 + r() * 0.02); g.fill(); }
+    ell(g, cx + 0.07, 0.4, 0.03, 0.015); g.fill();
+    g.fillStyle = 'rgba(190,215,235,.7)'; // 雨水
+    for (let k = 0; k < 6; k++) { ell(g, cx - 0.25 + r() * 0.5, 0.3 + r() * 0.5, 0.008, 0.016); g.fill(); }
+  }
+  if (pose === 'towel') {
+    g.beginPath(); g.moveTo(cx - 0.2, 0.18); g.quadraticCurveTo(cx, 0.05, cx + 0.2, 0.18); g.lineTo(cx + 0.22, 0.75); g.lineTo(cx + 0.12, 0.75);
+    g.lineTo(cx + 0.1, 0.42); g.quadraticCurveTo(cx, 0.48, cx - 0.1, 0.42); g.lineTo(cx - 0.12, 0.75); g.lineTo(cx - 0.22, 0.75); g.closePath();
+    g.fillStyle = '#f4efe2'; g.fill(); outline(g, 0.014);
+    g.strokeStyle = '#c9b48d'; g.lineWidth = 0.01;
+    g.beginPath(); g.moveTo(cx - 0.21, 0.68); g.lineTo(cx - 0.13, 0.68); g.moveTo(cx + 0.13, 0.68); g.lineTo(cx + 0.21, 0.68); g.stroke();
+  }
+  return c;
+}
+
+// 凱文：遠距工作的工程師。pose：'walk'（背著電腦包走進來）、'sit'（坐著開筆電、戴耳機）、
+// 'closed'（被罵之後把筆電闔上）、'hide'（躲到角落，抱著膝蓋）、'free'（沒帶筆電，捧著一杯熱的）
+export function kevin(pose = 'sit') {
+  const standing = pose === 'walk';
+  const W = 0.8, H = standing ? 1.78 : 1.4;
+  const { c, g } = canvas(W, H);
+  const cx = W / 2;
+  const shirt = '#d7dde6';
+  if (standing) {
+    rr(g, cx - 0.15, 1.0, 0.13, 0.74, 0.04); g.fillStyle = '#343a46'; g.fill(); outline(g);
+    rr(g, cx + 0.02, 1.0, 0.13, 0.74, 0.04); g.fill(); outline(g);
+    rr(g, cx - 0.26, 0.55, 0.12, 0.38, 0.04); g.fillStyle = '#3f4a5c'; g.fill(); outline(g); // 電腦包
+    rr(g, cx - 0.19, 0.48, 0.38, 0.6, 0.1); g.fillStyle = shirt; g.fill(); outline(g);
+    rr(g, cx + 0.17, 0.52, 0.09, 0.42, 0.04); g.fill(); outline(g);
+    ell(g, cx + 0.215, 0.97, 0.04, 0.04); g.fillStyle = SKIN; g.fill(); outline(g, 0.01);
+    g.strokeStyle = '#3f4a5c'; g.lineWidth = 0.02; g.beginPath(); g.moveTo(cx - 0.12, 0.5); g.lineTo(cx + 0.1, 1.0); g.stroke();
+  } else {
+    // 坐在高腳椅上
+    g.fillStyle = '#4a4744';
+    rr(g, cx - 0.16, 1.05, 0.035, 0.34, 0.01); g.fill(); rr(g, cx + 0.125, 1.05, 0.035, 0.34, 0.01); g.fill();
+    ell(g, cx, 1.05, 0.2, 0.05); g.fillStyle = '#a06b46'; g.fill(); outline(g);
+    const hide = pose === 'hide';
+    rr(g, cx - 0.18, hide ? 0.58 : 0.5, 0.36, 0.5, 0.1); g.fillStyle = shirt; g.fill(); outline(g);
+    rr(g, cx - 0.19, 0.92, 0.38, 0.13, 0.05); g.fillStyle = '#343a46'; g.fill(); outline(g);
+    rr(g, cx - 0.15, 1.0, 0.11, 0.3, 0.04); g.fill(); outline(g);
+    rr(g, cx + 0.04, 1.0, 0.11, 0.3, 0.04); g.fill(); outline(g);
+    if (hide) { rr(g, cx - 0.17, 0.72, 0.34, 0.26, 0.1); g.fillStyle = '#343a46'; g.fill(); outline(g); } // 膝蓋抱起來
+  }
+  // 頭
+  const hy = standing ? 0.3 : pose === 'hide' ? 0.42 : 0.33;
+  ell(g, cx, hy, 0.13, 0.15); g.fillStyle = SKIN; g.fill(); outline(g);
+  g.beginPath(); g.ellipse(cx, hy - 0.06, 0.145, 0.1, 0, Math.PI, Math.PI * 2); g.fillStyle = '#26221f'; g.fill();
+  rr(g, cx - 0.06, hy - 0.08, 0.17, 0.05, 0.02); g.fill();
+  // 眼鏡
+  g.strokeStyle = INK; g.lineWidth = 0.01;
+  g.beginPath(); g.roundRect(cx - 0.09, hy - 0.005, 0.07, 0.045, 0.01); g.roundRect(cx + 0.02, hy - 0.005, 0.07, 0.045, 0.01); g.stroke();
+  g.beginPath(); g.moveTo(cx - 0.02, hy + 0.015); g.lineTo(cx + 0.02, hy + 0.015); g.stroke();
+  const down = pose === 'closed' || pose === 'hide';
+  g.beginPath();
+  if (down) { g.moveTo(cx - 0.03, hy + 0.09); g.quadraticCurveTo(cx, hy + 0.08, cx + 0.03, hy + 0.09); }
+  else { g.moveTo(cx - 0.03, hy + 0.08); g.quadraticCurveTo(cx, pose === 'free' ? hy + 0.1 : hy + 0.085, cx + 0.03, hy + 0.08); }
+  g.stroke();
+  // 耳機：開會時戴著，被罵之後掛在脖子上，沒帶筆電的日子沒有
+  if (pose === 'sit') {
+    g.beginPath(); g.arc(cx, hy, 0.16, Math.PI * 1.05, Math.PI * 1.95); g.strokeStyle = '#222'; g.lineWidth = 0.025; g.stroke();
+    rr(g, cx - 0.18, hy - 0.03, 0.05, 0.08, 0.02); g.fillStyle = '#222'; g.fill(); rr(g, cx + 0.13, hy - 0.03, 0.05, 0.08, 0.02); g.fill();
+  } else if (down) {
+    g.beginPath(); g.arc(cx, hy + 0.2, 0.12, Math.PI * 0.1, Math.PI * 0.9); g.strokeStyle = '#222'; g.lineWidth = 0.022; g.stroke();
+  }
+  if (!standing) {
+    if (pose === 'sit' || pose === 'closed') {
+      // 筆電（開著發藍光／闔上）
+      if (pose === 'sit') {
+        g.beginPath(); g.moveTo(cx - 0.17, 0.82); g.lineTo(cx - 0.13, 0.6); g.lineTo(cx + 0.13, 0.6); g.lineTo(cx + 0.17, 0.82); g.closePath();
+        g.fillStyle = '#9aa3ad'; g.fill(); outline(g, 0.012);
+        g.fillStyle = 'rgba(140,190,255,.55)'; g.beginPath(); g.moveTo(cx - 0.14, 0.8); g.lineTo(cx - 0.11, 0.63); g.lineTo(cx + 0.11, 0.63); g.lineTo(cx + 0.14, 0.8); g.closePath(); g.fill();
+      }
+      rr(g, cx - 0.2, 0.82, 0.4, 0.05, 0.015); g.fillStyle = '#7f8892'; g.fill(); outline(g, 0.012);
+      ell(g, cx - 0.17, 0.83, 0.04, 0.035); g.fillStyle = SKIN; g.fill(); outline(g, 0.01);
+      ell(g, cx + 0.17, 0.83, 0.04, 0.035); g.fill(); outline(g, 0.01);
+    } else if (pose === 'free') {
+      // 捧著一杯熱的
+      rr(g, cx - 0.06, 0.7, 0.12, 0.11, 0.025); g.fillStyle = '#f4f1ea'; g.fill(); outline(g, 0.012);
+      ell(g, cx - 0.1, 0.77, 0.04, 0.035); g.fillStyle = SKIN; g.fill(); outline(g, 0.01);
+      ell(g, cx + 0.1, 0.77, 0.04, 0.035); g.fill(); outline(g, 0.01);
+    }
+  }
+  return c;
+}
+
+// 阿哲的阿公：種了四十年龍眼的老農。pose：'stand'（拄著拐杖走進來）、'sit'（坐在角落的板凳上）
+export function grandpa(pose = 'stand') {
+  const sit = pose === 'sit';
+  const W = 0.8, H = sit ? 1.3 : 1.62;
+  const { c, g } = canvas(W, H);
+  const cx = W / 2;
+  if (sit) {
+    rr(g, cx - 0.24, 1.0, 0.48, 0.06, 0.02); g.fillStyle = '#8a5a3b'; g.fill(); outline(g); // 板凳
+    g.fillStyle = '#6b452f'; rr(g, cx - 0.2, 1.06, 0.04, 0.23, 0.01); g.fill(); rr(g, cx + 0.16, 1.06, 0.04, 0.23, 0.01); g.fill();
+    rr(g, cx - 0.17, 0.48, 0.34, 0.54, 0.1); g.fillStyle = '#e7e1d2'; g.fill(); outline(g);
+    rr(g, cx - 0.18, 0.92, 0.36, 0.12, 0.05); g.fillStyle = '#4b4238'; g.fill(); outline(g);
+    rr(g, cx - 0.14, 1.0, 0.1, 0.26, 0.04); g.fill(); outline(g); rr(g, cx + 0.04, 1.0, 0.1, 0.26, 0.04); g.fill(); outline(g);
+    ell(g, cx - 0.1, 0.86, 0.04, 0.035); g.fillStyle = SKIN; g.fill(); outline(g, 0.01);
+    ell(g, cx + 0.1, 0.86, 0.04, 0.035); g.fill(); outline(g, 0.01);
+  } else {
+    rr(g, cx - 0.14, 0.98, 0.12, 0.6, 0.04); g.fillStyle = '#4b4238'; g.fill(); outline(g);
+    rr(g, cx + 0.02, 0.98, 0.12, 0.6, 0.04); g.fill(); outline(g);
+    rr(g, cx - 0.18, 0.46, 0.36, 0.58, 0.1); g.fillStyle = '#e7e1d2'; g.fill(); outline(g);
+    g.strokeStyle = '#7a5532'; g.lineWidth = 0.03; g.beginPath(); g.moveTo(cx + 0.26, 0.82); g.lineTo(cx + 0.3, 1.6); g.stroke(); // 拐杖
+    ell(g, cx + 0.25, 0.83, 0.04, 0.04); g.fillStyle = SKIN; g.fill(); outline(g, 0.01);
+  }
+  const hy = sit ? 0.32 : 0.3;
+  ell(g, cx, hy, 0.13, 0.15); g.fillStyle = '#dcb38f'; g.fill(); outline(g);
+  // 斗笠
+  g.beginPath(); g.moveTo(cx - 0.24, hy - 0.06); g.lineTo(cx, hy - 0.22); g.lineTo(cx + 0.24, hy - 0.06); g.closePath();
+  g.fillStyle = '#d8b874'; g.fill(); outline(g, 0.014);
+  g.strokeStyle = INK; g.lineWidth = 0.012;
+  g.beginPath(); g.moveTo(cx - 0.07, hy + 0.01); g.lineTo(cx - 0.03, hy + 0.01); g.moveTo(cx + 0.03, hy + 0.01); g.lineTo(cx + 0.07, hy + 0.01); g.stroke();
+  g.beginPath(); g.moveTo(cx - 0.05, hy + 0.08); g.quadraticCurveTo(cx, hy + 0.1, cx + 0.05, hy + 0.08); g.stroke();
+  g.strokeStyle = 'rgba(80,60,40,.4)'; g.beginPath(); g.moveTo(cx - 0.09, hy + 0.05); g.lineTo(cx - 0.06, hy + 0.06); g.moveTo(cx + 0.06, hy + 0.06); g.lineTo(cx + 0.09, hy + 0.05); g.stroke(); // 皺紋
+  return c;
+}
+
+// 熟客送的擺飾：寫滿字的紙巾（放在小邊桌上，用一塊小石頭壓著）
+export function napkin() {
+  const { c, g } = canvas(0.5, 0.95);
+  sideTable(g, 0.25, 0.4);
+  g.save(); g.translate(0.25, 0.3); g.rotate(-0.08);
+  rr(g, -0.16, -0.13, 0.32, 0.24, 0.01); g.fillStyle = '#fbfaf5'; g.fill(); outline(g, 0.01);
+  g.strokeStyle = 'rgba(40,45,70,.65)'; g.lineWidth = 0.006;
+  const r = rng(53);
+  for (let k = 0; k < 7; k++) { g.beginPath(); g.moveTo(-0.14, -0.1 + k * 0.03); g.lineTo(-0.02 + r() * 0.15, -0.1 + k * 0.03); g.stroke(); }
+  g.restore();
+  ell(g, 0.36, 0.37, 0.05, 0.03); g.fillStyle = '#8f8a80'; g.fill(); outline(g, 0.01);
+  return c;
+}
+
+// 予安的書：立在小書架上，封面朝外
+export function yuanBook() {
+  const { c, g } = canvas(0.5, 0.95);
+  sideTable(g, 0.25, 0.4);
+  rr(g, 0.13, 0.08, 0.24, 0.32, 0.015); g.fillStyle = '#c2683f'; g.fill(); outline(g, 0.012);
+  rr(g, 0.17, 0.13, 0.16, 0.05, 0.01); g.fillStyle = '#f3e7cf'; g.fill();
+  g.strokeStyle = 'rgba(255,240,210,.85)'; g.lineWidth = 0.012;
+  g.beginPath(); g.moveTo(0.22, 0.36); g.quadraticCurveTo(0.3, 0.3, 0.24, 0.25); g.quadraticCurveTo(0.2, 0.21, 0.28, 0.2); g.stroke(); // 封面上的龍眼窯煙
+  return c;
+}
+
+// 吧台上的那袋龍眼乾（阿哲的阿公送的）
+export function longanBag() {
+  const { c, g } = canvas(0.22, 0.2);
+  g.beginPath(); g.moveTo(0.03, 0.19); g.lineTo(0.05, 0.05); g.lineTo(0.17, 0.05); g.lineTo(0.19, 0.19); g.closePath();
+  g.fillStyle = '#d8b874'; g.fill(); outline(g, 0.01);
+  g.beginPath(); g.moveTo(0.05, 0.05); g.lineTo(0.08, 0.02); g.lineTo(0.14, 0.02); g.lineTo(0.17, 0.05); g.fillStyle = '#c9a35e'; g.fill(); outline(g, 0.008);
+  g.fillStyle = '#c4382c'; g.fillRect(0.07, 0.1, 0.08, 0.05);
+  return c;
+}
+
+// 雨絲（貼在窗戶前面，往下捲動）
+export function rain(heavy) {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 256;
+  const g = c.getContext('2d');
+  const r = rng(heavy ? 71 : 73);
+  g.strokeStyle = heavy ? 'rgba(220,230,240,0.55)' : 'rgba(235,240,245,0.45)';
+  g.lineWidth = 1.2;
+  for (let i = 0; i < (heavy ? 90 : 40); i++) {
+    const x = r() * 128, y = r() * 256, l = heavy ? 22 : 14;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x - (heavy ? 7 : 1.5), y + l); g.stroke();
+  }
+  return c;
+}
+
+// 音符（德叔把音樂調小時，音符縮小、淡掉）
+export function note() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#3b2a20';
+  g.font = 'bold 46px serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('♪', 32, 34);
   return c;
 }
 

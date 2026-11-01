@@ -27,7 +27,14 @@ export const CATALOG = [
   { id: 'book-wall', name: '整面書牆', cat: 'large', price: 10000, art: 'bookWall', wall: true, books: 3, desc: '從地板到天花板，一整面牆的書。' },
 ];
 
-const BY_ID = new Map(CATALOG.map((i) => [i.id, i]));
+// 熟客送的東西：不在型錄上賣，由故事線解鎖後收進倉庫（story.js 的 gift）
+// 【待定】說明文字是自行補寫的（扉頁那句是劇本原文）
+export const GIFTS = [
+  { id: 'napkin', name: '寫滿字的紙巾', cat: 'small', price: 0, gift: true, art: 'napkin', desc: '予安借筆那天留下的。字很小，寫到紙巾的邊邊。' },
+  { id: 'yuan-book', name: '予安的書', cat: 'small', price: 0, gift: true, art: 'yuanBook', desc: '扉頁寫著：「給一間讓人敢慢下來的店。」' },
+];
+
+const BY_ID = new Map([...CATALOG, ...GIFTS].map((i) => [i.id, i]));
 export const itemById = (id) => BY_ID.get(id);
 
 // 德叔送的三件初始擺飾（劇本第四幕「送三件初始擺飾」），由 save.js 的 giveStarters() 在開場第四幕送出
