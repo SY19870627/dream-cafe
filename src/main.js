@@ -192,7 +192,84 @@ paper(A.stool(), 1.3, -2.1);
 paper(A.stool(), 1.3, -2.9);
 
 // 吧台上的手沖架
-const kettle = paper(A.kettleSet(), 1.95, -2.3, { y: 1.06, shadow: false, base: -Math.PI / 2, clamp: 1.2 });
+/* ---------- 吧台上的手沖器具（立體小物，沖煮過程用動作呈現） ---------- */
+const TOP = 1.06;
+const M = {
+  darkWood: new THREE.MeshLambertMaterial({ color: '#4a3326' }),
+  steel: new THREE.MeshLambertMaterial({ color: '#c9ced2' }),
+  ceramic: new THREE.MeshLambertMaterial({ color: '#f4f1ea', side: THREE.DoubleSide }),
+  glass: new THREE.MeshLambertMaterial({ color: '#d6ecf2', transparent: true, opacity: 0.35, depthWrite: false }),
+  coffee: new THREE.MeshLambertMaterial({ color: '#3f2010' }),
+  grounds: new THREE.MeshLambertMaterial({ color: '#6b4428' }),
+  water: new THREE.MeshBasicMaterial({ color: '#d9eef5', transparent: true, opacity: 0.7 }),
+};
+const cyl = (rt, rb, h, mat, seg = 24, open = false) => new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg, 1, open), mat);
+
+// 手搖磨豆機
+const grinder = new THREE.Group();
+const gBody = cyl(0.045, 0.05, 0.13, M.darkWood); gBody.position.y = 0.065;
+const gBowl = cyl(0.05, 0.035, 0.04, M.steel); gBowl.position.y = 0.15;
+const gHandle = new THREE.Group(); gHandle.position.y = 0.18;
+const gArm = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.008, 0.014), M.steel); gArm.position.x = 0.05;
+const gKnob = cyl(0.012, 0.012, 0.03, M.darkWood, 10); gKnob.position.set(0.1, 0.02, 0);
+gHandle.add(gArm, gKnob);
+grinder.add(gBody, gBowl, gHandle);
+grinder.position.set(2.05, TOP, -2.05);
+scene.add(grinder);
+
+// 濾杯與下壺
+const brewer = new THREE.Group();
+const server = cyl(0.055, 0.05, 0.11, M.glass); server.position.y = 0.055;
+const serverLiquid = cyl(0.048, 0.045, 1, M.coffee); serverLiquid.scale.y = 0.001; serverLiquid.position.y = 0.002;
+const dripper = cyl(0.075, 0.03, 0.08, M.ceramic, 24, true); dripper.position.y = 0.155;
+const groundsBed = cyl(0.045, 0.03, 0.03, M.grounds); groundsBed.position.y = 0.135; groundsBed.scale.set(1, 0.01, 1);
+const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), M.grounds);
+bloom.position.y = 0.145; bloom.scale.setScalar(0.001);
+brewer.add(server, serverLiquid, dripper, groundsBed, bloom);
+brewer.position.set(1.95, TOP, -1.7);
+scene.add(brewer);
+
+// 咖啡杯（每次沖煮做一個新的，端走後留在客人桌上）
+function makeCup() {
+  const g = new THREE.Group();
+  const body = cyl(0.04, 0.034, 0.07, M.ceramic); body.position.y = 0.035;
+  const saucer = cyl(0.07, 0.065, 0.008, M.ceramic); saucer.position.y = 0.004;
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.005, 8, 16), M.ceramic);
+  handle.position.set(0.048, 0.04, 0);
+  const liquid = cyl(0.036, 0.036, 0.004, M.coffee); liquid.position.y = 0.066; liquid.visible = false;
+  g.add(body, saucer, handle, liquid);
+  g.userData.liquid = liquid;
+  return g;
+}
+const CUP_SPOT = new THREE.Vector3(1.95, TOP, -1.35);
+let stationCup = makeCup();
+stationCup.position.copy(CUP_SPOT);
+scene.add(stationCup);
+
+// 手沖壺
+const kettle = new THREE.Group();
+const kBody = cyl(0.045, 0.05, 0.1, M.steel); kBody.position.y = 0.05;
+const kLid = cyl(0.03, 0.04, 0.02, M.steel); kLid.position.y = 0.11;
+const kHandle = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.006, 8, 16, Math.PI), M.darkWood);
+kHandle.position.set(0.05, 0.06, 0); kHandle.rotation.z = -Math.PI / 2;
+const kSpout = cyl(0.005, 0.008, 0.15, M.steel, 10);
+kSpout.position.set(-0.08, 0.08, 0); kSpout.rotation.z = 0.85;
+const kTip = new THREE.Object3D(); kTip.position.set(-0.137, 0.13, 0);
+kettle.add(kBody, kLid, kHandle, kSpout, kTip);
+const KETTLE_REST = new THREE.Vector3(2.22, TOP, -1.25);
+kettle.position.copy(KETTLE_REST);
+scene.add(kettle);
+
+// 水柱
+const stream = cyl(0.0035, 0.0035, 1, M.water, 8);
+stream.visible = false;
+scene.add(stream);
+function updateStream(targetY) {
+  const tip = kTip.getWorldPosition(new THREE.Vector3());
+  const len = Math.max(0.01, tip.y - targetY);
+  stream.scale.y = len;
+  stream.position.set(tip.x, tip.y - len / 2, tip.z);
+}
 
 // 予安（作家熟客）
 const yuan = paper(A.yuan(), -0.4, -1.75);
@@ -263,21 +340,35 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
 }
 
-/* ---------- 德叔的動作 ---------- */
+/* ---------- 對話泡泡（只用在角色說話） ---------- */
 const bubble = $('bubble');
 let bubbleTimer;
-function say(text, ms = 3500) {
-  bubble.textContent = text;
+let speaker = null;
+const NAMES = new Map();
+function say(text, ms = 3500, who = deshu) {
+  speaker = who;
+  bubble.innerHTML = `<b>${NAMES.get(who) || ''}</b>${text}`;
   bubble.classList.add('show');
   clearTimeout(bubbleTimer);
   if (ms) bubbleTimer = setTimeout(() => bubble.classList.remove('show'), ms);
 }
 
-const wait = (sec) => new Promise((r) => {
-  let t = 0;
-  waiters.push((dt) => { t += dt * state.speed; if (t >= sec) { r(); return true; } return false; });
-});
 const waiters = [];
+const wait = (sec) => animate(sec, () => {});
+// 依遊戲時間推進的補間動畫；fn 收到 0→1 的進度
+function animate(sec, fn) {
+  return new Promise((r) => {
+    let t = 0;
+    waiters.push((dt) => {
+      t += dt * state.speed;
+      const k = Math.min(1, t / sec);
+      fn(k);
+      if (k >= 1) { r(); return true; }
+      return false;
+    });
+  });
+}
+const ease = (k) => 0.5 - Math.cos(Math.PI * k) / 2;
 
 function walk(p, to, speed = 0.7) {
   return new Promise((r) => {
@@ -293,51 +384,145 @@ function walk(p, to, speed = 0.7) {
   });
 }
 
+/* ---------- 德叔沖咖啡：用動作呈現，不用文字描述 ---------- */
+// 把手沖壺移到某個目標上方並傾斜
+function moveKettle(target, sec = 1.2) {
+  const from = kettle.position.clone(), fromRot = kettle.rotation.z;
+  const to = target ? target.clone().add(new THREE.Vector3(0.18, 0.2, 0)) : KETTLE_REST.clone();
+  const rot = target ? 0.5 : 0;
+  return animate(sec, (k) => {
+    const e = ease(k);
+    kettle.position.lerpVectors(from, to, e);
+    kettle.position.y += Math.sin(Math.PI * k) * 0.06;
+    kettle.rotation.z = fromRot + (rot - fromRot) * e;
+  });
+}
+
+const steamSources = new Set();
 let brewing = false;
 const cups = [];
+const CLOSE = { pos: new THREE.Vector3(0.95, 1.62, -0.35), look: new THREE.Vector3(2.3, 1.36, -1.65) };
+
 async function brew(seat) {
   if (brewing) return;
   brewing = true;
-  $('brew').disabled = true;
-  const steamPos = new THREE.Vector3(2.12, 1.3, -2.3);
-  const steps = [
-    ['先溫杯。', 5],
-    ['磨豆，中細。', 7],
-    ['悶蒸三十秒……不急。', 7],
-    ['慢慢注水。', 12],
-  ];
-  for (const [text, sec] of steps) {
-    say(text, 0);
-    if (text.includes('注水')) setPaper(deshu, deshuCanvas.pour);
-    const steam = setInterval(() => { if (text.includes('注水') || text.includes('悶蒸')) emitSteam(steamPos); }, 260 / state.speed);
-    await wait(sec);
-    clearInterval(steam);
-  }
+  say('好，等我一下。', 2500);
+  state.closeup = true;
+  cam.yaw = 0; cam.pitch = 0;
+  moveCamera(CLOSE.pos, CLOSE.look);
+  updateUI();
+  await wait(1.6);
+
+  const cupTop = CUP_SPOT.clone().add(new THREE.Vector3(0, 0.07, 0));
+  const dripTop = brewer.position.clone().add(new THREE.Vector3(0, 0.19, 0));
+  const cupSteam = cupTop.clone().add(new THREE.Vector3(0, 0.02, 0));
+  const dripSteam = dripTop.clone();
+
+  // 1. 溫杯：熱水沖進杯子，冒出熱氣
+  setPaper(deshu, deshuCanvas.pour);
+  await moveKettle(cupTop);
+  stream.visible = true;
+  steamSources.add(cupSteam);
+  await animate(2.2, () => updateStream(cupTop.y));
+  stream.visible = false;
+  await moveKettle(null, 1);
   setPaper(deshu, deshuCanvas.idle);
 
+  // 2. 磨豆：把手轉動，濾杯裡的粉慢慢堆起來
+  await wait(0.6);
+  setPaper(deshu, deshuCanvas.pour);
+  await animate(4.5, (k) => {
+    gHandle.rotation.y = k * Math.PI * 14;
+    grinder.position.x = 2.05 + Math.sin(k * 90) * 0.002;
+    groundsBed.scale.y = Math.max(0.01, k);
+  });
+  setPaper(deshu, deshuCanvas.idle);
+  await wait(0.6);
+
+  // 3. 悶蒸：少量注水，粉層膨脹冒泡
+  setPaper(deshu, deshuCanvas.pour);
+  await moveKettle(dripTop);
+  stream.visible = true;
+  await animate(1.4, (k) => { updateStream(dripTop.y - 0.04); bloom.scale.set(k * 0.8, k * 0.5, k * 0.8); });
+  stream.visible = false;
+  steamSources.add(dripSteam);
+  await animate(3.5, (k) => {
+    const b = 0.8 + 0.2 * ease(k);
+    bloom.scale.set(b, 0.5 + 0.5 * ease(k), b);
+  });
+
+  // 4. 注水：手沖壺繞小圈，下壺的咖啡慢慢升起
+  stream.visible = true;
+  const base = kettle.position.clone();
+  await animate(8, (k) => {
+    const a = k * Math.PI * 8;
+    kettle.position.set(base.x + Math.cos(a) * 0.012, base.y, base.z + Math.sin(a) * 0.012);
+    updateStream(dripTop.y - 0.04);
+    serverLiquid.scale.y = 0.001 + k * 0.085;
+    serverLiquid.position.y = serverLiquid.scale.y / 2 + 0.002;
+  });
+  stream.visible = false;
+  await moveKettle(null, 1);
+  setPaper(deshu, deshuCanvas.idle);
+  await wait(1);
+
+  // 5. 倒進杯子
+  stationCup.userData.liquid.visible = true;
+  await animate(1.5, (k) => {
+    serverLiquid.scale.y = 0.086 * (1 - k) + 0.001;
+    serverLiquid.position.y = serverLiquid.scale.y / 2 + 0.002;
+  });
+  steamSources.delete(cupSteam);
+  steamSources.delete(dripSteam);
+
+  // 6. 端上桌
+  const cup = stationCup;
+  const atSeat = () => state.mode === 'seat' && state.seat === seat;
+  state.closeup = false;
+  if (atSeat()) moveCamera(seat.eye, seat.look);
+  updateUI();
   if (seat.serve) {
     say('好了，我端過去。', 2500);
+    deshu.attach(cup);
+    cup.position.set(0.32, 0.98, 0.12);
+    cup.rotation.set(0, 0, 0);
     const path = [new THREE.Vector3(2.6, 0, 0.6), new THREE.Vector3(1.3, 0, 0.8), seat.serve];
     for (const pt of path) await walk(deshu, pt);
-    placeCup(seat);
+    deshu.userData.mesh.position.y = 0;
+    scene.attach(cup);
+    const from = cup.position.clone();
+    await animate(0.8, (k) => { cup.position.lerpVectors(from, seat.cup, ease(k)); cup.position.y += Math.sin(Math.PI * k) * 0.05; });
+    cup.rotation.set(0, 0, 0);
     say('東山的豆，就是窗外那片山。', 4500);
     await wait(2.5);
     for (const pt of [new THREE.Vector3(1.3, 0, 0.8), new THREE.Vector3(2.6, 0, 0.6), HOME]) await walk(deshu, pt);
     deshu.userData.mesh.position.y = 0;
   } else {
-    placeCup(seat);
+    const from = cup.position.clone();
+    await animate(1.2, (k) => cup.position.lerpVectors(from, seat.cup, ease(k)));
     say('東山的豆，就是窗外那片山。', 4500);
   }
+  cups.push(cup);
+  cup.userData.steamAt = cup.position.clone().add(new THREE.Vector3(0, 0.09, 0));
+  cup.userData.age = 0;
+
+  // 收拾吧台，準備下一杯
+  groundsBed.scale.y = 0.01;
+  bloom.scale.setScalar(0.001);
+  stationCup = makeCup();
+  stationCup.position.copy(CUP_SPOT);
+  scene.add(stationCup);
+
   task('first-coffee', '第一次坐下喝德叔的咖啡', 0.5);
   brewing = false;
-  $('brew').disabled = false;
+  updateUI();
 }
 
-function placeCup(seat) {
-  const c = paper(A.cup(), seat.cup.x, seat.cup.z, { y: seat.cup.y, shadow: false });
-  c.userData.steamAt = new THREE.Vector3(seat.cup.x, seat.cup.y + 0.14, seat.cup.z);
-  c.userData.age = 0;
-  cups.push(c);
+function backToSeat() {
+  if (!state.closeup || !state.seat) return;
+  state.closeup = false;
+  moveCamera(state.seat.eye, state.seat.look);
+  updateUI();
 }
 
 /* ---------- 龍眼的散步 ---------- */
@@ -387,7 +572,7 @@ function updateCamera(dt) {
     cam.look.lerpVectors(tween.fromLook, tween.toLook, k);
     if (tween.t >= 1) tween = null;
   }
-  const targetFov = state.mode === 'overview' ? 50 : 72;
+  const targetFov = state.mode === 'overview' ? 50 : state.closeup ? 52 : 72;
   if (Math.abs(camera.fov - targetFov) > 0.05) { camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 3); camera.updateProjectionMatrix(); }
   if (state.mode === 'overview') {
     const off = cam.pos.clone().sub(OVER.look).applyAxisAngle(new THREE.Vector3(0, 1, 0), cam.yaw);
@@ -419,6 +604,7 @@ function sit(seat) {
 }
 
 function stand() {
+  state.closeup = false;
   state.seat.prop.visible = true;
   state.mode = 'overview';
   state.seat = null;
@@ -444,15 +630,17 @@ function updateUI() {
   $('labels').style.display = over && !state.placing ? '' : 'none';
   $('stand').style.display = over ? 'none' : '';
   $('brew').style.display = over ? 'none' : '';
+  $('brew').disabled = brewing && !state.closeup;
+  $('brew').textContent = !brewing ? '請德叔沖一杯' : state.closeup ? '回座位' : '沖咖啡中…';
   $('place').style.display = over ? '' : 'none';
   $('place').textContent = state.placing ? '完成佈置' : '佈置';
   $('hint').textContent = over
     ? (state.placing ? (state.selected ? `已選：${state.selected.userData.name}，點地板放到那裡` : '點一件擺飾，再點地板移動它') : '點座位坐下，用客人的角度看看這間店')
-    : '左右拖曳可以環顧四周';
+    : state.closeup ? '德叔正在沖你的咖啡' : '左右拖曳環顧四周，點人物可以搭話';
 }
 
 $('stand').onclick = stand;
-$('brew').onclick = () => state.seat && brew(state.seat);
+$('brew').onclick = () => { if (state.closeup) backToSeat(); else if (state.seat) brew(state.seat); };
 $('night').onclick = () => { state.night = !state.night; applyLight(); };
 $('place').onclick = () => {
   state.placing = !state.placing;
@@ -492,10 +680,12 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (!down) return;
   const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
   down = null;
-  if (moved > 10 || !state.placing || state.mode !== 'overview') return;
+  if (moved > 10) return;
   const rect = renderer.domElement.getBoundingClientRect();
   ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
+  if (!state.placing) { talkTo(ray); return; }
+  if (state.mode !== 'overview') return;
   const hit = ray.intersectObjects(DECOR.map((d) => d.userData.mesh))[0];
   if (hit) { select(DECOR.find((d) => d.userData.mesh === hit.object)); return; }
   if (state.selected) {
@@ -512,6 +702,27 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   }
 });
 
+/* ---------- 點人物搭話 ---------- */
+NAMES.set(deshu, '德叔').set(yuan, '予安').set(cat, '龍眼');
+const HEAD = new Map([[deshu, 2.0], [yuan, 1.45], [cat, 0.5]]);
+const LINES = new Map([
+  [deshu, ['不急。', '老闆，今天想坐哪裡？', '水溫九十度，剛好。', '這間店，慢慢會有自己的樣子。']],
+  [yuan, ['這句我又刪掉了。', '窗外那片山，今天的顏色很好看。', '再一杯黑咖啡，我就寫得出來。', '我阿公以前也在這條路上烤龍眼。']],
+  [cat, ['（呼嚕呼嚕）', '喵。', '（翻了個身，繼續睡）']],
+]);
+const talked = new Set();
+function talkTo(r) {
+  const hit = r.intersectObjects([deshu, yuan, cat].map((p) => p.userData.mesh))[0];
+  if (!hit) return;
+  const who = [deshu, yuan, cat].find((p) => p.userData.mesh === hit.object);
+  if (who === deshu && brewing) return;
+  let line;
+  if (who === yuan && !talked.has(yuan)) line = '……啊，你好。我叫予安，常坐在這裡寫稿。';
+  else { const l = LINES.get(who); line = l[Math.floor(Math.random() * l.length)]; }
+  talked.add(who);
+  say(line, 3500, who);
+}
+
 /* ---------- 主迴圈 ---------- */
 let last = performance.now();
 const tmp = new THREE.Vector3();
@@ -520,7 +731,9 @@ function project(pos, el, yOff = 0) {
   tmp.project(camera);
   const visible = tmp.z < 1 && Math.abs(tmp.x) < 1.15 && Math.abs(tmp.y) < 1.15;
   el.style.opacity = visible ? '' : '0';
-  el.style.transform = `translate(-50%,-100%) translate(${((tmp.x + 1) / 2) * app.clientWidth}px, ${((1 - tmp.y) / 2) * app.clientHeight}px)`;
+  let x = ((tmp.x + 1) / 2) * app.clientWidth;
+  if (el === bubble) { const half = el.offsetWidth / 2 + 8; x = Math.min(Math.max(x, half), app.clientWidth - half); } // 泡泡不要超出畫面
+  el.style.transform = `translate(-50%,-100%) translate(${x}px, ${((1 - tmp.y) / 2) * app.clientHeight}px)`;
 }
 
 let steamAcc = 0;
@@ -539,10 +752,11 @@ function loop() {
   if (steamAcc > 0.35) {
     steamAcc = 0;
     for (const c of cups) if ((c.userData.age += 0.35) < 90) emitSteam(c.userData.steamAt);
+    for (const p of steamSources) emitSteam(p);
   }
   updateSteam(dt);
   lampLight.position.set(lamp.position.x, 1.5, lamp.position.z);
-  project(deshu.position, bubble, 2.0);
+  if (speaker) project(speaker.position, bubble, HEAD.get(speaker) || 2.0);
   SEATS.forEach((s, i) => project(s.prop.position, labels[i], 1.1));
   renderer.render(scene, camera);
   requestAnimationFrame(loop);

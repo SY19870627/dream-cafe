@@ -231,11 +231,8 @@ export function deshu(pose) {
     g.save(); g.translate(cx + 0.2, 0.56); g.rotate(-1.0);
     rr(g, 0, -0.05, 0.4, 0.11, 0.05); g.fill(); outline(g);
     g.restore();
-    // 手沖壺
-    g.save(); g.translate(cx + 0.5, 0.3);
-    rr(g, -0.07, -0.02, 0.14, 0.14, 0.03); g.fillStyle = '#c8ccd0'; g.fill(); outline(g, 0.012);
-    g.beginPath(); g.moveTo(0.06, 0.02); g.quadraticCurveTo(0.18, 0.0, 0.2, 0.1); outline(g, 0.02);
-    g.restore();
+    g.fillStyle = '#e9c3a0';
+    ell(g, cx + 0.43, 0.23, 0.05, 0.05); g.fill(); outline(g, 0.012);
   } else {
     rr(g, cx + 0.2, 0.52, 0.11, 0.42, 0.05); g.fill(); outline(g);
   }
