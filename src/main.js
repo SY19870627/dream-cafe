@@ -2,6 +2,10 @@
 // 3D 房間 + 2D 紙片（billboard）擺飾與人物，驗證手機直立的顧客視角。
 import * as THREE from 'three';
 import * as A from './art.js';
+import { createStore } from './save.js';
+import { temperature, completeTasks, taskById } from './tasks.js';
+import { CATALOG, CATEGORY, itemById, balance, commitLayout } from './catalog.js';
+import { dayIndex, daysOpen, dateLabel, JUMP_DAY_MS } from './clock.js';
 
 const PPM = A.SIZES.PPM;
 const $ = (id) => document.getElementById(id);
@@ -10,6 +14,23 @@ const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const DEV = params.get('dev') === '1';
 const DEV_SPEED = DEV ? Math.max(1, Number(params.get('speed')) || 1) : 1;
+
+/* ---------- 存檔與遊戲時間 ---------- */
+// 現實一天＝遊戲一天；開發者模式可以跳天數（時間偏移存在存檔裡，一般模式不採用）
+const store = createStore();
+const save = store.load();
+const now = () => Date.now() + (DEV ? save.dev.offsetMs : 0);
+const today = () => daysOpen(save.createdAt, now());
+const returningDay = store.status === 'loaded' && dayIndex(save.lastSeen) < dayIndex(now()); // 隔天以後才回到店裡
+let resetting = false;
+function persist() {
+  if (resetting) return;
+  save.lastSeen = now();
+  store.write(save);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') persist(); });
+window.addEventListener('pagehide', persist);
+setInterval(persist, 60000);
 
 /* ---------- 基本設定 ---------- */
 const app = $('app');
@@ -130,8 +151,6 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight('#fff1dc', 2.0);
 sun.position.set(-6, 5, -1.5);
 scene.add(sun);
-const lampLight = new THREE.PointLight('#ffb46b', 0, 0, 1.6);
-scene.add(lampLight);
 
 /* ---------- 紙片 ---------- */
 const papers = [];
@@ -163,6 +182,15 @@ function setPaper(p, canvas) {
   p.userData.mesh.material.map.dispose();
   p.userData.mesh.material.map = A.tex(canvas);
   p.userData.mesh.material.needsUpdate = true;
+}
+
+function removePaper(p) {
+  scene.remove(p);
+  papers.splice(papers.indexOf(p), 1);
+  p.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) { if (o.material.map !== blobTex) o.material.map?.dispose(); o.material.dispose(); }
+  });
 }
 
 const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -289,22 +317,133 @@ function updateStream(targetY) {
 // 予安（作家熟客）
 const yuan = paper(A.yuan(), -0.4, -1.75);
 
-// 可移動的擺飾
-const DECOR = [
-  paper(A.plant(), -2.55, -3.45, { name: '盆栽' }),
-  paper(A.bookshelf(), -0.1, -3.72, { name: '書櫃', clamp: 0.9 }),
-  paper(A.recordPlayer(), 0.75, -3.6, { name: '黑膠唱機', clamp: 1.0 }),
-  paper(A.floorLamp(false), -2.6, 2.3, { name: '落地燈' }),
-  paper(A.menuBoard(), 0.6, 1.6, { name: '黑板立牌' }),
-];
-const lamp = DECOR[3];
-
 // 德叔與龍眼
 const HOME = new THREE.Vector3(2.6, 0, -1.6);
 const deshuCanvas = { idle: A.deshu('idle'), pour: A.deshu('pour') };
 const deshu = paper(deshuCanvas.idle, HOME.x, HOME.z);
 const catCanvas = { sleep: A.cat('sleep'), sit: A.cat('sit') };
 const cat = paper(catCanvas.sleep, -2.3, -2.9);
+
+/* ---------- 擺飾：依存檔擺在店裡；佈置模式裡改的是一份工作清單，按「確定」才寫回存檔 ---------- */
+const artCache = new Map();
+function artFor(item, night = state.night) {
+  const key = item.art + (item.light && night ? ':on' : '');
+  if (!artCache.has(key)) artCache.set(key, item.art === 'floorLamp' ? A.floorLamp(item.light && night) : A[item.art]());
+  return artCache.get(key);
+}
+
+// 擺飾不能放進吧台、桌椅與人身上；要靠牆的東西放在牆邊會自動貼牆、轉向室內
+const KEEP_OUT = [
+  [tA.x, tA.z, 0.62], [tC.x, tC.z, 0.62], [tY.x, tY.z, 0.5], [yuan.position.x, yuan.position.z, 0.35],
+  [-1.9, 0.15, 0.4], [-2.1, 3.3, 0.85], [1.3, -1.0, 0.3], [1.3, -2.1, 0.3], [1.3, -2.9, 0.3],
+];
+const WALL_GAP = 0.22;
+// 牆上不能被高的擺飾擋住的東西：窗戶與老溫度計（沿著牆的區間）
+const WALL_KEEP = {
+  back: [[-2.55, -0.85], [1.15, 1.65]],
+  left: [[-1.45, 0.25]],
+  right: [],
+};
+// 沿牆找最接近 c、又不擋到窗戶與溫度計的位置
+function alongWall(c, half, lo, hi, keep) {
+  const ok = (v) => v >= lo - 1e-6 && v <= hi + 1e-6 && keep.every(([a, b]) => v + half <= a || v - half >= b);
+  const cands = [THREE.MathUtils.clamp(c, lo, hi)];
+  for (const [a, b] of keep) cands.push(a - half - 0.02, b + half + 0.02);
+  const good = cands.filter(ok).sort((p, q) => Math.abs(p - c) - Math.abs(q - c));
+  return good.length ? good[0] : cands[0];
+}
+function orient(item, x, z) {
+  const art = artFor(item);
+  const half = art.width / PPM / 2;
+  const tall = art.height / PPM > 1.05; // 比窗台高，才會擋到窗戶與溫度計
+  x = THREE.MathUtils.clamp(x, -2.7, 2.7);
+  z = THREE.MathUtils.clamp(z, -3.75, 3.7);
+  if (item.wall) {
+    const dBack = z + ROOM.d / 2, dLeft = x + ROOM.w / 2, dRight = z > 0.6 ? ROOM.w / 2 - x : Infinity;
+    const near = Math.min(dBack, dLeft, dRight);
+    if (near < 0.8) {
+      // 貼牆的紙片只能小角度轉向鏡頭，不然另一側會轉進牆裡
+      const clamp = Math.min(0.9, Math.asin(Math.min(1, WALL_GAP / half)));
+      const keep = (side) => (tall ? WALL_KEEP[side] : []);
+      if (near === dBack) return { x: alongWall(x, half, -ROOM.w / 2 + half + 0.05, ROOM.w / 2 - half - 0.05, keep('back')), z: -ROOM.d / 2 + WALL_GAP, base: 0, clamp };
+      if (near === dLeft) return { x: -ROOM.w / 2 + WALL_GAP, z: alongWall(z, half, -ROOM.d / 2 + half + 0.05, ROOM.d / 2 - half - 0.05, keep('left')), base: Math.PI / 2, clamp };
+      return { x: ROOM.w / 2 - WALL_GAP, z: alongWall(z, half, 0.6 + half, ROOM.d / 2 - half - 0.05, keep('right')), base: -Math.PI / 2, clamp };
+    }
+  }
+  for (let k = 0; k < 4; k++) {
+    if (x > 1.45 && z < 0.4) x = 1.45;
+    for (const [cx, cz, r] of KEEP_OUT) {
+      const dx = x - cx, dz = z - cz, d = Math.hypot(dx, dz);
+      if (d < r) { const s = d < 1e-3 ? 1 : r / d; x = cx + (d < 1e-3 ? r : dx * s); z = cz + dz * s; }
+    }
+  }
+  return { x, z, base: 0, clamp: item.wall ? 0.9 : Math.PI };
+}
+
+// 新擺出來的東西先找一個空位
+// 先挑靠牆與角落的位置，避開三個座位往前看的視線
+const FREE_SPOTS = [[2.4, 1.6], [-2.5, -2.3], [0.4, -3.5], [2.4, 3.2], [1.2, 3.5], [-0.3, 3.5], [-1.3, -3.4], [0.9, 2.5], [-2.5, 1.4], [0.8, -0.3], [0.3, 0.9], [-0.6, 0.0], [0.2, 2.2], [-0.9, 0.9]];
+function freeSpot(item, entries) {
+  const taken = entries.filter((e) => e.placed);
+  const spots = item.wall ? [[-1.3, -3.6], [0.4, -3.6], [-2.8, 1.5], [2.8, 2.0], ...FREE_SPOTS] : FREE_SPOTS;
+  for (const [x, z] of spots) {
+    const o = orient(item, x, z);
+    if (taken.every((e) => Math.hypot(e.x - o.x, e.z - o.z) > 0.7)) return o;
+  }
+  return orient(item, 0.3, 0.9);
+}
+
+const decorPapers = new Map(); // 擺在店裡的項目 → 紙片
+let layout = null; // 佈置模式中的工作清單；null 代表不在佈置（畫面直接反映存檔）
+const entries = () => layout || save.owned;
+const lampLights = [];
+
+function decorPaper(e) {
+  const item = itemById(e.item);
+  const o = orient(item, e.x, e.z);
+  const p = paper(artFor(item), o.x, o.z, { name: item.name, base: o.base, clamp: o.clamp });
+  p.userData.entry = e;
+  p.userData.item = item;
+  if (e.trial) { p.userData.mesh.material.opacity = 0.72; } // 試擺中的東西淡一點
+  if (item.light) {
+    const l = new THREE.PointLight('#ffb46b', 0, 0, 1.6);
+    l.position.set(0, 1.45, 0.3); // 放在紙片前面一點：光源和紙片同一平面時照不到紙片本身
+    p.add(l);
+    lampLights.push(l);
+  }
+  return p;
+}
+
+function renderDecor() {
+  for (const p of decorPapers.values()) removePaper(p);
+  decorPapers.clear();
+  lampLights.length = 0;
+  for (const e of entries()) if (e.placed) decorPapers.set(e, decorPaper(e));
+  applyLamps();
+}
+
+function moveDecor(e, x, z) {
+  const o = orient(itemById(e.item), x, z);
+  e.x = o.x; e.z = o.z;
+  const p = decorPapers.get(e);
+  if (p) { p.position.set(o.x, 0, o.z); p.userData.base = o.base; p.userData.clamp = o.clamp; }
+}
+
+// 落地燈：晚上亮。燈只有前兩盞真的打光，避免手機上光源太多
+function applyLamps() {
+  for (const [e, p] of decorPapers) {
+    const item = itemById(e.item);
+    if (!item.light) continue;
+    setPaper(p, artFor(item));
+    // 晚上燈罩自己發亮
+    const m = p.userData.mesh.material;
+    m.emissiveMap = m.map;
+    m.emissive.set(state.night ? '#ffffff' : '#000000');
+    m.emissiveIntensity = 0.75;
+    m.needsUpdate = true;
+  }
+  lampLights.forEach((l, i) => { l.intensity = state.night && i < 2 ? 5 : 0; });
+}
 
 /* ---------- 蒸氣 ---------- */
 const puffTex = A.tex(A.puff());
@@ -329,7 +468,7 @@ function updateSteam(dt) {
 }
 
 /* ---------- 溫度與任務 ---------- */
-const state = { temp: 20, tasks: new Set(), sat: new Set(), devSpeed: DEV_SPEED, hold: false, night: false, mode: 'overview', seat: null, placing: false, selected: null };
+const state = { temp: temperature(save), satThisVisit: 0, weather: 'clear', devSpeed: DEV_SPEED, hold: false, night: false, mode: 'overview', seat: null, placing: false, selected: null };
 // 遊戲時間的流速：開發者模式的倍率 × 沖煮中按住畫面的 ×3
 const HOLD_SPEED = 3;
 const speedNow = () => state.devSpeed * (state.hold && brewing ? HOLD_SPEED : 1);
@@ -348,9 +487,9 @@ function drawThermo() {
 drawThermo();
 
 // 溫度上升：數字與老溫度計用約兩秒慢慢爬上去，右上角與溫度計輕輕亮一下
-function riseTemp(dT) {
-  state.temp += dT;
-  const from = shownTemp, to = state.temp;
+function riseTemp(to) {
+  state.temp = to;
+  const from = shownTemp;
   const badge = $('temp');
   badge.classList.remove('rise');
   void badge.offsetWidth; // 重新觸發 CSS 動畫
@@ -368,13 +507,28 @@ function riseTemp(dT) {
   });
 }
 
-// 完成溫度任務：不跳任務清單，由角色的反應帶出（反應由呼叫端安排）
-function task(id, dT) {
-  if (state.tasks.has(id)) return false;
-  state.tasks.add(id);
-  riseTemp(dT);
-  return true;
+// 檢查溫度任務：條件達成的任務記進存檔、溫度上升、溫度基金撥款。
+// 不跳任務清單，由角色的一句話（tasks.js 的 line）或動作帶出；delay 讓台詞不要蓋過正在說的話。
+// 回傳這次完成的任務 id。
+function checkTasks({ delay = 1200 } = {}) {
+  const done = completeTasks(save, { daysOpen: today() }, now());
+  if (!done.length) return [];
+  persist();
+  riseTemp(temperature(save));
+  glowFund();
+  announce(done.filter((t) => t.line).map((t) => t.line), delay);
+  return done.map((t) => t.id);
 }
+
+// 基金撥款時，「佈置」鈕輕輕亮一下（錢只用來佈置；不跳提示框）
+function glowFund() {
+  const b = $('place');
+  b.classList.remove('rise');
+  void b.offsetWidth;
+  b.classList.add('rise');
+}
+
+const fmt = (n) => n.toLocaleString('zh-TW');
 
 /* ---------- 對話泡泡（只用在角色說話） ---------- */
 const bubble = $('bubble');
@@ -387,6 +541,22 @@ function say(text, ms = 3500, who = deshu) {
   bubble.classList.add('show');
   clearTimeout(bubbleTimer);
   if (ms) bubbleTimer = setTimeout(() => bubble.classList.remove('show'), ms);
+}
+
+// 依序說幾句話（例如同時完成兩個任務）：[說話的人, 台詞]
+const sayQueue = [];
+let sayBusy = false;
+function announce(lines, delay = 1200) {
+  if (!lines.length) return;
+  sayQueue.push(...lines);
+  if (sayBusy) return;
+  sayBusy = true;
+  setTimeout(function next() {
+    const l = sayQueue.shift();
+    if (!l) { sayBusy = false; return; }
+    say(l[1], 3800, WHO[l[0]] || deshu);
+    setTimeout(next, 4300);
+  }, delay);
 }
 
 const waiters = []; // 依遊戲時間推進（會被快轉、按住加速）
@@ -570,7 +740,10 @@ async function brew(seat) {
   phase = null;
   state.hold = false;
   updateUI();
-  const firstCup = task('first-coffee', 0.5);
+  save.stats.cups++;
+  if (state.weather === 'rain' && seat.id === 'window') save.stats.rainyWindowCups++; // 天氣在之後的階段加入
+  persist();
+  const firstCup = checkTasks({ delay: 4800 }).includes('first-coffee');
 
   // 德叔走回吧台：背景動作，期間再按沖咖啡會等他回到吧台
   deshuReturning = (async () => {
@@ -641,8 +814,7 @@ function applyLight() {
   hemi.intensity = n ? 0.35 : 1.6;
   sun.intensity = n ? 0 : 2.0;
   for (const p of pendants) p.light.intensity = n ? 9 : 3;
-  lampLight.intensity = n ? 5 : 0;
-  setPaper(lamp, A.floorLamp(n));
+  applyLamps();
   for (const w of windows) { w.material.map = n ? winTex.night : winTex.day; w.material.needsUpdate = true; }
   scene.background = new THREE.Color(n ? '#13151d' : '#ece2d0');
   renderer.toneMappingExposure = n ? 1.15 : 1.0;
@@ -723,10 +895,10 @@ function sit(seat) {
   seat.prop.visible = false;
   moveCamera(seat.eye, seat.look);
   updateUI();
-  state.sat.add(seat.id);
-  if (state.sat.size === 1) setTimeout(() => say('不急，咖啡會等人，人也該等咖啡。'), 1500);
-  // 【待定】坐遍三個座位時德叔的一句話（劇本只寫了任務，沒寫台詞）
-  if (state.sat.size === SEATS.length && task('all-seats', 1)) setTimeout(() => say('每張椅子，都認得老闆了。'), 1800);
+  if (++state.satThisVisit === 1) setTimeout(() => say('不急，咖啡會等人，人也該等咖啡。'), 1500);
+  if (!save.seatsSat.includes(seat.id)) { save.seatsSat.push(seat.id); persist(); }
+  // 坐遍三個座位：德叔的一句話寫在 tasks.js（【待定】）
+  checkTasks({ delay: state.satThisVisit === 1 ? 5200 : 1800 });
 }
 
 function stand() {
@@ -751,32 +923,174 @@ const labels = SEATS.map((s) => {
   return b;
 });
 
+const show = (id, on) => { $(id).hidden = !on; };
 function updateUI() {
   const over = state.mode === 'overview';
-  $('labels').style.display = over && !state.placing ? '' : 'none';
-  $('stand').style.display = over ? 'none' : '';
-  $('brew').style.display = over ? 'none' : '';
+  const placing = state.placing, sel = !!state.selected;
+  $('labels').style.display = over && !placing ? '' : 'none';
+  show('stand', !over);
+  show('brew', !over);
+  show('place', over && !placing);
+  show('night', !placing);
+  show('p-catalog', placing && !sel);
+  show('p-store', placing && !sel);
+  show('p-putaway', placing && sel);
+  show('p-deselect', placing && sel);
+  show('p-revert', placing);
+  show('p-done', placing);
   $('brew').disabled = phase === 'wait' || phase === 'serve';
   $('brew').textContent = !brewing ? '請德叔沖一杯'
     : phase === 'wait' ? '德叔走回吧台…'
     : phase === 'serve' ? '德叔端過來了'
     : state.closeup ? '回座位' : '看德叔沖';
-  $('place').style.display = over ? '' : 'none';
-  $('place').textContent = state.placing ? '完成佈置' : '佈置';
-  $('hint').textContent = over
-    ? (state.placing ? (state.selected ? `已選：${state.selected.userData.name}，點地板放到那裡` : '點一件擺飾，再點地板移動它') : '點座位坐下，用客人的角度看看這間店')
-    : brewing ? (state.hold ? '時間走快了一點……' : '按住畫面可以讓時間走快一點')
-    : '左右拖曳環顧四周，點人物可以搭話';
+  $('day').textContent = `開店第 ${today()} 天`;
+  $('hint').textContent = !over
+    ? (brewing ? (state.hold ? '時間走快了一點……' : '按住畫面可以讓時間走快一點') : '左右拖曳環顧四周，點人物可以搭話')
+    : !placing ? '點座位坐下，用客人的角度看看這間店'
+    : sel ? `已選：${state.selected.userData.name}，點地板放到那裡`
+    : placingHint();
 }
+
+/* ---------- 佈置：移動、倉庫、德叔的型錄 ---------- */
+// 試擺不扣錢、擺放永遠免費；按「確定」才寫回存檔，「復原」回到進來時的樣子
+const trials = () => (layout || []).filter((e) => e.trial);
+const trialCost = () => trials().reduce((s, e) => s + itemById(e.item).price, 0);
+function placingHint() {
+  const t = trials();
+  if (t.length) return `試擺 ${t.length} 件，共 ${fmt(trialCost())} 元・溫度基金 ${fmt(balance(save))} 元`;
+  return '點擺飾再點地板移動它；按「確定」才算數';
+}
+
+function startPlacing() {
+  state.placing = true;
+  layout = save.owned.map((o) => ({ ...o }));
+  renderDecor();
+  select(null);
+  if (!save.flags.storeHint && layout.some((e) => !e.placed)) {
+    save.flags.storeHint = true;
+    persist();
+    // 【待定】第一次進佈置模式、倉庫裡還有東西時德叔的提醒（階段 3 第四幕會改由開場送出初始擺飾）
+    say('倉庫裡有三件東西，是我先替老闆準備的。想放哪就放哪。', 4200);
+  }
+}
+
+function revertPlacing() {
+  layout = save.owned.map((o) => ({ ...o }));
+  select(null);
+  renderDecor();
+  closeSheet();
+}
+
+function finishPlacing() {
+  const before = save.owned.filter((o) => o.placed).length;
+  const r = commitLayout(save, layout, now());
+  layout = null;
+  state.placing = false;
+  select(null);
+  closeSheet();
+  renderDecor();
+  persist();
+  const after = save.owned.filter((o) => o.placed).length;
+  const ids = checkTasks({ delay: r.returned.length ? 4400 : 600 });
+  // 【待定】基金還沒撥到那裡時，德叔把試擺的東西退回型錄（不說「不夠」「不划算」）
+  if (r.returned.length) say(`${itemById(r.returned[0]).name}${r.returned.length > 1 ? '那幾件' : ''}，我先放回型錄。基金再撥一點下來，就帶回來。`, 4200);
+  else if (!ids.some((id) => taskById(id).line) && (r.bought.length || after > before)) say('這個放這裡，從吧台看過去剛好。');
+  updateUI();
+}
+
+// 把一件東西擺進店裡（從倉庫拿出來，或從型錄試擺），擺好後直接選起來，點地板就能換位置
+function putOut(e) {
+  const item = itemById(e.item);
+  const o = freeSpot(item, layout);
+  e.placed = true; e.x = o.x; e.z = o.z;
+  if (!layout.includes(e)) layout.push(e);
+  renderDecor();
+  closeSheet();
+  select(decorPapers.get(e));
+}
+
+function putAway() {
+  const e = state.selected?.userData.entry;
+  if (!e) return;
+  if (e.trial) layout.splice(layout.indexOf(e), 1); // 試擺的東西直接退回型錄
+  else e.placed = false;
+  select(null);
+  renderDecor();
+}
+
+$('place').onclick = startPlacing;
+$('p-done').onclick = finishPlacing;
+$('p-revert').onclick = revertPlacing;
+$('p-putaway').onclick = putAway;
+$('p-deselect').onclick = () => select(null);
+$('p-catalog').onclick = () => openSheet('catalog');
+$('p-store').onclick = () => openSheet('store');
+
+// 型錄與倉庫：從畫面下方拉起的面板
+const sheet = $('sheet');
+const thumbs = new Map();
+function thumb(item) {
+  if (!thumbs.has(item.id)) {
+    const src = artFor(item, false);
+    const c = document.createElement('canvas');
+    c.width = c.height = 112;
+    const g = c.getContext('2d');
+    const s = Math.min(100 / src.width, 100 / src.height);
+    g.drawImage(src, (112 - src.width * s) / 2, (112 - src.height * s) / 2, src.width * s, src.height * s);
+    thumbs.set(item.id, c.toDataURL());
+  }
+  return thumbs.get(item.id);
+}
+
+function row(item, note, btnText, onClick) {
+  const r = document.createElement('div');
+  r.className = 'sheet-row';
+  r.innerHTML = `<img alt="" src="${thumb(item)}"><div class="info"><b>${item.name}</b><span>${item.desc}</span><small>${note}</small></div>`;
+  const b = document.createElement('button');
+  b.textContent = btnText;
+  b.onclick = onClick;
+  r.appendChild(b);
+  return r;
+}
+
+let sheetKind = null;
+function openSheet(kind) {
+  sheetKind = kind;
+  const list = $('sheet-list');
+  list.innerHTML = '';
+  const bal = balance(save);
+  if (kind === 'catalog') {
+    $('sheet-title').textContent = '德叔的型錄';
+    const left = bal - trialCost();
+    $('sheet-sub').textContent = `溫度基金 ${fmt(bal)} 元${trials().length ? `・試擺中 ${fmt(trialCost())} 元` : ''}。試擺不花錢，按「確定」才帶回來。`;
+    for (const cat of Object.keys(CATEGORY)) {
+      const h = document.createElement('h3');
+      h.textContent = CATEGORY[cat];
+      list.appendChild(h);
+      for (const item of CATALOG.filter((i) => i.cat === cat)) {
+        const have = (layout || save.owned).filter((e) => e.item === item.id && !e.trial).length;
+        // 錢不夠時不寫「餘額不足」，只寫「再等等」
+        const note = `${fmt(item.price)} 元${item.price > left ? '・基金再等等' : ''}${have ? `・店裡已有 ${have} 件` : ''}`;
+        list.appendChild(row(item, note, '試擺', () => putOut({ item: item.id, trial: true, placed: true, x: 0, z: 0 })));
+      }
+    }
+  } else {
+    $('sheet-title').textContent = '倉庫';
+    const stored = layout.filter((e) => !e.placed);
+    $('sheet-sub').textContent = stored.length ? '收起來的東西都在這裡，隨時可以再擺出來。' : '倉庫是空的。型錄裡的東西試擺後按「確定」，就會是老闆的。';
+    for (const e of stored) list.appendChild(row(itemById(e.item), CATEGORY[itemById(e.item).cat], '擺出來', () => putOut(e)));
+  }
+  sheet.hidden = false;
+  list.scrollTop = 0;
+  $('sheet-close').focus();
+}
+function closeSheet() { sheet.hidden = true; sheetKind = null; }
+$('sheet-close').onclick = closeSheet;
+sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
 
 $('stand').onclick = stand;
 $('brew').onclick = () => { if (phase === 'brew') toggleCloseup(); else if (!brewing && state.seat) brew(state.seat); };
 $('night').onclick = () => { state.night = !state.night; applyLight(); };
-$('place').onclick = () => {
-  state.placing = !state.placing;
-  select(null);
-  updateUI();
-};
 // 測試用的快轉鈕只在開發者模式出現
 const speedLabel = () => (state.devSpeed === 1 ? '正常速度' : `快轉 ×${state.devSpeed}`);
 $('speed').hidden = !DEV;
@@ -786,21 +1100,88 @@ $('speed').onclick = () => {
   $('speed').textContent = speedLabel();
 };
 
-/* ---------- 選單：關於（開發者資訊）；之後的設定也放這裡 ---------- */
+/* ---------- 選單：關於（開發者資訊）、店的記事本、開發者工具 ---------- */
 const about = $('about');
+const notebook = $('notebook');
 function openAbout(open) {
   about.hidden = !open;
   $('menu-btn').setAttribute('aria-expanded', String(open));
-  if (open) $('about-close').focus();
+  if (open) { refreshDevTools(); $('about-close').focus(); }
 }
 $('menu-btn').onclick = () => openAbout(about.hidden);
 $('about-close').onclick = () => openAbout(false);
 about.addEventListener('click', (e) => { if (e.target === about) openAbout(false); }); // 點面板外面關閉
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !about.hidden) openAbout(false); });
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!notebook.hidden) openNotebook(false);
+  else if (!sheet.hidden) closeSheet();
+  else if (!about.hidden) openAbout(false);
+});
+if (!store.available) show('save-note', true); // 私密模式等存不了檔的情況，照常遊戲
+
+// 店的記事本：只列已經發生的事，不列還沒完成的（避免變成待辦清單，決定 D8）
+function openNotebook(open) {
+  notebook.hidden = !open;
+  if (!open) return;
+  openAbout(false);
+  $('nb-summary').textContent = `開店第 ${today()} 天・溫度 ${temperature(save).toFixed(1)}°C・溫度基金 ${fmt(balance(save))} 元`;
+  const placed = save.owned.filter((o) => o.placed).length;
+  $('nb-decor').textContent = `店裡擺著 ${placed} 件東西${save.owned.length > placed ? `，倉庫裡還有 ${save.owned.length - placed} 件` : ''}。`;
+  const list = $('nb-list');
+  list.innerHTML = '';
+  for (const d of [...save.tasks].reverse()) {
+    const t = taskById(d.id);
+    if (!t) continue;
+    const li = document.createElement('li');
+    li.innerHTML = `<small>${dateLabel(d.t)}・第 ${d.day || 1} 天</small><b>${t.name}</b><span>+${t.temp}°C・溫度基金撥款 ${fmt(t.fund)} 元</span>`;
+    list.appendChild(li);
+  }
+  // 【待定】記事本還是空的時候的一句話
+  $('nb-empty').hidden = save.tasks.length > 0;
+  $('nb-close').focus();
+}
+$('open-notebook').onclick = () => openNotebook(true);
+$('nb-close').onclick = () => openNotebook(false);
+notebook.addEventListener('click', (e) => { if (e.target === notebook) openNotebook(false); });
+
+// 開發者工具：跳天數、加基金、重置存檔（只在 ?dev=1 出現）
+show('dev-tools', DEV);
+function refreshDevTools() {
+  if (DEV) $('dev-day').textContent = `開發者工具・開店第 ${today()} 天・基金 ${fmt(balance(save))} 元`;
+}
+function jumpDays(n) {
+  save.dev.offsetMs += n * JUMP_DAY_MS;
+  persist();
+  updateUI();
+  refreshDevTools();
+  checkTasks();
+}
+$('dev-day1').onclick = () => jumpDays(1);
+$('dev-day7').onclick = () => jumpDays(7);
+$('dev-fund').onclick = () => {
+  save.fund.ledger.push({ t: now(), kind: 'dev', ref: '開發者模式', amount: 5000 });
+  persist();
+  refreshDevTools();
+};
+$('dev-reset').onclick = () => {
+  resetting = true;
+  store.clear();
+  location.reload();
+};
+
+// 開店第 N 天：跨過午夜時更新，「開店滿 3 天／7 天」也在這時完成
+let shownDay = today();
+setInterval(() => {
+  const d = today();
+  if (d === shownDay) return;
+  shownDay = d;
+  updateUI();
+  checkTasks();
+}, 20000);
 
 function select(p) {
   if (state.selected) state.selected.userData.mesh.material.color.set('#ffffff');
-  state.selected = p;
+  state.selected = p || null;
   if (p) p.userData.mesh.material.color.set('#ffd27a');
   updateUI();
 }
@@ -842,18 +1223,13 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   ray.setFromCamera(ndc, camera);
   if (!state.placing) { talkTo(ray); return; }
   if (state.mode !== 'overview') return;
-  const hit = ray.intersectObjects(DECOR.map((d) => d.userData.mesh))[0];
-  if (hit) { select(DECOR.find((d) => d.userData.mesh === hit.object)); return; }
+  const decor = [...decorPapers.values()];
+  const hit = ray.intersectObjects(decor.map((d) => d.userData.mesh))[0];
+  if (hit) { select(decor.find((d) => d.userData.mesh === hit.object)); return; }
   if (state.selected) {
     const f = ray.intersectObject(floor)[0];
     if (f) {
-      let x = THREE.MathUtils.clamp(f.point.x, -2.7, 2.7);
-      const z = THREE.MathUtils.clamp(f.point.z, -3.75, 3.7);
-      if (x > 1.45 && z < 0.4) x = 1.45; // 不能放進吧台
-      state.selected.position.x = x;
-      state.selected.position.z = z;
-      // 劇本任務 #2「擺上第一件擺飾」；階段 2 有倉庫與購買後改成真的「擺上」
-      if (task('first-decor', 0.5)) say('這個放這裡，從吧台看過去剛好。');
+      moveDecor(state.selected.userData.entry, f.point.x, f.point.z); // 擺放永遠免費；按「確定」才寫回存檔
       select(null);
     }
   }
@@ -861,22 +1237,21 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 
 /* ---------- 點人物搭話 ---------- */
 NAMES.set(deshu, '德叔').set(yuan, '予安').set(cat, '龍眼');
+const WHO = { 德叔: deshu, 予安: yuan, 龍眼: cat }; // tasks.js 台詞裡的說話者
 const HEAD = new Map([[deshu, 2.0], [yuan, 1.45], [cat, 0.5]]);
 const LINES = new Map([
   [deshu, ['不急。', '老闆，今天想坐哪裡？', '水溫九十度，剛好。', '這間店，慢慢會有自己的樣子。']],
   [yuan, ['這句我又刪掉了。', '窗外那片山，今天的顏色很好看。', '再一杯黑咖啡，我就寫得出來。', '我阿公以前也在這條路上烤龍眼。']],
   [cat, ['（呼嚕呼嚕）', '喵。', '（翻了個身，繼續睡）']],
 ]);
-const talked = new Set();
 function talkTo(r) {
   const hit = r.intersectObjects([deshu, yuan, cat].map((p) => p.userData.mesh))[0];
   if (!hit) return;
   const who = [deshu, yuan, cat].find((p) => p.userData.mesh === hit.object);
   if (who === deshu && brewing) return;
   let line;
-  if (who === yuan && !talked.has(yuan)) line = '……啊，你好。我叫予安，常坐在這裡寫稿。';
+  if (who === yuan && !save.flags.metYuan) { line = '……啊，你好。我叫予安，常坐在這裡寫稿。'; save.flags.metYuan = true; persist(); }
   else { const l = LINES.get(who); line = l[Math.floor(Math.random() * l.length)]; }
-  talked.add(who);
   say(line, 3500, who);
 }
 
@@ -918,7 +1293,6 @@ function loop() {
     for (const p of steamSources) emitSteam(p);
   }
   updateSteam(dt);
-  lampLight.position.set(lamp.position.x, 1.5, lamp.position.z);
   if (speaker) project(speaker.position, bubble, HEAD.get(speaker) || 2.0);
   SEATS.forEach((s, i) => project(s.prop.position, labels[i], 1.1, true));
   renderer.render(scene, camera);
@@ -928,10 +1302,15 @@ function loop() {
 frontWall.visible = false;
 ceiling.visible = false;
 resize();
+renderDecor();
 applyLight();
 updateUI();
 loop();
-setTimeout(() => say('老闆，歡迎回來。', 3500), 800);
+persist(); // 新存檔在這一刻寫下第一次開店的時間
+// 隔天以後回來：劇本「開店」台詞；其他時候：「老闆，歡迎回來。」
+setTimeout(() => say(returningDay ? '燈亮了。老闆，今天想坐哪裡？' : '老闆，歡迎回來。', 3500), 800);
+// 離線期間到期的任務（例如開店滿 3 天），等德叔打完招呼再說
+checkTasks({ delay: 4600 });
 
 // 開發者模式：給冒煙測試讀狀態用（一般玩家不會有這個物件）
 if (DEV) {
@@ -943,7 +1322,24 @@ if (DEV) {
     get speed() { return speedNow(); },
     get mode() { return state.mode; },
     get closeup() { return !!state.closeup; },
-    get tasks() { return [...state.tasks]; },
+    get tasks() { return save.tasks.map((d) => d.id); },
+    get fund() { return balance(save); },
+    get ledgerSum() { return save.fund.ledger.reduce((s, e) => s + e.amount, 0); },
+    get grants() { return save.fund.ledger.filter((e) => e.kind === 'grant').reduce((s, e) => s + e.amount, 0); },
+    get day() { return today(); },
+    get placing() { return state.placing; },
+    get saveStatus() { return store.status; },
+    get placed() { return save.owned.filter((o) => o.placed).map((o) => o.item); },
+    get stored() { return save.owned.filter((o) => !o.placed).map((o) => o.item); },
+    get layoutPlaced() { return [...decorPapers.keys()].map((e) => ({ item: e.item, trial: !!e.trial, x: e.x, z: e.z })); },
+    get selected() { return state.selected?.userData.entry?.item || null; },
+    // 某件擺飾在畫面上的位置（相對 #app 的像素），給測試點擊用
+    decorOnScreen(item) {
+      const p = [...decorPapers.values()].find((d) => d.userData.entry.item === item);
+      if (!p) return null;
+      const v = p.position.clone().add(new THREE.Vector3(0, 0.4, 0)).project(camera);
+      return { x: ((v.x + 1) / 2) * app.clientWidth, y: ((1 - v.y) / 2) * app.clientHeight };
+    },
     get deshuHome() { return !deshuReturning; },
     // 某個座位上那杯咖啡在畫面上的位置（相對 #app 的像素）
     cupOnScreen(seatId) {

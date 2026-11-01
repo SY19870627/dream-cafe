@@ -418,6 +418,196 @@ export function menuBoard() {
   return c;
 }
 
+/* ---------- 德叔的型錄：階段 2 新增的擺飾（之後換手繪只改這些同名函式） ---------- */
+
+// 小邊桌（小擺飾放在上面，免得直接擺在地上）
+function sideTable(g, cx, top, w = 0.4, h = 0.55) {
+  rr(g, cx - w / 2, top, w, 0.05, 0.02); g.fillStyle = '#8a5a3b'; g.fill(); outline(g);
+  g.fillStyle = '#6b452f';
+  rr(g, cx - w / 2 + 0.04, top + 0.05, 0.035, h - 0.05, 0.01); g.fill(); outline(g, 0.012);
+  rr(g, cx + w / 2 - 0.075, top + 0.05, 0.035, h - 0.05, 0.01); g.fill(); outline(g, 0.012);
+}
+
+export function longanJar() {
+  // 龍眼乾玻璃罐，放在小邊桌上
+  const { c, g } = canvas(0.5, 0.95);
+  sideTable(g, 0.25, 0.4);
+  rr(g, 0.13, 0.13, 0.24, 0.27, 0.05); g.fillStyle = 'rgba(214,236,242,0.75)'; g.fill(); outline(g, 0.012);
+  const r = rng(31);
+  for (let i = 0; i < 16; i++) { ell(g, 0.16 + r() * 0.18, 0.22 + r() * 0.15, 0.025, 0.022); g.fillStyle = i % 2 ? '#8a4e22' : '#6e3b18'; g.fill(); }
+  rr(g, 0.15, 0.08, 0.2, 0.06, 0.02); g.fillStyle = '#c4382c'; g.fill(); outline(g, 0.012);
+  rr(g, 0.17, 0.27, 0.16, 0.07, 0.01); g.fillStyle = '#f2ead8'; g.fill();
+  g.fillStyle = INK; g.font = '0.04px "PingFang TC","Noto Sans TC",sans-serif'; g.textAlign = 'center';
+  g.fillText('龍眼乾', 0.25, 0.325);
+  return c;
+}
+
+export function succulent() {
+  // 小花架上的三盆多肉
+  const { c, g } = canvas(0.5, 1.0);
+  g.strokeStyle = '#6b452f'; g.lineWidth = 0.03;
+  g.beginPath(); g.moveTo(0.12, 0.98); g.lineTo(0.16, 0.35); g.moveTo(0.38, 0.98); g.lineTo(0.34, 0.35); g.stroke();
+  for (const y of [0.35, 0.68]) { rr(g, 0.08, y, 0.34, 0.04, 0.01); g.fillStyle = '#8a5a3b'; g.fill(); outline(g, 0.012); }
+  const pot = (x, y, s) => {
+    for (let i = 0; i < 5; i++) {
+      g.save(); g.translate(x, y); g.rotate(-1 + i * 0.5);
+      ell(g, 0, -0.035 * s, 0.022 * s, 0.045 * s); g.fillStyle = i % 2 ? '#7fae7a' : '#6a9a68'; g.fill(); outline(g, 0.008);
+      g.restore();
+    }
+    g.beginPath(); g.moveTo(x - 0.05 * s, y); g.lineTo(x + 0.05 * s, y); g.lineTo(x + 0.04 * s, y + 0.07 * s); g.lineTo(x - 0.04 * s, y + 0.07 * s); g.closePath();
+    g.fillStyle = '#c2734a'; g.fill(); outline(g, 0.01);
+  };
+  pot(0.17, 0.28, 1); pot(0.33, 0.28, 0.9); pot(0.25, 0.61, 1.1);
+  return c;
+}
+
+export function bookStack() {
+  // 地上的一疊舊書
+  const { c, g } = canvas(0.5, 0.5);
+  const r = rng(41);
+  let y = 0.48;
+  for (let i = 0; i < 7; i++) {
+    const h = 0.045 + r() * 0.025, w = 0.3 + r() * 0.12, x = 0.25 - w / 2 + (r() - 0.5) * 0.05;
+    y -= h;
+    rr(g, x, y, w, h, 0.008);
+    g.fillStyle = ['#b5523b', '#e2c27a', '#5c7f8c', '#8b9a5b', '#e9e0cf', '#6b4a7a'][i % 6]; g.fill(); outline(g, 0.01);
+  }
+  return c;
+}
+
+export function coffeeSack() {
+  // 印著「東山」的生豆麻布袋
+  const { c, g } = canvas(0.6, 0.75);
+  g.beginPath();
+  g.moveTo(0.12, 0.12); g.quadraticCurveTo(0.3, 0.02, 0.48, 0.12);
+  g.quadraticCurveTo(0.6, 0.45, 0.54, 0.72); g.lineTo(0.06, 0.72); g.quadraticCurveTo(0, 0.45, 0.12, 0.12);
+  g.fillStyle = '#c9a77c'; g.fill(); outline(g);
+  g.strokeStyle = 'rgba(110,80,50,0.35)'; g.lineWidth = 0.006;
+  for (let x = 0.1; x < 0.55; x += 0.035) { g.beginPath(); g.moveTo(x, 0.15); g.lineTo(x, 0.7); g.stroke(); }
+  ell(g, 0.3, 0.12, 0.13, 0.04); g.fillStyle = '#6b4428'; g.fill(); outline(g, 0.01);
+  g.fillStyle = '#7a3a24'; g.font = 'bold 0.1px "PingFang TC","Noto Sans TC",sans-serif'; g.textAlign = 'center';
+  g.fillText('東山', 0.3, 0.46);
+  g.font = '0.04px "PingFang TC","Noto Sans TC",sans-serif';
+  g.fillText('TAINAN COFFEE', 0.3, 0.55);
+  return c;
+}
+
+export function catCushion() {
+  // 窗邊的貓咪軟墊
+  const { c, g } = canvas(0.7, 0.3);
+  ell(g, 0.35, 0.19, 0.32, 0.1); g.fillStyle = '#d98f6a'; g.fill(); outline(g);
+  ell(g, 0.35, 0.16, 0.24, 0.06); g.fillStyle = '#f0c49a'; g.fill(); outline(g, 0.012);
+  g.fillStyle = '#d98f6a';
+  for (const x of [0.25, 0.35, 0.45]) { ell(g, x, 0.16, 0.018, 0.014); g.fill(); }
+  return c;
+}
+
+export function easel() {
+  // 畫架：畫的是窗外那片山（畫得不太像）
+  const { c, g } = canvas(0.7, 1.5);
+  g.strokeStyle = '#8a5a3b'; g.lineWidth = 0.035;
+  g.beginPath(); g.moveTo(0.12, 1.48); g.lineTo(0.33, 0.05); g.lineTo(0.58, 1.48); g.moveTo(0.35, 0.3); g.lineTo(0.42, 1.4); g.stroke();
+  rr(g, 0.08, 0.2, 0.54, 0.44, 0.01); g.fillStyle = '#f6f0e2'; g.fill(); outline(g);
+  g.beginPath(); g.moveTo(0.1, 0.5);
+  for (let x = 0.1; x <= 0.6; x += 0.05) g.lineTo(x, 0.42 + Math.sin(x * 12) * 0.04);
+  g.lineTo(0.6, 0.62); g.lineTo(0.1, 0.62); g.closePath(); g.fillStyle = '#8fb38a'; g.fill();
+  ell(g, 0.5, 0.3, 0.04, 0.04); g.fillStyle = '#f2b45a'; g.fill();
+  g.fillStyle = '#4f7d4a'; ell(g, 0.2, 0.56, 0.06, 0.05); g.fill();
+  rr(g, 0.07, 0.64, 0.56, 0.04, 0.01); g.fillStyle = '#6b452f'; g.fill(); outline(g, 0.012);
+  return c;
+}
+
+export function radio() {
+  // 老收音機，放在小邊桌上
+  const { c, g } = canvas(0.55, 0.95);
+  sideTable(g, 0.275, 0.4, 0.45);
+  rr(g, 0.07, 0.12, 0.41, 0.28, 0.06); g.fillStyle = '#9b6a44'; g.fill(); outline(g);
+  rr(g, 0.1, 0.16, 0.2, 0.2, 0.03); g.fillStyle = '#e6d3ae'; g.fill(); outline(g, 0.012);
+  g.strokeStyle = 'rgba(80,50,30,0.5)'; g.lineWidth = 0.008;
+  for (let y = 0.19; y < 0.35; y += 0.025) { g.beginPath(); g.moveTo(0.11, y); g.lineTo(0.29, y); g.stroke(); }
+  for (const y of [0.2, 0.31]) { ell(g, 0.39, y, 0.035, 0.035); g.fillStyle = '#4a3326'; g.fill(); outline(g, 0.01); }
+  g.beginPath(); g.moveTo(0.4, 0.12); g.lineTo(0.48, 0.0); outline(g, 0.012);
+  return c;
+}
+
+export function cabinet() {
+  // 老碗櫥：玻璃門後面放著不成套的杯子
+  const { c, g } = canvas(0.9, 1.6);
+  rr(g, 0.04, 0.04, 0.82, 1.52, 0.03); g.fillStyle = '#7a5038'; g.fill(); outline(g);
+  for (const [y, h] of [[0.12, 0.42], [0.6, 0.42]]) {
+    rr(g, 0.1, y, 0.7, h, 0.02); g.fillStyle = 'rgba(214,236,242,0.55)'; g.fill(); outline(g, 0.012);
+    g.beginPath(); g.moveTo(0.45, y); g.lineTo(0.45, y + h); outline(g, 0.012);
+  }
+  const r = rng(51);
+  for (const y of [0.5, 0.98]) {
+    for (let x = 0.16; x < 0.75; x += 0.13) {
+      rr(g, x, y - 0.08 - r() * 0.03, 0.08, 0.08, 0.015);
+      g.fillStyle = ['#f4f1ea', '#c4382c', '#5c7f8c', '#e2c27a'][Math.floor(r() * 4)]; g.fill(); outline(g, 0.008);
+    }
+  }
+  for (const y of [1.1, 1.3]) { rr(g, 0.1, y, 0.7, 0.17, 0.02); g.fillStyle = '#8a5a3b'; g.fill(); outline(g, 0.012); ell(g, 0.45, y + 0.085, 0.018, 0.018); g.fillStyle = '#d8c6a8'; g.fill(); }
+  return c;
+}
+
+export function catTree() {
+  // 貓跳台：最上面那層是給龍眼看窗外的
+  const { c, g } = canvas(0.8, 1.7);
+  g.fillStyle = '#d9c6a3';
+  rr(g, 0.33, 0.25, 0.1, 1.38, 0.03); g.fill(); outline(g);
+  rr(g, 0.15, 0.85, 0.08, 0.75, 0.03); g.fill(); outline(g);
+  g.strokeStyle = 'rgba(110,80,50,0.4)'; g.lineWidth = 0.008;
+  for (let y = 0.3; y < 1.6; y += 0.04) { g.beginPath(); g.moveTo(0.33, y); g.lineTo(0.43, y + 0.02); g.stroke(); }
+  for (const [x, y, w] of [[0.18, 0.18, 0.5], [0.05, 0.78, 0.4], [0.35, 1.1, 0.4]]) { rr(g, x, y, w, 0.08, 0.04); g.fillStyle = '#b5866a'; g.fill(); outline(g); }
+  rr(g, 0.05, 1.58, 0.7, 0.1, 0.04); g.fillStyle = '#8a5a3b'; g.fill(); outline(g);
+  ell(g, 0.6, 1.26, 0.04, 0.04); g.fillStyle = '#c4382c'; g.fill(); outline(g, 0.01);
+  g.beginPath(); g.moveTo(0.6, 1.18); g.lineTo(0.6, 1.22); outline(g, 0.008);
+  return c;
+}
+
+export function rattanChair() {
+  // 藤編搖椅
+  const { c, g } = canvas(0.8, 1.2);
+  rr(g, 0.14, 0.05, 0.52, 0.65, 0.18); g.fillStyle = '#d2a868'; g.fill(); outline(g);
+  g.strokeStyle = 'rgba(120,80,30,0.45)'; g.lineWidth = 0.008;
+  for (let x = 0.2; x < 0.62; x += 0.04) { g.beginPath(); g.moveTo(x, 0.1); g.lineTo(x, 0.66); g.stroke(); }
+  for (let y = 0.12; y < 0.66; y += 0.05) { g.beginPath(); g.moveTo(0.16, y); g.lineTo(0.64, y); g.stroke(); }
+  rr(g, 0.1, 0.62, 0.6, 0.14, 0.06); g.fillStyle = '#c99a58'; g.fill(); outline(g);
+  rr(g, 0.16, 0.6, 0.48, 0.1, 0.05); g.fillStyle = '#e8d7b5'; g.fill(); outline(g, 0.012);
+  g.strokeStyle = '#a77a3e'; g.lineWidth = 0.03;
+  g.beginPath(); g.moveTo(0.16, 0.76); g.lineTo(0.12, 1.08); g.moveTo(0.64, 0.76); g.lineTo(0.68, 1.08); g.stroke();
+  g.beginPath(); g.moveTo(0.02, 1.06); g.quadraticCurveTo(0.4, 1.2, 0.78, 1.06); g.lineWidth = 0.035; g.stroke();
+  return c;
+}
+
+export function bookWall() {
+  // 整面書牆：從地板到天花板
+  const W = 1.9, H = 2.5; // 寬 1.9 公尺：後牆的窗戶與老溫度計之間剛好放得下
+  const { c, g } = canvas(W, H);
+  rr(g, 0.02, 0.02, W - 0.04, H - 0.04, 0.03); g.fillStyle = '#6e4632'; g.fill(); outline(g);
+  const r = rng(61);
+  const rows = 6, rowH = (H - 0.14) / rows;
+  for (let s = 0; s < rows; s++) {
+    const y0 = 0.08 + s * rowH;
+    g.fillStyle = '#41291d';
+    g.fillRect(0.08, y0, W - 0.16, rowH - 0.06);
+    let x = 0.1;
+    while (x < W - 0.14) {
+      const w = 0.035 + r() * 0.045, h = rowH * (0.55 + r() * 0.3);
+      if (r() < 0.06) { x += 0.12; continue; } // 偶爾空一格，放一個小東西的位置
+      g.fillStyle = ['#b5523b', '#e2c27a', '#5c7f8c', '#8b9a5b', '#e9e0cf', '#6b4a7a', '#a77a3e'][Math.floor(r() * 7)];
+      g.fillRect(x, y0 + rowH - 0.06 - h, w, h);
+      x += w + 0.006;
+    }
+  }
+  // 中間的梯子
+  g.strokeStyle = '#a77a3e'; g.lineWidth = 0.035;
+  const L = W - 0.75;
+  g.beginPath(); g.moveTo(L, 0.3); g.lineTo(L + 0.2, H - 0.05); g.moveTo(L + 0.25, 0.3); g.lineTo(L + 0.45, H - 0.05); g.stroke();
+  g.lineWidth = 0.025;
+  for (let k = 0; k < 7; k++) { const t = k / 7; g.beginPath(); g.moveTo(L + 0.02 + t * 0.2, 0.5 + t * 1.9); g.lineTo(L + 0.27 + t * 0.2, 0.5 + t * 1.9); g.stroke(); }
+  return c;
+}
+
 export function kettleSet() {
   // 吧台上的手沖架與磨豆機
   const { c, g } = canvas(0.7, 0.45);
