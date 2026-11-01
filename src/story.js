@@ -49,7 +49,8 @@ export const AFTER_TYPHOON = '颱風過了。台階上都是葉子，我掃了�
 //   wait：停一下（秒）；look：坐著時鏡頭轉向某人；pose：換姿勢；enter／walk／leave：走進來、走到某處、離開
 //   arrived：等某人走到位子上；deshuTo／deshuHome：德叔走到某人旁邊、走回吧台（async：不等他走完）；serve：德叔端東西給某人（hot、iced、cocoa）
 //   cat：龍眼走到某人身邊（lap：跳上腿）；music：德叔把音樂調小；laugh：笑（輕輕跳兩下）；glance：看一眼
-//   weather：天氣變化（颱風）；prop：吧台上多一樣東西；closing：打烊（其他客人離開、燈暗下來）
+//   weather：天氣變化（颱風）；prop：吧台上多一樣東西
+//   needClosing：要老闆按了「打烊」、喝完最後一杯才演（予安念稿）；needSeat：要老闆坐著才演（凱文的問題）
 //   choice：畫面下方出現選項（key 存在存檔）；branch：依選項接不同台詞；ifFire：開場選了「單方面辭退」才演
 //   read：打開一張紙（予安的稿子、書的扉頁）；brewTaste：德叔在吧台試沖；menu：吧台黑板多一行
 const say = (who, text, name) => ({ do: 'say', who, text, ...(name ? { name } : {}) });
@@ -81,16 +82,17 @@ export const MILESTONES = [
     scene: [{ do: 'look', who: 'yuan' }, say('yuan', '……退稿了。'), wait(2), // 【待定】
       say('yuan', '我是不是該回台北上班了。'), { do: 'serve', who: 'yuan', kind: 'cocoa' }, say('deshu', '喝完再想。'), wait(2),
       say('yuan', '……我沒有點這個。'), say('deshu', '我知道。')] }, // 最後兩句【待定】
-  { id: 'yuan5', who: 'yuan', n: 5, present: true, task: 'yuan-reading',
+  { id: 'yuan5', who: 'yuan', n: 5, present: true, task: 'yuan-reading', needClosing: true,
     when: (c) => c.temp >= 30 || c.day >= FALLBACK_DAY.yuan5,
     waiting: '予安小姐今天問我，老闆晚上會不會待到打烊。我說不一定。', // 【待定】
-    // 打烊後（階段 5 的打烊模式做好以後，改由打烊流程觸發）
-    scene: [{ do: 'closing' }, { do: 'look', who: 'yuan' },
+    needClosingHint: '予安小姐說，今天想等打烊以後再走。', // 【待定】老闆在店裡、還沒打烊時德叔說一次
+    // 打烊後：老闆按「打烊」、喝完最後一杯，其他客人都走了，予安還在（決定 D57、D78）
+    scene: [{ do: 'look', who: 'yuan' },
       say('yuan', '老闆，打烊了，我可以再待一下嗎？'), say('yuan', '我想把稿子念給你聽。只念一小段。'), // 【待定】
       { do: 'choice', key: 'listen', options: ['好，你念。'] }, // 【待定】
       { do: 'pose', who: 'yuan', pose: 'read' }, { do: 'cat', who: 'yuan', lap: false }, { do: 'read', doc: 'manuscript' },
       say('yuan', '……龍眼睡著了。我念得那麼無聊嗎。'), say('yuan', '謝謝你聽完。'), // 【待定】
-      { do: 'pose', who: 'yuan', pose: 'type' }] },
+      { do: 'pose', who: 'yuan', pose: 'type' }, wait(1.5), { do: 'leave', who: 'yuan' }] },
   { id: 'yuan6', who: 'yuan', n: 6, present: true, task: 'yuan-book', gift: 'yuan-book',
     when: (c) => c.day >= WEEK3,
     waiting: '予安小姐今天抱著一個牛皮紙袋來，一直沒打開。她說要等老闆在。', // 【待定】
@@ -354,6 +356,7 @@ export function allLines() {
     out.push(...(m.journal || []));
     if (m.waiting) out.push(m.waiting);
     if (m.needSeatHint) out.push(m.needSeatHint);
+    if (m.needClosingHint) out.push(m.needClosingHint);
     walk(m.scene);
   }
   for (const list of Object.values(TALK)) for (const t of list) out.push(...t.lines);

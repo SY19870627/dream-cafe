@@ -6,6 +6,7 @@
 import { dayIndex, daysOpen, dateLabel } from './clock.js';
 import { weatherOn, hash01 } from './weather.js';
 import { bookCount, placedItems } from './catalog.js';
+import { CAT_SPOTS, catJournalLine } from './cat.js';
 
 export const SHOW_DAYS = 3; // 展開最近幾天
 export const KEEP_PAGES = 10; // 存檔裡留幾頁，給記事本重讀
@@ -42,16 +43,8 @@ export const POOL = [
   { id: 'rocking', text: '藤編搖椅一直在晃。坐上去的人，都不太想起來。', need: (c) => c.placed.has('rattan-chair') },
 ];
 
-// 龍眼換位子：依店裡的擺飾挑一個睡覺的地方（之後階段 5 會讓畫面裡的龍眼也真的睡在那裡）
-export const CAT_SPOTS = [
-  { id: 'bookshelf', text: '龍眼把睡覺的地方改到書架上了。大概是喜歡予安小姐的書。', need: (c) => c.books >= 1 && c.met.yuan, w: 3 }, // 劇本範例句
-  { id: 'cushion', text: '龍眼今天睡在新的軟墊上，睡到客人都走了才醒。', need: (c) => c.placed.has('cat-cushion'), w: 3 }, // 【待定】
-  { id: 'cat-tree', text: '龍眼在貓跳台最上面，看了一下午的窗外。', need: (c) => c.placed.has('cat-tree'), w: 3 }, // 【待定】
-  { id: 'rattan', text: '藤編搖椅被龍眼佔走了。有客人想坐，他沒讓。', need: (c) => c.placed.has('rattan-chair'), w: 2 }, // 【待定】
-  { id: 'sofa', text: '龍眼把睡覺的地方換到角落沙發。', w: 1 }, // 【待定】
-  { id: 'step', text: '龍眼今天睡在門口的台階上，跟老闆第一次來那天一樣。', w: 1 }, // 【待定】
-  { id: 'sill', text: '龍眼睡在窗台下面，有太陽的那一塊。', need: (c) => !c.rain, w: 1 }, // 【待定】
-];
+// 龍眼換位子：睡覺的地方由 cat.js 依店裡的擺飾決定（店裡畫面的龍眼也睡在同一個地方），換了地方的那天寫一句
+export { CAT_SPOTS };
 
 // 下雨的那天（劇本範例句）
 const RAIN_LINE = '下午下了一場雨，窗邊那張桌子沒人坐。我替老闆坐了一下。';
@@ -112,10 +105,8 @@ export function dayLines(save, c, events = [], used = new Set()) {
   for (const e of events) lines.push(e.line); // 熟客里程碑與「想等老闆在」的提示，一定寫進去
   const target = Math.max(2 + Math.floor(r() * 3), Math.min(lines.length, 4));
   if (lines.length < target && c.rain && r() < 0.85) lines.push(RAIN_LINE);
-  if (lines.length < target && r() < 0.6) {
-    const spots = CAT_SPOTS.filter((s) => (!s.need || s.need(c)) && !used.has('cat:' + s.id));
-    if (spots.length) { const s = pick(r, spots); used.add('cat:' + s.id); lines.push(s.text); }
-  }
+  const cat = catJournalLine(seedOf(save), c);
+  if (lines.length < target && cat && !used.has('cat:' + cat.id)) { used.add('cat:' + cat.id); lines.push(cat.text); }
   while (lines.length < target) {
     const pool = POOL.filter((p) => (!p.need || p.need(c)) && !used.has(p.id));
     if (!pool.length) break;
@@ -165,4 +156,4 @@ export function keepPage(save, page) {
 }
 
 // 測試用：日誌裡所有寫得出來的句子
-export const ALL_TEXTS = [...VISITOR_TAILS.map((t) => t.text), ...POOL.map((p) => p.text), ...CAT_SPOTS.map((s) => s.text), RAIN_LINE];
+export const ALL_TEXTS = [...VISITOR_TAILS.map((t) => t.text), ...POOL.map((p) => p.text), ...CAT_SPOTS.flatMap((s) => [s.journal, s.journalAlt, s.first].filter(Boolean)), RAIN_LINE];

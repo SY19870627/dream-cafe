@@ -24,7 +24,8 @@ export const TASKS = [
     when: (s, c) => c.daysOpen >= 3, line: ['德叔', '第三天了。門口的台階，開始有人坐過的溫度。'] }, // 【待定】
   { no: 5, id: 'zhe-longan', name: '阿哲的龍眼乾', type: '熟客', temp: 0.5, fund: 1000, when: milestone('zhe', 1), line: null },
   { no: 6, id: 'yuan-pen', name: '予安借筆', type: '熟客', temp: 1, fund: 1500, when: milestone('yuan', 2), line: null },
-  { no: 7, id: 'cat-chair', name: '龍眼第一次跳上你坐的椅子', type: '動物', temp: 0.5, fund: 1500, when: flag('catOnChair'), line: null },
+  { no: 7, id: 'cat-chair', name: '龍眼第一次跳上你坐的椅子', type: '動物', temp: 0.5, fund: 1500, when: flag('catOnChair'),
+    line: ['德叔', '椅子還熱著。龍眼最會挑位子。'] }, // 【待定】
   { no: 8, id: 'ten-decor', name: '擺滿 10 件擺飾', type: '佈置', temp: 1, fund: 2000,
     when: (s) => placedItems(s).length >= 10, line: ['德叔', '十件了。現在走進來，會先看見老闆的樣子。'] }, // 【待定】
   { no: 9, id: 'kevin-scolded', name: '凱文被罵，龍眼陪他', type: '熟客', temp: 1, fund: 2000, when: milestone('kevin', 2), line: null },
@@ -38,7 +39,7 @@ export const TASKS = [
     when: (s) => bookCount(s.owned) >= 3, line: ['德叔', '有書的牆，連安靜都比較好聽。'] }, // 【待定】
   { no: 15, id: 'kevin-no-laptop', name: '凱文第一次沒帶筆電', type: '熟客', temp: 1, fund: 2500, when: milestone('kevin', 5), line: null },
   { no: 16, id: 'zhe-grandpa', name: '阿哲和阿公一起來', type: '熟客', temp: 1, fund: 3000, when: milestone('zhe', 4), line: null },
-  { no: 17, id: 'guest-visit', name: '以客人身份推門進店', type: '體驗', temp: 1, fund: 2500, when: flag('guestVisit'), line: null },
+  { no: 17, id: 'guest-visit', name: '以客人身份推門進店', type: '體驗', temp: 1, fund: 2500, when: flag('guestVisit'), line: null }, // 客人模式最後德叔說的話在 afterhours.js
   { no: 18, id: 'yuan-reading', name: '予安念稿', type: '熟客', temp: 1, fund: 3000, when: milestone('yuan', 5), line: null },
   { no: 19, id: 'zhe-beans', name: '菜單上架「阿哲的豆」', type: '菜單與在地', temp: 1, fund: 3000, when: milestone('zhe', 6), line: null },
   { no: 20, id: 'yuan-book', name: '予安出書', type: '熟客', temp: 1, fund: 3000, when: milestone('yuan', 6), line: null },

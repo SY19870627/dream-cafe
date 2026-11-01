@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../../src/story.js';
-import { defaultSave, giveStarters, migrate } from '../../src/save.js';
+import { defaultSave, giveStarters, migrate, SAVE_VERSION as S_VERSION } from '../../src/save.js';
 import { completeTasks, temperature, TASKS, isDone } from '../../src/tasks.js';
 import { writeJournal } from '../../src/journal.js';
 import { itemById, CATALOG } from '../../src/catalog.js';
@@ -193,7 +193,7 @@ test('存檔第 3 版：舊存檔不補算過去的日子，熟客從今天開�
   const old = { version: 2, createdAt: T0, lastSeen: T0 + 9 * DAY, tasks: [], fund: { ledger: [] }, owned: [], nextUid: 1, seatsSat: [], stats: { cups: 1, rainyWindowCups: 0 },
     regulars: { yuan: { visits: 0, milestones: [] }, zhe: { visits: 0, milestones: [] }, kevin: { visits: 0, milestones: [] } }, flags: { seenOpening: true } };
   const s = migrate(old, T0 + 9 * DAY);
-  assert.equal(s.version, 3);
+  assert.equal(s.version, S_VERSION);
   assert.deepEqual(s.menu, ['dongshan']);
   assert.ok(S.REGULAR_IDS.every((w) => s.regulars[w].settled === 9 && s.regulars[w].on && s.regulars[w].visits === 0));
   assert.deepEqual(S.settleThrough(s, 9), [], '不會一次湧出一大疊');

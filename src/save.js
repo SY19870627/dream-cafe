@@ -5,8 +5,9 @@ import { STARTER_ITEMS } from './catalog.js';
 import { daysOpen } from './clock.js';
 
 export const SAVE_KEY = 'dream-cafe.save';
-export const SAVE_VERSION = 3; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
+export const SAVE_VERSION = 4; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
 // 3：階段 4 加入熟客故事線（來店次數、里程碑、結算到哪一天）、菜單、颱風那天
+// 4：階段 5 加入打烊（closing）、「今天的一杯」咖啡日記（diary）、龍眼（cat）
 
 const regular = () => ({ visits: 0, milestones: [], on: {}, settled: 0, lastVisit: 0, lastMilestoneDay: 0 });
 
@@ -32,7 +33,12 @@ export function defaultSave(now) {
     // typhoonDay 颱風夜是第幾天、answers 玩家在對話裡選的回答
     story: { lastPresentDay: 0, hinted: [], typhoonDay: 0, answers: {} },
     menu: ['dongshan'], // 菜單上的東西（story.js 的 MENU）
-    flags: {}, // seenOpening、openingAct、metYuan、starterGiven、catOnChair、guestVisit……
+    flags: {}, // seenOpening、openingAct、metYuan、starterGiven、catOnChair、guestVisit、guestOffered（德叔哪一天問過要不要從門口進來）……
+    // 打烊（afterhours.js）：哪一天打烊、喝了最後一杯沒、最後一杯的豆子、關掉的燈、按了「明天見」沒
+    closing: { day: 0, lastCup: false, bean: '', lightsOff: [], done: false },
+    diary: [], // 「今天的一杯」咖啡日記：[{ day, t, bean, text }]
+    // 龍眼（cat.js）：tryId／tryDay 剛擺了新的貓窩、當天去試睡；seen 睡過的擺飾；refused 走開過了沒；chairs 跳上椅子幾次
+    cat: { tryId: '', tryDay: 0, seen: [], refused: false, chairs: 0 },
     letters: [], // 讀過的老先生的信：[{ id, t, day }]
     journal: [], // 最近幾頁德叔的營業日誌（記事本可以重讀），見 journal.js
     player: { name: '', resignation: '' }, // 開場第一幕：辭呈署名（可留空）與選的結尾（之後凱文的里程碑會用到）

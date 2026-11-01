@@ -3,7 +3,10 @@
 // 沖一杯咖啡後杯子上桌看得見、按鈕恢復、溫度 20.0 → 20.5°C、開發者資訊面板；
 // 階段 3：開場四幕（與略過、中途重新整理）、營業日誌、第一封老先生的信、舊存檔直接進店。
 // 不測開場的段落用 ?dev=1&opening=0 直接當作看過開場；不測熟客的段落加 &regulars=0（溫度與基金才算得準）。
+// 要算準溫度的段落另加 &weather=clear：店裡的天氣依季節，碰到雨天坐窗邊會多完成「在雨天坐窗邊喝一杯」。
 // 階段 4：三位熟客的故事線（快轉天數走完 18 個里程碑、颱風夜、凱文的三選一、記事本、選豆子）、雨天坐窗邊。
+// 階段 5：龍眼（睡覺的地方跟著擺飾、跳上老闆的椅子、點太多次走開）、打烊後（最後一杯、關燈、咖啡日記、明天見、重新整理）、
+// 一次客人模式（推門、點單、聽熟客聊天、任務 #17）；三條線的測試裡，予安念稿改由打烊觸發。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -57,7 +60,7 @@ try {
   /* ---------- 手機 390×844，開發者模式加速 ---------- */
   console.log('手機 390×844（?dev=1&speed=20）');
   {
-    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0');
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
     for (const l of await labelsInside(page)) check(l.ok, `座位標籤「${l.name}」完整顯示`);
     const small = await smallTargets(page);
     check(small.length === 0, `可點目標都 ≥ 44px ${small.length ? JSON.stringify(small) : ''}`);
@@ -122,7 +125,7 @@ try {
   /* ---------- 階段 2：存檔、佈置與型錄、跳天數、記事本 ---------- */
   console.log('手機 390×844（存檔、佈置、型錄、跳天數）');
   {
-    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0');
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     const consistent = () => page.evaluate(() => window.__cafe.fund === window.__cafe.ledgerSum);
     check((await cafe('saveStatus')) === 'new' && (await page.textContent('#day')) === '開店第 1 天', '新存檔：開店第 1 天');
@@ -219,7 +222,7 @@ try {
   /* ---------- 階段 3：完整開場 ---------- */
   console.log('手機 390×844（開場四幕）');
   {
-    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20');
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&weather=clear');
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     check(await page.isVisible('.op-office') && (await page.textContent('.op-clock')) === '16:49', '第一幕：16:49 的辦公室');
     check(await page.isDisabled('#op-send'), '還沒選結尾之前不能送出');
@@ -262,7 +265,7 @@ try {
     await page.waitForFunction(() => window.__cafe.brewing, null, { timeout: 5000 });
     check(true, '坐下之後德叔自己開始沖');
     await page.waitForFunction(() => window.__cafe.tutorial === 'choose', null, { timeout: 40000 });
-    check((await cafe('temp')) === 20.5 && (await cafe('tasks')).includes('first-coffee'), '第一杯：溫度 20 → 20.5°C');
+    { const t = await cafe('temp'), ts = await cafe('tasks'); check(t === 20.5 && ts.includes('first-coffee'), `第一杯：溫度 20 → 20.5°C（${t}°C，${ts}）`); }
     check(JSON.stringify(await cafe('stored')) === JSON.stringify(['plant', 'floor-lamp', 'menu-board']), '德叔送了三件初始擺飾');
     const pl = await cafe('player');
     check(pl.name === '小林' && pl.resignation === 'fire', '辭呈署名與結尾存進存檔');
@@ -449,6 +452,8 @@ try {
     await page.click('.seat-label >> text=窗邊座');
     const shots = new Set();
     let choiceSmall = null, kevinOptions = null;
+    const closedFor = new Set();
+    let readAfterClosing = false, guestSeen = false;
     // 一天裡要發生的事都發生完：選項就選第一個、信就讀、紙就收好
     async function pump(label) {
       const t0 = Date.now();
@@ -478,6 +483,18 @@ try {
           continue;
         }
         if (await page.isVisible('#read-letter')) { await page.click('#read-letter'); continue; }
+        // 予安想等打烊：站起來按「打烊」，再坐回窗邊喝最後一杯；客人模式也坐窗邊
+        const x = await page.evaluate(() => ({ need: window.__cafe.needClosing, closing: window.__cafe.closing, guest: window.__cafe.guest, mode: window.__cafe.mode }));
+        if (x.need && !s.scene && !s.choosing) {
+          if (await page.isVisible('#stand')) { await page.click('#stand'); continue; }
+          if (await page.isVisible('#close-shop')) { await page.click('#close-shop'); closedFor.add('yuan5'); continue; }
+        }
+        if ((x.closing === 'lastcup' || x.guest === 'sit') && x.mode !== 'seat' && await page.isVisible('.seat-label >> text=窗邊座')) {
+          await page.click('.seat-label >> text=窗邊座');
+          continue;
+        }
+        if (s.scene === 'yuan5' && x.closing === 'after') readAfterClosing = true;
+        if (x.guest === 'talk') guestSeen = true;
         if (!s.busy) return true;
         await page.waitForTimeout(120);
       }
@@ -503,6 +520,8 @@ try {
     check(kevinOptions?.length === 3 && st.answers.kevinQuit === 0, `凱文問「你當初怎麼敢辭職的？」：三選一 ${JSON.stringify(kevinOptions)}`);
     check(choiceSmall && choiceSmall.length === 0, '選項按鈕都 ≥ 44px');
     check(shots.has('kevin2') && shots.has('manuscript'), '凱文被罵時龍眼陪他、予安念稿');
+    check(closedFor.has('yuan5') && readAfterClosing, '予安念稿：老闆按了「打烊」、喝完最後一杯之後才念');
+    check(guestSeen && (await cafe('tasks')).includes('guest-visit'), '溫度到了 28°C，德叔邀請老闆從門口進來一次（客人模式）');
     const tasks = await cafe('tasks');
     check(['zhe-longan', 'yuan-pen', 'kevin-scolded', 'yuan-kiln', 'typhoon', 'kevin-no-laptop', 'zhe-grandpa', 'yuan-reading', 'zhe-beans', 'yuan-book'].every((id) => tasks.includes(id)), '熟客的 10 個溫度任務都完成');
     check((await cafe('fund')) === (await cafe('ledgerSum')), '基金與帳本一致');
@@ -574,10 +593,168 @@ try {
     await page.close();
   }
 
+  /* ---------- 階段 5：龍眼 ---------- */
+  console.log('手機 390×844（龍眼：睡覺的地方、跳上椅子、拒絕互動）');
+  {
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    check(['sofa', 'step', 'sill'].includes(await cafe('catSpot')), `沒有貓窩時，龍眼睡在沙發、台階或窗台下（${await cafe('catSpot')}）`);
+    // 坐一會兒再站起來：椅子還熱著，龍眼跳上去（任務 #7）
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForTimeout(1200);
+    await page.click('#stand');
+    await page.waitForFunction(() => window.__cafe.catOnSeat === 'window', null, { timeout: 15000 });
+    await page.waitForFunction(() => window.__cafe.tasks.includes('cat-chair'), null, { timeout: 5000 });
+    check(Math.abs((await cafe('catPos')).y - 0.42) < 0.01, '龍眼跳上老闆剛坐過的椅子，任務 #7 完成');
+    await page.waitForFunction(() => document.getElementById('bubble').textContent.includes('龍眼最會挑位子'), null, { timeout: 5000 });
+    check(true, '德叔一句話帶出（不跳任務清單）');
+    await page.screenshot({ path: OUT + 'phone-cat-chair.png' });
+    // 坐回去：龍眼跳下來讓位
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForFunction(() => !window.__cafe.catOnSeat, null, { timeout: 5000 });
+    check(true, '老闆坐回去，龍眼跳下來');
+    await page.click('#stand');
+    await page.waitForFunction(() => !window.__cafe.catBusy, null, { timeout: 15000 });
+    // 點太多次：他轉身走開，一陣子不理人
+    for (let i = 0; i < 4; i++) {
+      const p = await page.evaluate(() => window.__cafe.catOnScreen());
+      await page.mouse.click(p.x, p.y);
+      await page.waitForTimeout(150);
+    }
+    check(await cafe('catAway'), '點龍眼太多次，他走開了（可以拒絕互動）');
+    // 擺一個貓咪軟墊：龍眼當天就去睡
+    await page.click('#menu-btn');
+    await page.click('#dev-fund');
+    await page.click('#about-close');
+    await page.click('#place');
+    await page.click('#p-catalog');
+    await page.click('.sheet-row:has-text("貓咪軟墊") button');
+    await page.click('#p-done');
+    await page.waitForFunction(() => window.__cafe.catSpot === 'cushion', null, { timeout: 5000 });
+    check((await cafe('placed')).includes('cat-cushion'), '擺了貓咪軟墊之後，龍眼今天換到軟墊上睡');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+
+  /* ---------- 階段 5：打烊後模式 ---------- */
+  console.log('手機 390×844（打烊後：最後一杯、關燈、今天的一杯、明天見）');
+  {
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    check(await page.isVisible('#close-shop'), '俯瞰時有「打烊」');
+    check((await smallTargets(page)).length === 0, '「打烊」與其他按鈕都 ≥ 44px');
+    await page.click('#close-shop');
+    check(await page.isHidden('#close-shop') && await page.isHidden('#place'), '按下打烊：按鈕先收起來');
+    await page.waitForFunction(() => window.__cafe.closing === 'lastcup', null, { timeout: 20000 });
+    check(await cafe('night'), '天色轉成夜裡');
+    await page.screenshot({ path: OUT + 'phone-closing-lastcup.png' });
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForFunction(() => window.__cafe.brewing, null, { timeout: 8000 });
+    check(true, '坐下之後，德叔沖最後一杯');
+    await page.waitForFunction(() => window.__cafe.closing === 'after', null, { timeout: 25000 });
+    check((await page.textContent('#bubble')).includes('最後一杯，是老闆的。'), '端上桌：「最後一杯，是老闆的。」');
+    check((await cafe('closingSave')).lastCup, '最後一杯記進存檔');
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: OUT + 'phone-closing-lastcup-served.png' });
+    check(await page.isVisible('#diary-btn') && await page.isVisible('#goodnight') && await page.isHidden('#brew') && await page.isHidden('#night'), '打烊後：今天的一杯、明天見（不再沖咖啡）');
+    check(await page.isHidden('#hint'), '打烊後沒有任何提示');
+    await page.click('#stand');
+    await page.waitForFunction(() => window.__cafe.deshuWiping, null, { timeout: 15000 });
+    check(true, '德叔在吧台擦那個琺瑯杯');
+    const lights = await page.$$('.light-label');
+    check(lights.length >= 2, `每盞燈旁邊有開關（${lights.length} 盞）`);
+    check((await smallTargets(page)).length === 0, '關燈的按鈕都 ≥ 44px');
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: OUT + 'phone-closing-after.png' });
+    const hemiOn = await cafe('hemi');
+    for (let i = 0; i < lights.length; i++) { await page.click('.light-label:not(.off) >> nth=0'); await page.waitForTimeout(400); }
+    await page.waitForTimeout(1200);
+    check((await cafe('pendantLevels')).every((v) => v < 0.05) && (await cafe('hemi')) < hemiOn, '燈一盞一盞由老闆自己關，店裡只剩月光');
+    check((await cafe('closingSave')).lightsOff.length === lights.length, '關掉的燈記進存檔');
+    await page.screenshot({ path: OUT + 'phone-closing-dark.png' });
+    // 摸龍眼
+    const cp = await page.evaluate(() => window.__cafe.catOnScreen());
+    await page.mouse.click(cp.x, cp.y);
+    await page.waitForTimeout(200);
+    check((await page.textContent('#bubble')).startsWith('龍眼'), '打烊後可以摸龍眼');
+    // 今天的一杯
+    await page.click('#diary-btn');
+    check(await page.isVisible('#diary') && (await page.textContent('#dy-sub')).includes('東山的豆'), '「今天的一杯」寫著今天喝的豆子');
+    check((await smallTargets(page)).length === 0, '日記的按鈕都 ≥ 44px');
+    await page.fill('#dy-text', '今天的山很清楚，咖啡也是。');
+    await page.screenshot({ path: OUT + 'phone-closing-diary.png' });
+    await page.click('#dy-save');
+    check((await cafe('diary'))[0]?.text === '今天的山很清楚，咖啡也是。', '日記存進存檔');
+    // 整理擺飾：打烊後也可以佈置
+    await page.click('#place');
+    check(await page.isVisible('#p-done') && (await page.$$eval('.light-label', (b) => b.filter((x) => x.offsetParent).length)) === 0, '打烊後可以整理擺飾');
+    await page.click('#p-done');
+    await page.click('#goodnight');
+    await page.waitForSelector('#closed', { state: 'visible', timeout: 10000 });
+    check((await page.textContent('#closed')).includes('今天的山很清楚'), '明天見：畫面暗下來，寫著今天的一杯');
+    check((await smallTargets(page)).length === 0, '打烊畫面的按鈕 ≥ 44px');
+    await page.screenshot({ path: OUT + 'phone-closing-goodnight.png' });
+    await page.click('#cl-stay');
+    check(await page.isHidden('#closed') && (await cafe('closing')) === 'after', '「再待一下」回到打烊後的店裡');
+    // 重新整理：同一天仍是打烊後的店，燈還是關著
+    await page.reload();
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(1500);
+    check((await cafe('closing')) === 'after' && (await cafe('night')) && (await cafe('pendantLevels')).every((v) => v < 0.05), '重新整理：今天已經打烊，燈也還關著');
+    await page.click('#menu-btn');
+    await page.click('#open-notebook');
+    await page.click('#nb-links button:has-text("今天的一杯")');
+    check((await page.textContent('#dy-read')).includes('今天的山很清楚'), '記事本可以翻咖啡日記');
+    await page.click('#dy-close');
+    // 隔天：店重新開門
+    await page.click('#menu-btn');
+    await page.click('#dev-day1');
+    if (await page.isVisible('#journal')) await page.click('#jr-close');
+    check(!(await cafe('closing')) && !(await cafe('night')) && await page.isVisible('#close-shop'), '隔天：店重新開門、燈都亮著');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+
+  /* ---------- 階段 5：一次客人模式 ---------- */
+  console.log('手機 390×844（一次客人模式）');
+  {
+    // &guest=1：不看溫度，店裡安靜下來就邀請（正式條件是溫度 ≥ 28°C，見上面三條線的測試）
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&guest=1');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    await page.waitForFunction(() => window.__cafe.guest === 'offer', null, { timeout: 30000 });
+    check((await page.textContent('#bubble')).includes('要不要從門口進來一次'), '德叔邀請：「老闆，今天要不要從門口進來一次？」');
+    check((await smallTargets(page)).length === 0, '邀請的選項 ≥ 44px');
+    await page.click('#choices button >> nth=0');
+    await page.waitForFunction(() => window.__cafe.mode === 'door', null, { timeout: 8000 });
+    await page.waitForFunction(() => document.getElementById('bubble').textContent.includes('歡迎。不急，先坐。'), null, { timeout: 8000 });
+    check(true, '推門進店：「歡迎。不急，先坐。」');
+    await page.screenshot({ path: OUT + 'phone-guest-door.png' });
+    await page.waitForFunction(() => window.__cafe.guest === 'sit', null, { timeout: 8000 });
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForSelector('#choices button', { state: 'visible', timeout: 15000 });
+    check((await page.textContent('#bubble')).includes('今天想喝點什麼'), '坐下之後，德叔過來點單');
+    await page.screenshot({ path: OUT + 'phone-guest-order.png' });
+    await page.click('#choices button >> nth=0');
+    await page.waitForFunction(() => window.__cafe.guest === 'talk', null, { timeout: 30000 });
+    const pair = await cafe('guestPair');
+    check(pair?.length === 2 && pair.every((w) => ['yuan', 'zhe', 'kevin'].includes(w)), `兩位熟客聊這間店（${pair}）`);
+    const heard = new Set();
+    while (await cafe('guest')) { heard.add(await page.textContent('#bubble')); await page.waitForTimeout(50); }
+    check([...heard].join('|').includes('老闆，好像不常在'), '聽到客人聊這間店的老闆');
+    check((await cafe('tasks')).includes('guest-visit'), '客人模式完成：任務 #17');
+    check(await page.isVisible('#stand') && (await cafe('mode')) === 'seat', '結束後還坐在位子上，按鈕恢復');
+    await page.reload();
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(3000);
+    check(!(await cafe('guest')), '當過一次客人，不會再邀請');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+
   /* ---------- 桌機 1280×720 ---------- */
   console.log('桌機 1280×720');
   {
-    const { page, errors } = await open({ width: 1280, height: 720 }, '?dev=1&opening=0&regulars=0');
+    const { page, errors } = await open({ width: 1280, height: 720 }, '?dev=1&speed=20&opening=0&regulars=0');
     for (const l of await labelsInside(page)) check(l.ok, `座位標籤「${l.name}」完整顯示`);
     const small = await smallTargets(page);
     check(small.length === 0, `可點目標都 ≥ 44px ${small.length ? JSON.stringify(small) : ''}`);
@@ -592,6 +769,28 @@ try {
     check(inside, '型錄面板完整落在畫面裡');
     check((await smallTargets(page)).length === 0, '型錄面板的按鈕都 ≥ 44px');
     await page.screenshot({ path: OUT + 'desktop-catalog.png' });
+    await page.click('#sheet-close');
+    await page.click('#p-done');
+    // 打烊後（桌機）：按鈕一排放得下，日記卡片在畫面裡
+    await page.click('#close-shop');
+    await page.waitForFunction(() => window.__cafe.closing === 'lastcup', null, { timeout: 60000 });
+    await page.click('.seat-label >> text=吧台座');
+    await page.waitForFunction(() => window.__cafe.closing === 'after', null, { timeout: 90000 });
+    const row = await page.evaluate(() => {
+      const app = document.getElementById('app').getBoundingClientRect();
+      return [...document.querySelectorAll('.bottom .row button')].filter((b) => b.offsetParent)
+        .every((b) => { const r = b.getBoundingClientRect(); return r.left >= app.left && r.right <= app.right && r.height < 60; });
+    });
+    check(row, '打烊後的按鈕一排放得下');
+    await page.click('#diary-btn');
+    const card = await page.evaluate(() => {
+      const app = document.getElementById('app').getBoundingClientRect();
+      const r = document.querySelector('#diary .card').getBoundingClientRect();
+      return r.left >= app.left && r.right <= app.right && r.top >= app.top && r.bottom <= app.bottom;
+    });
+    check(card, '「今天的一杯」完整落在畫面裡');
+    await page.screenshot({ path: OUT + 'desktop-closing-diary.png' });
+    await page.click('#dy-cancel');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }

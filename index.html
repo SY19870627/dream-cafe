@@ -182,6 +182,29 @@
   #nb-people h3 { margin: 12px 0 4px; font-size: 13px; opacity: .7; }
   .nb-person { margin: 0 0 6px; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; }
   .nb-person span { font-size: 13px; opacity: .8; }
+  /* ---------- 階段 5：打烊後、咖啡日記、客人模式 ---------- */
+  #lights { position: absolute; inset: 0; overflow: clip; pointer-events: none; }
+  #lights .light-label { pointer-events: auto; position: absolute; left: 0; top: 0; min-height: 44px; min-width: 56px; padding: 8px 12px; font-size: 14px;
+    border-radius: 22px; background: rgba(255,226,170,.95); border: 2px solid #8a5a2b; color: #3b2a20; box-shadow: 0 0 14px rgba(255,200,120,.55); }
+  #lights .light-label.off { background: rgba(40,44,60,.88); color: #e6e2f0; border-color: rgba(230,226,240,.5); box-shadow: none; }
+  /* 咖啡日記 */
+  #dy-text { width: 100%; font: inherit; font-family: var(--hand); font-size: 18px; line-height: 28px; padding: 6px 8px; border: 1px solid rgba(59,42,32,.35);
+    border-radius: 8px; background: rgba(255,255,255,.6); color: var(--ink); resize: none; margin: 6px 0 2px; }
+  #dy-count { display: block; text-align: right; font-size: 12px; opacity: .6; margin-bottom: 10px; }
+  #dy-write .row button { flex: 1 1 0; }
+  .dy-entry { margin: 0 0 4px; font-size: 17px; line-height: 28px; }
+  /* 打烊之後的畫面 */
+  #closed { position: absolute; inset: 0; z-index: 15; background: rgba(9,10,16,.9); color: #efe9dc; display: flex; align-items: center; justify-content: center;
+    padding: 24px; text-align: center; animation: floatin 1.6s ease-out both; }
+  #closed .cl-inner { max-width: 320px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  #closed h2 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: 1px; }
+  .cl-date { margin: 0; font-size: 13px; opacity: .6; }
+  .cl-diary { margin: 6px 0; font-size: 18px; line-height: 1.6; color: #ffdca8; }
+  .cl-sub { margin: 0 0 14px; font-size: 14px; opacity: .75; }
+  #cl-stay { min-width: 160px; background: rgba(239,233,220,.12); color: #efe9dc; border: 1px solid rgba(239,233,220,.4); box-shadow: none; }
+  /* 客人模式：推門前畫面暗一下 */
+  #fade { position: absolute; inset: 0; z-index: 14; background: #0b0a09; opacity: 0; pointer-events: none; transition: opacity .8s; }
+  #fade.on { opacity: 1; pointer-events: auto; }
 </style>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
@@ -197,6 +220,7 @@
   <button id="speed" hidden>正常速度</button>
   <button id="op-skip-shop" hidden>略過開場</button>
   <div id="labels"></div>
+  <div id="lights"></div>
   <div id="bubble"></div>
   <div class="bottom">
     <div class="hint" id="hint"></div>
@@ -215,6 +239,9 @@
       <button id="tut-later" hidden>再坐一下</button>
       <button id="tut-place" class="primary" hidden>開始佈置</button>
       <button id="night">白天</button>
+      <button id="close-shop" hidden>打烊</button>
+      <button id="diary-btn" hidden>今天的一杯</button>
+      <button id="goodnight" class="primary" hidden>明天見</button>
     </div>
   </div>
   <div id="about" hidden role="dialog" aria-modal="true" aria-labelledby="about-title">
@@ -281,6 +308,31 @@
       <button id="lt-close" class="primary wide">收好</button>
     </div>
   </div>
+  <!-- 「今天的一杯」咖啡日記：打烊後寫一句；記事本可以翻 -->
+  <div id="diary" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="dy-title">
+    <div class="card paper hand">
+      <h2 id="dy-title">今天的一杯</h2>
+      <p class="sub" id="dy-sub"></p>
+      <div id="dy-write">
+        <textarea id="dy-text" rows="2" aria-label="今天的一杯"></textarea>
+        <small id="dy-count"></small>
+        <div class="row"><button id="dy-cancel">先不寫</button><button id="dy-save" class="primary">寫好了</button></div>
+      </div>
+      <div class="jr-scroll" id="dy-read" hidden></div>
+      <button id="dy-close" class="primary wide" hidden>闔上</button>
+    </div>
+  </div>
+  <!-- 打烊之後（按「明天見」） -->
+  <div id="closed" hidden role="dialog" aria-modal="true" aria-labelledby="cl-title">
+    <div class="cl-inner">
+      <p class="cl-date" id="cl-date"></p>
+      <h2 id="cl-title">今天的店，關好了。</h2>
+      <p class="cl-diary hand" id="cl-diary" hidden></p>
+      <p class="cl-sub" id="cl-sub">店會等你。什麼時候回來都可以。</p>
+      <button id="cl-stay">再待一下</button>
+    </div>
+  </div>
+  <div id="fade"></div>
   <!-- 開場：第一幕到第三幕（新存檔才會出現），由 src/opening.js 建立 -->
   <div id="opening" hidden></div>
 </div>

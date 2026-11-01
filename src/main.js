@@ -11,9 +11,12 @@ import { writeJournal, keepPage } from './journal.js';
 import { runOpening } from './opening.js';
 import { weatherOn } from './weather.js';
 import * as S from './story.js';
+import { catSpotOn, tryNewSpot, placedSet, petCat, jumpsOnChair, PURR, CAT_LINES } from './cat.js';
+import * as H from './afterhours.js';
 
 const PPM = A.SIZES.PPM;
 const $ = (id) => document.getElementById(id);
+const lightsEl = $('lights'); // 打烊後每盞燈旁邊的「關燈／開燈」
 
 /* ---------- 開發者模式：網址加 ?dev=1（測試可再加 &speed=20 讓動作加速） ---------- */
 const params = new URLSearchParams(location.search);
@@ -177,7 +180,7 @@ for (const z of [-2.5, -0.7]) {
   const light = new THREE.PointLight('#ffb46b', 6, 0, 1.6);
   light.position.set(2.0, 2.3, z);
   scene.add(shade, cord, light);
-  pendants.push({ shade, light });
+  pendants.push({ shade, light, level: 1, pos: new THREE.Vector3(2.0, 2.45, z) });
 }
 
 /* ---------- 光線 ---------- */
@@ -503,7 +506,9 @@ function decorPaper(e) {
   p.userData.item = item;
   if (e.trial) { p.userData.mesh.material.opacity = 0.72; } // 試擺中的東西淡一點
   if (item.light) {
+    p.userData.lightId = e.uid ? 'l' + e.uid : null; // 打烊後可以關的燈（試擺中的燈沒有編號，一直亮著）
     const l = new THREE.PointLight('#ffb46b', 0, 0, 1.6);
+    l.userData.lightId = p.userData.lightId;
     l.position.set(0, 1.45, 0.3); // 放在紙片前面一點：光源和紙片同一平面時照不到紙片本身
     p.add(l);
     lampLights.push(l);
@@ -517,6 +522,7 @@ function renderDecor() {
   lampLights.length = 0;
   for (const e of entries()) if (e.placed) decorPapers.set(e, decorPaper(e));
   applyLamps();
+  buildLightLabels();
 }
 
 function moveDecor(e, x, z) {
@@ -526,20 +532,21 @@ function moveDecor(e, x, z) {
   if (p) { p.position.set(o.x, 0, o.z); p.userData.base = o.base; p.userData.clamp = o.clamp; }
 }
 
-// 落地燈：晚上亮。燈只有前兩盞真的打光，避免手機上光源太多
+// 落地燈：晚上亮（打烊後老闆關掉的燈不亮）。燈只有前兩盞真的打光，避免手機上光源太多
 function applyLamps() {
   for (const [e, p] of decorPapers) {
     const item = itemById(e.item);
     if (!item.light) continue;
-    setPaper(p, artFor(item));
+    const on = state.night && lightOn(p.userData.lightId);
+    setPaper(p, artFor(item, on));
     // 晚上燈罩自己發亮
     const m = p.userData.mesh.material;
     m.emissiveMap = m.map;
-    m.emissive.set(state.night ? '#ffffff' : '#000000');
+    m.emissive.set(on ? '#ffffff' : '#000000');
     m.emissiveIntensity = 0.75;
     m.needsUpdate = true;
   }
-  lampLights.forEach((l, i) => { l.intensity = state.night && i < 2 ? 5 : 0; });
+  lampLights.forEach((l, i) => { l.intensity = state.night && i < 2 && lightOn(l.userData.lightId) ? 5 : 0; });
 }
 
 /* ---------- 蒸氣 ---------- */
@@ -744,7 +751,8 @@ const WALK = 0.85; // 德叔端杯的走速（公尺／秒）
 
 // 正常速度下吧台沖煮約 19 秒：六個動作都保留，只縮短停頓與注水
 // bean：菜單上的哪一支豆子（MENU 的 id）；窯烤龍眼乾上了菜單之後，杯子旁邊多一小碟
-async function brew(seat, bean = 'dongshan') {
+// opt.last：打烊後的最後一杯；opt.guest：客人模式點的那杯
+async function brew(seat, bean = 'dongshan', opt = {}) {
   if (brewing) return;
   brewing = true;
   if (deshuReturning) {
@@ -852,7 +860,8 @@ async function brew(seat, bean = 'dongshan') {
     await animate(1.2, (k) => { cup.position.lerpVectors(from, seat.cup, ease(k)); cup.position.y += Math.sin(Math.PI * k) * 0.03; });
   }
   placeCup(cup, seat);
-  if (bean === 'zhe-beans') say('阿哲的豆。他說寫大一點，我就寫大一點。', 4500); // 【待定】
+  if (opt.last) say(H.CLOSING.lastCup, 4500); // 劇本：打烊「最後一杯，是老闆的。」
+  else if (bean === 'zhe-beans') say('阿哲的豆。他說寫大一點，我就寫大一點。', 4500); // 【待定】
   else if (withLongan && !save.flags.longanServed) { save.flags.longanServed = true; say('配阿哲阿公的龍眼乾。窯烤的。', 4500); } // 【待定】
   else say('東山的豆，就是窗外那片山。', 4500);
 
@@ -875,6 +884,8 @@ async function brew(seat, bean = 'dongshan') {
   const inTutorial = state.tutorial === 'brew';
   const firstCup = !inTutorial && checkTasks({ delay: 4800 }).includes('first-coffee');
   if (inTutorial) tutorialAfterCup(true);
+  if (opt.last) afterLastCup(bean);
+  if (opt.guest) guestListen(seat);
 
   // 德叔走回吧台：背景動作，期間再按沖咖啡會等他回到吧台
   deshuReturning = (async () => {
@@ -921,23 +932,158 @@ function toggleCloseup() {
   updateUI();
 }
 
-/* ---------- 龍眼的散步 ---------- */
-const CAT_SPOTS = [new THREE.Vector3(-2.3, 0, -2.9), new THREE.Vector3(-0.9, 0, 3.2), new THREE.Vector3(0.9, 0, 0.3), new THREE.Vector3(-2.4, 0, 1.2)];
+/* ---------- 龍眼：睡覺的地方、散步、給不給摸、跳上老闆的椅子（src/cat.js） ---------- */
+// 睡覺的地方依擺飾換（cat.js 決定，和營業日誌同一個結果）；平常睡在那裡，偶爾起來走一走再回去
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const CAT_WANDER = [V3(-0.9, 0, 3.2), V3(0.9, 0, 0.3), V3(-2.4, 0, 1.2), V3(0.6, 0, -3.3), V3(-0.3, 0, 1.4)];
+const CAT_SEAT_Y = { window: 0.42, bar: 0.72, sofa: 0.42 }; // 三張椅子的椅面高度
+const CAT_ITEM_Y = { bookshelf: 1.88, 'book-wall': 2.48, 'cat-cushion': 0.1, 'cat-tree': 1.5, 'rattan-chair': 0.55 }; // 睡在擺飾上的高度
 let catBusy = false;
 let catHoldUntil = 0; // 龍眼陪著熟客（跳上凱文的腿、睡在予安旁邊）的時候不散步
-async function catWander() {
-  if (catBusy || performance.now() < catHoldUntil) return;
-  catBusy = true;
-  const to = CAT_SPOTS[Math.floor(Math.random() * CAT_SPOTS.length)];
-  setPaper(cat, catCanvas.sit);
-  cat.userData.mesh.position.y = 0;
-  await walk(cat, to, 0.35);
-  cat.userData.mesh.position.y = 0;
-  await wait(2);
-  setPaper(cat, catCanvas.sleep);
-  catBusy = false;
+let catSpot = null; // 今天睡的地方（cat.js 的 CAT_SPOTS）
+let catAtHome = false; // 在睡覺的地方
+let catOnSeat = null; // 跳上了哪張椅子（座位 id）
+let catSeatUntil = 0;
+const catMood = { taps: [], awayUntil: 0 }; // 點太多次就走開（cat.js 的 petCat）
+
+// 睡覺的地方在店裡的哪裡：擺飾的位置（靠牆的東西往室內一點），沒有擺飾的地方是固定的點
+function catSpotPlace(spot) {
+  if (spot.items) {
+    const p = [...decorPapers.values()].find((d) => spot.items.includes(d.userData.item.id) && !d.userData.entry.trial);
+    if (p) {
+      const b = p.userData.base;
+      const n = V3(Math.sin(b), 0, Math.cos(b)); // 擺飾面向室內的方向
+      return { pos: p.position.clone().setY(0).addScaledVector(n, 0.12), y: CAT_ITEM_Y[p.userData.item.id] ?? 0 };
+    }
+  }
+  if (spot.id === 'sofa') return { pos: V3(-1.65, 0, 3.45), y: 0.42 };
+  if (spot.id === 'step') return { pos: V3(0.75, 0, 3.6), y: 0 };
+  return { pos: V3(-1.7, 0, -3.55), y: 0 }; // 窗台下
 }
-setInterval(() => { if (Math.random() < 0.6) catWander(); }, 22000);
+// 跳上、跳下：y 是要到的高度
+function catHop(y, sec = 0.45) {
+  const m = cat.userData.mesh, from = m.position.y;
+  return animate(sec, (k) => { m.position.y = from + (y - from) * ease(k) + Math.sin(Math.PI * k) * 0.18; });
+}
+// 走到某處（在高處就先跳下來），到了再跳上去
+async function catGo(to, y = 0, pose = 'sleep', speed = 0.45) {
+  setPaper(cat, catCanvas.sit);
+  if (cat.userData.mesh.position.y > 0.02) await catHop(0);
+  await walk(cat, to, speed);
+  cat.userData.mesh.position.y = 0;
+  if (y > 0) await catHop(y);
+  cat.userData.mesh.position.y = y;
+  setPaper(cat, catCanvas[pose]);
+}
+// 回到今天睡覺的地方；第一次睡上新的擺飾時，德叔說一句（announce）
+async function catHome(announceFirst = false) {
+  if (catBusy || !catSpot) return;
+  catBusy = true;
+  catOnSeat = null;
+  const spot = catSpot, at = catSpotPlace(spot);
+  await catGo(at.pos, at.y);
+  catBusy = false;
+  catAtHome = spot === catSpot;
+  if (spot.items && !save.cat.seen.includes(spot.id)) {
+    save.cat.seen.push(spot.id);
+    persist();
+    if (announceFirst && spot.first) announce([['德叔', spot.first]], 600);
+  }
+}
+// 開店時龍眼已經睡在那裡了
+function placeCatAtHome() {
+  catSpot = catSpotOn(save, today());
+  const at = catSpotPlace(catSpot);
+  cat.position.copy(at.pos);
+  cat.userData.mesh.position.y = at.y;
+  setPaper(cat, catCanvas.sleep);
+  catAtHome = true;
+  catOnSeat = null;
+  if (catSpot.items && !save.cat.seen.includes(catSpot.id)) { save.cat.seen.push(catSpot.id); persist(); }
+}
+// 擺飾換了、換了一天：睡覺的地方可能也換了
+function refreshCat(announceFirst = false) {
+  catSpot = catSpotOn(save, today());
+  catAtHome = false;
+  if (!catBusy && performance.now() > catHoldUntil && !catOnSeat) catHome(announceFirst);
+}
+const catHeld = () => catBusy || performance.now() < catHoldUntil || performance.now() < catMood.awayUntil;
+// 偶爾起來走一走；陪完熟客、跳上椅子一陣子、走開一陣子之後，回去睡
+setInterval(async () => {
+  if (catBusy || performance.now() < catHoldUntil || !catSpot) return;
+  if (catOnSeat) { if (performance.now() > catSeatUntil) catHome(); return; }
+  if (!catAtHome) { if (performance.now() > catMood.awayUntil) catHome(); return; }
+  if (Math.random() > 0.35 || state.scene) return;
+  catBusy = true;
+  catAtHome = false;
+  await catGo(CAT_WANDER[Math.floor(Math.random() * CAT_WANDER.length)], 0, 'sit', 0.35);
+  await wait(5);
+  catBusy = false;
+  catHome();
+}, 22000);
+
+// 點龍眼：給摸就呼嚕；點太多次，他就轉身走開，一陣子不理人
+function petTheCat() {
+  const r = petCat(catMood, performance.now());
+  if (r === 'ignore') return;
+  if (r === 'purr') {
+    say(PURR[Math.floor(Math.random() * PURR.length)], 2500, cat);
+    const m = cat.userData.mesh;
+    let t = 0;
+    realWaiters.push((dt) => { t += dt; m.scale.y = 1 - Math.sin(Math.PI * Math.min(1, t / 0.5)) * 0.12; return t >= 0.5; });
+    return;
+  }
+  bubble.classList.remove('show');
+  catMood.awayUntil = performance.now() + 45000 / DEV_SPEED;
+  if (!save.cat.refused) { save.cat.refused = true; persist(); announce([['德叔', CAT_LINES.refuseFirst]], 1400); }
+  if (catBusy) return;
+  // 走到離老闆最遠的地方
+  const far = CAT_WANDER.slice().sort((a, b) => b.distanceTo(camera.position) - a.distanceTo(camera.position))[0];
+  catBusy = true;
+  catAtHome = false;
+  catOnSeat = null;
+  (async () => {
+    await glance(cat, 0.3);
+    await catGo(far, 0, 'sleep', 0.55);
+    catBusy = false;
+  })();
+}
+
+// 老闆站起來，椅子還熱著：龍眼跳上去睡（溫度任務 #7）
+function maybeCatChair(seat, satSec) {
+  if (performance.now() < catHoldUntil || performance.now() < catMood.awayUntil || catOnSeat) return;
+  if (state.scene || state.tutorial || state.guest || !save.flags.seenOpening) return;
+  if (!jumpsOnChair(save, satSec, Math.random())) return;
+  (async () => {
+    await realWait(700);
+    for (let i = 0; catBusy && i < 40; i++) await realWait(200); // 正在散步的話，等他走完
+    if (catBusy || state.mode === 'seat') return;
+    catBusy = true;
+    catAtHome = false;
+    await catGo(seat.prop.position.clone().add(V3(0, 0, 0.12)), CAT_SEAT_Y[seat.id], 'sleep', 0.6);
+    catBusy = false;
+    if (state.mode === 'seat' && state.seat === seat) { catShoo(); return; } // 老闆又坐回去了
+    catOnSeat = seat.id;
+    catSeatUntil = performance.now() + 90000 / DEV_SPEED;
+    save.cat.chairs++;
+    if (!save.flags.catOnChair) save.flags.catOnChair = true;
+    persist();
+    checkTasks({ delay: 500 }); // 德叔的一句話寫在 tasks.js（【待定】）
+  })();
+}
+// 老闆要坐的椅子上有龍眼（或他就睡在旁邊）：他跳下來，走到旁邊
+function catShoo() {
+  if (catBusy) return;
+  const s = state.seat;
+  if (!s) return;
+  const near = catOnSeat === s.id || cat.position.distanceTo(V3(s.prop.position.x, 0, s.prop.position.z)) < 0.75;
+  if (!near) return;
+  catOnSeat = null;
+  catBusy = true;
+  catAtHome = false;
+  const to = CAT_WANDER.slice().sort((a, b) => a.distanceTo(cat.position) - b.distanceTo(cat.position))[0];
+  catGo(to, 0, 'sit', 0.5).then(() => { catBusy = false; });
+}
 
 /* ---------- 白天／夜晚 ---------- */
 // 雨天：天光灰一點、窗外下雨；颱風夜：一定是夜裡，窗外的雨斜著打
@@ -948,8 +1094,7 @@ function applyLight() {
   hemi.groundColor.set(n ? '#5a3f2c' : '#a8865f');
   hemi.intensity = n ? (storm ? 0.8 : 0.9) : wet ? 1.15 : 1.6; // 夜裡留足夠的環境光，背對吊燈的紙片才不會整片黑
   sun.intensity = n ? 0 : wet ? 0.6 : 2.0;
-  for (const p of pendants) p.light.intensity = n ? 9 : 3;
-  applyLamps();
+  applyLamps(); // 吊燈的亮度每一幀由 updateLights() 依開關慢慢調
   for (const w of windows) { w.material.map = winTex(n, state.weather); w.material.needsUpdate = true; }
   // 夜裡（打烊、颱風夜）人物與龍眼帶一點自己的光：站在吊燈前面背光時，才不會只剩一個黑影
   for (const p of [deshu, yuan, zhe, kevin, grandpa, cat]) {
@@ -1037,6 +1182,14 @@ function sit(seat) {
   ceiling.visible = true;
   seat.prop.visible = false;
   moveCamera(seat.eye, seat.look);
+  state.satAt = performance.now();
+  catShoo(); // 椅子上（或旁邊）睡著龍眼的話，他跳下來讓位
+  if (state.guest === 'sit') {
+    // 客人模式：坐下之後德叔過來點單
+    if (!save.seatsSat.includes(seat.id)) { save.seatsSat.push(seat.id); persist(); }
+    guestOrder(seat);
+    return;
+  }
   if (state.tutorial === 'sit') {
     // 開場第四幕：坐下之後德叔自己開始沖，玩家不用做任何事
     state.tutorial = 'brew';
@@ -1047,13 +1200,22 @@ function sit(seat) {
     return;
   }
   updateUI();
-  if (++state.satThisVisit === 1) setTimeout(() => say('不急，咖啡會等人，人也該等咖啡。'), 1500);
+  if (state.closing === 'lastcup') {
+    // 打烊：坐下之後，德叔沖最後一杯
+    setTimeout(() => { if (state.closing === 'lastcup' && state.seat === seat) lastCup(seat); }, 1400 / DEV_SPEED);
+    if (!save.seatsSat.includes(seat.id)) { save.seatsSat.push(seat.id); persist(); }
+    checkTasks({ delay: 1800 });
+    return;
+  }
+  if (++state.satThisVisit === 1 && !state.closing) setTimeout(() => say('不急，咖啡會等人，人也該等咖啡。'), 1500);
   if (!save.seatsSat.includes(seat.id)) { save.seatsSat.push(seat.id); persist(); }
   // 坐遍三個座位：德叔的一句話寫在 tasks.js（【待定】）
   checkTasks({ delay: state.satThisVisit === 1 ? 5200 : 1800 });
 }
 
 function stand() {
+  const seat = state.seat;
+  const satSec = ((performance.now() - (state.satAt || performance.now())) / 1000) * DEV_SPEED;
   state.closeup = false;
   state.seat.prop.visible = true;
   state.mode = 'overview';
@@ -1063,6 +1225,7 @@ function stand() {
   ceiling.visible = false;
   moveCamera(OVER.pos, OVER.look);
   updateUI();
+  maybeCatChair(seat, satSec); // 椅子還熱著：龍眼可能跳上去
 }
 
 /* ---------- 介面 ---------- */
@@ -1079,16 +1242,24 @@ const show = (id, on) => { $(id).hidden = !on; };
 function updateUI() {
   const over = state.mode === 'overview';
   const placing = state.placing, sel = !!state.selected;
-  // 演出中（讀信後的鏡頭、推門進店、熟客的里程碑）：下面的按鈕都先收起來；有選項時只留選項
-  const tut = state.tutorial, film = state.cinematic || tut === 'enter' || !!state.scene;
+  // 演出中（讀信後的鏡頭、推門進店、熟客的里程碑、客人模式、打烊時客人離開）：下面的按鈕都先收起來；有選項時只留選項
+  const tut = state.tutorial, g = state.guest, cl = state.closing;
+  const film = state.cinematic || tut === 'enter' || !!state.scene || g === 'enter' || g === 'order' || g === 'talk' || cl === 'leaving' || cl === 'bye';
   const choosing = state.choice;
   const letter = !!state.letter && !film;
-  const free = !tut && !film && !letter && !choosing;
-  $('labels').style.display = over && !placing && !film && !letter && !choosing && (!tut || tut === 'sit') ? '' : 'none';
+  const free = !tut && !film && !letter && !choosing && !g;
+  const after = cl === 'after';
+  const canSit = !film && !letter && !choosing && ((!tut && !g) || tut === 'sit' || g === 'sit');
+  $('labels').style.display = (over || g === 'sit') && !placing && canSit ? '' : 'none';
+  // 打烊後的燈：每盞燈旁邊的「關燈／開燈」
+  lightsEl.style.display = after && !placing && free ? '' : 'none';
   show('stand', !over && free);
-  show('brew', !over && !film && !letter && !choosing && (!tut || tut === 'brew'));
+  show('brew', !over && !film && !letter && !choosing && (!tut || tut === 'brew') && (!g || g === 'brew') && (!cl || brewing));
   show('place', over && !placing && free);
-  show('night', !placing && free);
+  show('night', !placing && free && !cl);
+  show('close-shop', over && !placing && free && !cl && !!save.flags.seenOpening);
+  show('diary-btn', after && !placing && free);
+  show('goodnight', after && !placing && free);
   show('choices', choosing);
   show('read-letter', letter);
   show('tut-place', tut === 'choose');
@@ -1106,13 +1277,15 @@ function updateUI() {
     : phase === 'serve' ? '德叔端過來了'
     : state.closeup ? '回座位' : '看德叔沖';
   $('day').textContent = `開店第 ${today()} 天`;
+  // 打烊後沒有任何提示（企劃：沒有任何任務）；沖煮中的「按住畫面」與佈置的操作說明照常
   const hint = choosing ? state.choicePrompt || ''
     : film ? ''
     : letter ? '德叔把一封信放在吧台上' // 【待定】
-    : tut === 'sit' ? '點一張椅子坐下'
+    : tut === 'sit' || g === 'sit' ? '點一張椅子坐下'
     : tut === 'gift' || tut === 'choose' ? ''
+    : cl && !brewing && !placing ? ''
     : !over
-    ? (brewing ? (state.hold ? '時間走快了一點……' : '按住畫面可以讓時間走快一點') : '左右拖曳環顧四周，點人物可以搭話')
+    ? (brewing ? (state.hold ? '時間走快了一點……' : '按住畫面可以讓時間走快一點') : g ? '' : '左右拖曳環顧四周，點人物可以搭話')
     : !placing ? '點座位坐下，用客人的角度看看這間店'
     : sel ? `已選：${state.selected.userData.name}，點地板放到那裡`
     : placingHint();
@@ -1152,7 +1325,9 @@ function revertPlacing() {
 
 function finishPlacing() {
   const before = save.owned.filter((o) => o.placed).length;
+  const beforeSet = placedSet(save);
   const r = commitLayout(save, layout, now());
+  tryNewSpot(save, beforeSet, today()); // 擺了新的貓窩：龍眼今天先去試睡
   layout = null;
   state.placing = false;
   select(null);
@@ -1165,6 +1340,7 @@ function finishPlacing() {
   if (r.returned.length) say(`${itemById(r.returned[0]).name}${r.returned.length > 1 ? '那幾件' : ''}，我先放回型錄。基金再撥一點下來，就帶回來。`, 4200);
   else if (!ids.some((id) => taskById(id).line) && (r.bought.length || after > before)) say('這個放這裡，從吧台看過去剛好。');
   updateUI();
+  refreshCat(true);
 }
 
 // 把一件東西擺進店裡（從倉庫拿出來，或從型錄試擺），擺好後直接選起來，點地板就能換位置
@@ -1307,7 +1483,8 @@ $('about-close').onclick = () => openAbout(false);
 about.addEventListener('click', (e) => { if (e.target === about) openAbout(false); }); // 點面板外面關閉
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!$('letter').hidden) closeLetter();
+  if (!$('diary').hidden) closeDiary();
+  else if (!$('letter').hidden) closeLetter();
   else if (!$('journal').hidden) closeJournal();
   else if (!notebook.hidden) openNotebook(false);
   else if (!sheet.hidden) closeSheet();
@@ -1341,6 +1518,7 @@ function openNotebook(open) {
   }
   if (S.hasMilestone(save, 'yuan', 5)) link('予安念的稿子', () => openLetter(S.DOCS.manuscript));
   if (S.hasMilestone(save, 'yuan', 6)) link('予安的書・扉頁', () => openLetter(S.DOCS.dedication));
+  if (save.diary.length) link(`今天的一杯・咖啡日記（${save.diary.length} 杯）`, () => openDiary('read'));
   // 店裡的熟客（只列見過的人，不列來店次數）與菜單
   const people = $('nb-people');
   people.innerHTML = '';
@@ -1401,6 +1579,8 @@ function journalOpts() {
 function jumpDays(n) {
   const from = now();
   stopStory(); // 正在演的熟客場景作廢（開發者工具才會在演出中跳天數）
+  stopGuest();
+  exitClosing(); // 打烊的店，隔天重新開門
   save.dev.offsetMs += n * JUMP_DAY_MS;
   shownDay = today(); // 跳過去的天數不用再由午夜的檢查處理一次
   const page = save.flags.seenOpening ? writeJournal(save, from, now(), journalOpts()) : null;
@@ -1408,6 +1588,7 @@ function jumpDays(n) {
   persist();
   showYuan();
   refreshWeather();
+  refreshCat();
   updateUI();
   refreshDevTools();
   if (page) { openAbout(false); openJournal(page, () => { checkTasks({ delay: 600 }); startDay(); }); }
@@ -1430,9 +1611,10 @@ $('dev-reset').onclick = () => {
 let shownDay = today();
 setInterval(() => {
   const d = today();
-  if (d === shownDay) return;
+  if (d === shownDay || state.closing || state.guest) return; // 打烊後、客人模式中過了午夜：等老闆離開店裡再換一天
   shownDay = d;
   showYuan();
+  refreshCat();
   // 老闆在店裡過了午夜：昨天沒來得及在店裡出現的熟客照常結算，可離線的里程碑由德叔一句話帶過
   if (REGULARS_ON && save.flags.seenOpening) {
     const ev = S.settleThrough(save, d - 1).filter((e) => e.kind === 'milestone');
@@ -1505,10 +1687,9 @@ NAMES.set(deshu, '德叔').set(yuan, '予安').set(cat, '龍眼').set(zhe, '阿�
 const WHO = { 德叔: deshu, 予安: yuan, 龍眼: cat, 阿哲: zhe, 凱文: kevin }; // tasks.js 台詞裡的說話者
 const HEAD = new Map([[deshu, 2.0], [cat, 0.5]]);
 // 泡泡的高度：紙片的頭頂（姿勢不同，高度不同）
-const headOf = (p) => HEAD.get(p) ?? p.userData.mesh.geometry.parameters.height + p.userData.mesh.position.y + 0.06;
+const headOf = (p) => (HEAD.get(p) ?? p.userData.mesh.geometry.parameters.height + 0.06) + p.userData.mesh.position.y; // 龍眼睡在書架上、椅子上時泡泡跟著高
 const LINES = new Map([
   [deshu, ['不急。', '老闆，今天想坐哪裡？', '水溫九十度，剛好。', '這間店，慢慢會有自己的樣子。']],
-  [cat, ['（呼嚕呼嚕）', '喵。', '（翻了個身，繼續睡）']],
 ]);
 // 熟客的台詞依故事進度（story.js 的 TALK）
 function regularLine(w) {
@@ -1519,15 +1700,17 @@ function regularLine(w) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 function talkTo(r) {
-  if (state.cinematic || state.tutorial === 'enter' || state.scene || state.choice) return;
+  if (state.cinematic || state.tutorial === 'enter' || state.scene || state.choice || state.guest) return;
   const people = [deshu, yuan, zhe, kevin, cat].filter((p) => p.visible);
   const hit = r.intersectObjects(people.map((p) => p.userData.mesh))[0];
   if (!hit) return;
   const who = people.find((p) => p.userData.mesh === hit.object);
   if (who === deshu && brewing) return;
+  if (who === cat) { petTheCat(); return; } // 摸龍眼（點太多次他會走開）
   let line;
   if (who === yuan && !save.flags.metYuan) { line = '……啊，你好。我叫予安，常坐在這裡寫稿。'; save.flags.metYuan = true; persist(); }
   else if (who === yuan || who === zhe || who === kevin) line = regularLine(who === yuan ? 'yuan' : who === zhe ? 'zhe' : 'kevin');
+  else if (who === deshu && state.closing) line = H.CLOSING.deshuTalk[Math.floor(Math.random() * H.CLOSING.deshuTalk.length)]; // 打烊後，他在擦杯子
   else { const l = LINES.get(who); line = l[Math.floor(Math.random() * l.length)]; }
   say(line, 3500, who);
 }
@@ -1700,10 +1883,10 @@ letterEl.addEventListener('click', (e) => { if (e.target === letterEl) closeLett
 
 // 交信要等店裡安靜下來：開場結束、沒在沖咖啡、沒在佈置、沒有打開的面板、德叔沒在說話
 let readyAt = Infinity;
-const overlayOpen = () => [about, notebook, sheet, journalEl, letterEl, $('opening')].some((el) => !el.hidden);
+const overlayOpen = () => [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed')].some((el) => !el.hidden);
 function quiet() {
   return save.flags.seenOpening && !state.tutorial && !state.letter && !state.cinematic && !state.scene && !state.choice && !brewing && !deshuReturning && !state.placing
-    && !overlayOpen() && !sayBusy && performance.now() > Math.max(readyAt, sayEnds + 1500 / DEV_SPEED);
+    && !state.guest && (!state.closing || state.closing === 'after') && !overlayOpen() && !sayBusy && performance.now() > Math.max(readyAt, sayEnds + 1500 / DEV_SPEED);
 }
 const letterCtx = () => ({ daysOpen: today(), temp: temperature(save) });
 setInterval(() => {
@@ -1947,11 +2130,14 @@ async function serveTo(w, kind) {
 async function catTo(w, lap) {
   while (catBusy) await realWait(200);
   catBusy = true;
+  catAtHome = false;
+  catOnSeat = null;
   catHoldUntil = performance.now() + 120000 / DEV_SPEED;
   const p = PEOPLE[w];
   const toCam = V2(camera.position.x - p.position.x, camera.position.z - p.position.z).setLength(lap ? 0.14 : 0.45);
   const target = p.position.clone().add(toCam);
   setPaper(cat, catCanvas.sit);
+  if (cat.userData.mesh.position.y > 0.02) await catHop(0); // 睡在書架上、椅子上的話，先跳下來
   cat.userData.mesh.position.y = 0;
   await walk(cat, target, 0.6);
   if (lap) await animate(0.4, (k) => { cat.userData.mesh.position.y = 0.48 * ease(k) + Math.sin(Math.PI * k) * 0.12; });
@@ -1982,12 +2168,12 @@ async function laugh(w) {
   m.position.y = 0;
 }
 
-// 坐著的時候，鏡頭慢慢轉向說話的人
-function lookToward(p) {
+// 坐著的時候，鏡頭慢慢轉向說話的人；max：最多轉幾度（客人模式聽人聊天時可以轉過身去看）
+function lookToward(p, max = 1.2) {
   if (state.mode !== 'seat' || !state.seat || !p) return;
   const s = state.seat;
   const b = s.look.clone().sub(s.eye), t = p.position.clone().sub(s.eye);
-  const yaw = THREE.MathUtils.clamp(wrapAngle(Math.atan2(t.x, t.z) - Math.atan2(b.x, b.z)), -1.2, 1.2);
+  const yaw = THREE.MathUtils.clamp(wrapAngle(Math.atan2(t.x, t.z) - Math.atan2(b.x, b.z)), -max, max);
   const from = cam.yaw, fromPitch = cam.pitch;
   let k = 0;
   realWaiters.push((dt) => {
@@ -2005,14 +2191,6 @@ function startTyphoon() {
   applyLight();
   applySound();
   return realWait(600);
-}
-
-// 打烊（予安念稿）：其他客人離開，燈暗下來。階段 5 的打烊模式做好之後，改由打烊流程帶進來
-async function closingTime() {
-  await Promise.all(['kevin', 'zhe', 'grandpa'].map((w) => leavePerson(w)));
-  state.night = true;
-  applyLight();
-  await realWait(1200);
 }
 
 // 德叔在吧台試沖阿哲的兩包豆子
@@ -2074,7 +2252,6 @@ async function playStep(s, tok) {
     case 'glance': return glance(personOf(s.who));
     case 'weather': return startTyphoon();
     case 'prop': counterBag.visible = true; return realWait(500);
-    case 'closing': return closingTime();
     case 'choice': { const i = await choose(s.options); live.answers[s.key] = i; save.story.answers[s.key] = i; return; }
     case 'branch': return playSteps(s.cases[live.answers[s.key] ?? 0] || [], tok);
     case 'ifFire': return save.player.resignation === 'fire' ? playSteps(s.steps, tok) : undefined;
@@ -2123,7 +2300,7 @@ function stopStory() {
   }
   for (const s of [stoolFar, stoolMid]) s.visible = true;
   live.expect.clear(); live.arrived.clear(); live.leaveAt.clear();
-  live.at = {}; live.planned = {}; live.answers = {}; live.seatHinted = false; live.deshuWalk = null;
+  live.at = {}; live.planned = {}; live.answers = {}; live.seatHinted = false; live.closeHinted = false; live.deshuWalk = null;
   live.day = 0;
   catHoldUntil = 0;
 }
@@ -2134,6 +2311,7 @@ function startDay() {
   stopStory();
   live.day = d;
   S.settleThrough(save, d - 1);
+  if (H.closedOn(save, d)) { updateUI(); return; } // 今天已經打烊了（打烊後重新整理）
   const t = performance.now();
   for (const p of S.planToday(save, d)) {
     if (p.already) {
@@ -2176,6 +2354,7 @@ function storyTick() {
   if (!REGULARS_ON || !live.day || live.day !== today()) return;
   const d = live.day, t = performance.now();
   for (const [w, at] of live.expect) {
+    if (state.guest || state.closing) break; // 客人模式、打烊時沒有人走進來
     if (t < at) continue;
     const m = S.nextMilestone(save, w);
     // 自己走進來就是演出的里程碑（颱風夜、阿哲帶阿公來）：等店裡安靜下來
@@ -2187,12 +2366,18 @@ function storyTick() {
     arriveNormally(w);
   }
   for (const [w, at] of live.leaveAt) {
+    if (state.guest) break; // 客人模式中，聊天的人不會走
     if (t > at && !state.scene && (!S.REGULAR_IDS.includes(w) || !S.liveNext(save, w, d))) { live.leaveAt.delete(w); leavePerson(w); }
   }
   if (state.scene || !sceneReady()) return;
   const cands = [...live.arrived].map((w) => S.liveNext(save, w, d)).filter(Boolean)
     .sort((a, b) => (a.present - b.present) || S.MILESTONES.indexOf(a) - S.MILESTONES.indexOf(b));
   for (const m of cands) {
+    // 予安念稿：要老闆按了「打烊」、喝完最後一杯；還沒打烊時德叔提一次
+    if (!!m.needClosing !== (state.closing === 'after')) {
+      if (m.needClosing && !state.closing && !live.closeHinted) { live.closeHinted = true; say(m.needClosingHint, 4800); }
+      continue;
+    }
     if (m.needSeat && state.mode !== 'seat') {
       if (!live.seatHinted) { live.seatHinted = true; say(m.needSeatHint, 4800); }
       continue;
@@ -2204,12 +2389,15 @@ function storyTick() {
 setInterval(storyTick, 500);
 
 // 測試用：熟客這邊還有沒有事情要發生（正在演、還沒走進來、或有里程碑等著演）
-function storyBusy() {
+// withGuest：德叔準備邀請老闆當一次客人，也算還有事（測試快轉天數時不會跳過）
+function storyBusy(withGuest = true) {
   if (!REGULARS_ON || !live.day) return false;
-  if (state.scene || state.letter || state.cinematic || live.walking > 0) return true;
+  if (withGuest && !state.closing && !save.flags.guestVisit && H.guestDue(save, temperature(save), today())) return true;
+  if (state.scene || state.letter || state.cinematic || live.walking > 0 || state.guest) return true;
+  if (state.closing && state.closing !== 'after') return true;
   if ([...live.expect.values()].some((at) => at - performance.now() < 60000)) return true;
   const d = live.day;
-  return [...live.arrived].some((w) => { const m = S.liveNext(save, w, d); return m && (!m.needSeat || state.mode === 'seat'); })
+  return [...live.arrived].some((w) => { const m = S.liveNext(save, w, d); return m && (!m.needSeat || state.mode === 'seat') && !!m.needClosing === (state.closing === 'after'); })
     || !!dueLetter(save, letterCtx());
 }
 
@@ -2270,6 +2458,389 @@ $('sound-toggle').onclick = () => {
   applySound();
 };
 
+/* ---------- 打烊後模式（src/afterhours.js） ---------- */
+// 老闆按「打烊」：客人離開、德叔去門口翻牌子、天色轉成夜裡 → 坐下，德叔沖「最後一杯，是老闆的」→
+// 打烊後：燈一盞一盞由老闆自己關、可以整理擺飾、摸龍眼、寫「今天的一杯」；德叔在吧台擦那個琺瑯杯。沒有任何任務提示。
+// state.closing：'leaving'（客人離開）→ 'lastcup'（等老闆坐下、沖最後一杯）→ 'after'（打烊後）
+let closeTok = 0;
+const lightOn = (id) => !id || !state.closing || !save.closing.lightsOff.includes(id);
+const canClose = () => save.flags.seenOpening && !state.closing && !state.tutorial && !state.scene && !state.letter && !state.cinematic
+  && !state.choice && !state.guest && !brewing && !deshuReturning && !state.placing;
+
+async function startClosingMode() {
+  if (!canClose()) return;
+  const tok = ++closeTok;
+  const d = today();
+  H.startClosing(save, d);
+  persist();
+  state.closing = 'leaving';
+  live.expect.clear(); // 打烊之後不會再有熟客走進來
+  bubble.classList.remove('show');
+  updateUI();
+  say(H.CLOSING.start, 3400);
+  // 予安有稿子想念的那天，她留下來；颱風夜，阿哲待在店裡
+  const stay = new Set();
+  if (REGULARS_ON && S.liveNext(save, 'yuan', d)?.needClosing && live.arrived.has('yuan')) stay.add('yuan');
+  if (save.story.typhoonDay === d) stay.add('zhe');
+  const going = PEOPLE_IDS.filter((w) => PEOPLE[w].visible && !stay.has(w));
+  await Promise.all([...going.map((w) => leavePerson(w)), (async () => { await realWait(1200); await deshuGo(V2(0.45, 3.2)); await glance(deshu, 0.6); })()]);
+  if (tok !== closeTok) return;
+  state.night = true;
+  applyLight();
+  buildLightLabels();
+  await deshuGo(HOME);
+  if (tok !== closeTok) return;
+  enterLastCup();
+}
+function enterLastCup() {
+  state.closing = 'lastcup';
+  updateUI();
+  if (state.mode === 'seat' && state.seat) lastCup(state.seat);
+  else say(H.CLOSING.sitDown, 4200);
+}
+// 最後一杯：菜單上有兩支豆子時先選；沖好端上桌時德叔說「最後一杯，是老闆的。」
+async function lastCup(seat) {
+  if (state.closing !== 'lastcup' || brewing || state.choice) return;
+  const coffees = save.menu.filter((id) => S.MENU[id]?.kind === 'coffee');
+  let bean = 'dongshan';
+  if (coffees.length > 1) bean = coffees[await choose(coffees.map((id) => S.MENU[id].name), H.CLOSING.chooseBean)];
+  if (state.closing !== 'lastcup' || brewing || state.seat !== seat) return;
+  brew(seat, bean, { last: true });
+}
+function afterLastCup(bean) {
+  save.closing.lastCup = true;
+  save.closing.bean = bean;
+  persist();
+  state.closing = 'after';
+  buildLightLabels();
+  updateUI();
+  readyAt = performance.now() + 5000 / DEV_SPEED;
+}
+// 打烊之後重新整理（同一天）：店還是打烊的樣子
+function resumeClosing() {
+  state.closing = save.closing.lastCup ? 'after' : 'lastcup';
+  state.night = true;
+  applyLight();
+  buildLightLabels();
+}
+// 換了一天（開發者跳天數）：店重新開門
+function exitClosing() {
+  if (!state.closing) return;
+  closeTok++;
+  state.closing = null;
+  state.night = state.weather === 'typhoon';
+  $('closed').hidden = true;
+  $('diary').hidden = true;
+  applyLight();
+  buildLightLabels();
+  updateUI();
+}
+// 「明天見」：德叔說一句，畫面暗下來（關掉也沒關係；「再待一下」回到打烊後的店裡）
+async function goodnight() {
+  const tok = closeTok;
+  save.closing.done = true;
+  persist();
+  state.closing = 'bye';
+  updateUI();
+  say(H.CLOSING.goodnight, 2600);
+  await realWait(2400);
+  if (tok !== closeTok) return;
+  const entry = H.diaryOn(save, today());
+  $('cl-title').textContent = H.CLOSING.endTitle;
+  $('cl-sub').textContent = H.CLOSING.endSub;
+  $('cl-date').textContent = `${dateLabel(now())}・開店第 ${today()} 天`;
+  $('cl-diary').textContent = entry ? `今天的一杯：「${entry.text}」` : '';
+  $('cl-diary').hidden = !entry;
+  $('closed').hidden = false;
+  $('cl-stay').focus();
+}
+$('close-shop').onclick = startClosingMode;
+$('goodnight').onclick = goodnight;
+$('cl-stay').onclick = () => { $('closed').hidden = true; state.closing = 'after'; updateUI(); };
+
+// 燈：吊燈兩盞（p0、p1）與店裡的落地燈（l<uid>）。打烊後每盞燈旁邊有一顆「關燈／開燈」
+let lightLabels = [];
+function lightList() {
+  const out = pendants.map((p, i) => ({ id: 'p' + i, pos: p.pos.clone().setY(2.75) }));
+  for (const p of decorPapers.values()) if (p.userData.lightId) out.push({ id: p.userData.lightId, pos: p.position.clone().setY(1.55) });
+  return out;
+}
+function buildLightLabels() {
+  lightsEl.innerHTML = '';
+  lightLabels = [];
+  if (!state.closing) return;
+  for (const l of lightList()) {
+    const b = document.createElement('button');
+    b.className = 'light-label';
+    b.dataset.light = l.id;
+    b.onclick = () => {
+      H.toggleLight(save, l.id);
+      persist();
+      applyLamps();
+      refreshLightLabels();
+    };
+    lightsEl.appendChild(b);
+    lightLabels.push({ ...l, el: b });
+  }
+  refreshLightLabels();
+}
+function refreshLightLabels() {
+  for (const l of lightLabels) {
+    const on = lightOn(l.id);
+    l.el.textContent = on ? '關燈' : '開燈';
+    l.el.classList.toggle('off', !on);
+    l.el.setAttribute('aria-label', `${l.id.startsWith('p') ? '吊燈' : '落地燈'}：${on ? '關燈' : '開燈'}`);
+  }
+}
+// 每一幀：吊燈的亮度慢慢跟上開關；打烊後，關掉的燈越多，店裡越接近窗外的月光
+const SHADE_ON = new THREE.Color('#ffd59a'), SHADE_OFF = new THREE.Color('#4a3d30');
+const MOON = new THREE.Color('#7483ad'), WARM_NIGHT = new THREE.Color('#a594b0');
+let closeGlow = 1;
+function updateLights(dt) {
+  const k = Math.min(1, dt * 5);
+  pendants.forEach((p, i) => {
+    p.level += ((lightOn('p' + i) ? 1 : 0) - p.level) * k;
+    let I = (state.night ? 9 : 3) * p.level;
+    if (state.weather === 'typhoon' && state.night && Math.random() < 0.004) I = 2 * p.level; // 颱風夜吊燈偶爾閃一下
+    p.light.intensity = I;
+    p.shade.material.color.copy(SHADE_OFF).lerp(SHADE_ON, p.level);
+  });
+  if (!state.closing) { closeGlow = 1; return; }
+  const all = lightList();
+  const on = all.length ? all.filter((l) => lightOn(l.id)).length / all.length : 1;
+  closeGlow += (on - closeGlow) * Math.min(1, dt * 3);
+  if (flash <= 0) {
+    hemi.intensity = 0.75 + 0.15 * closeGlow; // 全關也看得到店裡：月光從窗戶進來
+    hemi.color.copy(MOON).lerp(WARM_NIGHT, closeGlow);
+  }
+}
+
+// 打烊後，德叔在吧台擦那個琺瑯杯（劇本：打烊後會擦一個舊的琺瑯杯，從不讓別人用）
+const wipeTex = { a: null, b: null, keep: null };
+let wipeOn = false, wipeT = 0;
+function updateWipe(dt) {
+  const mat = deshu.userData.mesh.material;
+  const want = state.closing === 'after' && !state.scene && !state.cinematic && !state.letter && !brewing && !deshuReturning
+    && !live.deshuWalk && deshu.position.distanceTo(HOME) < 0.05;
+  if (want) {
+    if (!wipeOn) {
+      wipeOn = true;
+      wipeTex.a ??= A.tex(deshuCanvas.wipe);
+      wipeTex.b ??= A.tex(deshuCanvas.wipe2);
+      wipeTex.keep = mat.map;
+      wipeT = 0;
+    }
+    wipeT += dt;
+    const map = Math.floor(wipeT / 0.7) % 2 ? wipeTex.b : wipeTex.a;
+    if (mat.map !== map) { mat.map = map; if (mat.emissiveMap) mat.emissiveMap = map; mat.needsUpdate = true; }
+  } else if (wipeOn) {
+    wipeOn = false;
+    if (mat.map === wipeTex.a || mat.map === wipeTex.b) { mat.map = wipeTex.keep; if (mat.emissiveMap) mat.emissiveMap = mat.map; mat.needsUpdate = true; }
+    else wipeTex.keep?.dispose(); // 別的動作已經換過圖了
+    wipeTex.keep = null;
+  }
+}
+
+/* ---------- 「今天的一杯」咖啡日記 ---------- */
+const diaryEl = $('diary');
+function openDiary(mode) {
+  const write = mode === 'write';
+  $('dy-write').hidden = !write;
+  $('dy-read').hidden = write;
+  $('dy-close').hidden = write;
+  $('dy-title').textContent = write ? H.DIARY.title : '今天的一杯・咖啡日記';
+  if (write) {
+    const bean = S.MENU[save.closing.bean || 'dongshan']?.name || '東山的豆';
+    $('dy-sub').textContent = `${dateLabel(now())}・開店第 ${today()} 天・${bean}`;
+    const t = $('dy-text');
+    t.value = H.diaryOn(save, today())?.text || '';
+    t.placeholder = H.DIARY.placeholder;
+    t.maxLength = H.DIARY_MAX;
+    diaryCount();
+  } else {
+    $('dy-sub').textContent = `一共 ${save.diary.length} 杯。`;
+    const body = $('dy-read');
+    body.innerHTML = '';
+    for (const e of [...save.diary].reverse()) {
+      const h = document.createElement('h3');
+      h.className = 'jr-day';
+      h.textContent = `${dateLabel(e.t)}・第 ${e.day} 天・${S.MENU[e.bean]?.name || '東山的豆'}`;
+      const p = document.createElement('p');
+      p.className = 'dy-entry';
+      p.textContent = e.text;
+      body.append(h, p);
+    }
+    body.scrollTop = 0;
+  }
+  diaryEl.hidden = false;
+  if (write) setTimeout(() => $('dy-text').focus(), 50); else $('dy-close').focus();
+}
+function diaryCount() { $('dy-count').textContent = `${[...$('dy-text').value].length}／${H.DIARY_MAX}`; }
+function closeDiary() { diaryEl.hidden = true; $('dy-text').blur(); updateUI(); }
+$('dy-text').addEventListener('input', diaryCount);
+$('dy-save').onclick = () => {
+  H.writeDiary(save, { day: today(), t: now(), bean: save.closing.bean, text: $('dy-text').value });
+  persist();
+  closeDiary();
+};
+$('dy-cancel').onclick = closeDiary;
+$('dy-close').onclick = closeDiary;
+$('diary-btn').onclick = () => openDiary('write');
+diaryEl.addEventListener('click', (e) => { if (e.target === diaryEl) closeDiary(); });
+
+/* ---------- 一次客人模式（溫度任務 #17） ---------- */
+// 溫度 ≥ 28°C 後的某次進店，等店裡安靜下來，德叔問老闆要不要從門口進來一次（決定 D9）。
+// 推門進店 → 「歡迎。不急，先坐。」→ 坐下 → 德叔過來點單 → 沖好端上 → 聽兩位熟客聊這間店（依擺飾）→ 德叔小聲說兩句
+// state.guest：'offer' → 'enter' → 'sit' → 'order' → 'brew' → 'talk'
+const DEV_GUEST = DEV && params.get('guest') === '1'; // 測試用：不看溫度，直接邀請
+let guestTok = 0;
+let guestPair = null;
+function guestReady() {
+  if (state.closing || state.guest || !quiet() || dueLetter(save, letterCtx())) return false;
+  if (REGULARS_ON && storyBusy(false)) return false;
+  if (performance.now() < readyAt + 3000 / DEV_SPEED) return false;
+  return DEV_GUEST ? !save.flags.guestVisit && save.flags.guestOffered !== today() : H.guestDue(save, temperature(save), today());
+}
+setInterval(() => { if (guestReady()) offerGuest(); }, 1000);
+
+async function offerGuest() {
+  const tok = ++guestTok;
+  save.flags.guestOffered = today();
+  persist();
+  state.guest = 'offer';
+  updateUI();
+  say(H.GUEST.invite, 0);
+  const i = await choose([H.GUEST.yes, H.GUEST.no]);
+  if (tok !== guestTok) return;
+  if (i === 1) {
+    state.guest = null;
+    updateUI();
+    say(H.GUEST.later, 3000);
+    readyAt = performance.now() + 4000 / DEV_SPEED;
+    return;
+  }
+  bubble.classList.remove('show');
+  guestEnter(tok);
+}
+const fadeEl = $('fade');
+function fade(on) {
+  fadeEl.classList.toggle('on', on);
+  return realWait(850);
+}
+// 誰在聊天：見過的熟客裡挑兩位（予安在的話一定有她）
+function pickGuestPair() {
+  const met = S.REGULAR_IDS.filter((w) => S.hasMilestone(save, w, 1));
+  const pool = met.length >= 2 ? met : ['yuan', 'zhe'];
+  const a = pool.includes('yuan') ? 'yuan' : pool[0];
+  const rest = pool.filter((w) => w !== a);
+  const b = rest[Math.floor(((today() * 7) % 10) / 10 * rest.length)] || rest[0];
+  return [a, b];
+}
+async function guestEnter(tok) {
+  state.guest = 'enter';
+  updateUI();
+  await fade(true);
+  if (tok !== guestTok) return;
+  // 鏡頭退到門外；兩位熟客在店裡（予安在她的桌子，另一位站在桌子另一邊），龍眼睡在他的地方
+  if (state.seat) { state.seat.prop.visible = true; state.seat = null; }
+  state.closeup = false;
+  guestPair = pickGuestPair();
+  const d = today();
+  const [a, b] = guestPair;
+  const beside = { pos: V2(-1.0, -2.05), cup: null }; // 三個座位都看得到、不會擋住予安
+  const spots = a === 'yuan' ? { [a]: SPOT.yuan, [b]: beside } : { [a]: SPOT.bar, [b]: b === 'kevin' ? SPOT.kevin : beside };
+  for (const w of guestPair) {
+    if (REGULARS_ON) { S.arrive(save, w, d); live.arrived.add(w); live.expect.delete(w); live.leaveAt.delete(w); }
+    placeAt(w, spots[w], spots[w] === beside ? (w === 'kevin' ? 'walk' : 'stand') : undefined);
+  }
+  persist();
+  deshu.position.copy(HOME);
+  state.mode = 'door';
+  frontWall.visible = false;
+  ceiling.visible = true;
+  cam.yaw = 0; cam.pitch = 0;
+  tween = null;
+  cam.pos.copy(DOOR.from); cam.look.copy(DOOR.look);
+  await fade(false);
+  if (tok !== guestTok) return;
+  moveCamera(DOOR.to, DOOR.look, 2.6); // 推門進去
+  await realWait(1700);
+  say(H.GUEST.welcome, 3800);
+  await realWait(2400);
+  if (tok !== guestTok) return;
+  // 回到俯瞰，挑一個位子（從門口看，座位在身後或被吧台擋住）
+  state.mode = 'overview';
+  ceiling.visible = false;
+  moveCamera(OVER.pos, OVER.look, 1.6);
+  state.guest = 'sit';
+  updateUI();
+}
+// 德叔點單、收杯子時站的地方：離座位一步遠，坐著看得到他（太近會整個人擋住畫面）
+const ORDER_SPOT = { window: V2(-0.95, -1.35), bar: V2(2.5, -1.0), sofa: V2(-0.55, 1.8) };
+// 坐下之後，德叔走過來點單
+async function guestOrder(seat) {
+  const tok = guestTok;
+  state.guest = 'order';
+  updateUI();
+  await realWait(1600);
+  await deshuGo(ORDER_SPOT[seat.id]);
+  if (tok !== guestTok) return;
+  lookToward(deshu);
+  const coffees = save.menu.filter((id) => S.MENU[id]?.kind === 'coffee');
+  say(H.GUEST.order, 0);
+  const i = await choose(coffees.map((id) => S.MENU[id].name));
+  if (tok !== guestTok) return;
+  say(H.GUEST.orderOk, 2500);
+  await deshuGo(HOME);
+  if (tok !== guestTok) return;
+  state.guest = 'brew';
+  updateUI();
+  brew(seat, coffees[i], { guest: true });
+}
+// 杯子上桌之後：聽兩位熟客聊這間店，最後德叔過來小聲說兩句
+async function guestListen(seat) {
+  const tok = guestTok;
+  state.guest = 'talk';
+  updateUI();
+  await realWait(4600); // 先讓德叔端上桌的那句話說完
+  for (const l of H.guestTalk(save, guestPair, today())) {
+    if (tok !== guestTok) return;
+    const p = PEOPLE[l.who];
+    lookToward(p, 2.3); // 坐吧台的話，聊天的人在身後
+    const ms = sayMs(l.text);
+    say(l.text, ms / DEV_SPEED, p);
+    await realWait(ms + 500);
+  }
+  await realWait(1200);
+  if (deshuReturning) await deshuReturning;
+  if (tok !== guestTok) return;
+  await deshuGo(ORDER_SPOT[seat.id]);
+  if (tok !== guestTok) return;
+  lookToward(deshu);
+  for (const t of H.GUEST.end) {
+    const ms = sayMs(t);
+    say(t, ms / DEV_SPEED);
+    await realWait(ms + 450);
+  }
+  save.flags.guestVisit = true;
+  persist();
+  // 聊完的熟客再坐一會兒；阿哲照常先走（予安、凱文本來就待到很晚）
+  if (guestPair.includes('zhe')) live.leaveAt.set('zhe', performance.now() + 60000 / DEV_SPEED);
+  state.guest = null;
+  updateUI();
+  checkTasks({ delay: 400 });
+  const back = deshuGo(HOME).finally(() => { if (live.deshuWalk === back) live.deshuWalk = null; });
+  live.deshuWalk = back;
+  readyAt = performance.now() + 6000 / DEV_SPEED;
+}
+function stopGuest() {
+  if (!state.guest) return;
+  guestTok++;
+  state.guest = null;
+  fadeEl.classList.remove('on');
+  if (state.mode === 'door') { state.mode = 'overview'; ceiling.visible = false; moveCamera(OVER.pos, OVER.look); }
+}
+
 /* ---------- 主迴圈 ---------- */
 let last = performance.now();
 const tmp = new THREE.Vector3();
@@ -2329,19 +2900,23 @@ function loop() {
     if (state.weather === 'typhoon') {
       tx.offset.x += dt * 0.25;
       if (Math.random() < dt * 0.09) flash = 0.18;
-      if (flash > 0) { flash -= dt; hemi.intensity = flash > 0 ? 2.4 : 0.8; }
-      for (const p of pendants) p.light.intensity = state.night ? (Math.random() < 0.004 ? 2 : 9) : 3;
+      if (flash > 0) { flash -= dt; hemi.intensity = flash > 0 ? 2.4 : state.closing ? hemi.intensity : 0.8; }
     }
   }
+  updateLights(dt);
+  updateWipe(dt);
   SEATS.forEach((s, i) => project(s.prop.position, labels[i], 1.1, true));
+  if (lightsEl.style.display !== 'none') for (const l of lightLabels) project(l.pos, l.el, 0.12);
   renderer.render(scene, camera);
   requestAnimationFrame(loop);
 }
 
 frontWall.visible = false;
 ceiling.visible = false;
+if (save.flags.seenOpening && H.closedOn(save, today())) resumeClosing(); // 今天已經打烊了
 resize();
 renderDecor();
+placeCatAtHome();
 applyLight();
 updateUI();
 loop();
@@ -2350,6 +2925,14 @@ persist(); // 新存檔在這一刻寫下第一次開店的時間
 // 回到店裡：隔天以後回來先看德叔的營業日誌，收好之後德叔說劇本「開店」台詞；同一天回來是「老闆，歡迎回來。」
 // 離線期間到期的任務（例如開店滿 3 天），等德叔打完招呼再說
 function greet() {
+  if (state.closing) {
+    // 今天已經打烊了：店還是打烊後的樣子；最後一杯還沒喝的話，德叔等老闆坐下
+    say(H.CLOSING.closedAgain, 3800);
+    if (state.closing === 'lastcup') setTimeout(() => { if (state.closing === 'lastcup' && state.mode !== 'seat') say(H.CLOSING.sitDown, 4200); }, 4300 / DEV_SPEED);
+    readyAt = performance.now() + 5000 / DEV_SPEED;
+    startDay();
+    return;
+  }
   say(returningDay ? '燈亮了。老闆，今天想坐哪裡？' : '老闆，歡迎回來。', 3500);
   checkTasks({ delay: 3800 });
   readyAt = performance.now() + 5000 / DEV_SPEED;
@@ -2420,6 +3003,26 @@ if (DEV) {
       const v = p.position.clone().add(new THREE.Vector3(0, 0.8, 0)).project(camera);
       return { x: ((v.x + 1) / 2) * app.clientWidth, y: ((1 - v.y) / 2) * app.clientHeight, inFront: v.z < 1 };
     },
+    // 階段 5：龍眼、打烊後、客人模式
+    get catSpot() { return catSpot?.id || null; },
+    get catOnSeat() { return catOnSeat; },
+    get catBusy() { return catBusy; },
+    get catAway() { return performance.now() < catMood.awayUntil; },
+    get catHome() { return catAtHome; },
+    get catPos() { return { x: cat.position.x, y: cat.userData.mesh.position.y, z: cat.position.z }; },
+    catOnScreen() {
+      const v = cat.position.clone().add(new THREE.Vector3(0, cat.userData.mesh.position.y + 0.2, 0)).project(camera);
+      return { x: ((v.x + 1) / 2) * app.clientWidth, y: ((1 - v.y) / 2) * app.clientHeight, inFront: v.z < 1 };
+    },
+    get closing() { return state.closing; },
+    get closingSave() { return JSON.parse(JSON.stringify(save.closing)); },
+    get diary() { return save.diary.map((e) => ({ ...e })); },
+    get guest() { return state.guest; },
+    get guestPair() { return guestPair; },
+    get needClosing() { return REGULARS_ON && !state.closing && !!S.liveNext(save, 'yuan', today())?.needClosing && live.arrived.has('yuan'); },
+    get pendantLevels() { return pendants.map((p) => Math.round(p.level * 100) / 100); },
+    get hemi() { return Math.round(hemi.intensity * 100) / 100; },
+    get deshuWiping() { return wipeOn; },
     // 某個座位上那杯咖啡在畫面上的位置（相對 #app 的像素）
     cupOnScreen(seatId) {
       const c = cups.find((x) => x.userData.seat === seatId);
