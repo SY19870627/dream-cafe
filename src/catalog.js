@@ -30,7 +30,7 @@ export const CATALOG = [
 const BY_ID = new Map(CATALOG.map((i) => [i.id, i]));
 export const itemById = (id) => BY_ID.get(id);
 
-// 新存檔時德叔送的三件初始擺飾（劇本第四幕「送三件初始擺飾」；階段 3 會改由開場送出）
+// 德叔送的三件初始擺飾（劇本第四幕「送三件初始擺飾」），由 save.js 的 giveStarters() 在開場第四幕送出
 export const STARTER_ITEMS = ['plant', 'floor-lamp', 'menu-board'];
 
 // 基金餘額＝帳本加總（撥款為正、購買為負）

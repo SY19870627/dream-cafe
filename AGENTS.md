@@ -34,12 +34,13 @@
 ## 程式結構
 
 - `index.html`：介面與 importmap，不需要建置步驟。
-- `src/main.js`：場景、座位、德叔的沖煮動畫、貓、佈置（倉庫、型錄、試擺）、溫度任務的演出、記事本、觸控。
+- `src/main.js`：場景、座位、德叔的沖煮動畫、貓、佈置（倉庫、型錄、試擺）、溫度任務的演出、記事本、觸控；開場推門進店後的段落（第三幕後半、第四幕第一杯）、營業日誌與老先生的信的畫面、讀信後擦琺瑯杯的鏡頭。
+- `src/opening.js`：開場第一～三幕的 DOM 畫面（16:49 的辦公室、標題、信箱與律師信、175 縣道），只在新存檔播放，每一幕可略過。
 - `src/art.js`：所有 Canvas 程式繪製的美術，之後換成手繪圖只要改這裡的同名函式。
-- 純邏輯模組（不依賴 Three.js 與 DOM，用 `node --test` 測）：`src/save.js` 存檔（localStorage `dream-cafe.save`，帶版本號，存不了時照常遊戲）、`src/clock.js` 遊戲時間（開店第 N 天，本地日曆日）、`src/tasks.js` 劇本 20 個溫度任務（溫度由已完成任務算出）、`src/catalog.js` 德叔的型錄與結帳（基金餘額＝帳本加總）。
+- 純邏輯模組（不依賴 Three.js 與 DOM，用 `node --test` 測）：`src/save.js` 存檔（localStorage `dream-cafe.save`，帶版本號，存不了時照常遊戲）、`src/clock.js` 遊戲時間（開店第 N 天，本地日曆日）、`src/tasks.js` 劇本 20 個溫度任務（溫度由已完成任務算出）、`src/catalog.js` 德叔的型錄與結帳（基金餘額＝帳本加總）、`src/letters.js` 辭呈結尾、律師信、老先生的信與交信條件、`src/journal.js` 德叔的營業日誌（離線結算，每天 2～4 條，熟客里程碑由 `story(day)` 介面接入）、`src/weather.js` 依季節的天氣。
 - `vendor/three.module.min.js`：Three.js 0.187 打包檔。
 - `tests/serve.mjs`：Node 內建 http 靜態伺服器（`npm run serve`）；`tests/unit/`：純邏輯單元測試；`tests/smoke.mjs`：Playwright 冒煙測試；`npm test` 兩者都跑。`package.json` 只有 `playwright` 一個 devDependency，遊戲本身沒有建置步驟。
-- 開發者模式：網址加 `?dev=1`（快轉鈕、「≡」選單裡的跳天數／加基金／重置存檔、`window.__cafe` 測試介面），`&speed=N` 指定動作倍率。
+- 開發者模式：網址加 `?dev=1`（快轉鈕、「≡」選單裡的跳天數／加基金／重置存檔、`window.__cafe` 測試介面），`&speed=N` 指定動作倍率，`&opening=0` 直接當作看過開場。跳天數等於老闆離開了那幾天，會交出營業日誌。
 - 本機測試：`npm run serve` 或 `python3 -m http.server 8000` 後開 http://localhost:8000，視窗請用手機直立尺寸（例如 390×844）。
 - 開發進度、自行做的決定、待作者決定與【待定】文本清單：[docs/第一版開發計畫.md](docs/第一版開發計畫.md)。自行補寫的文本在程式中以 `// 【待定】` 標記。
 

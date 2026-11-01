@@ -4,13 +4,13 @@
 import { STARTER_ITEMS } from './catalog.js';
 
 export const SAVE_KEY = 'dream-cafe.save';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
 
 export function defaultSave(now) {
   const save = {
     version: SAVE_VERSION,
     createdAt: now, // 第一次開店的時刻，「開店第 N 天」從這天起算
-    lastSeen: now, // 最後一次在店裡的時刻（階段 3 的離線營業日誌用）
+    lastSeen: now, // 最後一次在店裡的時刻（離線營業日誌從這裡算起）
     tasks: [], // [{ id, t, day }]：已完成的溫度任務；溫度由此算出
     fund: { ledger: [] }, // 溫度基金帳本：[{ t, kind: 'grant' | 'buy' | 'dev', ref, amount }]
     owned: [], // [{ uid, item, placed, x, z }]：擁有的擺飾；placed=false 表示收在倉庫
@@ -22,15 +22,23 @@ export function defaultSave(now) {
       zhe: { visits: 0, milestones: [] },
       kevin: { visits: 0, milestones: [] },
     },
-    flags: {}, // seenOpening、metYuan、starterGiven、catOnChair、guestVisit……
-    letters: [], // 讀過的老先生的信
+    flags: {}, // seenOpening、openingAct、metYuan、starterGiven、catOnChair、guestVisit……
+    letters: [], // 讀過的老先生的信：[{ id, t, day }]
+    journal: [], // 最近幾頁德叔的營業日誌（記事本可以重讀），見 journal.js
+    player: { name: '', resignation: '' }, // 開場第一幕：辭呈署名（可留空）與選的結尾（之後凱文的里程碑會用到）
     settings: { offWork: '18:00' }, // 下班時間（決定 D11，階段 3 起使用）
     dev: { offsetMs: 0 }, // 開發者模式跳天數用的時間偏移；一般模式不採用
   };
-  // 德叔送的三件初始擺飾，先收在倉庫
+  // 德叔送的三件初始擺飾，等開場第四幕（或略過開場）時才由 giveStarters() 放進倉庫
+  return save;
+}
+
+// 德叔送的三件初始擺飾，收進倉庫；只送一次。回傳這次有沒有送。
+export function giveStarters(save) {
+  if (save.flags.starterGiven) return false;
   for (const item of STARTER_ITEMS) save.owned.push({ uid: save.nextUid++, item, placed: false, x: 0, z: 0 });
   save.flags.starterGiven = true;
-  return save;
+  return true;
 }
 
 const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
@@ -49,10 +57,9 @@ export function migrate(data, now) {
   if (!isObj(data)) return null;
   const v = Number(data.version) || 0;
   if (v > SAVE_VERSION) return null; // 比遊戲還新的存檔：不認得，不去動它
-  const base = defaultSave(now);
-  // 預設值裡的初始擺飾只給全新存檔，補欄位時不要塞進舊存檔
-  if (Array.isArray(data.owned)) base.owned = [];
-  const save = fill(data, base);
+  const save = fill(data, defaultSave(now));
+  // 第 1 版的存檔是開場做出來之前開的店：不再播開場，初始擺飾也已經送過了
+  if (v < 2) { save.flags.seenOpening = true; save.flags.starterGiven = true; }
   save.version = SAVE_VERSION;
   save.nextUid = Math.max(save.nextUid, ...save.owned.map((o) => (Number(o.uid) || 0) + 1), 1);
   return save;

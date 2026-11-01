@@ -94,6 +94,80 @@
   #bubble.show { opacity: 1; }
   #bubble::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -8px; border: 8px solid transparent;
     border-top-color: var(--ink); border-bottom: 0; }
+  /* ---------- 階段 3：開場、營業日誌、老先生的信 ---------- */
+  :root { --hand: "Kaiti TC", "STKaiti", "BiauKai", "DFKai-SB", "標楷體", "KaiTi", "AR PL UKai TW", serif; }
+  #opening { position: absolute; inset: 0; z-index: 20; background: #15171c; color: #f1ece2; overflow: hidden; transition: opacity .9s; }
+  #opening.fade { opacity: 0; pointer-events: none; }
+  .op-stage { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 64px 18px 18px; gap: 12px; overflow-y: auto;
+    opacity: 0; transition: opacity .7s; touch-action: pan-y; }
+  .op-stage.on { opacity: 1; }
+  #op-skip { position: absolute; top: 12px; right: 12px; z-index: 2; min-height: 44px; padding: 8px 16px; font-size: 14px;
+    background: rgba(246,239,226,.16); color: #f1ece2; box-shadow: none; border: 1px solid rgba(246,239,226,.35); }
+  .op-caption { margin: 0; font-size: 15px; line-height: 1.7; opacity: .9; text-align: center; }
+  /* 第一幕：16:49 的辦公室 */
+  .op-office { background: linear-gradient(#2c3340, #1b1f27 70%); }
+  .op-clock { position: absolute; top: 14px; left: 18px; font: 600 26px/44px ui-monospace, "Consolas", monospace; letter-spacing: 2px; color: #ffcf8a; }
+  .op-clock.flip { animation: flip .6s ease-out; }
+  @keyframes flip { 0% { transform: scaleY(1); } 45% { transform: scaleY(.1); } 100% { transform: scaleY(1); } }
+  .op-monitor { background: #0f1218; border: 10px solid #3d4350; border-radius: 12px; box-shadow: 0 0 40px rgba(120,160,220,.15); flex: none; }
+  .op-mail { background: #f5f6f8; color: #2b2f36; padding: 12px 14px; font-size: 14.5px; line-height: 1.6; border-radius: 2px; }
+  .op-mail-head { display: flex; flex-direction: column; font-size: 12.5px; color: #5f6672; border-bottom: 1px solid #d6d9de; padding-bottom: 6px; margin-bottom: 6px; }
+  .op-mail p { margin: 0 0 4px; }
+  .op-ending { min-height: 1.6em; font-weight: 600; color: #1f3f6e; }
+  .caret { display: inline-block; width: 2px; height: 1.1em; background: #2b2f36; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .op-sign { display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 14px; margin-top: 4px; }
+  .op-sign input { font: inherit; font-size: 16px; width: 9em; min-height: 44px; padding: 6px 10px; border: 1px solid #b9bec7; border-radius: 8px; background: #fff; color: #2b2f36; }
+  .op-q { margin: 2px 0 0; font-size: 14px; opacity: .8; }
+  .op-choices { display: flex; flex-direction: column; gap: 8px; }
+  .op-choices button { text-align: left; background: rgba(246,239,226,.1); color: #f1ece2; border: 1px solid rgba(246,239,226,.35); box-shadow: none; font-weight: 500; }
+  .op-choices button[aria-pressed="true"] { background: #f1ece2; color: #1b1f27; border-color: #f1ece2; }
+  .op-keys { font-size: 13px; opacity: .5; text-align: center; letter-spacing: 3px; animation: keys 2.4s ease-in-out infinite; }
+  @keyframes keys { 0%, 100% { opacity: .2; } 50% { opacity: .6; } }
+  .op-stage button.primary { background: #f1ece2; color: #1b1f27; flex: none; }
+  /* 標題 */
+  .op-title { background: #0b0c0f; justify-content: center; align-items: center; text-align: center; }
+  .op-title h1 { margin: 0 0 6px; font-size: 25px; line-height: 1.5; font-weight: 700; letter-spacing: 1px; animation: floatin 2.4s ease-out both; }
+  .op-title .sub { margin: 0 0 28px; font-size: 13px; opacity: .65; animation: floatin 2.4s .6s ease-out both; }
+  .op-title button.primary { min-width: 160px; animation: floatin 2s 1.2s ease-out both; }
+  @keyframes floatin { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .op-credit { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 2px; font-size: 12px; opacity: .6; }
+  .op-credit a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; justify-content: center; padding: 0 8px; color: inherit; }
+  /* 第二幕：信箱與律師信 */
+  .op-mailbox { background: #23262d; }
+  .op-box-btn { padding: 0; background: none; box-shadow: none; border-radius: 12px; overflow: hidden; flex: none; }
+  .op-box-btn img { display: block; width: 100%; height: auto; }
+  .op-box-btn.shake { animation: shake .22s ease-in-out 5; }
+  @keyframes shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-1.6deg) translateX(-3px); } 75% { transform: rotate(1.6deg) translateX(3px); } }
+  .op-lawyer { background: #fbf8f1; color: #2a2622; border-radius: 6px; padding: 18px 16px 14px; font-family: "PMingLiU", "MingLiU", "Songti TC", "Noto Serif TC", serif;
+    font-size: 15px; line-height: 1.75; box-shadow: 0 8px 28px rgba(0,0,0,.4); animation: unfold .8s ease-out both; flex: none; }
+  .op-lawyer h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: 6px; text-align: center; color: #6c5f50; border-bottom: 3px double #b9ab95; padding-bottom: 6px; font-weight: 600; }
+  .op-lawyer p { margin: 0 0 8px; }
+  .op-lawyer .key { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6c5f50; margin-top: 6px; }
+  @keyframes unfold { from { opacity: 0; transform: scaleY(.6) translateY(-20px); } to { opacity: 1; transform: none; } }
+  /* 第三幕：175 縣道 */
+  .op-road { background: #1f1a22; padding: 0; justify-content: flex-end; }
+  .op-road img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 55%; }
+  .op-road-ui { position: relative; padding: 40px 18px 18px; display: flex; flex-direction: column; gap: 12px;
+    background: linear-gradient(rgba(20,16,22,0), rgba(20,16,22,.78) 45%); }
+  /* 進店後的「略過」 */
+  #op-skip-shop { position: absolute; top: 68px; left: 12px; min-height: 44px; padding: 8px 14px; font-size: 13px; border-radius: 12px; opacity: .88; }
+  /* 營業日誌與信：手寫風的紙 */
+  .hand { font-family: var(--hand); }
+  #journal .card, #letter .card { max-width: 350px; }
+  .jr-scroll, .lt-scroll { overflow-y: auto; flex: 1 1 auto; min-height: 0; margin: 4px 0 12px; touch-action: pan-y; }
+  .jr-day { margin: 10px 0 2px; font-size: 13px; opacity: .7; font-weight: 600; }
+  .jr-day:first-child { margin-top: 2px; }
+  .jr-list { list-style: none; margin: 0; padding: 0; }
+  .jr-list li { font-size: 17px; line-height: 28px; padding-left: 1em; text-indent: -1em; }
+  .jr-list li::before { content: "・"; }
+  .jr-sum { font-size: 16px; line-height: 28px; margin: 0 0 4px; }
+  #letter .card { background: #fbf3df repeating-linear-gradient(#fbf3df 0 31px, #e8d9b9 31px 32px); }
+  .lt-scroll p { margin: 0 0 6px; font-size: 18px; line-height: 32px; text-indent: 2em; }
+  .lt-scroll p:first-child { text-indent: 0; }
+  .lt-scroll i { font-style: normal; display: inline-block; text-indent: 0; } /* 每個字一點點歪：字有點抖 */
+  .nb-links { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 4px; }
+  .nb-links button { font-size: 14px; padding: 8px 10px; text-align: left; background: #fff; border: 1px solid rgba(59,42,32,.35); box-shadow: none; }
 </style>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
@@ -107,6 +181,7 @@
     </div>
   </div>
   <button id="speed" hidden>正常速度</button>
+  <button id="op-skip-shop" hidden>略過開場</button>
   <div id="labels"></div>
   <div id="bubble"></div>
   <div class="bottom">
@@ -121,6 +196,9 @@
       <button id="p-deselect" hidden>放好了</button>
       <button id="p-revert" hidden>復原</button>
       <button id="p-done" class="primary" hidden>確定</button>
+      <button id="read-letter" class="primary" hidden>讀信</button>
+      <button id="tut-later" hidden>再坐一下</button>
+      <button id="tut-place" class="primary" hidden>開始佈置</button>
       <button id="night">白天</button>
     </div>
   </div>
@@ -153,6 +231,7 @@
       <h2 id="nb-title">店的記事本</h2>
       <p class="sub" id="nb-summary"></p>
       <p class="sub" id="nb-decor"></p>
+      <div class="nb-links" id="nb-links"></div>
       <p class="nb-empty" id="nb-empty">還沒有寫下什麼。先坐下來，喝一杯吧。</p>
       <ol id="nb-list"></ol>
       <button id="nb-close" class="primary wide">闔上</button>
@@ -166,6 +245,25 @@
       <div id="sheet-list"></div>
     </div>
   </div>
+  <!-- 德叔的營業日誌：登入時結算老闆不在的日子 -->
+  <div id="journal" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="jr-title">
+    <div class="card paper hand">
+      <h2 id="jr-title">德叔的營業日誌</h2>
+      <p class="sub" id="jr-sub"></p>
+      <div class="jr-scroll" id="jr-body"></div>
+      <button id="jr-close" class="primary wide">收好</button>
+    </div>
+  </div>
+  <!-- 老先生的信（與律師信） -->
+  <div id="letter" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="lt-title">
+    <div class="card hand">
+      <h2 id="lt-title">第一封信</h2>
+      <div class="lt-scroll" id="lt-body"></div>
+      <button id="lt-close" class="primary wide">收好</button>
+    </div>
+  </div>
+  <!-- 開場：第一幕到第三幕（新存檔才會出現），由 src/opening.js 建立 -->
+  <div id="opening" hidden></div>
 </div>
 <script type="module" src="./src/main.js"></script>
 </body>

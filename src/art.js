@@ -226,8 +226,29 @@ export function deshu(pose) {
   for (const y of [0.78, 0.88, 0.98]) { ell(g, cx, y, 0.012, 0.012); g.fill(); }
   // 手臂
   g.fillStyle = '#f7f4ee';
-  rr(g, cx - 0.31, 0.52, 0.11, 0.42, 0.05); g.fill(); outline(g);
-  if (pose === 'pour') {
+  const wiping = pose === 'wipe' || pose === 'wipe2';
+  if (wiping) {
+    // 擦琺瑯杯：兩隻手在胸前，一手拿杯、一手拿布（wipe2 是布擦到另一邊）
+    rr(g, cx - 0.31, 0.52, 0.11, 0.3, 0.05); g.fill(); outline(g);
+    rr(g, cx + 0.2, 0.52, 0.11, 0.3, 0.05); g.fill(); outline(g);
+    g.save(); g.translate(cx - 0.27, 0.8); g.rotate(-0.85);
+    rr(g, 0, -0.05, 0.22, 0.1, 0.05); g.fill(); outline(g); g.restore();
+    g.save(); g.translate(cx + 0.27, 0.8); g.rotate(Math.PI + 0.85);
+    rr(g, 0, -0.05, 0.22, 0.1, 0.05); g.fill(); outline(g); g.restore();
+    enamelCup(g, cx - 0.07, 0.5);
+    const off = pose === 'wipe2' ? -0.05 : 0.03;
+    g.beginPath(); g.moveTo(cx + off, 0.52); g.quadraticCurveTo(cx + off + 0.08, 0.49, cx + off + 0.13, 0.54);
+    g.lineTo(cx + off + 0.12, 0.66); g.quadraticCurveTo(cx + off + 0.05, 0.69, cx + off - 0.01, 0.64); g.closePath();
+    g.fillStyle = '#e6dcc4'; g.fill(); outline(g, 0.012);
+    g.fillStyle = '#e9c3a0';
+    ell(g, cx - 0.1, 0.64, 0.045, 0.045); g.fill(); outline(g, 0.012);
+    ell(g, cx + off + 0.08, 0.6, 0.045, 0.045); g.fill(); outline(g, 0.012);
+  } else {
+    rr(g, cx - 0.31, 0.52, 0.11, 0.42, 0.05); g.fill(); outline(g);
+  }
+  if (wiping) {
+    // 手已經畫在胸前
+  } else if (pose === 'pour') {
     g.save(); g.translate(cx + 0.2, 0.56); g.rotate(-1.0);
     rr(g, 0, -0.05, 0.4, 0.11, 0.05); g.fill(); outline(g);
     g.restore();
@@ -238,8 +259,8 @@ export function deshu(pose) {
   }
   // 手
   g.fillStyle = '#e9c3a0';
-  ell(g, cx - 0.255, 0.96, 0.05, 0.05); g.fill(); outline(g, 0.012);
-  if (pose !== 'pour') { ell(g, cx + 0.255, 0.96, 0.05, 0.05); g.fill(); outline(g, 0.012); }
+  if (!wiping) { ell(g, cx - 0.255, 0.96, 0.05, 0.05); g.fill(); outline(g, 0.012); }
+  if (pose !== 'pour' && !wiping) { ell(g, cx + 0.255, 0.96, 0.05, 0.05); g.fill(); outline(g, 0.012); }
   // 頭
   ell(g, cx, 0.3, 0.15, 0.17); g.fillStyle = '#e9c3a0'; g.fill(); outline(g);
   g.beginPath();
@@ -252,6 +273,14 @@ export function deshu(pose) {
   g.beginPath(); g.moveTo(cx - 0.05, 0.39); g.quadraticCurveTo(cx, 0.405, cx + 0.05, 0.39);
   g.strokeStyle = '#8a8580'; g.lineWidth = 0.022; g.stroke();
   return c;
+}
+
+// 那個舊的琺瑯杯：白底、深藍杯緣，有一點掉漆（x, y 是杯子左上角）
+function enamelCup(g, x, y) {
+  rr(g, x, y, 0.13, 0.12, 0.02); g.fillStyle = '#f4f2ec'; g.fill(); outline(g, 0.012);
+  g.fillStyle = '#23406e'; g.fillRect(x + 0.005, y, 0.12, 0.018);
+  g.beginPath(); g.arc(x + 0.135, y + 0.06, 0.03, -1.3, 1.3); g.strokeStyle = '#23406e'; g.lineWidth = 0.014; g.stroke();
+  g.fillStyle = '#4a4440'; ell(g, x + 0.03, y + 0.09, 0.008, 0.006); g.fill(); // 掉漆的一小塊
 }
 
 export function cat(pose) {
@@ -664,6 +693,116 @@ export function glow() {
   grd.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = grd;
   g.fillRect(0, 0, 64, 64);
+  return c;
+}
+
+/* ---------- 開場與信 ---------- */
+
+// 老先生的信封（德叔從吧台抽屜拿出來，放在吧台上）
+export function envelope() {
+  const { c, g } = canvas(0.26, 0.18);
+  rr(g, 0.01, 0.01, 0.24, 0.16, 0.012); g.fillStyle = '#f3e7cf'; g.fill(); outline(g, 0.01);
+  g.beginPath(); g.moveTo(0.015, 0.02); g.lineTo(0.13, 0.1); g.lineTo(0.245, 0.02);
+  g.strokeStyle = '#b8a07a'; g.lineWidth = 0.008; g.stroke();
+  g.fillStyle = '#b5452f'; ell(g, 0.13, 0.1, 0.018, 0.018); g.fill(); // 封蠟
+  return c;
+}
+
+// 第二幕：租屋處樓下的信箱，一格露出牛皮紙信封
+export function mailboxes() {
+  const W = 3.9, H = 3;
+  const { c, g } = canvas(W, H);
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#3a3f4a'); bg.addColorStop(1, '#262a31');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  // 樓梯間的日光燈
+  g.fillStyle = 'rgba(235,240,230,.9)'; rr(g, W / 2 - 0.6, 0.12, 1.2, 0.08, 0.04); g.fill();
+  const light = g.createRadialGradient(W / 2, 0.2, 0.1, W / 2, 0.6, 2.4);
+  light.addColorStop(0, 'rgba(220,230,215,.28)'); light.addColorStop(1, 'rgba(220,230,215,0)');
+  g.fillStyle = light; g.fillRect(0, 0, W, H);
+  // 一整排鐵信箱
+  const cols = 4, rows = 3, bw = 0.78, bh = 0.52, x0 = (W - cols * bw) / 2, y0 = 0.62;
+  for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+    const x = x0 + i * bw, y = y0 + j * bh;
+    rr(g, x + 0.03, y + 0.03, bw - 0.06, bh - 0.06, 0.03); g.fillStyle = '#9aa3a8'; g.fill(); outline(g, 0.016);
+    g.fillStyle = '#4b5257'; g.fillRect(x + 0.15, y + 0.12, bw - 0.3, 0.035);
+    g.fillStyle = '#e9e5da'; g.fillRect(x + 0.2, y + 0.25, 0.22, 0.09);
+    g.fillStyle = '#6a7378'; ell(g, x + bw - 0.15, y + bh - 0.14, 0.025, 0.025); g.fill();
+  }
+  // 自己那一格（第二排第三格）露出牛皮紙信封
+  const mx = x0 + 2 * bw, my = y0 + bh;
+  g.save(); g.translate(mx + 0.17, my + 0.06); g.rotate(-0.12);
+  rr(g, 0, 0, 0.44, 0.3, 0.02); g.fillStyle = '#c7955a'; g.fill(); outline(g, 0.014);
+  g.beginPath(); g.moveTo(0, 0.02); g.lineTo(0.22, 0.14); g.lineTo(0.44, 0.02); g.strokeStyle = '#8c6236'; g.lineWidth = 0.012; g.stroke();
+  g.restore();
+  // 地板
+  g.fillStyle = '#1d2026'; g.fillRect(0, y0 + rows * bh + 0.1, W, H);
+  return c;
+}
+
+// 第三幕：傍晚的 175 縣道，兩旁是龍眼樹，三合院正廳的窗亮著一盞燈，台階上睡著一隻橘貓
+export function countyRoad() {
+  // 直立的畫面：上面多留天空，下面多留路（手機直立時用 cover 填滿，左右只會切掉一點）
+  const W = 3.9, TOPPAD = 1.5, H = 4.2 + TOPPAD + 1.0;
+  const { c, g } = canvas(W, H);
+  const sky = g.createLinearGradient(0, 0, 0, TOPPAD + 2.2);
+  sky.addColorStop(0, '#3c4170'); sky.addColorStop(0.5, '#a9778a'); sky.addColorStop(0.8, '#e09a7a'); sky.addColorStop(1, '#f4c98e');
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  const rs = rng(5);
+  g.fillStyle = 'rgba(255,248,220,.8)';
+  for (let i = 0; i < 18; i++) g.fillRect(rs() * W, rs() * TOPPAD * 0.8, 0.012, 0.012); // 第一顆星
+  ell(g, 0.9, 0.75, 0.09, 0.09); g.fillStyle = 'rgba(251,240,200,.85)'; g.fill(); // 月亮
+  g.translate(0, TOPPAD);
+  // 遠山兩層
+  for (const [base, amp, col, k] of [[1.35, 0.22, '#8a7c97', 2.1], [1.62, 0.16, '#6f6a7f', 3.3]]) {
+    g.beginPath(); g.moveTo(0, H);
+    for (let x = 0; x <= W + 0.01; x += 0.1) g.lineTo(x, base - Math.sin(x * k) * amp - Math.sin(x * 7.3) * 0.04);
+    g.lineTo(W, H); g.closePath(); g.fillStyle = col; g.fill();
+  }
+  // 地面
+  g.fillStyle = '#5d6b48'; g.fillRect(0, 2.05, W, H);
+  // 三合院：正廳與左右護龍，紅磚、燕尾屋脊
+  rr(g, 0.95, 1.95, 2.0, 0.85, 0.02); g.fillStyle = '#b4553b'; g.fill(); outline(g, 0.02); // 正廳
+  g.fillStyle = '#9c4630';
+  for (let j = 0; j < 8; j++) for (let x = 0.98 + (j % 2) * 0.08; x < 2.85; x += 0.16) g.fillRect(x, 2.05 + j * 0.1, 0.13, 0.012);
+  g.beginPath(); g.moveTo(0.82, 1.98); g.quadraticCurveTo(1.95, 1.84, 3.08, 1.98); g.lineTo(3.16, 1.86); g.lineTo(3.02, 1.92);
+  g.quadraticCurveTo(1.95, 1.62, 0.88, 1.92); g.lineTo(0.74, 1.86); g.closePath();
+  g.fillStyle = '#5a3a2e'; g.fill(); outline(g, 0.02);
+  for (const x of [0.15, 3.0]) { // 護龍
+    rr(g, x, 2.3, 0.75, 0.6, 0.02); g.fillStyle = '#a24c34'; g.fill(); outline(g, 0.02);
+    g.beginPath(); g.moveTo(x - 0.06, 2.32); g.lineTo(x + 0.375, 2.18); g.lineTo(x + 0.81, 2.32); g.closePath(); g.fillStyle = '#4e342a'; g.fill(); outline(g, 0.016);
+  }
+  // 亮著的窗：暖光
+  const glow = g.createRadialGradient(1.45, 2.32, 0.02, 1.45, 2.32, 0.7);
+  glow.addColorStop(0, 'rgba(255,214,140,.75)'); glow.addColorStop(1, 'rgba(255,214,140,0)');
+  g.fillStyle = glow; g.fillRect(0.7, 1.7, 1.5, 1.3);
+  rr(g, 1.25, 2.16, 0.4, 0.32, 0.02); g.fillStyle = '#ffd68a'; g.fill(); outline(g, 0.018);
+  g.strokeStyle = '#5a3a2e'; g.lineWidth = 0.02;
+  g.beginPath(); g.moveTo(1.45, 2.16); g.lineTo(1.45, 2.48); g.moveTo(1.25, 2.32); g.lineTo(1.65, 2.32); g.stroke();
+  // 門（關著）與台階
+  rr(g, 2.05, 2.15, 0.48, 0.65, 0.02); g.fillStyle = '#6d4430'; g.fill(); outline(g, 0.018);
+  g.fillStyle = '#d9c09a'; g.fillRect(2.27, 2.15, 0.03, 0.65);
+  g.fillStyle = '#9b8f80'; g.fillRect(1.85, 2.8, 0.9, 0.08); g.fillRect(1.78, 2.88, 1.04, 0.08);
+  // 台階上睡著的橘貓
+  g.drawImage(cat('sleep'), 1.95, 2.66, 0.3, 0.225);
+  // 路：從畫面下方彎進來
+  const B = H - TOPPAD;
+  g.beginPath(); g.moveTo(0.1, B); g.quadraticCurveTo(1.6, 3.4, 1.9, 2.98); g.lineTo(2.7, 2.98); g.quadraticCurveTo(2.6, 3.5, 3.9, B); g.closePath();
+  g.fillStyle = '#6c6a66'; g.fill();
+  g.strokeStyle = '#efe4c6'; g.lineWidth = 0.025; g.setLineDash([0.12, 0.12]);
+  g.beginPath(); g.moveTo(2.0, B); g.quadraticCurveTo(2.1, 3.5, 2.3, 2.98); g.stroke(); g.setLineDash([]);
+  // 兩旁的龍眼樹
+  const r = rng(11);
+  for (const [x, y, s] of [[0.35, 2.75, 0.5], [0.5, 3.35, 0.65], [0.15, 4.1, 0.8], [0.3, 4.9, 0.8], [3.55, 2.7, 0.5], [3.4, 3.3, 0.65], [3.75, 4.1, 0.85], [3.6, 4.9, 0.8]]) {
+    g.fillStyle = '#4a3528'; g.fillRect(x - 0.04, y, 0.08, s * 0.7);
+    for (let k = 0; k < 6; k++) { ell(g, x + (r() - 0.5) * s, y - r() * s * 0.5, s * (0.35 + r() * 0.2), s * (0.28 + r() * 0.15)); g.fillStyle = ['#3f5f3a', '#4d6e40', '#35502f'][k % 3]; g.fill(); }
+    g.fillStyle = '#c99a4c';
+    for (let k = 0; k < 5; k++) { ell(g, x + (r() - 0.5) * s, y - r() * s * 0.4, 0.025, 0.025); g.fill(); } // 一串串龍眼
+  }
+  // 路牌：175
+  g.fillStyle = '#7a7a7a'; g.fillRect(2.98, 2.55, 0.03, 0.55);
+  rr(g, 2.84, 2.36, 0.32, 0.24, 0.03); g.fillStyle = '#f2f2ee'; g.fill(); outline(g, 0.014);
+  g.fillStyle = '#2f5d8a'; g.font = 'bold 0.12px "PingFang TC","Noto Sans TC",sans-serif'; g.textAlign = 'center'; g.fillText('175', 3.0, 2.52);
   return c;
 }
 

@@ -2,10 +2,13 @@
 // 3D 房間 + 2D 紙片（billboard）擺飾與人物，驗證手機直立的顧客視角。
 import * as THREE from 'three';
 import * as A from './art.js';
-import { createStore } from './save.js';
+import { createStore, giveStarters } from './save.js';
 import { temperature, completeTasks, taskById } from './tasks.js';
 import { CATALOG, CATEGORY, itemById, balance, commitLayout } from './catalog.js';
 import { dayIndex, daysOpen, dateLabel, JUMP_DAY_MS } from './clock.js';
+import { LETTERS, LAWYER_LETTER, letterById, dueLetter, markRead } from './letters.js';
+import { writeJournal, keepPage } from './journal.js';
+import { runOpening } from './opening.js';
 
 const PPM = A.SIZES.PPM;
 const $ = (id) => document.getElementById(id);
@@ -22,6 +25,12 @@ const save = store.load();
 const now = () => Date.now() + (DEV ? save.dev.offsetMs : 0);
 const today = () => daysOpen(save.createdAt, now());
 const returningDay = store.status === 'loaded' && dayIndex(save.lastSeen) < dayIndex(now()); // 隔天以後才回到店裡
+const lastSeenAtLoad = save.lastSeen; // 離線營業日誌從這裡結算
+// 測試用：?dev=1&opening=0 直接當作看過開場（德叔的三件初始擺飾照樣收進倉庫）
+if (DEV && params.get('opening') === '0' && !save.flags.seenOpening) {
+  save.flags.seenOpening = true;
+  giveStarters(save);
+}
 let resetting = false;
 function persist() {
   if (resetting) return;
@@ -319,8 +328,15 @@ const yuan = paper(A.yuan(), -0.4, -1.75);
 
 // 德叔與龍眼
 const HOME = new THREE.Vector3(2.6, 0, -1.6);
-const deshuCanvas = { idle: A.deshu('idle'), pour: A.deshu('pour') };
+const deshuCanvas = { idle: A.deshu('idle'), pour: A.deshu('pour'), wipe: A.deshu('wipe'), wipe2: A.deshu('wipe2') };
 const deshu = paper(deshuCanvas.idle, HOME.x, HOME.z);
+// 予安的第一個里程碑在開店第 2 天（劇本），第 1 天店裡還沒有她
+const showYuan = () => { yuan.visible = today() >= 2; };
+showYuan();
+// 老先生的信：德叔從吧台抽屜拿出來，放在吧台上
+const envelope = paper(A.envelope(), 1.8, -0.75, { y: TOP, shadow: false });
+envelope.userData.mesh.scale.setScalar(1.7); // 從俯瞰鏡頭也看得到
+envelope.visible = false;
 const catCanvas = { sleep: A.cat('sleep'), sit: A.cat('sit') };
 const cat = paper(catCanvas.sleep, -2.3, -2.9);
 
@@ -468,7 +484,10 @@ function updateSteam(dt) {
 }
 
 /* ---------- 溫度與任務 ---------- */
-const state = { temp: temperature(save), satThisVisit: 0, weather: 'clear', devSpeed: DEV_SPEED, hold: false, night: false, mode: 'overview', seat: null, placing: false, selected: null };
+// tutorial：開場在店裡的段落 'enter'（第三幕德叔的三句話）→ 'sit' → 'brew' → 'gift' → 'choose'（第四幕），null 代表不在開場
+// letter：德叔放在吧台上、還沒讀的信；cinematic：讀完信後看德叔擦琺瑯杯的鏡頭
+const state = { temp: temperature(save), satThisVisit: 0, weather: 'clear', devSpeed: DEV_SPEED, hold: false, night: false, mode: 'overview', seat: null, placing: false, selected: null,
+  tutorial: null, letter: null, cinematic: false };
 // 遊戲時間的流速：開發者模式的倍率 × 沖煮中按住畫面的 ×3
 const HOLD_SPEED = 3;
 const speedNow = () => state.devSpeed * (state.hold && brewing ? HOLD_SPEED : 1);
@@ -535,8 +554,10 @@ const bubble = $('bubble');
 let bubbleTimer;
 let speaker = null;
 const NAMES = new Map();
+let sayEnds = 0; // 這句話什麼時候說完（老先生的信要等店裡安靜下來才交）
 function say(text, ms = 3500, who = deshu) {
   speaker = who;
+  sayEnds = performance.now() + (ms || 4000);
   bubble.innerHTML = `<b>${NAMES.get(who) || ''}</b>${text}`;
   bubble.classList.add('show');
   clearTimeout(bubbleTimer);
@@ -743,7 +764,10 @@ async function brew(seat) {
   save.stats.cups++;
   if (state.weather === 'rain' && seat.id === 'window') save.stats.rainyWindowCups++; // 天氣在之後的階段加入
   persist();
-  const firstCup = checkTasks({ delay: 4800 }).includes('first-coffee');
+  // 開場第四幕：溫度要等德叔說完「店是空的……」才上升（劇本第 4、5 步的順序），交給 tutorialAfterCup()
+  const inTutorial = state.tutorial === 'brew';
+  const firstCup = !inTutorial && checkTasks({ delay: 4800 }).includes('first-coffee');
+  if (inTutorial) tutorialAfterCup(true);
 
   // 德叔走回吧台：背景動作，期間再按沖咖啡會等他回到吧台
   deshuReturning = (async () => {
@@ -894,6 +918,15 @@ function sit(seat) {
   ceiling.visible = true;
   seat.prop.visible = false;
   moveCamera(seat.eye, seat.look);
+  if (state.tutorial === 'sit') {
+    // 開場第四幕：坐下之後德叔自己開始沖，玩家不用做任何事
+    state.tutorial = 'brew';
+    state.satThisVisit++;
+    updateUI();
+    if (!save.seatsSat.includes(seat.id)) { save.seatsSat.push(seat.id); persist(); }
+    setTimeout(() => { if (state.tutorial === 'brew' && state.seat === seat) brew(seat); }, 1400 / DEV_SPEED);
+    return;
+  }
   updateUI();
   if (++state.satThisVisit === 1) setTimeout(() => say('不急，咖啡會等人，人也該等咖啡。'), 1500);
   if (!save.seatsSat.includes(seat.id)) { save.seatsSat.push(seat.id); persist(); }
@@ -927,11 +960,18 @@ const show = (id, on) => { $(id).hidden = !on; };
 function updateUI() {
   const over = state.mode === 'overview';
   const placing = state.placing, sel = !!state.selected;
-  $('labels').style.display = over && !placing ? '' : 'none';
-  show('stand', !over);
-  show('brew', !over);
-  show('place', over && !placing);
-  show('night', !placing);
+  const tut = state.tutorial, film = state.cinematic || tut === 'enter'; // 演出中：下面的按鈕都先收起來
+  const letter = !!state.letter && !film;
+  const free = !tut && !film && !letter;
+  $('labels').style.display = over && !placing && !film && !letter && (!tut || tut === 'sit') ? '' : 'none';
+  show('stand', !over && free);
+  show('brew', !over && !film && !letter && (!tut || tut === 'brew'));
+  show('place', over && !placing && free);
+  show('night', !placing && free);
+  show('read-letter', letter);
+  show('tut-place', tut === 'choose');
+  show('tut-later', tut === 'choose');
+  show('op-skip-shop', !!tut);
   show('p-catalog', placing && !sel);
   show('p-store', placing && !sel);
   show('p-putaway', placing && sel);
@@ -944,11 +984,17 @@ function updateUI() {
     : phase === 'serve' ? '德叔端過來了'
     : state.closeup ? '回座位' : '看德叔沖';
   $('day').textContent = `開店第 ${today()} 天`;
-  $('hint').textContent = !over
+  const hint = film ? ''
+    : letter ? '德叔把一封信放在吧台上' // 【待定】
+    : tut === 'sit' ? '點一張椅子坐下'
+    : tut === 'gift' || tut === 'choose' ? ''
+    : !over
     ? (brewing ? (state.hold ? '時間走快了一點……' : '按住畫面可以讓時間走快一點') : '左右拖曳環顧四周，點人物可以搭話')
     : !placing ? '點座位坐下，用客人的角度看看這間店'
     : sel ? `已選：${state.selected.userData.name}，點地板放到那裡`
     : placingHint();
+  $('hint').textContent = hint;
+  $('hint').hidden = !hint;
 }
 
 /* ---------- 佈置：移動、倉庫、德叔的型錄 ---------- */
@@ -969,7 +1015,7 @@ function startPlacing() {
   if (!save.flags.storeHint && layout.some((e) => !e.placed)) {
     save.flags.storeHint = true;
     persist();
-    // 【待定】第一次進佈置模式、倉庫裡還有東西時德叔的提醒（階段 3 第四幕會改由開場送出初始擺飾）
+    // 【待定】第一次進佈置模式、倉庫裡還有東西時德叔的提醒（看完開場第四幕的人已經聽過送擺飾那句，不會再說）
     say('倉庫裡有三件東西，是我先替老闆準備的。想放哪就放哪。', 4200);
   }
 }
@@ -1113,7 +1159,9 @@ $('about-close').onclick = () => openAbout(false);
 about.addEventListener('click', (e) => { if (e.target === about) openAbout(false); }); // 點面板外面關閉
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!notebook.hidden) openNotebook(false);
+  if (!$('letter').hidden) closeLetter();
+  else if (!$('journal').hidden) closeJournal();
+  else if (!notebook.hidden) openNotebook(false);
   else if (!sheet.hidden) closeSheet();
   else if (!about.hidden) openAbout(false);
 });
@@ -1127,6 +1175,22 @@ function openNotebook(open) {
   $('nb-summary').textContent = `開店第 ${today()} 天・溫度 ${temperature(save).toFixed(1)}°C・溫度基金 ${fmt(balance(save))} 元`;
   const placed = save.owned.filter((o) => o.placed).length;
   $('nb-decor').textContent = `店裡擺著 ${placed} 件東西${save.owned.length > placed ? `，倉庫裡還有 ${save.owned.length - placed} 件` : ''}。`;
+  // 可以重讀的東西：最近一頁營業日誌、律師信、讀過的老先生的信
+  const links = $('nb-links');
+  links.innerHTML = '';
+  const link = (text, fn) => {
+    const b = document.createElement('button');
+    b.textContent = text;
+    b.onclick = () => { openNotebook(false); fn(); };
+    links.appendChild(b);
+  };
+  const lastPage = save.journal[save.journal.length - 1];
+  if (lastPage) link(`德叔的營業日誌・${dateLabel(lastPage.t)}`, () => openJournal(lastPage));
+  if (save.flags.seenOpening) link('律師信', () => openLetter(LAWYER_LETTER));
+  for (const r of save.letters) {
+    const l = letterById(r.id);
+    if (l) link(`老先生的${l.title}・${dateLabel(r.t)}`, () => openLetter(l));
+  }
   const list = $('nb-list');
   list.innerHTML = '';
   for (const d of [...save.tasks].reverse()) {
@@ -1149,12 +1213,18 @@ show('dev-tools', DEV);
 function refreshDevTools() {
   if (DEV) $('dev-day').textContent = `開發者工具・開店第 ${today()} 天・基金 ${fmt(balance(save))} 元`;
 }
+// 跳天數就像老闆離開了 n 天：德叔把這幾天的營業日誌交給老闆，收好之後再說到期的任務
 function jumpDays(n) {
+  const from = now();
   save.dev.offsetMs += n * JUMP_DAY_MS;
+  const page = save.flags.seenOpening ? writeJournal(save, from, now()) : null;
+  keepPage(save, page);
   persist();
+  showYuan();
   updateUI();
   refreshDevTools();
-  checkTasks();
+  if (page) { openAbout(false); openJournal(page, () => checkTasks({ delay: 600 })); }
+  else checkTasks();
 }
 $('dev-day1').onclick = () => jumpDays(1);
 $('dev-day7').onclick = () => jumpDays(7);
@@ -1175,6 +1245,7 @@ setInterval(() => {
   const d = today();
   if (d === shownDay) return;
   shownDay = d;
+  showYuan();
   updateUI();
   checkTasks();
 }, 20000);
@@ -1245,7 +1316,8 @@ const LINES = new Map([
   [cat, ['（呼嚕呼嚕）', '喵。', '（翻了個身，繼續睡）']],
 ]);
 function talkTo(r) {
-  const hit = r.intersectObjects([deshu, yuan, cat].map((p) => p.userData.mesh))[0];
+  if (state.cinematic || state.tutorial === 'enter') return;
+  const hit = r.intersectObjects([deshu, yuan, cat].filter((p) => p.visible).map((p) => p.userData.mesh))[0];
   if (!hit) return;
   const who = [deshu, yuan, cat].find((p) => p.userData.mesh === hit.object);
   if (who === deshu && brewing) return;
@@ -1253,6 +1325,242 @@ function talkTo(r) {
   if (who === yuan && !save.flags.metYuan) { line = '……啊，你好。我叫予安，常坐在這裡寫稿。'; save.flags.metYuan = true; persist(); }
   else { const l = LINES.get(who); line = l[Math.floor(Math.random() * l.length)]; }
   say(line, 3500, who);
+}
+
+/* ---------- 開場：推門進店（第三幕後半）與第一杯（第四幕） ---------- */
+// 第一幕到第三幕前半是 DOM 畫面（src/opening.js），推門之後在 3D 店裡演
+const realWait = (ms) => new Promise((r) => setTimeout(r, ms / DEV_SPEED)); // 開發者模式的倍率也縮短等待
+const tsay = (text, ms) => say(text, ms / DEV_SPEED);
+const DOOR = { from: new THREE.Vector3(0.1, 1.6, 3.9), to: new THREE.Vector3(0.45, 1.55, 2.9), look: new THREE.Vector3(2.6, 1.45, -1.6) };
+let tutToken = 0; // 略過時讓還在等的段落作廢
+
+function startOpening() {
+  const op = runOpening({ root: $('opening'), save, persist, art: A, speed: DEV_SPEED });
+  op.done.then(({ lines }) => enterShop(lines));
+  openingCtl = op;
+}
+let openingCtl = null;
+
+async function enterShop(lines) {
+  const my = ++tutToken;
+  state.tutorial = 'enter';
+  if (!lines) { beginAct4(); return; }
+  state.mode = 'door';
+  ceiling.visible = true;
+  cam.yaw = 0; cam.pitch = 0;
+  cam.pos.copy(DOOR.from); cam.look.copy(DOOR.look);
+  moveCamera(DOOR.to, DOOR.look, 2.6); // 推門進去，往吧台走兩步
+  updateUI();
+  await realWait(1700);
+  // 劇本第三幕：吧台後的人抬頭
+  for (const line of ['老闆，歡迎回來。', '哦，是第一次來。習慣了，對每個人都這樣說。', '那隻貓叫龍眼，是這間三合院本來就有的。他不是我們的，是我們是他的。']) {
+    if (my !== tutToken) return;
+    tsay(line, 3900);
+    await realWait(4300);
+  }
+  if (my === tutToken) beginAct4();
+}
+
+// 第四幕 1：「先坐。」教玩家點椅子坐下
+function beginAct4() {
+  const my = ++tutToken;
+  if (state.mode !== 'overview') {
+    state.mode = 'overview';
+    frontWall.visible = false;
+    ceiling.visible = false;
+    cam.yaw = 0; cam.pitch = 0;
+    moveCamera(OVER.pos, OVER.look, 1.6);
+  }
+  if (save.stats.cups >= 1) { tutorialAfterCup(false); return; } // 喝過第一杯才重新整理的話，從送擺飾接著演
+  state.tutorial = 'sit';
+  updateUI();
+  setTimeout(() => { if (my === tutToken && state.tutorial === 'sit') tsay('先坐。', 4000); }, 900 / DEV_SPEED);
+}
+
+// 第四幕 4～5：杯子上桌後德叔說「店是空的……」、送三件初始擺飾，溫度計從 20°C 爬到 20.5°C，德叔看了一眼溫度計
+async function tutorialAfterCup(justServed) {
+  const my = ++tutToken;
+  state.tutorial = 'gift';
+  updateUI();
+  if (justServed) await realWait(4800); // 先讓「東山的豆，就是窗外那片山。」說完
+  if (my !== tutToken) return;
+  tsay('店是空的。老闆，你想坐在什麼樣的店裡？', 5000);
+  giveStarters(save);
+  save.flags.storeHint = true; // 送擺飾這句已經說了，佈置時不用再提醒
+  persist();
+  await realWait(1600);
+  if (my !== tutToken) return;
+  checkTasks({ delay: 99999 }); // 第一杯：溫度上升與撥款（這個任務沒有台詞）
+  (async () => { if (deshuReturning) await deshuReturning; await glance(deshu); })(); // 「德叔看了一眼溫度計，沒說話。」
+  await realWait(3800);
+  if (my !== tutToken) return;
+  // 【待定】送三件初始擺飾時德叔說的話（劇本只寫「送三件初始擺飾」）
+  tsay('倉庫裡有三件，是我替老闆準備的開店禮。', 4200);
+  state.tutorial = 'choose';
+  updateUI();
+}
+
+// 開場結束：之後重新整理就直接進店
+function endOpening() {
+  tutToken++;
+  state.tutorial = null;
+  save.flags.seenOpening = true;
+  delete save.flags.openingAct;
+  giveStarters(save);
+  persist();
+  updateUI();
+  checkTasks({ delay: 1200 }); // 略過第四幕時，已經上桌的第一杯照樣算數
+  readyAt = performance.now() + 6000 / DEV_SPEED;
+}
+
+$('tut-place').onclick = () => {
+  endOpening();
+  if (state.seat) stand();
+  startPlacing();
+  openSheet('store');
+};
+$('tut-later').onclick = () => { endOpening(); glowFund(); };
+// 「略過開場」：第三幕後半略過就到第四幕，第四幕略過就直接結束
+$('op-skip-shop').onclick = () => {
+  if (state.tutorial === 'enter') { beginAct4(); return; }
+  if (state.mode === 'door') { state.mode = 'overview'; ceiling.visible = false; moveCamera(OVER.pos, OVER.look); }
+  endOpening();
+};
+
+/* ---------- 德叔的營業日誌 ---------- */
+const journalEl = $('journal');
+let journalDone = null;
+function openJournal(page, onClose = null) {
+  journalDone = onClose;
+  const body = $('jr-body');
+  body.innerHTML = '';
+  const n = page.days.length + (page.summary ? 1 : 0);
+  // 【待定】日誌抬頭的一句
+  $('jr-sub').textContent = page.summary || n > 1 ? `老闆不在的這幾天，店裡的事。` : '老闆不在的時候，店裡的事。';
+  const add = (tag, cls, text) => { const el = document.createElement(tag); el.className = cls; el.textContent = text; body.appendChild(el); return el; };
+  if (page.summary) {
+    add('p', 'jr-sum', page.summary);
+    if (page.notes.length) {
+      const ul = add('ul', 'jr-list', '');
+      for (const t of page.notes) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }
+    }
+  }
+  for (const d of page.days) {
+    add('h3', 'jr-day', `${d.date}・第 ${d.day} 天${d.rain ? '・雨' : ''}`);
+    const ul = add('ul', 'jr-list', '');
+    for (const t of d.lines) { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }
+  }
+  journalEl.hidden = false;
+  body.scrollTop = 0;
+  $('jr-close').focus();
+}
+function closeJournal() {
+  journalEl.hidden = true;
+  const fn = journalDone;
+  journalDone = null;
+  fn?.();
+}
+$('jr-close').onclick = closeJournal;
+journalEl.addEventListener('click', (e) => { if (e.target === journalEl) closeJournal(); });
+
+/* ---------- 老先生的信 ---------- */
+const letterEl = $('letter');
+let letterDone = null;
+// 手寫的信：每個字一點點歪，看起來字有點抖（同一封信每次打開都抖得一樣）
+function shaky(text, seed) {
+  let s = seed;
+  const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  return [...text].map((ch) => `<i style="transform:rotate(${((r() - 0.5) * 5).toFixed(1)}deg) translateY(${((r() - 0.5) * 1.6).toFixed(1)}px)">${ch}</i>`).join('');
+}
+function openLetter(letter, onClose = null) {
+  letterDone = onClose;
+  const hand = letter !== LAWYER_LETTER;
+  letterEl.querySelector('.card').classList.toggle('hand', hand);
+  $('lt-title').textContent = letter.title;
+  $('lt-body').innerHTML = letter.paragraphs
+    .map((p, i) => `<p>${hand ? shaky(p, 97 + i * 31) : p.replace(/[<>&]/g, '')}</p>`).join('');
+  letterEl.hidden = false;
+  $('lt-body').scrollTop = 0;
+  $('lt-close').focus();
+}
+function closeLetter() {
+  letterEl.hidden = true;
+  const fn = letterDone;
+  letterDone = null;
+  fn?.();
+}
+$('lt-close').onclick = closeLetter;
+letterEl.addEventListener('click', (e) => { if (e.target === letterEl) closeLetter(); });
+
+// 交信要等店裡安靜下來：開場結束、沒在沖咖啡、沒在佈置、沒有打開的面板、德叔沒在說話
+let readyAt = Infinity;
+const overlayOpen = () => [about, notebook, sheet, journalEl, letterEl, $('opening')].some((el) => !el.hidden);
+function quiet() {
+  return save.flags.seenOpening && !state.tutorial && !state.letter && !state.cinematic && !brewing && !deshuReturning && !state.placing
+    && !overlayOpen() && !sayBusy && performance.now() > Math.max(readyAt, sayEnds + 1500 / DEV_SPEED);
+}
+const letterCtx = () => ({ daysOpen: today(), temp: temperature(save) });
+setInterval(() => {
+  if (!quiet()) return;
+  const l = dueLetter(save, letterCtx());
+  if (l) deliverLetter(l);
+}, 1000);
+
+// 德叔從吧台抽屜拿出來，放在吧台上
+async function deliverLetter(letter) {
+  state.letter = letter;
+  updateUI();
+  setPaper(deshu, deshuCanvas.pour); // 彎腰拉開抽屜
+  await realWait(700);
+  setPaper(deshu, deshuCanvas.idle);
+  envelope.visible = true;
+  envelope.userData.mesh.position.y = TOP - 0.12;
+  await animate(0.6, (k) => { envelope.userData.mesh.position.y = TOP - 0.12 + 0.12 * ease(k); });
+  say(letter.give(letterCtx()), 4200);
+}
+
+$('read-letter').onclick = () => {
+  const letter = state.letter;
+  if (!letter) return;
+  openLetter(letter, () => {
+    markRead(save, letter.id, now(), today());
+    persist();
+    state.letter = null;
+    envelope.visible = false;
+    wipeScene();
+  });
+};
+
+// 讀完信，往德叔看：他正在擦那個琺瑯杯，沒抬頭
+const WIPE = { pos: new THREE.Vector3(0.9, 1.55, -0.35), look: new THREE.Vector3(2.6, 1.3, -1.6) };
+async function wipeScene() {
+  state.cinematic = true;
+  bubble.classList.remove('show'); // 德叔沒抬頭，也沒說話
+  updateUI();
+  const seat = state.mode === 'seat' ? state.seat : null;
+  ceiling.visible = true;
+  cam.yaw = 0; cam.pitch = 0;
+  moveCamera(WIPE.pos, WIPE.look, 1.6);
+  const tex = { wipe: A.tex(deshuCanvas.wipe), wipe2: A.tex(deshuCanvas.wipe2) };
+  const mat = deshu.userData.mesh.material;
+  const idleMap = mat.map;
+  let t = 0, frame = -1;
+  await new Promise((done) => realWaiters.push((dt) => {
+    t += dt * DEV_SPEED;
+    const f = Math.floor(t / 0.5);
+    if (f !== frame) { frame = f; mat.map = f % 2 ? tex.wipe2 : tex.wipe; mat.needsUpdate = true; }
+    if (t > 6.5) { done(); return true; }
+    return false;
+  }));
+  if (seat && state.seat === seat) moveCamera(seat.eye, seat.look);
+  else { ceiling.visible = false; moveCamera(OVER.pos, OVER.look); }
+  await realWait(1500);
+  mat.map = idleMap;
+  mat.needsUpdate = true;
+  tex.wipe.dispose(); tex.wipe2.dispose();
+  state.cinematic = false;
+  readyAt = performance.now() + 4000 / DEV_SPEED;
+  updateUI();
 }
 
 /* ---------- 主迴圈 ---------- */
@@ -1286,6 +1594,8 @@ function loop() {
   if (!catBusy) cat.userData.mesh.scale.y = 1 + Math.sin(performance.now() / 900) * 0.03;
   // 予安偶爾低頭打字
   yuan.userData.mesh.position.y = Math.sin(performance.now() / 1300) > 0.85 ? 0.01 : 0;
+  // 吧台上的信輕輕晃，等老闆來拿
+  if (envelope.visible) envelope.userData.mesh.rotation.z = Math.sin(performance.now() / 500) * 0.08;
   steamAcc += dt;
   if (steamAcc > 0.35) {
     steamAcc = 0;
@@ -1307,10 +1617,21 @@ applyLight();
 updateUI();
 loop();
 persist(); // 新存檔在這一刻寫下第一次開店的時間
-// 隔天以後回來：劇本「開店」台詞；其他時候：「老闆，歡迎回來。」
-setTimeout(() => say(returningDay ? '燈亮了。老闆，今天想坐哪裡？' : '老闆，歡迎回來。', 3500), 800);
+
+// 回到店裡：隔天以後回來先看德叔的營業日誌，收好之後德叔說劇本「開店」台詞；同一天回來是「老闆，歡迎回來。」
 // 離線期間到期的任務（例如開店滿 3 天），等德叔打完招呼再說
-checkTasks({ delay: 4600 });
+function greet() {
+  say(returningDay ? '燈亮了。老闆，今天想坐哪裡？' : '老闆，歡迎回來。', 3500);
+  checkTasks({ delay: 3800 });
+  readyAt = performance.now() + 5000 / DEV_SPEED;
+}
+if (!save.flags.seenOpening) {
+  startOpening(); // 新存檔：從 16:49 的辦公室開始
+} else {
+  const page = returningDay ? writeJournal(save, lastSeenAtLoad, now()) : null;
+  if (page) { keepPage(save, page); persist(); }
+  setTimeout(() => (page ? openJournal(page, greet) : greet()), 800);
+}
 
 // 開發者模式：給冒煙測試讀狀態用（一般玩家不會有這個物件）
 if (DEV) {
@@ -1341,6 +1662,15 @@ if (DEV) {
       return { x: ((v.x + 1) / 2) * app.clientWidth, y: ((1 - v.y) / 2) * app.clientHeight };
     },
     get deshuHome() { return !deshuReturning; },
+    get tutorial() { return state.tutorial; },
+    get openingStage() { return openingCtl?.stage || null; },
+    get seenOpening() { return !!save.flags.seenOpening; },
+    get player() { return { ...save.player }; },
+    get letters() { return save.letters.map((l) => l.id); },
+    get letterWaiting() { return state.letter?.id || null; },
+    get cinematic() { return state.cinematic; },
+    get journalPages() { return save.journal.length; },
+    get yuanHere() { return yuan.visible; },
     // 某個座位上那杯咖啡在畫面上的位置（相對 #app 的像素）
     cupOnScreen(seatId) {
       const c = cups.find((x) => x.userData.seat === seatId);
