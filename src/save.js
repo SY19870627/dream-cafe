@@ -3,11 +3,13 @@
 // 純邏輯，不依賴 Three.js；storage 可以注入，方便用 node --test 測試。
 import { STARTER_ITEMS } from './catalog.js';
 import { daysOpen } from './clock.js';
+import { blankFarewell } from './farewell.js';
 
 export const SAVE_KEY = 'dream-cafe.save';
-export const SAVE_VERSION = 4; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
+export const SAVE_VERSION = 5; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
 // 3：階段 4 加入熟客故事線（來店次數、里程碑、結算到哪一天）、菜單、颱風那天
 // 4：階段 5 加入打烊（closing）、「今天的一杯」咖啡日記（diary）、龍眼（cat）
+// 5：階段 6 加入徵店長與告別（farewell）
 
 const regular = () => ({ visits: 0, milestones: [], on: {}, settled: 0, lastVisit: 0, lastMilestoneDay: 0 });
 
@@ -39,6 +41,8 @@ export function defaultSave(now) {
     diary: [], // 「今天的一杯」咖啡日記：[{ day, t, bean, text }]
     // 龍眼（cat.js）：tryId／tryDay 剛擺了新的貓窩、當天去試睡；seen 睡過的擺飾；refused 走開過了沒；chairs 跳上椅子幾次
     cat: { tryId: '', tryDay: 0, seen: [], refused: false, chairs: 0 },
+    // 徵店長與告別（farewell.js）：step 演完第幾段、on 每一段在第幾天、notice 貼出去的啟事、departed 離開東山了沒……
+    farewell: blankFarewell(),
     letters: [], // 讀過的老先生的信：[{ id, t, day }]
     journal: [], // 最近幾頁德叔的營業日誌（記事本可以重讀），見 journal.js
     player: { name: '', resignation: '' }, // 開場第一幕：辭呈署名（可留空）與選的結尾（之後凱文的里程碑會用到）

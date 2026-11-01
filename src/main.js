@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import * as A from './art.js';
 import { createStore, giveStarters } from './save.js';
-import { temperature, completeTasks, taskById } from './tasks.js';
+import { temperature, completeTasks, taskById, TASKS, isDone } from './tasks.js';
 import { CATALOG, CATEGORY, itemById, balance, commitLayout } from './catalog.js';
 import { dayIndex, daysOpen, dateLabel, JUMP_DAY_MS } from './clock.js';
 import { LETTERS, LAWYER_LETTER, letterById, dueLetter, markRead } from './letters.js';
@@ -13,6 +13,7 @@ import { weatherOn } from './weather.js';
 import * as S from './story.js';
 import { catSpotOn, tryNewSpot, placedSet, petCat, jumpsOnChair, PURR, CAT_LINES } from './cat.js';
 import * as H from './afterhours.js';
+import * as F from './farewell.js';
 
 const PPM = A.SIZES.PPM;
 const $ = (id) => document.getElementById(id);
@@ -32,6 +33,7 @@ const store = createStore();
 const save = store.load();
 const now = () => Date.now() + (DEV ? save.dev.offsetMs : 0);
 const today = () => daysOpen(save.createdAt, now());
+const keeper = () => F.departed(save); // 離開東山之後：店轉為常態經營，凱文顧店（德叔跟著老闆去下一站）
 const returningDay = store.status === 'loaded' && dayIndex(save.lastSeen) < dayIndex(now()); // 隔天以後才回到店裡
 const lastSeenAtLoad = save.lastSeen; // 離線營業日誌從這裡結算
 // 測試用：?dev=1&opening=0 直接當作看過開場（德叔的三件初始擺飾照樣收進倉庫）
@@ -296,6 +298,8 @@ const M = {
   water: new THREE.MeshBasicMaterial({ color: '#d9eef5', transparent: true, opacity: 0.7 }),
   cocoa: new THREE.MeshLambertMaterial({ color: '#8a5a3c' }),
   longan: new THREE.MeshLambertMaterial({ color: '#7a4120' }),
+  enamel: new THREE.MeshLambertMaterial({ color: '#f4f2ec' }), // 那個舊的琺瑯杯：白底、深藍杯緣
+  navy: new THREE.MeshLambertMaterial({ color: '#23406e' }),
 };
 const cyl = (rt, rb, h, mat, seg = 24, open = false) => new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg, 1, open), mat);
 
@@ -326,10 +330,22 @@ scene.add(brewer);
 // 咖啡杯（每次沖煮做一個新的，端走後留在客人桌上）
 const CUP_SCALE = 1.25; // 原本直徑 8 公分在手機上太不明顯，放大一點
 const CUP_H = 0.07 * CUP_SCALE;
-// kind：'hot'（手沖）、'cocoa'（德叔給予安的熱可可）、'iced'（凱文的冰美式）；dish：旁邊放一小碟窯烤龍眼乾
+// kind：'hot'（手沖）、'cocoa'（德叔給予安的熱可可）、'iced'（凱文的冰美式）、'enamel'（最後一晚，德叔用那個琺瑯杯）；
+// dish：旁邊放一小碟窯烤龍眼乾
 function makeCup(kind = 'hot', dish = false) {
   const g = new THREE.Group();
   g.scale.setScalar(CUP_SCALE);
+  if (kind === 'enamel') {
+    const body = cyl(0.04, 0.04, 0.075, M.enamel); body.position.y = 0.0375;
+    const rim = cyl(0.0415, 0.0415, 0.01, M.navy, 24, true); rim.position.y = 0.072;
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.005, 8, 16), M.navy);
+    handle.position.set(0.05, 0.04, 0);
+    const liquid = cyl(0.037, 0.037, 0.004, M.coffee); liquid.position.y = 0.07; liquid.visible = false;
+    g.add(body, rim, handle, liquid);
+    g.userData.liquid = liquid;
+    g.userData.enamel = true;
+    return g;
+  }
   if (kind === 'iced') {
     const liquid = cyl(0.03, 0.026, 0.075, M.coffee); liquid.position.y = 0.04;
     const glass = cyl(0.035, 0.029, 0.1, M.glass); glass.position.y = 0.05;
@@ -420,6 +436,16 @@ counterBag.visible = save.menu.includes('longan');
 const envelope = paper(A.envelope(), 1.8, -0.75, { y: TOP, shadow: false });
 envelope.userData.mesh.scale.setScalar(1.7); // 從俯瞰鏡頭也看得到
 envelope.visible = false;
+// 門口的徵才啟事：告別第 2 段貼出去，凱文來面試之後收起來
+const noticeSign = paper(A.noticeBoard(''), 0.95, 3.45, { name: 'notice' });
+let noticeDrawn = '';
+function refreshNotice() {
+  const up = F.noticeUp(save);
+  const text = F.noticeText(save);
+  if (up && text !== noticeDrawn) { setArt(noticeSign, A.noticeBoard(text)); noticeDrawn = text; }
+  noticeSign.visible = up;
+}
+refreshNotice();
 const catCanvas = { sleep: A.cat('sleep'), sit: A.cat('sit') };
 const cat = paper(catCanvas.sleep, -2.3, -2.9);
 
@@ -656,13 +682,14 @@ let speaker = null;
 const NAMES = new Map();
 // 泡泡上的名字；凱文在主管叫出他的名字以前，店裡都叫他「冰美式先生」
 const nameOf = (who) => (who === kevin && !S.hasMilestone(save, 'kevin', 2) ? '冰美式先生' : NAMES.get(who) || '');
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 let sayEnds = 0; // 這句話什麼時候說完（老先生的信要等店裡安靜下來才交）
 // who：說話的人的紙片，或 'player'（老闆自己說的話，泡泡固定在畫面下方）；name：覆寫泡泡上的名字
 function say(text, ms = 3500, who = deshu, name = null) {
   speaker = who;
   sayEnds = performance.now() + (ms || 4000);
   bubble.classList.toggle('me', who === 'player');
-  bubble.innerHTML = `<b>${name ?? (who === 'player' ? '你' : nameOf(who))}</b>${text}`;
+  bubble.innerHTML = `<b>${name ?? (who === 'player' ? '你' : nameOf(who))}</b>${esc(text)}`; // 台詞可能帶著玩家自己寫的名字
   bubble.classList.add('show');
   clearTimeout(bubbleTimer);
   if (ms) bubbleTimer = setTimeout(() => bubble.classList.remove('show'), ms);
@@ -751,7 +778,7 @@ const WALK = 0.85; // 德叔端杯的走速（公尺／秒）
 
 // 正常速度下吧台沖煮約 19 秒：六個動作都保留，只縮短停頓與注水
 // bean：菜單上的哪一支豆子（MENU 的 id）；窯烤龍眼乾上了菜單之後，杯子旁邊多一小碟
-// opt.last：打烊後的最後一杯；opt.guest：客人模式點的那杯
+// opt.last：打烊後的最後一杯；opt.guest：客人模式點的那杯；opt.enamel：最後一晚，德叔用那個琺瑯杯沖（farewell.js 第 7 段）
 async function brew(seat, bean = 'dongshan', opt = {}) {
   if (brewing) return;
   brewing = true;
@@ -760,15 +787,20 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
     updateUI();
     await deshuReturning;
   }
-  const withLongan = save.menu.includes('longan');
-  if (withLongan) {
+  const withLongan = save.menu.includes('longan') && !opt.enamel;
+  if (opt.enamel) {
+    scene.remove(stationCup);
+    stationCup = makeCup('enamel');
+    stationCup.position.copy(CUP_SPOT);
+    scene.add(stationCup);
+  } else if (withLongan) {
     scene.remove(stationCup);
     stationCup = makeCup('hot', true);
     stationCup.position.copy(CUP_SPOT);
     scene.add(stationCup);
   }
   phase = 'brew';
-  say('好，等我一下。', 2500);
+  say(keeper() ? F.KEEPER.brewStart : '好，等我一下。', 2500);
   state.closeup = true;
   cam.yaw = 0; cam.pitch = 0;
   moveCamera(CLOSE.pos, CLOSE.look, 1.2);
@@ -846,7 +878,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   updateUI();
   const path = [new THREE.Vector3(2.6, 0, 0.6), new THREE.Vector3(1.3, 0, 0.8), seat.serve];
   if (seat.serve) {
-    say('好了，我端過去。', 2500);
+    say(keeper() ? F.KEEPER.serveWalk : '好了，我端過去。', 2500);
     deshu.attach(cup);
     cup.position.set(0.32, 0.98, 0.12);
     cup.rotation.set(0, 0, 0);
@@ -860,10 +892,11 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
     await animate(1.2, (k) => { cup.position.lerpVectors(from, seat.cup, ease(k)); cup.position.y += Math.sin(Math.PI * k) * 0.03; });
   }
   placeCup(cup, seat);
-  if (opt.last) say(H.CLOSING.lastCup, 4500); // 劇本：打烊「最後一杯，是老闆的。」
+  if (opt.enamel) { /* 最後一晚：德叔叫老闆名字的那句，由告別的場景說（farewell.js 第 7 段） */ }
+  else if (opt.last) say(H.CLOSING.lastCup, 4500); // 劇本：打烊「最後一杯，是老闆的。」
   else if (bean === 'zhe-beans') say('阿哲的豆。他說寫大一點，我就寫大一點。', 4500); // 【待定】
   else if (withLongan && !save.flags.longanServed) { save.flags.longanServed = true; say('配阿哲阿公的龍眼乾。窯烤的。', 4500); } // 【待定】
-  else say('東山的豆，就是窗外那片山。', 4500);
+  else say(keeper() ? F.KEEPER.served : '東山的豆，就是窗外那片山。', 4500);
 
   // 收拾吧台，準備下一杯
   groundsBed.scale.y = 0.01;
@@ -1244,7 +1277,7 @@ function updateUI() {
   const placing = state.placing, sel = !!state.selected;
   // 演出中（讀信後的鏡頭、推門進店、熟客的里程碑、客人模式、打烊時客人離開）：下面的按鈕都先收起來；有選項時只留選項
   const tut = state.tutorial, g = state.guest, cl = state.closing;
-  const film = state.cinematic || tut === 'enter' || !!state.scene || g === 'enter' || g === 'order' || g === 'talk' || cl === 'leaving' || cl === 'bye';
+  const film = state.cinematic || tut === 'enter' || !!state.scene || g === 'enter' || g === 'order' || g === 'talk' || cl === 'leaving' || cl === 'bye' || !!state.arriving;
   const choosing = state.choice;
   const letter = !!state.letter && !film;
   const free = !tut && !film && !letter && !choosing && !g;
@@ -1257,7 +1290,7 @@ function updateUI() {
   show('brew', !over && !film && !letter && !choosing && (!tut || tut === 'brew') && (!g || g === 'brew') && (!cl || brewing));
   show('place', over && !placing && free);
   show('night', !placing && free && !cl);
-  show('close-shop', over && !placing && free && !cl && !!save.flags.seenOpening);
+  show('close-shop', over && !placing && free && !cl && !!save.flags.seenOpening && !F.departureDue(save, today()));
   show('diary-btn', after && !placing && free);
   show('goodnight', after && !placing && free);
   show('choices', choosing);
@@ -1423,7 +1456,7 @@ function openSheet(kind) {
     $('sheet-title').textContent = '倉庫';
     const stored = layout.filter((e) => !e.placed);
     $('sheet-sub').textContent = stored.length ? '收起來的東西都在這裡，隨時可以再擺出來。' : '倉庫是空的。型錄裡的東西試擺後按「確定」，就會是老闆的。';
-    for (const e of stored) list.appendChild(row(itemById(e.item), CATEGORY[itemById(e.item).cat], '擺出來', () => putOut(e)));
+    for (const e of stored) { const it = itemById(e.item); list.appendChild(row(it, it.carry ? '可以帶去下一站' : CATEGORY[it.cat], '擺出來', () => putOut(e))); }
   }
   sheet.hidden = false;
   list.scrollTop = 0;
@@ -1483,7 +1516,8 @@ $('about-close').onclick = () => openAbout(false);
 about.addEventListener('click', (e) => { if (e.target === about) openAbout(false); }); // 點面板外面關閉
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!$('diary').hidden) closeDiary();
+  if (!$('map').hidden) closeMap();
+  else if (!$('diary').hidden) closeDiary();
   else if (!$('letter').hidden) closeLetter();
   else if (!$('journal').hidden) closeJournal();
   else if (!notebook.hidden) openNotebook(false);
@@ -1499,7 +1533,7 @@ function openNotebook(open) {
   openAbout(false);
   $('nb-summary').textContent = `開店第 ${today()} 天・溫度 ${temperature(save).toFixed(1)}°C・溫度基金 ${fmt(balance(save))} 元`;
   const placed = save.owned.filter((o) => o.placed).length;
-  $('nb-decor').textContent = `店裡擺著 ${placed} 件東西${save.owned.length > placed ? `，倉庫裡還有 ${save.owned.length - placed} 件` : ''}。`;
+  $('nb-decor').textContent = `店裡擺著 ${placed} 件東西${save.owned.length > placed ? `，倉庫裡還有 ${save.owned.length - placed} 件` : ''}。${keeper() ? '店長：凱文。' : ''}`;
   // 可以重讀的東西：最近一頁營業日誌、律師信、讀過的老先生的信
   const links = $('nb-links');
   links.innerHTML = '';
@@ -1510,7 +1544,8 @@ function openNotebook(open) {
     links.appendChild(b);
   };
   const lastPage = save.journal[save.journal.length - 1];
-  if (lastPage) link(`德叔的營業日誌・${dateLabel(lastPage.t)}`, () => openJournal(lastPage));
+  if (lastPage) link(`${lastPage.keeper ? '凱文' : '德叔'}的營業日誌・${dateLabel(lastPage.t)}`, () => openJournal(lastPage));
+  if (keeper()) link(F.MAP.title, () => showMap('notebook'));
   if (save.flags.seenOpening) link('律師信', () => openLetter(LAWYER_LETTER));
   for (const r of save.letters) {
     const l = letterById(r.id);
@@ -1565,14 +1600,15 @@ show('dev-tools', DEV);
 function refreshDevTools() {
   if (!DEV) return;
   const prog = S.REGULAR_IDS.map((w) => `${S.REGULARS[w].short} ${save.regulars[w].milestones.length}/6`).join('・');
-  $('dev-day').textContent = `開發者工具・開店第 ${today()} 天・基金 ${fmt(balance(save))} 元・${prog}`;
+  $('dev-day').textContent = `開發者工具・開店第 ${today()} 天・基金 ${fmt(balance(save))} 元・${prog}・告別 ${F.fw(save).step}/7${keeper() ? '（已離開東山）' : ''}`;
 }
 // 營業日誌接上熟客的里程碑引擎：一天一天結算老闆不在的日子（今天由 startDay 在店裡演）
 function journalOpts() {
-  if (!REGULARS_ON) return {};
+  if (!REGULARS_ON) return { keeper: keeper() };
   return {
     story: (day) => S.settleThrough(save, Math.min(day, today() - 1)).map((e) => ({ line: e.line, kind: e.kind })),
     met: (day) => S.metOn(save, day),
+    keeper: keeper(),
   };
 }
 // 跳天數就像老闆離開了 n 天：德叔把這幾天的營業日誌交給老闆，收好之後再說到期的任務
@@ -1583,7 +1619,8 @@ function jumpDays(n) {
   exitClosing(); // 打烊的店，隔天重新開門
   save.dev.offsetMs += n * JUMP_DAY_MS;
   shownDay = today(); // 跳過去的天數不用再由午夜的檢查處理一次
-  const page = save.flags.seenOpening ? writeJournal(save, from, now(), journalOpts()) : null;
+  const page = save.flags.seenOpening && !F.departureDue(save, today()) ? writeJournal(save, from, now(), journalOpts()) : null;
+  if (page && keeper()) page.keeper = true;
   keepPage(save, page);
   persist();
   showYuan();
@@ -1592,7 +1629,7 @@ function jumpDays(n) {
   updateUI();
   refreshDevTools();
   if (page) { openAbout(false); openJournal(page, () => { checkTasks({ delay: 600 }); startDay(); }); }
-  else { checkTasks(); startDay(); }
+  else { openAbout(false); checkTasks(); startDay(); }
 }
 $('dev-day1').onclick = () => jumpDays(1);
 $('dev-day7').onclick = () => jumpDays(7);
@@ -1700,7 +1737,7 @@ function regularLine(w) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 function talkTo(r) {
-  if (state.cinematic || state.tutorial === 'enter' || state.scene || state.choice || state.guest) return;
+  if (state.cinematic || state.tutorial === 'enter' || state.scene || state.choice || state.guest || state.arriving) return;
   const people = [deshu, yuan, zhe, kevin, cat].filter((p) => p.visible);
   const hit = r.intersectObjects(people.map((p) => p.userData.mesh))[0];
   if (!hit) return;
@@ -1710,6 +1747,7 @@ function talkTo(r) {
   let line;
   if (who === yuan && !save.flags.metYuan) { line = '……啊，你好。我叫予安，常坐在這裡寫稿。'; save.flags.metYuan = true; persist(); }
   else if (who === yuan || who === zhe || who === kevin) line = regularLine(who === yuan ? 'yuan' : who === zhe ? 'zhe' : 'kevin');
+  else if (who === deshu && keeper()) { const l = state.closing ? F.KEEPER.closingTalk : F.KEEPER.talk; line = l[Math.floor(Math.random() * l.length)]; } // 離開東山之後，吧台後面是凱文
   else if (who === deshu && state.closing) line = H.CLOSING.deshuTalk[Math.floor(Math.random() * H.CLOSING.deshuTalk.length)]; // 打烊後，他在擦杯子
   else { const l = LINES.get(who); line = l[Math.floor(Math.random() * l.length)]; }
   say(line, 3500, who);
@@ -1821,6 +1859,7 @@ const journalEl = $('journal');
 let journalDone = null;
 function openJournal(page, onClose = null) {
   journalDone = onClose;
+  $('jr-title').textContent = page.keeper ? '凱文的營業日誌' : '德叔的營業日誌'; // 離開東山之後，凱文寫
   const body = $('jr-body');
   body.innerHTML = '';
   const n = page.days.length + (page.summary ? 1 : 0);
@@ -1883,7 +1922,7 @@ letterEl.addEventListener('click', (e) => { if (e.target === letterEl) closeLett
 
 // 交信要等店裡安靜下來：開場結束、沒在沖咖啡、沒在佈置、沒有打開的面板、德叔沒在說話
 let readyAt = Infinity;
-const overlayOpen = () => [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed')].some((el) => !el.hidden);
+const overlayOpen = () => [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map')].some((el) => !el.hidden);
 function quiet() {
   return save.flags.seenOpening && !state.tutorial && !state.letter && !state.cinematic && !state.scene && !state.choice && !brewing && !deshuReturning && !state.placing
     && !state.guest && (!state.closing || state.closing === 'after') && !overlayOpen() && !sayBusy && performance.now() > Math.max(readyAt, sayEnds + 1500 / DEV_SPEED);
@@ -1916,7 +1955,8 @@ $('read-letter').onclick = () => {
     persist();
     state.letter = null;
     envelope.visible = false;
-    wipeScene();
+    if (letter.id === 'second') departScene(); // 離開東山的早上：讀完就出發
+    else wipeScene();
   });
 };
 
@@ -1974,7 +2014,7 @@ const OPPOSITE = {
 const CORNERS = [V2(-2.45, -3.3), V2(-1.3, -3.45), V2(0.75, -3.45), V2(2.35, 3.1), V2(-0.55, 3.35), V2(0.75, 3.4)];
 const HOME_SPOT = { yuan: SPOT.yuan, kevin: SPOT.kevin, zhe: SPOT.bar };
 
-const live = { day: 0, token: 0, expect: new Map(), arrived: new Set(), leaveAt: new Map(), at: {}, answers: {}, cups: new Map(), seatHinted: false, walking: 0, planned: {} };
+const live = { day: 0, token: 0, expect: new Map(), arrived: new Set(), leaveAt: new Map(), at: {}, answers: {}, cups: new Map(), seatHinted: false, walking: 0, planned: {}, held: new Set(), fwHinted: 0 };
 const ABORT = Symbol('abort');
 const PEOPLE_IDS = ['yuan', 'zhe', 'kevin', 'grandpa'];
 const defaultPose = (w) => (w === 'yuan' ? 'type'
@@ -2169,10 +2209,11 @@ async function laugh(w) {
 }
 
 // 坐著的時候，鏡頭慢慢轉向說話的人；max：最多轉幾度（客人模式聽人聊天時可以轉過身去看）
+// p 為 null：轉回座位原本的視線（看著自己桌上的杯子）
 function lookToward(p, max = 1.2) {
-  if (state.mode !== 'seat' || !state.seat || !p) return;
+  if (state.mode !== 'seat' || !state.seat || p === undefined) return;
   const s = state.seat;
-  const b = s.look.clone().sub(s.eye), t = p.position.clone().sub(s.eye);
+  const b = s.look.clone().sub(s.eye), t = p ? p.position.clone().sub(s.eye) : b;
   const yaw = THREE.MathUtils.clamp(wrapAngle(Math.atan2(t.x, t.z) - Math.atan2(b.x, b.z)), -max, max);
   const from = cam.yaw, fromPitch = cam.pitch;
   let k = 0;
@@ -2209,7 +2250,7 @@ async function brewTaste() {
 }
 
 const sayMs = (text) => Math.min(6500, 1900 + [...text].length * 115);
-const personOf = (w) => (w === 'boss' ? kevin : w === 'player' ? 'player' : w === 'cat' ? cat : w === 'window' ? windows[0] : PEOPLE[w]);
+const personOf = (w) => (w === 'boss' ? kevin : w === 'player' ? 'player' : w === 'cat' ? cat : w === 'window' ? windows[0] : w === 'thermo' ? thermo : PEOPLE[w]);
 
 async function playSteps(steps, tok) {
   for (const s of steps) {
@@ -2252,8 +2293,16 @@ async function playStep(s, tok) {
     case 'glance': return glance(personOf(s.who));
     case 'weather': return startTyphoon();
     case 'prop': counterBag.visible = true; return realWait(500);
-    case 'choice': { const i = await choose(s.options); live.answers[s.key] = i; save.story.answers[s.key] = i; return; }
-    case 'branch': return playSteps(s.cases[live.answers[s.key] ?? 0] || [], tok);
+    case 'choice': { const i = await choose(s.options, s.prompt || ''); live.answers[s.key] = i; save.story.answers[s.key] = i; persist(); return; }
+    case 'branch': return playSteps(s.cases[live.answers[s.key] ?? save.story.answers[s.key] ?? 0] || [], tok); // 隔天才用到的選項（凱文念啟事）從存檔讀
+    case 'notice': return postNotice();
+    case 'keys': return handKeys(s.who);
+    case 'name': { // 最後一晚：德叔第一次叫老闆的名字
+      const t = F.nameLine(save.player.name), ms = sayMs(t) + 800;
+      lookToward(null); // 視線回到桌上的琺瑯杯
+      say(t, ms / DEV_SPEED, deshu);
+      return realWait(ms + 450);
+    }
     case 'ifFire': return save.player.resignation === 'fire' ? playSteps(s.steps, tok) : undefined;
     case 'read': return new Promise((r) => openLetter(S.DOCS[s.doc], r));
     case 'brewTaste': return brewTaste();
@@ -2300,7 +2349,7 @@ function stopStory() {
   }
   for (const s of [stoolFar, stoolMid]) s.visible = true;
   live.expect.clear(); live.arrived.clear(); live.leaveAt.clear();
-  live.at = {}; live.planned = {}; live.answers = {}; live.seatHinted = false; live.closeHinted = false; live.deshuWalk = null;
+  live.at = {}; live.planned = {}; live.answers = {}; live.seatHinted = false; live.closeHinted = false; live.deshuWalk = null; live.fwHinted = 0; live.held = new Set();
   live.day = 0;
   catHoldUntil = 0;
 }
@@ -2311,9 +2360,17 @@ function startDay() {
   stopStory();
   live.day = d;
   S.settleThrough(save, d - 1);
-  if (H.closedOn(save, d)) { updateUI(); return; } // 今天已經打烊了（打烊後重新整理）
+  refreshNotice();
+  if (F.departureDue(save, d)) { departureMorning(); updateUI(); return; } // 離開東山的早上
+  if (H.closedOn(save, d)) {
+    // 今天已經打烊了（打烊後重新整理）；最後一晚的話，凱文還在，龍眼睡在他腿上
+    if (REGULARS_ON && (F.fw(save).on[7] === d || F.segmentDue(save, d)?.lastNight)) { placeAt('kevin', SPOT.kevin, 'free'); live.arrived.add('kevin'); }
+    updateUI();
+    return;
+  }
   const t = performance.now();
   for (const p of S.planToday(save, d)) {
+    if (p.who === 'kevin' && keeper()) continue; // 離開東山之後，凱文在吧台後面顧店
     if (p.already) {
       // 同一天重新整理：予安、凱文還在位子上；阿哲平常早就走了（颱風夜還在，或還有話要說時才在）
       if (p.who !== 'zhe' || save.story.typhoonDay === d || S.liveNext(save, 'zhe', d)) {
@@ -2324,6 +2381,7 @@ function startDay() {
     }
     live.expect.set(p.who, t + arrivalDelay(p.who, d));
   }
+  planFarewellDay(d, t);
   updateUI();
 }
 // 什麼時候走進來（毫秒）：予安一開門就在；阿哲隔一會兒；凱文下午五點（開發者模式不等五點）
@@ -2331,6 +2389,7 @@ function arrivalDelay(w, d) {
   if (w === 'yuan') return 0;
   if (w === 'zhe') return (20000 + Math.floor(((d * 7919) % 25) * 1000)) / DEV_SPEED;
   if (DEV) return 8000 / DEV_SPEED;
+  if (F.inFarewell(save) && F.done(save, 3)) return 10000; // 錄取之後，凱文早一點來（德叔：「明天早一點來。」）
   const ms = S.kevinWaitMs(new Date(now()));
   return ms ? ms : 3000;
 }
@@ -2367,7 +2426,7 @@ function storyTick() {
   }
   for (const [w, at] of live.leaveAt) {
     if (state.guest) break; // 客人模式中，聊天的人不會走
-    if (t > at && !state.scene && (!S.REGULAR_IDS.includes(w) || !S.liveNext(save, w, d))) { live.leaveAt.delete(w); leavePerson(w); }
+    if (t > at && !state.scene && (!S.REGULAR_IDS.includes(w) || !S.liveNext(save, w, d)) && !farewellNeeds(w, d)) { live.leaveAt.delete(w); leavePerson(w); }
   }
   if (state.scene || !sceneReady()) return;
   const cands = [...live.arrived].map((w) => S.liveNext(save, w, d)).filter(Boolean)
@@ -2385,6 +2444,7 @@ function storyTick() {
     runScene(m);
     return;
   }
+  farewellTick(d);
 }
 setInterval(storyTick, 500);
 
@@ -2398,8 +2458,237 @@ function storyBusy(withGuest = true) {
   if ([...live.expect.values()].some((at) => at - performance.now() < 60000)) return true;
   const d = live.day;
   return [...live.arrived].some((w) => { const m = S.liveNext(save, w, d); return m && (!m.needSeat || state.mode === 'seat') && !!m.needClosing === (state.closing === 'after'); })
-    || !!dueLetter(save, letterCtx());
+    || !!dueLetter(save, letterCtx()) || farewellReady(d) || !!state.arriving;
 }
+
+/* ---------- 第一站的結尾：徵店長與告別（src/farewell.js） ---------- */
+// 溫度達 37°C 後，七段依序在老闆在場時發生，可以分幾天看完：
+// 打烊後「店會自己呼吸了」→ 貼徵才啟事 →（隔天）凱文來面試 → 予安的告別 →（隔天）阿哲的告別 → 凱文的交接 →
+// 打烊後的最後一晚（琺瑯杯、德叔第一次叫老闆的名字）→（隔天以後）離開東山的早上：第二封信 → 你的咖啡地圖 → 常態店（凱文顧店）
+// 告別期間要演的那一段需要誰，那個人當天一定會來；凱文來面試那天，他是第一個走進門的人
+function planFarewellDay(d, t) {
+  if (!REGULARS_ON || !F.inFarewell(save)) return;
+  const temp = temperature(save);
+  for (const w of F.needsToday(save, d, temp)) {
+    if (!live.expect.has(w) && !live.arrived.has(w)) live.expect.set(w, t + arrivalDelay(w, d));
+  }
+  const seg = F.segmentDue(save, d, temp);
+  if (seg?.entrance) {
+    // 凱文來面試：他自己走進來就是演出，予安、阿哲等他面試完再來
+    live.expect.delete('kevin');
+    for (const w of ['yuan', 'zhe']) if (live.expect.has(w)) { live.expect.set(w, Infinity); live.held.add(w); }
+  }
+}
+// 這位熟客今天還有告別的戲（阿哲等到說完再走）
+function farewellNeeds(w, d) {
+  return REGULARS_ON && F.inFarewell(save) && F.needsToday(save, d, temperature(save)).has(w);
+}
+// 現在可以演的告別段落（不看店裡安不安靜）
+function farewellSegment(d) {
+  if (!REGULARS_ON || state.guest) return null;
+  const seg = F.segmentDue(save, d, temperature(save));
+  if (!seg) return null;
+  const closingAfter = state.closing === 'after' && !!save.closing.lastCup;
+  if (!!seg.needClosing !== closingAfter) return null;
+  if (seg.who && !seg.entrance && !live.arrived.has(seg.who)) return null;
+  return seg;
+}
+// 測試用：告別這邊還有事情要發生
+const farewellReady = (d) => !!farewellSegment(d) || F.departureDue(save, d);
+function farewellTick(d) {
+  const seg = F.segmentDue(save, d, temperature(save));
+  if (!seg || !REGULARS_ON || state.guest) return false;
+  // 要打烊才演的段落：還沒打烊時德叔提一次（每天一次）
+  if (seg.needClosing && !state.closing && live.fwHinted !== seg.n) { live.fwHinted = seg.n; say(seg.hint, 4800); return false; }
+  if (seg.lastNight && state.closing === 'after' && !PEOPLE.kevin.visible) { placeAt('kevin', SPOT.kevin, 'free'); live.arrived.add('kevin'); } // 最後一晚，凱文留下來
+  if (seg.entrance && PEOPLE.kevin.visible) { PEOPLE.kevin.visible = false; live.arrived.delete('kevin'); } // 面試那天中途重新整理：從門口重新走進來
+  if (!farewellSegment(d)) return false;
+  runFarewell(seg);
+  return true;
+}
+// 演一段告別；演完才記進存檔（中途重新整理就從這一段重新演）
+async function runFarewell(seg) {
+  const tok = ++live.token;
+  state.scene = { id: 'farewell' + seg.n, farewell: seg.n };
+  bubble.classList.remove('show');
+  updateUI();
+  try {
+    await playSteps(seg.scene, tok);
+    if (!behindBar(deshu.position) || deshu.position.distanceTo(HOME) > 0.05) await deshuGo(HOME);
+  } catch (e) {
+    if (e !== ABORT) console.warn('告別的場景中斷', e);
+    if (tok !== live.token) return;
+  }
+  const d = today();
+  F.complete(save, seg.n, d);
+  if (seg.gift) glowFund(); // 送的東西收進倉庫：佈置鈕輕輕亮一下
+  refreshNotice();
+  if (seg.n === 3) { // 面試完了：予安、阿哲照常走進來
+    const t = performance.now();
+    let k = 0;
+    for (const w of live.held) live.expect.set(w, t + (6000 + 6000 * k++) / DEV_SPEED);
+    live.held.clear();
+  }
+  if (seg.n === 5) live.leaveAt.set('zhe', performance.now() + 90000 / DEV_SPEED);
+  persist();
+  state.scene = null;
+  updateUI();
+  refreshDevTools();
+  // 下一段如果是緊接著的（貼啟事）就短一點；其他段落之間留一段安靜的時間
+  readyAt = performance.now() + (F.segment(seg.n + 1)?.chain ? 2500 : 12000) / DEV_SPEED;
+}
+// 第 2 段：貼出徵才啟事（老闆選的那句），德叔拿到門口貼好
+async function postNotice() {
+  const n = F.postNotice(save, live.answers.notice ?? save.story.answers.notice ?? 0);
+  persist();
+  await new Promise((r) => openLetter({ title: '徵才啟事', paragraphs: [n.text], hand: true }, r));
+  await deshuGo(V2(0.6, 3.15));
+  setPaper(deshu, deshuCanvas.pour);
+  setArt(noticeSign, A.noticeBoard(n.text));
+  noticeDrawn = n.text;
+  noticeSign.visible = true;
+  await wait(0.9);
+  setPaper(deshu, deshuCanvas.idle);
+  lookToward(noticeSign);
+}
+// 第 6 段：德叔把吧台的鑰匙交給凱文
+async function handKeys(w) {
+  const k = paper(A.key(), deshu.position.x, deshu.position.z, { y: 1.05, shadow: false });
+  k.userData.mesh.scale.setScalar(1.6);
+  const from = deshu.position.clone(), to = PEOPLE[w].position.clone();
+  setPaper(deshu, deshuCanvas.pour);
+  await animate(1.1, (t) => {
+    k.position.lerpVectors(from, to, ease(t));
+    k.userData.mesh.position.y = 1.05 - 0.3 * ease(t) + Math.sin(Math.PI * t) * 0.08;
+  });
+  setPaper(deshu, deshuCanvas.idle);
+  realWait(5000).then(() => removePaper(k));
+}
+
+// 離開東山的早上：凱文繫著圍裙站在吧台前，德叔說一句，接著交第二封信（letters.js，由交信的計時器處理）
+function departureMorning() {
+  if (state.night && state.weather !== 'typhoon') { state.night = false; applyLight(); }
+  if (REGULARS_ON) { placeAt('kevin', SPOT.bar, 'apron'); live.arrived.add('kevin'); }
+  say(F.DEPART.greet, 3600);
+  readyAt = performance.now() + 4500 / DEV_SPEED;
+}
+// 讀完第二封信：凱文送行、德叔說「走吧。」，畫面暗下來，打開你的咖啡地圖；這時店轉為常態經營
+async function departScene() {
+  F.depart(save, now());
+  persist();
+  const tok = ++live.token;
+  state.scene = { id: 'depart' };
+  updateUI();
+  try {
+    await realWait(1200);
+    await playSteps(F.DEPART.after.filter((s) => REGULARS_ON || s.who !== 'kevin'), tok);
+  } catch (e) { if (e !== ABORT) console.warn('出發的場景中斷', e); }
+  await fade(true);
+  if (state.seat) stand();
+  becomeKeeper();
+  state.scene = null;
+  showMap('end');
+  fadeEl.classList.remove('on');
+  updateUI();
+}
+// 常態店：吧台後面換成凱文（沖煮、端杯、打烊後擦杯子的演出都照用德叔的那一套）
+function becomeKeeper() {
+  for (const k of ['idle', 'pour', 'wipe', 'wipe2']) deshuCanvas[k] = A.kevinBar(k);
+  for (const k of ['a', 'b']) { wipeTex[k]?.dispose(); wipeTex[k] = null; }
+  setArt(deshu, deshuCanvas.idle);
+  deshu.position.copy(HOME);
+  NAMES.set(deshu, F.KEEPER.name);
+  kevin.visible = false;
+  live.arrived.delete('kevin');
+  live.expect.delete('kevin');
+}
+// 回東山坐坐：從門口推門進來，凱文打招呼（第一次是「老闆，歡迎回來。……德叔說，要這樣講。」）
+async function keeperArrive() {
+  state.arriving = true;
+  updateUI();
+  if (state.seat) { state.seat.prop.visible = true; state.seat = null; }
+  state.mode = 'door';
+  frontWall.visible = false;
+  ceiling.visible = true;
+  cam.yaw = 0; cam.pitch = 0;
+  tween = null;
+  cam.pos.copy(DOOR.from); cam.look.copy(DOOR.look);
+  moveCamera(DOOR.to, DOOR.look, 2.6);
+  await realWait(1700);
+  const f = F.fw(save);
+  const lines = f.keeperGreeted ? [F.KEEPER.greet[Math.floor(Math.random() * F.KEEPER.greet.length)]] : F.KEEPER.firstGreet;
+  f.keeperGreeted = true;
+  persist();
+  for (const l of lines) { const ms = sayMs(l); say(l, ms / DEV_SPEED); await realWait(ms + 300); }
+  state.mode = 'overview';
+  ceiling.visible = false;
+  moveCamera(OVER.pos, OVER.look, 1.6);
+  state.arriving = false;
+  readyAt = performance.now() + 4000 / DEV_SPEED;
+  updateUI();
+  checkTasks({ delay: 1200 });
+  startDay();
+}
+// 你的咖啡地圖：mode 'end'（第一站結尾，按鈕「回東山坐坐」）或 'notebook'（從記事本打開，按鈕「闔上」）
+const mapEl = $('map');
+let mapMode = null;
+function showMap(mode) {
+  mapMode = mode;
+  if (!$('map-img').getAttribute('src')) $('map-img').src = A.coffeeMap().toDataURL();
+  $('map-title').textContent = F.MAP.title;
+  $('map-sub').textContent = F.MAP.sub;
+  $('map-line').textContent = F.MAP.line;
+  const list = $('map-list');
+  list.innerHTML = '';
+  for (const st of F.MAP.stations) {
+    const li = document.createElement('li');
+    li.className = st.lit ? 'lit' : '';
+    li.innerHTML = `<b>${st.name}</b><span>${st.note}</span>`;
+    list.appendChild(li);
+  }
+  $('map-back').textContent = mode === 'end' ? F.MAP.back : F.MAP.close;
+  mapEl.hidden = false;
+  $('map-back').focus();
+}
+function closeMap() {
+  mapEl.hidden = true;
+  const mode = mapMode;
+  mapMode = null;
+  if (mode !== 'end') { updateUI(); return; }
+  F.fw(save).mapSeen = true;
+  persist();
+  keeperArrive();
+}
+$('map-back').onclick = closeMap;
+
+// 開發者工具：直接到告別前（36.5°C）。三條線全部走完、溫度任務只留一個 +0.5°C 的（通常是「擺上第一件擺飾」）
+function devToFarewell() {
+  stopStory();
+  stopGuest();
+  exitClosing();
+  const d = today();
+  const typhoon = save.story.typhoonDay;
+  for (const m of S.MILESTONES) if (!S.hasMilestone(save, m.who, m.n)) S.complete(save, m, d);
+  if (!typhoon || typhoon === d) save.story.typhoonDay = Math.max(1, d - 4); // 颱風夜不要變成今天
+  for (const w of S.REGULAR_IDS) { const r = save.regulars[w]; r.visits = Math.max(r.visits, 10); r.lastMilestoneDay = d - 1; r.settled = Math.max(r.settled, d - 1); }
+  save.flags.guestVisit = true;
+  const left = ['first-decor', 'cat-chair', 'rain-window', 'first-coffee', 'open-3-days', 'zhe-longan'].find((id) => !isDone(save, id) && !taskById(id).when(save, { daysOpen: d }));
+  for (const t of TASKS) {
+    if (isDone(save, t.id) || t.id === left) continue;
+    save.tasks.push({ id: t.id, t: now(), day: d });
+    save.fund.ledger.push({ t: now(), kind: 'grant', ref: t.id, amount: t.fund });
+  }
+  persist();
+  riseTemp(temperature(save));
+  drawBackBar();
+  counterBag.visible = save.menu.includes('longan');
+  refreshWeather();
+  refreshDevTools();
+  openAbout(false);
+  readyAt = performance.now() + 3000 / DEV_SPEED;
+  startDay();
+}
+$('dev-fw').onclick = devToFarewell;
 
 /* ---------- 風雨聲（WebAudio 即時合成，不用音檔；預設很小聲，選單裡可以關） ---------- */
 const sound = { ctx: null };
@@ -2465,7 +2754,7 @@ $('sound-toggle').onclick = () => {
 let closeTok = 0;
 const lightOn = (id) => !id || !state.closing || !save.closing.lightsOff.includes(id);
 const canClose = () => save.flags.seenOpening && !state.closing && !state.tutorial && !state.scene && !state.letter && !state.cinematic
-  && !state.choice && !state.guest && !brewing && !deshuReturning && !state.placing;
+  && !state.choice && !state.guest && !brewing && !deshuReturning && !state.placing && !state.arriving && !F.departureDue(save, today());
 
 async function startClosingMode() {
   if (!canClose()) return;
@@ -2482,6 +2771,7 @@ async function startClosingMode() {
   const stay = new Set();
   if (REGULARS_ON && S.liveNext(save, 'yuan', d)?.needClosing && live.arrived.has('yuan')) stay.add('yuan');
   if (save.story.typhoonDay === d) stay.add('zhe');
+  if (REGULARS_ON && F.segmentDue(save, d)?.lastNight) stay.add('kevin'); // 告別的最後一晚：凱文留下來
   const going = PEOPLE_IDS.filter((w) => PEOPLE[w].visible && !stay.has(w));
   await Promise.all([...going.map((w) => leavePerson(w)), (async () => { await realWait(1200); await deshuGo(V2(0.45, 3.2)); await glance(deshu, 0.6); })()]);
   if (tok !== closeTok) return;
@@ -2505,7 +2795,8 @@ async function lastCup(seat) {
   let bean = 'dongshan';
   if (coffees.length > 1) bean = coffees[await choose(coffees.map((id) => S.MENU[id].name), H.CLOSING.chooseBean)];
   if (state.closing !== 'lastcup' || brewing || state.seat !== seat) return;
-  brew(seat, bean, { last: true });
+  // 告別的最後一晚：德叔用那個琺瑯杯沖（劇本：第一次放在玩家面前）
+  brew(seat, bean, { last: true, enamel: REGULARS_ON && !!F.segmentDue(save, today())?.lastNight });
 }
 function afterLastCup(bean) {
   save.closing.lastCup = true;
@@ -2621,6 +2912,7 @@ let wipeOn = false, wipeT = 0;
 function updateWipe(dt) {
   const mat = deshu.userData.mesh.material;
   const want = state.closing === 'after' && !state.scene && !state.cinematic && !state.letter && !brewing && !deshuReturning
+    && !cups.some((c) => c.userData.enamel) // 最後一晚，琺瑯杯在老闆桌上
     && !live.deshuWalk && deshu.position.distanceTo(HOME) < 0.05;
   if (want) {
     if (!wipeOn) {
@@ -2925,6 +3217,9 @@ persist(); // 新存檔在這一刻寫下第一次開店的時間
 // 回到店裡：隔天以後回來先看德叔的營業日誌，收好之後德叔說劇本「開店」台詞；同一天回來是「老闆，歡迎回來。」
 // 離線期間到期的任務（例如開店滿 3 天），等德叔打完招呼再說
 function greet() {
+  if (keeper() && !F.fw(save).mapSeen) { showMap('end'); return; } // 看地圖之前關掉了：從咖啡地圖接著看
+  if (keeper() && !state.closing) { keeperArrive(); return; } // 回東山坐坐：從門口推門進來
+  if (F.departureDue(save, today())) { checkTasks({ delay: 3800 }); startDay(); return; } // 離開東山的早上（德叔的招呼在 departureMorning）
   if (state.closing) {
     // 今天已經打烊了：店還是打烊後的樣子；最後一杯還沒喝的話，德叔等老闆坐下
     say(H.CLOSING.closedAgain, 3800);
@@ -2941,8 +3236,11 @@ function greet() {
 if (!save.flags.seenOpening) {
   startOpening(); // 新存檔：從 16:49 的辦公室開始
 } else {
-  const page = returningDay ? writeJournal(save, lastSeenAtLoad, now(), journalOpts()) : null;
+  // 離開東山的早上不寫日誌（直接出發）；離開東山之後，日誌是凱文寫的
+  const page = returningDay && !F.departureDue(save, today()) ? writeJournal(save, lastSeenAtLoad, now(), journalOpts()) : null;
+  if (page && keeper()) page.keeper = true;
   if (page) { keepPage(save, page); persist(); }
+  if (keeper()) becomeKeeper();
   setTimeout(() => (page ? openJournal(page, greet) : greet()), 800);
 }
 
@@ -2981,6 +3279,9 @@ if (DEV) {
     get player() { return { ...save.player }; },
     get letters() { return save.letters.map((l) => l.id); },
     get letterWaiting() { return state.letter?.id || null; },
+    get quiet() { return quiet(); },
+    get letterDue() { return dueLetter(save, letterCtx())?.id || null; },
+    get waitInfo() { return { tut: state.tutorial, letter: !!state.letter, cin: state.cinematic, scene: !!state.scene, choice: state.choice, brewing, ret: !!deshuReturning, placing: state.placing, guest: state.guest, closing: state.closing, overlay: overlayOpen(), sayBusy, ready: Math.round(Math.max(readyAt, sayEnds) - performance.now()) }; },
     get cinematic() { return state.cinematic; },
     get journalPages() { return save.journal.length; },
     get yuanHere() { return yuan.visible; },
@@ -3023,6 +3324,16 @@ if (DEV) {
     get pendantLevels() { return pendants.map((p) => Math.round(p.level * 100) / 100); },
     get hemi() { return Math.round(hemi.intensity * 100) / 100; },
     get deshuWiping() { return wipeOn; },
+    // 階段 6：徵店長與告別、第二封信、咖啡地圖、常態店
+    get farewell() { return JSON.parse(JSON.stringify(save.farewell)); },
+    get keeper() { return keeper(); },
+    get noticeUp() { return noticeSign.visible; },
+    get mapOpen() { return !$('map').hidden; },
+    get arriving() { return !!state.arriving; },
+    get barName() { return NAMES.get(deshu); },
+    get poses() { return { ...poses }; },
+    get departureDue() { return F.departureDue(save, today()); },
+    get enamelOnTable() { return cups.some((c) => c.userData.enamel); },
     // 某個座位上那杯咖啡在畫面上的位置（相對 #app 的像素）
     cupOnScreen(seatId) {
       const c = cups.find((x) => x.userData.seat === seatId);

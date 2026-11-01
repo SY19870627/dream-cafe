@@ -379,6 +379,13 @@ export function yuan(pose = 'type') {
     rr(g, cx - 0.08, 0.66, 0.16, 0.05, 0.01); g.fillStyle = '#f3e7cf'; g.fill();
     ell(g, cx, 0.8, 0.05, 0.035); g.fillStyle = 'rgba(255,240,210,.7)'; g.fill(); // 封面上的一縷煙
     hand(cx - 0.13, 0.8); hand(cx + 0.13, 0.8);
+  } else if (pose === 'frame') {
+    // 拿著裱了框的紙巾（告別那天）
+    rr(g, cx - 0.15, 0.58, 0.3, 0.26, 0.01); g.fillStyle = '#7a5532'; g.fill(); outline(g, 0.012);
+    rr(g, cx - 0.12, 0.61, 0.24, 0.2, 0.005); g.fillStyle = '#fbfaf5'; g.fill();
+    g.strokeStyle = 'rgba(40,45,70,.6)'; g.lineWidth = 0.005;
+    for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(cx - 0.1, 0.64 + k * 0.032); g.lineTo(cx + 0.04 + (k % 2) * 0.05, 0.64 + k * 0.032); g.stroke(); }
+    hand(cx - 0.15, 0.78); hand(cx + 0.15, 0.78);
   }
   return c;
 }
@@ -918,8 +925,10 @@ export function zhe(pose = 'stand') {
 }
 
 // 凱文：遠距工作的工程師。pose：'walk'（背著電腦包走進來）、'sit'（坐著開筆電、戴耳機）、
-// 'closed'（被罵之後把筆電闔上）、'hide'（躲到角落，抱著膝蓋）、'free'（沒帶筆電，捧著一杯熱的）
+// 'closed'（被罵之後把筆電闔上）、'hide'（躲到角落，抱著膝蓋）、'free'（沒帶筆電，捧著一杯熱的）、
+// 'shirt'（來面試那天，穿著一件燙過的襯衫，站著）、'apron'（當了店長，繫著圍裙，站著）
 export function kevin(pose = 'sit') {
+  if (pose === 'shirt' || pose === 'apron') return kevinStand(pose);
   const standing = pose === 'walk';
   const W = 0.8, H = standing ? 1.78 : 1.4;
   const { c, g } = canvas(W, H);
@@ -987,6 +996,88 @@ export function kevin(pose = 'sit') {
   return c;
 }
 
+// 凱文的頭：短黑髮、眼鏡；smile 時嘴角往上
+function kevinHead(g, cx, hy, smile) {
+  ell(g, cx, hy, 0.13, 0.15); g.fillStyle = SKIN; g.fill(); outline(g);
+  g.beginPath(); g.ellipse(cx, hy - 0.06, 0.145, 0.1, 0, Math.PI, Math.PI * 2); g.fillStyle = '#26221f'; g.fill();
+  rr(g, cx - 0.06, hy - 0.08, 0.17, 0.05, 0.02); g.fill();
+  g.strokeStyle = INK; g.lineWidth = 0.01;
+  g.beginPath(); g.roundRect(cx - 0.09, hy - 0.005, 0.07, 0.045, 0.01); g.roundRect(cx + 0.02, hy - 0.005, 0.07, 0.045, 0.01); g.stroke();
+  g.beginPath(); g.moveTo(cx - 0.02, hy + 0.015); g.lineTo(cx + 0.02, hy + 0.015); g.stroke();
+  g.beginPath(); g.moveTo(cx - 0.03, hy + 0.08); g.quadraticCurveTo(cx, smile ? hy + 0.105 : hy + 0.085, cx + 0.03, hy + 0.08); g.stroke();
+}
+
+// 凱文站著：'shirt' 燙過的白襯衫（面試那天）、'apron' 繫著深色圍裙（當了店長）
+function kevinStand(pose) {
+  const W = 0.8, H = 1.78;
+  const { c, g } = canvas(W, H);
+  const cx = W / 2;
+  rr(g, cx - 0.15, 1.0, 0.13, 0.74, 0.04); g.fillStyle = '#343a46'; g.fill(); outline(g);
+  rr(g, cx + 0.02, 1.0, 0.13, 0.74, 0.04); g.fill(); outline(g);
+  rr(g, cx - 0.19, 0.48, 0.38, 0.6, 0.1); g.fillStyle = '#fbfbf8'; g.fill(); outline(g);
+  // 領子與燙出來的摺線
+  g.beginPath(); g.moveTo(cx - 0.08, 0.48); g.lineTo(cx, 0.56); g.lineTo(cx + 0.08, 0.48); g.strokeStyle = INK; g.lineWidth = 0.012; g.stroke();
+  g.strokeStyle = 'rgba(120,130,150,.45)'; g.lineWidth = 0.008;
+  g.beginPath(); g.moveTo(cx - 0.1, 0.6); g.lineTo(cx - 0.1, 1.02); g.moveTo(cx + 0.1, 0.6); g.lineTo(cx + 0.1, 1.02); g.stroke();
+  g.fillStyle = '#b9c0cc'; for (const y of [0.64, 0.76, 0.88]) { ell(g, cx, y, 0.009, 0.009); g.fill(); }
+  if (pose === 'apron') {
+    g.beginPath(); g.moveTo(cx - 0.15, 0.62); g.lineTo(cx + 0.15, 0.62); g.lineTo(cx + 0.19, 1.3); g.lineTo(cx - 0.19, 1.3); g.closePath();
+    g.fillStyle = '#4a3a2e'; g.fill(); outline(g, 0.014);
+    g.strokeStyle = '#4a3a2e'; g.lineWidth = 0.02; g.beginPath(); g.moveTo(cx - 0.13, 0.62); g.lineTo(cx - 0.06, 0.48); g.moveTo(cx + 0.13, 0.62); g.lineTo(cx + 0.06, 0.48); g.stroke();
+    rr(g, cx - 0.08, 0.86, 0.16, 0.1, 0.02); g.strokeStyle = '#7a6656'; g.lineWidth = 0.01; g.stroke(); // 口袋
+  }
+  g.fillStyle = '#fbfbf8';
+  rr(g, cx - 0.27, 0.52, 0.09, 0.42, 0.04); g.fill(); outline(g);
+  rr(g, cx + 0.18, 0.52, 0.09, 0.42, 0.04); g.fill(); outline(g);
+  g.fillStyle = SKIN;
+  ell(g, cx - 0.225, 0.97, 0.04, 0.04); g.fill(); outline(g, 0.01);
+  ell(g, cx + 0.225, 0.97, 0.04, 0.04); g.fill(); outline(g, 0.01);
+  kevinHead(g, cx, 0.3, pose === 'apron');
+  return c;
+}
+
+// 離開東山之後，凱文顧店：站在吧台後面，姿勢和德叔一樣（idle、pour 沖煮、wipe／wipe2 打烊後擦杯子），
+// 尺寸和德叔相同，沖煮、端杯、打烊的演出都照用
+export function kevinBar(pose = 'idle') {
+  const W = 0.9, H = 1.8;
+  const { c, g } = canvas(W, H);
+  const cx = W / 2;
+  rr(g, cx - 0.16, 1.05, 0.14, 0.73, 0.04); g.fillStyle = '#343a46'; g.fill(); outline(g);
+  rr(g, cx + 0.02, 1.05, 0.14, 0.73, 0.04); g.fill(); outline(g);
+  rr(g, cx - 0.21, 0.5, 0.42, 0.63, 0.1); g.fillStyle = '#fbfbf8'; g.fill(); outline(g);
+  g.beginPath(); g.moveTo(cx - 0.17, 0.64); g.lineTo(cx + 0.17, 0.64); g.lineTo(cx + 0.21, 1.34); g.lineTo(cx - 0.21, 1.34); g.closePath();
+  g.fillStyle = '#4a3a2e'; g.fill(); outline(g, 0.014);
+  g.strokeStyle = '#4a3a2e'; g.lineWidth = 0.02; g.beginPath(); g.moveTo(cx - 0.15, 0.64); g.lineTo(cx - 0.07, 0.5); g.moveTo(cx + 0.15, 0.64); g.lineTo(cx + 0.07, 0.5); g.stroke();
+  g.fillStyle = '#fbfbf8';
+  const wiping = pose === 'wipe' || pose === 'wipe2';
+  if (wiping) {
+    // 擦一個玻璃杯（琺瑯杯跟著德叔去下一站了）
+    g.save(); g.translate(cx - 0.27, 0.82); g.rotate(-0.85); rr(g, 0, -0.05, 0.22, 0.1, 0.05); g.fill(); outline(g); g.restore();
+    g.save(); g.translate(cx + 0.27, 0.82); g.rotate(Math.PI + 0.85); rr(g, 0, -0.05, 0.22, 0.1, 0.05); g.fill(); outline(g); g.restore();
+    rr(g, cx - 0.12, 0.52, 0.11, 0.13, 0.015); g.fillStyle = 'rgba(214,236,242,.85)'; g.fill(); outline(g, 0.012);
+    const off = pose === 'wipe2' ? -0.05 : 0.03;
+    g.beginPath(); g.moveTo(cx + off, 0.54); g.quadraticCurveTo(cx + off + 0.08, 0.51, cx + off + 0.13, 0.56);
+    g.lineTo(cx + off + 0.12, 0.68); g.quadraticCurveTo(cx + off + 0.05, 0.71, cx + off - 0.01, 0.66); g.closePath();
+    g.fillStyle = '#e6dcc4'; g.fill(); outline(g, 0.012);
+    g.fillStyle = SKIN;
+    ell(g, cx - 0.12, 0.66, 0.045, 0.045); g.fill(); outline(g, 0.012);
+    ell(g, cx + off + 0.08, 0.62, 0.045, 0.045); g.fill(); outline(g, 0.012);
+  } else {
+    rr(g, cx - 0.3, 0.54, 0.1, 0.42, 0.05); g.fill(); outline(g);
+    g.fillStyle = SKIN; ell(g, cx - 0.25, 0.98, 0.045, 0.045); g.fill(); outline(g, 0.012);
+    g.fillStyle = '#fbfbf8';
+    if (pose === 'pour') {
+      g.save(); g.translate(cx + 0.2, 0.58); g.rotate(-1.0); rr(g, 0, -0.05, 0.4, 0.1, 0.05); g.fill(); outline(g); g.restore();
+      g.fillStyle = SKIN; ell(g, cx + 0.43, 0.25, 0.045, 0.045); g.fill(); outline(g, 0.012);
+    } else {
+      rr(g, cx + 0.2, 0.54, 0.1, 0.42, 0.05); g.fill(); outline(g);
+      g.fillStyle = SKIN; ell(g, cx + 0.25, 0.98, 0.045, 0.045); g.fill(); outline(g, 0.012);
+    }
+  }
+  kevinHead(g, cx, 0.32, true);
+  return c;
+}
+
 // 阿哲的阿公：種了四十年龍眼的老農。pose：'stand'（拄著拐杖走進來）、'sit'（坐在角落的板凳上）
 export function grandpa(pose = 'stand') {
   const sit = pose === 'sit';
@@ -1042,6 +1133,120 @@ export function yuanBook() {
   rr(g, 0.17, 0.13, 0.16, 0.05, 0.01); g.fillStyle = '#f3e7cf'; g.fill();
   g.strokeStyle = 'rgba(255,240,210,.85)'; g.lineWidth = 0.012;
   g.beginPath(); g.moveTo(0.22, 0.36); g.quadraticCurveTo(0.3, 0.3, 0.24, 0.25); g.quadraticCurveTo(0.2, 0.21, 0.28, 0.2); g.stroke(); // 封面上的龍眼窯煙
+  return c;
+}
+
+/* ---------- 階段 6：告別（之後換手繪只改這些同名函式） ---------- */
+
+// 裱框的紙巾：予安告別時送的，立在小邊桌上
+export function framedNapkin() {
+  const { c, g } = canvas(0.5, 0.95);
+  sideTable(g, 0.25, 0.42);
+  rr(g, 0.08, 0.06, 0.34, 0.36, 0.012); g.fillStyle = '#7a5532'; g.fill(); outline(g, 0.012);
+  rr(g, 0.12, 0.1, 0.26, 0.28, 0.006); g.fillStyle = '#f1e9d6'; g.fill();
+  g.save(); g.translate(0.25, 0.24); g.rotate(-0.06);
+  rr(g, -0.1, -0.08, 0.2, 0.16, 0.005); g.fillStyle = '#fbfaf5'; g.fill(); outline(g, 0.006);
+  g.strokeStyle = 'rgba(40,45,70,.6)'; g.lineWidth = 0.005;
+  for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(-0.08, -0.055 + k * 0.027); g.lineTo(0.02 + (k % 2) * 0.05, -0.055 + k * 0.027); g.stroke(); }
+  g.restore();
+  return c;
+}
+
+// 一包阿哲的豆：牛皮紙袋，手寫的大字
+export function beanBag() {
+  const { c, g } = canvas(0.5, 0.95);
+  sideTable(g, 0.25, 0.42);
+  g.beginPath(); g.moveTo(0.11, 0.42); g.lineTo(0.13, 0.12); g.lineTo(0.37, 0.12); g.lineTo(0.39, 0.42); g.closePath();
+  g.fillStyle = '#c9a265'; g.fill(); outline(g, 0.012);
+  g.beginPath(); g.moveTo(0.13, 0.12); g.lineTo(0.16, 0.07); g.lineTo(0.34, 0.07); g.lineTo(0.37, 0.12); g.fillStyle = '#b38c52'; g.fill(); outline(g, 0.01);
+  g.fillStyle = INK;
+  g.font = 'bold 0.075px "PingFang TC","Noto Sans TC",sans-serif';
+  g.textAlign = 'center';
+  g.fillText('阿哲', 0.25, 0.25);
+  g.fillText('的豆', 0.25, 0.34);
+  return c;
+}
+
+// 門口的徵才啟事：貼在一塊小立牌上（text：老闆選的那一句）
+export function noticeBoard(text = '') {
+  const { c, g } = canvas(0.6, 1.25);
+  g.fillStyle = '#6b452f';
+  rr(g, 0.27, 0.6, 0.06, 0.63, 0.01); g.fill(); outline(g, 0.012);
+  rr(g, 0.14, 1.18, 0.32, 0.05, 0.02); g.fill(); outline(g, 0.012);
+  rr(g, 0.04, 0.04, 0.52, 0.62, 0.02); g.fillStyle = '#8a5a3b'; g.fill(); outline(g, 0.014);
+  g.save(); g.translate(0.3, 0.35); g.rotate(-0.03);
+  rr(g, -0.21, -0.26, 0.42, 0.52, 0.006); g.fillStyle = '#fbf8f0'; g.fill(); outline(g, 0.008);
+  g.fillStyle = 'rgba(220,200,150,.8)'; g.fillRect(-0.06, -0.29, 0.12, 0.05); // 膠帶
+  g.fillStyle = INK;
+  g.textAlign = 'center';
+  g.font = 'bold 0.062px "PingFang TC","Noto Sans TC",sans-serif';
+  g.fillText('徵', 0, -0.15);
+  g.font = '0.04px "Kaiti TC","STKaiti","DFKai-SB","KaiTi",serif';
+  const chars = [...text.replace(/[。，]/g, ' ').trim()];
+  const lines = [];
+  for (let i = 0; i < chars.length; i += 8) lines.push(chars.slice(i, i + 8).join(''));
+  lines.slice(0, 4).forEach((l, i) => g.fillText(l.trim(), 0, -0.06 + i * 0.07));
+  g.restore();
+  return c;
+}
+
+// 吧台的鑰匙：一把舊的黃銅鑰匙，綁著紅繩
+export function key() {
+  const { c, g } = canvas(0.22, 0.12);
+  ell(g, 0.05, 0.06, 0.035, 0.035); g.fillStyle = '#c9a24a'; g.fill(); outline(g, 0.008);
+  ell(g, 0.05, 0.06, 0.013, 0.013); g.fillStyle = '#6b4b20'; g.fill();
+  rr(g, 0.08, 0.05, 0.12, 0.02, 0.006); g.fillStyle = '#c9a24a'; g.fill(); outline(g, 0.006);
+  g.fillRect(0.16, 0.07, 0.015, 0.025); g.fillRect(0.185, 0.07, 0.012, 0.018);
+  g.strokeStyle = '#c4382c'; g.lineWidth = 0.008; g.beginPath(); g.moveTo(0.03, 0.03); g.quadraticCurveTo(0.0, 0.0, 0.02, 0.1); g.stroke();
+  return c;
+}
+
+// 你的咖啡地圖：台灣，只亮著東山一盞燈；花蓮舞鶴是下一站（待續）
+const TAIWAN = [[121.54, 25.3], [121.75, 25.15], [122.0, 25.01], [121.85, 24.85], [121.87, 24.58], [121.62, 23.98], [121.52, 23.6],
+  [121.38, 23.1], [121.15, 22.75], [120.9, 22.33], [120.85, 21.9], [120.73, 21.93], [120.62, 22.25], [120.45, 22.46],
+  [120.27, 22.62], [120.15, 23.0], [120.05, 23.15], [120.15, 23.38], [120.18, 23.7], [120.4, 24.08], [120.5, 24.28],
+  [120.68, 24.5], [120.9, 24.82], [121.05, 25.05], [121.4, 25.17]];
+export function coffeeMap() {
+  const W = 520, H = 860;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const k = 230, x0 = 119.79, y0 = 25.47;
+  const P = ([lon, lat]) => [(lon - x0) * k * 0.917, (y0 - lat) * k];
+  const font = '"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif';
+  // 紙與海
+  g.fillStyle = '#f3ead6'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(120,150,170,.2)'; g.lineWidth = 2;
+  for (let y = 40; y < H; y += 46) { g.beginPath(); g.moveTo(0, y); g.bezierCurveTo(W * 0.3, y - 8, W * 0.6, y + 8, W, y); g.stroke(); }
+  // 島
+  g.beginPath();
+  TAIWAN.forEach((p, i) => { const [x, y] = P(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+  g.closePath();
+  g.fillStyle = '#e6d6b4'; g.fill();
+  g.lineWidth = 3; g.strokeStyle = INK; g.stroke();
+  // 中央山脈（淡淡的兩道）
+  g.strokeStyle = 'rgba(110,90,60,.28)'; g.lineWidth = 3;
+  for (const [a, b] of [[[121.3, 24.6], [120.95, 23.2]], [[121.15, 24.2], [120.85, 22.6]]]) { g.beginPath(); g.moveTo(...P(a)); g.lineTo(...P(b)); g.stroke(); }
+  const dong = P([120.42, 23.3]), wuhe = P([121.4, 23.5]);
+  // 下一站：還沒點亮的燈，虛線圈
+  g.setLineDash([6, 6]); g.strokeStyle = 'rgba(59,42,32,.55)'; g.lineWidth = 2.5;
+  g.beginPath(); g.arc(wuhe[0], wuhe[1], 14, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+  g.fillStyle = 'rgba(59,42,32,.35)'; g.beginPath(); g.arc(wuhe[0], wuhe[1], 5, 0, Math.PI * 2); g.fill();
+  // 東山：亮著的一盞燈
+  const glow = g.createRadialGradient(dong[0], dong[1], 2, dong[0], dong[1], 70);
+  glow.addColorStop(0, 'rgba(255,214,140,.95)'); glow.addColorStop(0.35, 'rgba(255,170,80,.45)'); glow.addColorStop(1, 'rgba(255,170,80,0)');
+  g.fillStyle = glow; g.beginPath(); g.arc(dong[0], dong[1], 70, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#c4382c'; g.beginPath(); g.arc(dong[0], dong[1], 9, 0, Math.PI * 2); g.fill();
+  g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+  // 地名
+  g.fillStyle = INK; g.textAlign = 'right';
+  g.font = `bold 30px ${font}`;
+  g.fillText('東山', dong[0] - 20, dong[1] + 10);
+  g.textAlign = 'left'; g.fillStyle = 'rgba(59,42,32,.62)';
+  g.font = `26px ${font}`;
+  g.fillText('舞鶴', wuhe[0] + 22, wuhe[1] - 2);
+  g.font = `20px ${font}`;
+  g.fillText('待續', wuhe[0] + 22, wuhe[1] + 24);
   return c;
 }
 

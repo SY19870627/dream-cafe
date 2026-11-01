@@ -205,6 +205,21 @@
   /* 客人模式：推門前畫面暗一下 */
   #fade { position: absolute; inset: 0; z-index: 14; background: #0b0a09; opacity: 0; pointer-events: none; transition: opacity .8s; }
   #fade.on { opacity: 1; pointer-events: auto; }
+  /* ---------- 階段 6：你的咖啡地圖 ---------- */
+  .grid .span2 { grid-column: 1 / -1; }
+  #map { z-index: 16; background: rgba(9,10,16,.82); animation: floatin 1.6s ease-out both; }
+  .map-card { align-items: stretch; }
+  .map-wrap { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; margin: 4px 0 6px; }
+  .map-wrap img { display: block; max-width: 100%; max-height: 100%; height: auto; object-fit: contain; border-radius: 10px;
+    box-shadow: inset 0 0 0 1px rgba(59,42,32,.2); }
+  #map-list { list-style: none; margin: 0 0 4px; padding: 0; flex: none; }
+  #map-list li { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 8px; padding: 5px 2px; border-bottom: 1px dashed rgba(59,42,32,.3); font-size: 14px; opacity: .6; }
+  #map-list li.lit { opacity: 1; }
+  #map-list li.lit b::before { content: "●"; color: #e0892f; margin-right: 6px; text-shadow: 0 0 6px rgba(255,180,90,.9); }
+  #map-list li:not(.lit) b::before { content: "○"; margin-right: 6px; }
+  #map-list b { white-space: nowrap; }
+  #map-list span { font-size: 13px; margin-left: auto; }
+  .map-line { margin: 6px 0 10px; font-size: 16px; text-align: center; flex: none; }
 </style>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
 </head>
@@ -263,6 +278,7 @@
           <button id="dev-day7">跳 7 天</button>
           <button id="dev-fund">基金 +5,000</button>
           <button id="dev-reset">重置存檔</button>
+          <button id="dev-fw" class="span2">告別前（36.5°C）</button>
         </div>
       </div>
       <button id="about-close" class="primary">回到店裡</button>
@@ -330,6 +346,17 @@
       <p class="cl-diary hand" id="cl-diary" hidden></p>
       <p class="cl-sub" id="cl-sub">店會等你。什麼時候回來都可以。</p>
       <button id="cl-stay">再待一下</button>
+    </div>
+  </div>
+  <!-- 你的咖啡地圖：第一站結尾（之後可以從記事本打開） -->
+  <div id="map" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="map-title">
+    <div class="card paper map-card">
+      <h2 id="map-title">你的咖啡地圖</h2>
+      <p class="sub" id="map-sub">第一站，完。</p>
+      <div class="map-wrap"><img id="map-img" alt="台灣地圖：台南東山亮著一盞燈，花蓮舞鶴待續"></div>
+      <ul id="map-list"></ul>
+      <p class="map-line hand" id="map-line"></p>
+      <button id="map-back" class="primary wide">回東山坐坐</button>
     </div>
   </div>
   <div id="fade"></div>

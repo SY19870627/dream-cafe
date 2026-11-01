@@ -7,6 +7,7 @@
 // 階段 4：三位熟客的故事線（快轉天數走完 18 個里程碑、颱風夜、凱文的三選一、記事本、選豆子）、雨天坐窗邊。
 // 階段 5：龍眼（睡覺的地方跟著擺飾、跳上老闆的椅子、點太多次走開）、打烊後（最後一杯、關燈、咖啡日記、明天見、重新整理）、
 // 一次客人模式（推門、點單、聽熟客聊天、任務 #17）；三條線的測試裡，予安念稿改由打烊觸發。
+// 階段 6：從 36.5°C 走完徵店長與告別（七段）、第二封信、咖啡地圖、常態店（凱文顧店）與重新整理。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -824,6 +825,114 @@ try {
     check((await smallTargets(page)).length === 0, '信紙的按鈕都 ≥ 44px');
     await page.screenshot({ path: OUT + 'desktop-letter.png' });
     check(errors.length === 0, '沒有 JS 錯誤 ' + errors.join(' | '));
+    await page.close();
+  }
+
+  /* ---------- 階段 6：從 36.5°C 走完告別、第二封信、咖啡地圖、常態店 ---------- */
+  console.log('手機 390×844（徵店長與告別：從 36.5°C 開始）');
+  {
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=40&opening=0&weather=clear');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    const fw = () => cafe('farewell');
+    // 記下所有說過的話（快轉時泡泡一閃而過）
+    await page.evaluate(() => { window.__said = []; new MutationObserver(() => window.__said.push(document.getElementById('bubble').textContent)).observe(document.getElementById('bubble'), { childList: true, subtree: true, characterData: true }); });
+    const said = () => page.evaluate(() => window.__said.join('|'));
+    await page.click('#menu-btn');
+    await page.click('#dev-fw');
+    check((await cafe('temp')) === 36.5, '開發者工具「告別前」：36.5°C');
+    // 擺上第一件擺飾：37°C
+    await page.click('#place');
+    await page.click('#p-store');
+    await page.click('.sheet-row >> nth=0 >> button');
+    await page.click('#p-done');
+    await page.waitForFunction(() => window.__cafe.temp === 37, null, { timeout: 5000 });
+    check(true, '溫度到 37°C');
+    let choiceSmall = [];
+    const seen = {};
+    // 告別的事情都發生完：選項選第一個、信與啟事收好；close＝要打烊的段落就按「打烊」、坐窗邊喝最後一杯
+    async function pump(until, label, close = false) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 90000) {
+        if (await until()) return true;
+        const bub = await said();
+        for (const k of ['自己呼吸', '教不來', '下一本，寫你的店', '花蓮舞鶴', '這一杯，是你的', '路上小心']) if (bub.includes(k)) seen[k] = true;
+        if (await page.isVisible('#choices')) { choiceSmall = choiceSmall.concat(await smallTargets(page)); seen['choice:' + (await page.textContent('#choices'))] = true; await page.click('#choices button >> nth=0'); continue; }
+        if (await page.isVisible('#letter')) { seen['letter:' + (await page.textContent('#lt-title'))] = await page.textContent('#lt-body'); await page.click('#lt-close'); continue; }
+        if (await page.isVisible('#journal')) { await page.click('#jr-close'); continue; }
+        if (await page.isVisible('#read-letter')) { await page.click('#read-letter'); continue; }
+        const x = await page.evaluate(() => ({ closing: window.__cafe.closing, mode: window.__cafe.mode, scene: window.__cafe.scene }));
+        if (close && !x.closing && !x.scene) {
+          if (await page.isVisible('#stand')) { await page.click('#stand'); continue; }
+          if (await page.isVisible('#close-shop')) { await page.click('#close-shop'); continue; }
+        }
+        if (x.closing === 'lastcup' && x.mode !== 'seat' && await page.isVisible('.seat-label >> text=窗邊座')) { await page.click('.seat-label >> text=窗邊座'); continue; }
+        await page.waitForTimeout(100);
+      }
+      check(false, `${label}：在時限內發生完 ${JSON.stringify(await fw())}`);
+      return false;
+    }
+    const step = (n) => async () => (await fw()).step >= n;
+    const nextDay = async () => { await page.click('#menu-btn'); await page.click('#dev-day1'); };
+    // 第 1、2 段：打烊後
+    await pump(step(2), '店會自己呼吸了、徵才啟事', true);
+    let f = await fw();
+    check(seen['自己呼吸'] && f.on[1] === f.on[2], '打烊後：「這間店已經會自己呼吸了」，接著貼徵才啟事');
+    check(Object.keys(seen).some((k) => k.includes('需要喜歡貓') && k.includes('翻桌率不重要')), '徵才啟事三選一（劇本原文）');
+    check(f.notice === 'cat' && (await cafe('noticeUp')) && (seen['letter:徵才啟事'] || '').includes('需要喜歡貓'), '啟事貼在門口');
+    check(choiceSmall.length === 0, '選項按鈕都 ≥ 44px');
+    // 隔天：凱文來面試、予安的告別
+    await nextDay();
+    await pump(step(4), '凱文面試、予安告別');
+    f = await fw();
+    check(seen['教不來'] && f.on[3] === f.on[2] + 1, '門貼出去的隔天，凱文來面試（「咖啡我教你。後面那些，教不來。」）');
+    check(seen['下一本，寫你的店'] && (await cafe('stored')).includes('framed-napkin'), '予安的告別：裱框的紙巾收進倉庫');
+    check(!(await cafe('noticeUp')), '面試之後啟事收起來');
+    // 隔天：阿哲的告別、凱文的交接、最後一晚
+    await nextDay();
+    await pump(step(6), '阿哲告別、凱文交接');
+    check(seen['花蓮舞鶴'] && (await cafe('stored')).includes('zhe-bean-bag'), '阿哲的告別：一包阿哲的豆、花蓮舞鶴的老咖啡樹');
+    check(Object.keys(seen).some((k) => k.includes('我會常回來。') && k.includes('我會當你的熟客。')), '凱文：「你會常回來吧？」二選一');
+    await pump(step(7), '最後一晚', true);
+    if ((await said()).includes('這一杯，是你的')) seen['這一杯，是你的'] = true;
+    check(seen['這一杯，是你的'] && (await cafe('enamelOnTable')), '最後一晚：琺瑯杯放在老闆面前，德叔第一次叫老闆的名字（沒留名字時說謝謝你，老闆）');
+    check((await cafe('here')).includes('kevin') && (await cafe('catPos')).y > 0.3, '龍眼睡在凱文的腿上');
+    await page.screenshot({ path: OUT + 'phone-farewell-last-night.png' });
+    // 隔天早上：第二封信 → 出發 → 咖啡地圖
+    await nextDay();
+    check(await cafe('departureDue'), '最後一晚的隔天：離開東山的早上');
+    await pump(() => cafe('mapOpen'), '第二封信與咖啡地圖');
+    check((seen['letter:第二封信'] || '').includes('之後每一個明天，都是公休。'), '德叔拿出第二封信（劇本原文）');
+    const map = await page.textContent('#map');
+    check(map.includes('你的咖啡地圖') && map.includes('台南・東山') && map.includes('花蓮・舞鶴') && map.includes('待續'), '咖啡地圖：只亮東山一盞燈，下一站「待續」');
+    check((await smallTargets(page)).length === 0, '地圖的按鈕都 ≥ 44px');
+    await page.screenshot({ path: OUT + 'phone-farewell-map.png' });
+    await page.click('#map-back');
+    await page.waitForFunction(() => window.__cafe.keeper && !window.__cafe.arriving && window.__cafe.mode === 'overview', null, { timeout: 20000 });
+    check((await cafe('barName')) === '凱文' && !(await cafe('here')).includes('kevin'), '回東山坐坐：常態店，凱文在吧台後面顧店');
+    // 重新整理：仍是常態店，凱文從門口迎接；可以請凱文沖一杯
+    await page.reload();
+    await page.waitForSelector('#app canvas');
+    await page.waitForFunction(() => window.__cafe && window.__cafe.keeper && !window.__cafe.arriving && window.__cafe.mode === 'overview', null, { timeout: 20000 });
+    check((await cafe('barName')) === '凱文' && (await fw()).departed && (await fw()).mapSeen, '重新整理後仍是常態店');
+    await page.waitForTimeout(1800); // 鏡頭回到俯瞰
+    await page.click('.seat-label >> text=吧台座');
+    await page.waitForFunction(() => window.__cafe.mode === 'seat', null, { timeout: 5000 });
+    await page.waitForSelector('#brew', { state: 'visible', timeout: 10000 });
+    await page.click('#brew');
+    await page.waitForTimeout(300);
+    if (await page.isVisible('#choices')) await page.click('#choices button >> nth=0');
+    await page.waitForFunction(() => window.__cafe.brewing, null, { timeout: 5000 });
+    await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 20000 });
+    check(true, '常態店裡可以請凱文沖一杯');
+    await page.click('#stand');
+    await page.click('#menu-btn');
+    await page.click('#open-notebook');
+    const links = await page.$$eval('#nb-links button', (bs) => bs.map((b) => b.textContent));
+    check(links.includes('你的咖啡地圖') && links.some((t) => t.startsWith('老先生的第二封信')), '記事本可以重看咖啡地圖與第二封信');
+    await page.click('#nb-links button:has-text("你的咖啡地圖")');
+    check((await page.textContent('#map-back')) === '闔上', '從記事本打開的地圖可以闔上');
+    await page.click('#map-back');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }
 } catch (e) {

@@ -1,5 +1,6 @@
 // 開場與老先生的信：文字與觸發條件（劇本「開場」「第一封老先生的信」）。
 // 純邏輯，不依賴 Three.js 或 DOM，用 node --test 測試。
+import { departureDue } from './farewell.js';
 
 // 第一幕：辭呈的三種結尾（只影響後續一句台詞；凱文里程碑 4 會用到 'fire'）
 export const RESIGNATIONS = [
@@ -52,7 +53,18 @@ export const LETTERS = [
       '幫我摸摸那隻貓。',
     ],
   },
-  // 第二封信（離開東山的早上）在階段 6 加入
+  {
+    id: 'second', title: '第二封信', no: 2, shaky: true,
+    // 劇本：離開東山的早上，德叔拿出來（最後一晚的隔天以後第一次進店，見 farewell.js）
+    due: (save, ctx) => !!save.flags.seenOpening && departureDue(save, ctx.daysOpen),
+    give: () => '這封，他交代離開東山的早上給你。', // 【待定】
+    paragraphs: [ // 劇本原文
+      '你好。如果你正在讀這封信，代表第一間店已經暖起來了。謝謝你。',
+      '我的店收掉的那一天，店裡還有三個熟客。我沒有好好跟他們道別，只說了「明天公休」。之後每一個明天，都是公休。',
+      '所以我請德昌帶你學會告別。你做得比我好。',
+      '下一站，我想讓你去看一棵很老的咖啡樹。它比我還老，也比我會等。',
+    ],
+  },
 ];
 
 export const letterById = (id) => (id === 'lawyer' ? LAWYER_LETTER : LETTERS.find((l) => l.id === id) || null);

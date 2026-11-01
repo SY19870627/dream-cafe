@@ -7,6 +7,7 @@ import { dayIndex, daysOpen, dateLabel } from './clock.js';
 import { weatherOn, hash01 } from './weather.js';
 import { bookCount, placedItems } from './catalog.js';
 import { CAT_SPOTS, catJournalLine } from './cat.js';
+import { KEEPER_JOURNAL } from './farewell.js';
 
 export const SHOW_DAYS = 3; // 展開最近幾天
 export const KEEP_PAGES = 10; // 存檔裡留幾頁，給記事本重讀
@@ -41,6 +42,8 @@ export const POOL = [
   { id: 'books', text: '書櫃前站了一位客人，看了一個下午。我也沒問。', need: (c) => c.books >= 1 },
   { id: 'jar', text: '龍眼乾罐子少了一半。有人一邊喝一邊吃。', need: (c) => c.placed.has('longan-jar') },
   { id: 'rocking', text: '藤編搖椅一直在晃。坐上去的人，都不太想起來。', need: (c) => c.placed.has('rattan-chair') },
+  // 離開東山之後，日誌由凱文寫（farewell.js 的 KEEPER_JOURNAL，【待定】）；德叔口吻的「我說老闆還沒決定」那類句子照用
+  ...KEEPER_JOURNAL.map((text, i) => ({ id: 'keeper' + i, text, w: 2, need: (c) => c.keeper })),
 ];
 
 // 龍眼換位子：睡覺的地方由 cat.js 依店裡的擺飾決定（店裡畫面的龍眼也睡在同一個地方），換了地方的那天寫一句
@@ -90,6 +93,7 @@ function dayCtx(save, ts, opts) {
     rain: weatherOn(dayIndex(ts), d.getMonth(), seedOf(save)) === 'rain',
     placed, books: bookCount(save.owned),
     met: (opts.met || defaultMet)(day),
+    keeper: !!opts.keeper, // 離開東山之後：凱文顧店
   };
 }
 
@@ -119,7 +123,7 @@ export function dayLines(save, c, events = [], used = new Set()) {
 
 // 結算 from（上次離開）到 to（現在）之間老闆不在的日子。沒有跨日就回傳 null（同一天回來不寫日誌）。
 // opts.story(day, ctx)：回傳那天發生的熟客事件 [{ line, kind: 'milestone' | 'waiting' }]
-// opts.met(day)：熟客見過了沒（預設 defaultMet）
+// opts.met(day)：熟客見過了沒（預設 defaultMet）；opts.keeper：離開東山之後，凱文寫的日誌
 export function writeJournal(save, from, to, opts = {}) {
   const first = dayIndex(from) + 1, last = dayIndex(to);
   if (!(last >= first)) return null;

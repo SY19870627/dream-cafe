@@ -28,10 +28,13 @@ export const CATALOG = [
 ];
 
 // 熟客送的東西：不在型錄上賣，由故事線解鎖後收進倉庫（story.js 的 gift）
-// 【待定】說明文字是自行補寫的（扉頁那句是劇本原文）
+// 【待定】說明文字是自行補寫的（扉頁那句、阿哲的豆那句是劇本原文）
 export const GIFTS = [
   { id: 'napkin', name: '寫滿字的紙巾', cat: 'small', price: 0, gift: true, art: 'napkin', desc: '予安借筆那天留下的。字很小，寫到紙巾的邊邊。' },
   { id: 'yuan-book', name: '予安的書', cat: 'small', price: 0, gift: true, art: 'yuanBook', desc: '扉頁寫著：「給一間讓人敢慢下來的店。」' },
+  // 第一站的告別（farewell.js）：carry＝可以帶去下一站的擺飾
+  { id: 'framed-napkin', name: '裱框的紙巾', cat: 'small', price: 0, gift: true, carry: true, art: 'framedNapkin', desc: '予安把那張寫滿字的紙巾裱了起來。告別那天送的。' },
+  { id: 'zhe-bean-bag', name: '一包阿哲的豆', cat: 'small', price: 0, gift: true, carry: true, art: 'beanBag', desc: '「哪天你在別的地方喝到，就是我在想你。」' },
 ];
 
 const BY_ID = new Map([...CATALOG, ...GIFTS].map((i) => [i.id, i]));
