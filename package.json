@@ -2,6 +2,7 @@
   "name": "dream-cafe",
   "private": true,
   "description": "我單方面辭退老闆後，開了一間夢想中的咖啡店",
+  "license": "CC-BY-NC-ND-4.0",
   "type": "module",
   "scripts": {
     "test": "node --test \"tests/unit/*.test.mjs\" && node tests/smoke.mjs",
