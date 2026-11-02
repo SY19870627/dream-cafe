@@ -1,5 +1,5 @@
-// 所有美術都用 Canvas 程式繪製，原型階段不需要外部圖檔。
-// 之後換成手繪插畫時，只要讓同名函式回傳圖片即可。
+// 美術：原型階段全部用 Canvas 程式繪製；接正式美術後，人物與龍眼改用 assets/art/ 的手繪圖（見「正式美術」一節），
+// 圖載入失敗就退回這裡的 Canvas 繪圖。之後換其他手繪插畫時，一樣只要讓同名函式回傳圖片即可。
 import * as THREE from 'three';
 
 const PPM = 200; // 每公尺像素數
@@ -21,7 +21,9 @@ function canvas(wm, hm, ppm = PPM) {
 }
 
 export function tex(c, repeat) {
-  const t = new THREE.CanvasTexture(c);
+  // 手繪圖（c.art）用補過邊色的 ImageData 上傳（見 artPixels()），透明邊緣縮小時才不會混進黑色
+  const t = c.art ? new THREE.Texture(artPixels(c)) : new THREE.CanvasTexture(c);
+  t.needsUpdate = true;
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8; // 斜著看的地板、桌面比較不糊（超過顯示卡上限時 Three.js 會自己壓到上限）
   // 縮小時用 mipmap 三線性過濾：人物離遠了不會閃爍、出現鋸齒（美術評分修正 b）
@@ -33,6 +35,156 @@ export function tex(c, repeat) {
     t.repeat.set(repeat[0], repeat[1]);
   }
   return t;
+}
+
+/* ---------- 正式美術：assets/art/ 的手繪圖（接正式美術第一批：角色與龍眼） ---------- */
+// 開店前先把圖載進來（這個模組用 top-level await 等它，main.js 一開始就同步拿得到圖）。
+// 任何一張載入失敗（404、解碼錯誤、離線、逾時）那張就退回原本的 Canvas 繪圖，遊戲照常進行。
+// h：圖裡畫到的部分（頭頂到腳底，含帽子）是幾公尺，照原本 Canvas 紙片的身高；同一個人的站姿共用一個高度。
+// ax：紙片原點（腳底中心／坐姿的臀部）在圖寬的哪裡，預設正中間；圖會以它為中線左右對稱地裁切。
+// hip：坐姿臀部底下在圖高的哪裡（從上緣量的比例），用來在底下放椅子或高腳椅（畫師的坐姿多半沒有畫椅子）。
+// facing：圖裡面朝哪邊（走路的龍眼面向左，往畫面右邊走時鏡像）。
+const ART_SPEC = {
+  char_deshu_stand: { h: 1.67 }, char_deshu_brew: { h: 1.67 }, char_deshu_serve: { h: 1.67, cup: [-0.14, 1.03] },
+  char_deshu_smile: { h: 1.67 }, char_deshu_thermo: { h: 1.67 }, char_deshu_sit: { h: 1.3 },
+  char_kevin_stand: { h: 1.61 }, char_kevin_bar: { h: 1.61 }, char_kevin_sit: { h: 1.28, ax: 0.78, hip: 0.6 },
+  char_yuan_sit: { h: 1.22, ax: 0.8, hip: 0.63 }, char_yuan_stand: { h: 1.56 },
+  char_zhe_stand: { h: 1.62 }, char_zhe_wet: { h: 1.62 },
+  char_grandpa_stand: { h: 1.5 }, char_grandpa_sit: { h: 1.2 },
+  cat_longan_sit: { h: 0.4 }, cat_longan_walk: { h: 0.34, facing: 'left' }, cat_longan_sleep: { h: 0.28 },
+};
+// 手機（觸控、記憶體 4GB 以下）用 1024 高的版本：載入時用 canvas 縮一半，記憶體約四分之一；其他用原圖 2048 高
+const ART_LOW = (() => {
+  try { return globalThis.matchMedia?.('(pointer: coarse)').matches || (navigator.deviceMemory || 8) <= 4; } catch { return true; }
+})();
+const ART_MAX = ART_LOW ? 1024 : 2048;
+const ART_TIMEOUT = 15000; // 網路太慢就不等了：還沒到的圖用 Canvas 畫
+const ART = new Map(); // 檔名 → { c：裁好、縮好的圖（底邊就是腳底），ppm，hip（公尺），spec }
+let artClosed = false;
+
+async function fetchArt(name) {
+  const res = await fetch(new URL(`../assets/art/${name}.webp`, import.meta.url));
+  if (!res.ok) throw new Error(`${name}: ${res.status}`);
+  return res.blob();
+}
+// 解碼一張圖：量出畫到的範圍、以 ax 為中線裁切、依裝置縮小，解碼完的原圖馬上釋放（一次只解一張，記憶體不會一下子衝高）
+async function decodeArt(name, blob) {
+  const spec = ART_SPEC[name];
+  const bmp = await createImageBitmap(blob);
+  try {
+    const W = bmp.width, H = bmp.height;
+    const q = 4, mw = Math.ceil(W / q), mh = Math.ceil(H / q); // 縮成 1/4 量範圍就夠準（差不到半公分）
+    const m = document.createElement('canvas'); m.width = mw; m.height = mh;
+    const mg = m.getContext('2d', { willReadFrequently: true });
+    mg.drawImage(bmp, 0, 0, mw, mh);
+    const d = mg.getImageData(0, 0, mw, mh).data;
+    let top = mh, bottom = -1, left = mw, right = -1;
+    for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
+      if (d[(y * mw + x) * 4 + 3] <= 24) continue;
+      if (y < top) top = y; if (y > bottom) bottom = y; if (x < left) left = x; if (x > right) right = x;
+    }
+    if (bottom < 0) throw new Error(`${name}: 整張是透明的`);
+    const figTop = top * q, sole = Math.min(H, (bottom + 1) * q); // 原圖像素：頭頂、腳底
+    const axPx = (spec.ax ?? 0.5) * W;
+    const half = Math.max(axPx - left * q, (right + 1) * q - axPx) + 4;
+    const pad = 4;
+    const s = Math.max(W, H) > 1024 ? Math.min(1, ART_MAX / Math.max(W, H)) : 1; // 龍眼的圖本來就小（512），不縮
+    const c = document.createElement('canvas');
+    c.width = Math.round(2 * half * s);
+    c.height = Math.round((sole - figTop + pad) * s);
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(bmp, 0, 0, W, H, (half - axPx) * s, (pad - figTop) * s, W * s, H * s);
+    const ppm = ((sole - figTop) * s) / spec.h;
+    const hip = spec.hip ? ((sole - spec.hip * H) * s) / ppm : 0;
+    return { c, ppm, hip, spec };
+  } finally {
+    bmp.close?.();
+  }
+}
+async function loadArt() {
+  if (typeof document === 'undefined' || typeof fetch !== 'function' || typeof createImageBitmap !== 'function') return;
+  const names = Object.keys(ART_SPEC);
+  const blobs = names.map((n) => fetchArt(n).catch(() => null)); // 同時下載
+  for (let i = 0; i < names.length; i++) {
+    const blob = await blobs[i];
+    if (!blob || artClosed) continue;
+    try {
+      const a = await decodeArt(names[i], blob);
+      if (!artClosed) ART.set(names[i], a);
+    } catch { /* 解碼失敗：這張用 Canvas 畫 */ }
+  }
+}
+try {
+  await Promise.race([loadArt(), new Promise((r) => setTimeout(r, ART_TIMEOUT))]);
+} catch { /* 任何意外都當作沒有圖 */ }
+artClosed = true; // 逾時之後才到的圖不用：同一場遊戲裡，人物不會中途換畫風
+
+export const artLoaded = (name) => ART.has(name);
+export const artNames = () => [...ART.keys()];
+
+// 坐姿底下的椅子（seat：'chair' 一般椅子，照臀部高度縮放；'stool' 吧台的高腳椅，人往上抬到椅面、腳踩在橫桿附近）
+const SEATS_ART = {
+  chair: { w: 0.5, h: 0.95, top: 0.45, draw: (g) => drawChair(g) },
+  stool: { w: 0.45, h: 0.8, top: 0.73, draw: (g) => drawStool(g) },
+};
+const built = new Map();
+// 取一張手繪圖（沒有載到就回傳 null，呼叫的函式改用 Canvas 畫）。seat：在臀部底下畫椅子
+function art(name, seat = null) {
+  const a = ART.get(name);
+  if (!a) return null;
+  // 坐姿：椅子畫在臀部底下；站姿只有吧台的高腳椅（站在自己的位子旁邊，椅子在他身旁）
+  const key = seat && (a.hip || seat === 'stool') ? `${name}:${seat}` : name;
+  if (built.has(key)) return built.get(key);
+  let c = a.c;
+  if (key !== name) {
+    const S = SEATS_ART[seat];
+    const k = seat === 'stool' || !a.hip ? 1 : a.hip / S.top; // 一般椅子：椅面剛好在臀部底下
+    const lift = a.hip && seat === 'stool' ? Math.max(0, S.top - a.hip) : 0;
+    const sw = S.w * k * a.ppm, sh = S.h * k * a.ppm, lp = Math.round(lift * a.ppm);
+    const side = a.hip ? 0 : 0.3 * a.ppm; // 站著：高腳椅在他右手邊（畫面右邊）0.3 公尺
+    c = document.createElement('canvas');
+    c.width = Math.max(a.c.width, Math.ceil(2 * (side + sw / 2)) + 2);
+    c.height = Math.max(a.c.height + lp, Math.ceil(sh));
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.save();
+    g.translate((c.width - sw) / 2 + side, c.height - sh);
+    g.scale(a.ppm * k, a.ppm * k);
+    g.lineJoin = 'round'; g.lineCap = 'round';
+    S.draw(g);
+    g.restore();
+    g.drawImage(a.c, (c.width - a.c.width) / 2, c.height - lp - a.c.height);
+  }
+  c.art = name;
+  c.ppm = a.ppm;
+  c.facing = a.spec.facing || null;
+  c.cupAt = a.spec.cup || null; // 圖裡手上已經端著杯子：[x, y] 公尺（main.js 把立體的杯子藏起來，放下時從這裡出發）
+  built.set(key, c);
+  return c;
+}
+
+// 上傳到 GPU 的像素：canvas 存的是預乘過的顏色，完全透明的地方顏色是黑的，縮小（mipmap）時邊緣會混出一圈黑邊。
+// 這裡把邊緣的顏色往外補（畫幾張往外偏移的圖疊在後面），再把透明度換回原本的，用不預乘的 ImageData 上傳。
+// 每張圖只做一次；顏色空間照舊是 sRGB。
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+function artPixels(c) {
+  if (c.pixels) return c.pixels;
+  const w = c.width, h = c.height;
+  const src = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h);
+  const b = document.createElement('canvas'); b.width = w; b.height = h;
+  const g = b.getContext('2d', { willReadFrequently: true });
+  for (const r of [12, 6, 3, 1]) for (const [dx, dy] of DIRS) g.drawImage(c, dx * r, dy * r);
+  g.drawImage(c, 0, 0);
+  const bd = g.getImageData(0, 0, w, h).data, sd = src.data;
+  for (let i = 0; i < sd.length; i += 4) {
+    if (sd[i + 3] >= 48 || bd[i + 3] === 0) continue; // 夠不透明的邊緣保留自己的顏色（太透明的預乘回來誤差大，改用補的）
+    sd[i] = bd[i]; sd[i + 1] = bd[i + 1]; sd[i + 2] = bd[i + 2];
+  }
+  b.width = b.height = 0;
+  src.ppm = c.ppm;
+  src.canvas = c; // main.js 量透明度（drawnHalf、inkTop）時用回 canvas
+  c.pixels = src;
+  return src;
 }
 
 const INK = '#3b2a20';
@@ -245,7 +397,13 @@ export function thermometer(temp) {
 
 /* ---------- 紙片人物與擺飾（底部置中為原點） ---------- */
 
+// 德叔：idle 站著、pour 沖煮（brew）、serve 端杯子、smile 笑（只有眼角在動）、thermo 拿著老溫度計、sit 坐著（目前沒有用到）；
+// wipe／wipe2（打烊後擦琺瑯杯）沒有對應的手繪圖，用手上捧著杯子的 serve
+const DESHU_ART = { idle: 'stand', pour: 'brew', wipe: 'serve', wipe2: 'serve', serve: 'serve', smile: 'smile', thermo: 'thermo', sit: 'sit' };
 export function deshu(pose) {
+  return art(`char_deshu_${DESHU_ART[pose] || 'stand'}`) || drawDeshu(pose);
+}
+function drawDeshu(pose) {
   // 德叔：白襯衫、深咖啡背心、灰白頭髮
   const W = 0.9, H = 1.8;
   const { c, g } = canvas(W, H, HI);
@@ -320,7 +478,11 @@ function enamelCup(g, x, y) {
   g.fillStyle = '#4a4440'; ell(g, x + 0.03, y + 0.09, 0.008, 0.006); g.fill(); // 掉漆的一小塊
 }
 
+// 龍眼：sleep 睡覺、sit 坐著、walk 走路（Canvas 版沒有走路的圖，用坐著的）
 export function cat(pose) {
+  return art(`cat_longan_${pose === 'sleep' || pose === 'walk' ? pose : 'sit'}`) || drawCat(pose);
+}
+function drawCat(pose) {
   // 龍眼：橘貓
   const { c, g } = canvas(0.6, 0.45, HI);
   const o = '#e8913a';
@@ -348,7 +510,12 @@ export function cat(pose) {
 }
 
 // 予安：坐著寫稿的作家。pose：'type'（看筆電）、'napkin'（借了筆在紙巾上寫字）、'read'（念稿子）、'book'（拿著剛印好的書）
+// 手繪圖只有坐著開筆電（sit）與站著抱一本書（stand）：念稿、借筆用坐著的；拿書、拿裱框的紙巾、走路用站著的。
+// 她的椅子是店裡的（main.js 的 yuanChair），圖裡不畫
 export function yuan(pose = 'type') {
+  return art(`char_yuan_${pose === 'book' || pose === 'frame' || pose === 'stand' ? 'stand' : 'sit'}`) || drawYuan(pose);
+}
+function drawYuan(pose) {
   const { c, g } = canvas(0.8, 1.35, HI);
   const cx = 0.4;
   rr(g, cx - 0.18, 0.5, 0.36, 0.5, 0.1); g.fillStyle = '#7c8f9e'; g.fill(); outline(g);
@@ -401,6 +568,11 @@ export function yuan(pose = 'type') {
 
 export function chair() {
   const { c, g } = canvas(0.5, 0.95);
+  drawChair(g);
+  return c;
+}
+// 椅子本體（公尺，0.5×0.95，椅面上緣離地 0.45）：手繪的坐姿底下也用它
+function drawChair(g) {
   g.fillStyle = '#8a5a3b';
   rr(g, 0.06, 0.02, 0.38, 0.08, 0.03); g.fill(); outline(g);
   rr(g, 0.06, 0.02, 0.05, 0.55, 0.02); g.fill(); outline(g);
@@ -410,17 +582,20 @@ export function chair() {
   g.fillStyle = '#8a5a3b';
   rr(g, 0.06, 0.56, 0.05, 0.38, 0.02); g.fill(); outline(g);
   rr(g, 0.39, 0.56, 0.05, 0.38, 0.02); g.fill(); outline(g);
-  return c;
 }
 
 export function stool() {
   const { c, g } = canvas(0.45, 0.8);
+  drawStool(g);
+  return c;
+}
+// 高腳椅本體（公尺，0.45×0.8，椅面約離地 0.73，腳踏橫桿約 0.28）
+function drawStool(g) {
   ell(g, 0.225, 0.08, 0.18, 0.06); g.fillStyle = '#a06b46'; g.fill(); outline(g);
   g.fillStyle = '#4a4744';
   rr(g, 0.08, 0.1, 0.04, 0.69, 0.02); g.fill(); outline(g, 0.012);
   rr(g, 0.33, 0.1, 0.04, 0.69, 0.02); g.fill(); outline(g, 0.012);
   rr(g, 0.1, 0.5, 0.25, 0.03, 0.01); g.fill(); outline(g, 0.012);
-  return c;
 }
 
 export function sofa() {
@@ -886,7 +1061,11 @@ function face(g, cx, y, opt = {}) {
 }
 
 // 阿哲：返鄉青農，站著。pose：'stand'（帽子、工作服、沾泥的雨鞋）、'muddy'（颱風夜全身是泥）、'towel'（披著德叔給的毛巾）
+// 手繪圖：stand、wet（颱風夜全身濕透）；披毛巾（towel）沒有對應的圖，用 wet
 export function zhe(pose = 'stand') {
+  return art(`char_zhe_${pose === 'stand' ? 'stand' : 'wet'}`) || drawZhe(pose);
+}
+function drawZhe(pose) {
   const W = 0.9, H = 1.75;
   const { c, g } = canvas(W, H, HI);
   const cx = W / 2;
@@ -936,7 +1115,14 @@ export function zhe(pose = 'stand') {
 // 凱文：遠距工作的工程師。pose：'walk'（背著電腦包走進來）、'sit'（坐著開筆電、戴耳機）、
 // 'closed'（被罵之後把筆電闔上）、'hide'（躲到角落，抱著膝蓋）、'free'（沒帶筆電，捧著一杯熱的）、
 // 'shirt'（來面試那天，穿著一件燙過的襯衫，站著）、'apron'（當了店長，繫著圍裙，站著）
-export function kevin(pose = 'sit') {
+// 手繪圖：sit（坐著開筆電、戴耳機；闔上筆電那一下也用它）、stand（走路、面試那天；沒帶筆電的日子 free 與躲到角落 hide
+// 也用站著的，因為坐著的圖一定開著筆電，和「以後都不用開會了」對不上）、bar（繫圍裙：當了店長）。
+// seat 是 main.js 依他在哪裡決定的（'stool' 吧台的高腳椅、其他 'chair'）：坐著的畫在他底下；free 在吧台時，高腳椅畫在他旁邊
+export function kevin(pose = 'sit', seat = 'chair') {
+  const name = pose === 'sit' || pose === 'closed' ? 'sit' : pose === 'apron' ? 'bar' : 'stand';
+  return art(`char_kevin_${name}`, name === 'sit' || pose === 'free' ? seat : null) || drawKevin(pose);
+}
+function drawKevin(pose) {
   if (pose === 'shirt' || pose === 'apron') return kevinStand(pose);
   const standing = pose === 'walk';
   const W = 0.8, H = standing ? 1.78 : 1.4;
@@ -1048,6 +1234,9 @@ function kevinStand(pose) {
 // 離開東山之後，凱文顧店：站在吧台後面，姿勢和德叔一樣（idle、pour 沖煮、wipe／wipe2 打烊後擦杯子），
 // 尺寸和德叔相同，沖煮、端杯、打烊的演出都照用
 export function kevinBar(pose = 'idle') {
+  return art('char_kevin_bar') || drawKevinBar(pose); // 手繪圖只有一張（擦著一個玻璃杯），每個動作都用它
+}
+function drawKevinBar(pose) {
   const W = 0.9, H = 1.8;
   const { c, g } = canvas(W, H, HI);
   const cx = W / 2;
@@ -1089,6 +1278,9 @@ export function kevinBar(pose = 'idle') {
 
 // 阿哲的阿公：種了四十年龍眼的老農。pose：'stand'（拄著拐杖走進來）、'sit'（坐在角落的板凳上）
 export function grandpa(pose = 'stand') {
+  return art(`char_grandpa_${pose === 'sit' ? 'sit' : 'stand'}`) || drawGrandpa(pose); // 坐著的圖自己帶了矮板凳
+}
+function drawGrandpa(pose) {
   const sit = pose === 'sit';
   const W = 0.8, H = sit ? 1.3 : 1.62;
   const { c, g } = canvas(W, H, HI);

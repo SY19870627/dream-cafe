@@ -232,6 +232,7 @@ function paper(canvas, x, z, opt = {}) {
 }
 
 function setPaper(p, canvas) {
+  p.userData.art = canvas; // 現在用的是哪張圖（龍眼走路時依它決定要不要鏡像、德叔的小動作只在站著時做）
   const m = p.userData.mesh.material;
   m.map.dispose();
   m.map = A.tex(canvas);
@@ -431,27 +432,39 @@ function updateStream(targetY) {
 }
 
 // 三位熟客（予安、阿哲、凱文）與阿哲的阿公：紙片的圖依姿勢換（src/art.js 的同名函式）
+// 接正式美術：凱文坐著的手繪圖沒有椅子，依他坐的地方在底下畫一張（吧台的高腳椅 'stool'，其他地方 'chair'）；
+// 吧台的位子（spot.stool）坐下時店裡那張高腳椅照舊藏起來，改畫在他的圖裡
 const poseCache = new Map();
-function poseArt(who, pose) {
-  const k = `${who}:${pose}`;
-  if (!poseCache.has(k)) poseCache.set(k, A[who](pose));
+function poseArt(who, pose, seat) {
+  const k = `${who}:${pose}:${seat || ''}`;
+  if (!poseCache.has(k)) poseCache.set(k, A[who](pose, seat || undefined));
   return poseCache.get(k);
 }
+let seatOf = () => null; // 坐在哪種椅子上（live 宣告之後換成真的）
 const yuan = paper(poseArt('yuan', 'type'), -0.4, -1.75);
 const zhe = paper(poseArt('zhe', 'stand'), 0.15, 3.7);
 const kevin = paper(poseArt('kevin', 'sit'), 1.3, -2.9);
 const grandpa = paper(poseArt('grandpa', 'stand'), 0.15, 3.7);
 const poses = { yuan: 'type', zhe: 'stand', kevin: 'sit', grandpa: 'stand' };
+const seats = {};
 function setPose(who, pose) {
-  if (!pose || poses[who] === pose) return;
+  const seat = who === 'kevin' ? seatOf(who) : null;
+  if (!pose || (poses[who] === pose && seats[who] === seat)) return;
   poses[who] = pose;
-  setArt(PEOPLE[who], poseArt(who, pose));
+  seats[who] = seat;
+  setArt(PEOPLE[who], poseArt(who, pose, seat));
 }
+// 予安的椅子：手繪的予安坐著沒有畫椅子，窗邊那張小桌放一張（在她身後一點，鏡頭都在南邊，椅子總是在她後面）。
+// 她不在的時候，就是一張空椅子；退回 Canvas 繪圖（她的圖自己有坐姿）時不放
+const yuanChair = paper(A.chair(), -0.4, -1.86);
+yuanChair.visible = A.artLoaded('char_yuan_sit');
 
 // 德叔與龍眼
 const HOME = new THREE.Vector3(2.6, 0, -1.6);
-const deshuCanvas = { idle: A.deshu('idle'), pour: A.deshu('pour'), wipe: A.deshu('wipe'), wipe2: A.deshu('wipe2') };
+const DESHU_POSES = ['idle', 'pour', 'wipe', 'wipe2', 'serve', 'smile', 'thermo'];
+const deshuCanvas = Object.fromEntries(DESHU_POSES.map((k) => [k, A.deshu(k)]));
 const deshu = paper(deshuCanvas.idle, HOME.x, HOME.z);
+deshu.userData.art = deshuCanvas.idle;
 const PEOPLE = { deshu, yuan, zhe, kevin, grandpa };
 // 熟客由故事線決定什麼時候出現（startDay）；關掉熟客的測試模式沿用舊做法：予安從開店第 2 天起坐在窗邊
 for (const p of [yuan, zhe, kevin, grandpa]) p.visible = false;
@@ -474,8 +487,9 @@ function refreshNotice() {
   noticeSign.visible = up;
 }
 refreshNotice();
-const catCanvas = { sleep: A.cat('sleep'), sit: A.cat('sit') };
+const catCanvas = { sleep: A.cat('sleep'), sit: A.cat('sit'), walk: A.cat('walk') };
 const cat = paper(catCanvas.sleep, -2.3, -2.9);
+cat.userData.art = catCanvas.sleep;
 
 /* ---------- 擺飾：依存檔擺在店裡；佈置模式裡改的是一份工作清單，按「確定」才寫回存檔 ---------- */
 const artCache = new Map();
@@ -726,7 +740,9 @@ function checkTasks({ delay = 1200 } = {}) {
   persist();
   riseTemp(temperature(save));
   glowFund();
-  announce(done.filter((t) => t.line).map((t) => t.line), delay);
+  const lines = done.filter((t) => t.line).map((t) => t.line);
+  announce(lines, delay);
+  deshuMoment('thermo', 2600).then((ok) => { if (ok && lines.length) deshuMoment('smile', 2600); });
   return done.map((t) => t.id);
 }
 
@@ -1011,8 +1027,10 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
     deshu.attach(cup);
     cup.position.set(0.32, 0.98, 0.12);
     cup.rotation.set(0, 0, 0);
+    const carried = carryCup(cup);
     for (const pt of path) await walk(deshu, pt, WALK);
     deshu.userData.mesh.position.y = 0;
+    putDownCup(cup, carried);
     scene.attach(cup);
     const from = cup.position.clone();
     await animate(0.8, (k) => { cup.position.lerpVectors(from, seat.cup, ease(k)); cup.position.y += Math.sin(Math.PI * k) * 0.05; });
@@ -1123,6 +1141,19 @@ function catSpotPlace(spot) {
   if (spot.id === 'step') return { pos: V3(0.75, 0, 3.6), y: 0 };
   return { pos: V3(-1.7, 0, -3.55), y: 0 }; // 窗台下
 }
+// 接正式美術：走路的龍眼面向左，往畫面右邊走的時候鏡像（停下來就維持最後的方向，換成別張圖就轉回來）
+const catPrev = new THREE.Vector3();
+const camRight = new THREE.Vector3();
+function flipCat() {
+  const m = cat.userData.mesh, facing = cat.userData.art?.facing;
+  const dx = cat.position.x - catPrev.x, dz = cat.position.z - catPrev.z;
+  catPrev.copy(cat.position);
+  if (!facing) { m.scale.x = 1; return; }
+  if (dx * dx + dz * dz < 1e-8) return;
+  camRight.setFromMatrixColumn(camera.matrixWorld, 0);
+  const right = dx * camRight.x + dz * camRight.z > 0;
+  m.scale.x = right === (facing === 'left') ? -1 : 1;
+}
 // 跳上、跳下：y 是要到的高度
 function catHop(y, sec = 0.45) {
   const m = cat.userData.mesh, from = m.position.y;
@@ -1130,7 +1161,7 @@ function catHop(y, sec = 0.45) {
 }
 // 走到某處（在高處就先跳下來），到了再跳上去
 async function catGo(to, y = 0, pose = 'sleep', speed = 0.45) {
-  setPaper(cat, catCanvas.sit);
+  setPaper(cat, catCanvas.walk);
   if (cat.userData.mesh.position.y > 0.02) await catHop(0);
   await walk(cat, to, speed);
   cat.userData.mesh.position.y = 0;
@@ -1293,6 +1324,7 @@ const WALL_SINK = 0.5; // 房間被寬度卡住時，後牆上緣最多可以往
 // 圖真正畫到的地方離中線多遠（圖寬的比例，0～0.5）：從透明度量，每張圖只量一次；量不到（換成跨網域的圖檔等）就當作整張
 const drawnCache = new WeakMap();
 function drawnHalf(img) {
+  img = img?.canvas || img; // 手繪圖的材質是 ImageData，量回它的 canvas
   if (!img) return 0.5;
   if (drawnCache.has(img)) return drawnCache.get(img);
   let r = 0.5;
@@ -2033,6 +2065,7 @@ const HEAD = new Map([[deshu, 2.0], [cat, 0.5]]);
 // 美術評分修正 a：圖的上面常有留白（例如坐著的予安），改用圖裡第一列有畫東西的高度，泡泡與對話鏡頭才對得準頭
 const inkCache = new WeakMap();
 function inkTop(img) {
+  img = img?.canvas || img;
   if (!img?.getContext) return 0;
   if (inkCache.has(img)) return inkCache.get(img);
   let empty = 0;
@@ -2360,6 +2393,7 @@ const CORNERS = [V2(-2.45, -3.3), V2(-1.3, -3.45), V2(0.75, -3.45), V2(2.35, 3.1
 const HOME_SPOT = { yuan: SPOT.yuan, kevin: SPOT.kevin, zhe: SPOT.bar };
 
 const live = { day: 0, token: 0, expect: new Map(), arrived: new Set(), leaveAt: new Map(), at: {}, answers: {}, cups: new Map(), seatHinted: false, walking: 0, planned: {}, held: new Set(), fwHinted: 0 };
+seatOf = (w) => (live.at[w]?.stool ? 'stool' : 'chair');
 const ABORT = Symbol('abort');
 const PEOPLE_IDS = ['yuan', 'zhe', 'kevin', 'grandpa'];
 const defaultPose = (w) => (w === 'yuan' ? 'type'
@@ -2419,8 +2453,8 @@ function settle(w, spot) {
   PEOPLE[w].position.set(spot.pos.x, 0, spot.pos.z);
 }
 function placeAt(w, spot, pose) {
+  settle(w, spot); // 先坐定位，setPose 才知道他坐的是高腳椅還是椅子
   setPose(w, pose || defaultPose(w));
-  settle(w, spot);
   PEOPLE[w].visible = true;
 }
 const walkSpeed = (w, fast) => (fast ? 1.3 : w === 'grandpa' ? 0.45 : 0.75);
@@ -2453,7 +2487,7 @@ async function leavePerson(w) {
   if (live.at[w]?.stool) live.at[w].stool.visible = true;
   delete live.at[w];
   removeGuestCup(w);
-  setPose(w, w === 'kevin' ? 'walk' : w === 'grandpa' ? 'stand' : poses[w]);
+  setPose(w, w === 'kevin' ? 'walk' : w === 'grandpa' || w === 'yuan' ? 'stand' : poses[w]); // 予安站起來走（Canvas 版站著與坐著是同一張）
   const tok = live.token;
   const out = await walkPath(p, route(p.position, DOOR_IN), walkSpeed(w), true);
   if (out && tok === live.token) { p.visible = false; if (w !== 'grandpa') audio.play('bell'); }
@@ -2465,6 +2499,34 @@ function removeGuestCup(w) {
   const i = cups.indexOf(c);
   if (i >= 0) cups.splice(i, 1);
   live.cups.delete(w);
+}
+
+// 接正式美術：德叔端杯子走過去時換成 serve 的圖（圖裡手上已經端著杯子），立體的杯子先藏起來；
+// 到了再從圖裡杯子的位置拿出來放下。Canvas 版與凱文顧店時沒有這張圖（cupAt），照舊拿著立體的杯子走
+function carryCup(cup) {
+  const c = deshuCanvas.serve;
+  if (!c.cupAt) return false;
+  setPaper(deshu, c);
+  cup.visible = false;
+  return true;
+}
+function putDownCup(cup, carried) {
+  if (!carried) return;
+  const [x, y] = deshuCanvas.serve.cupAt;
+  cup.position.set(x, y, 0.08);
+  cup.visible = true;
+  setPaper(deshu, deshuCanvas.idle);
+}
+// 德叔站在吧台後面、沒在做事的時候的小動作：溫度升高時拿起老溫度計看一眼、任務完成的那句話時笑一下（只有手繪圖有這兩張）
+async function deshuMoment(pose, ms) {
+  const c = deshuCanvas[pose];
+  if (!c?.art || keeper() || brewing || wipeOn || state.cinematic || state.scene) return false;
+  if (deshu.userData.art !== deshuCanvas.idle || deshu.position.distanceTo(HOME) > 0.05) return false;
+  setPaper(deshu, c);
+  await realWait(ms);
+  if (deshu.userData.art !== c) return false; // 中途有別的動作換過圖了
+  setPaper(deshu, deshuCanvas.idle);
+  return true;
 }
 
 // 德叔走過去：要去吧台裡面或外面時，從吧台的出口繞
@@ -2497,8 +2559,10 @@ async function serveTo(w, kind) {
   setPaper(deshu, deshuCanvas.idle);
   deshu.attach(cup);
   cup.position.set(0.32, 0.98, 0.12);
+  const carried = carryCup(cup);
   await deshuGo(nearSpot(w));
   deshu.userData.mesh.position.y = 0;
+  putDownCup(cup, carried);
   scene.attach(cup);
   const spot = live.at[w];
   if (spot?.cup) {
@@ -2524,11 +2588,11 @@ async function catTo(w, lap) {
   const p = PEOPLE[w];
   const toCam = V2(camera.position.x - p.position.x, camera.position.z - p.position.z).setLength(lap ? 0.14 : 0.45);
   const target = p.position.clone().add(toCam);
-  setPaper(cat, catCanvas.sit);
+  setPaper(cat, catCanvas.walk);
   if (cat.userData.mesh.position.y > 0.02) await catHop(0); // 睡在書架上、椅子上的話，先跳下來
   cat.userData.mesh.position.y = 0;
   await walk(cat, target, 0.6);
-  if (lap) await animate(0.4, (k) => { cat.userData.mesh.position.y = 0.48 * ease(k) + Math.sin(Math.PI * k) * 0.12; });
+  if (lap) { setPaper(cat, catCanvas.sit); await animate(0.4, (k) => { cat.userData.mesh.position.y = 0.48 * ease(k) + Math.sin(Math.PI * k) * 0.12; }); }
   else { cat.userData.mesh.position.y = 0; setPaper(cat, catCanvas.sleep); }
   catBusy = false;
 }
@@ -3024,7 +3088,7 @@ async function departScene() {
 }
 // 常態店：吧台後面換成凱文（沖煮、端杯、打烊後擦杯子的演出都照用德叔的那一套）
 function becomeKeeper() {
-  for (const k of ['idle', 'pour', 'wipe', 'wipe2']) deshuCanvas[k] = A.kevinBar(k);
+  for (const k of DESHU_POSES) deshuCanvas[k] = A.kevinBar(k);
   for (const k of ['a', 'b']) { wipeTex[k]?.dispose(); wipeTex[k] = null; }
   setArt(deshu, deshuCanvas.idle);
   deshu.position.copy(HOME);
@@ -3736,6 +3800,7 @@ function loop() {
   for (let i = realWaiters.length - 1; i >= 0; i--) if (realWaiters[i](dt)) realWaiters.splice(i, 1);
   updateCamera(dt);
   faceCamera(dt);
+  flipCat();
   updateOcclusion(dt);
   // 龍眼睡覺時的呼吸
   if (!catBusy) cat.userData.mesh.scale.y = 1 + Math.sin(performance.now() / 900) * 0.03;
@@ -3848,7 +3913,12 @@ if (DEV) {
     get mode() { return state.mode; },
     get overDeg() { return OVER.deg; },
     // 美術評分修正 b：德叔的材質（每公尺像素、mipmap、三線性過濾）
-    get artInfo() { const m = deshu.userData.mesh.material.map; return { ppm: A.ppmOf(m.image), mip: m.generateMipmaps, trilinear: m.minFilter === THREE.LinearMipmapLinearFilter }; },
+    get artInfo() { const m = deshu.userData.mesh.material.map; return { ppm: A.ppmOf(m.image), mip: m.generateMipmaps, trilinear: m.minFilter === THREE.LinearMipmapLinearFilter, srgb: m.colorSpace === THREE.SRGBColorSpace }; },
+    // 接正式美術：載到了哪些手繪圖、每個人現在的材質是哪一張（Canvas 繪圖是 null）
+    get art() {
+      const of = (p) => { const img = p.userData.mesh.material.map?.image; return (img?.canvas || img)?.art || null; };
+      return { loaded: A.artNames(), now: Object.fromEntries(Object.entries({ ...PEOPLE, cat }).map(([k, p]) => [k, of(p)])), yuanChair: yuanChair.visible };
+    },
     // 俯瞰：畫面裡看得到的地板最下緣，離提示（或按鈕列）上緣還有幾 px
     overviewGap() {
       const H = app.clientHeight, W = app.clientWidth, v = new THREE.Vector3();

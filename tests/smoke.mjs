@@ -10,6 +10,7 @@
 // 階段 6：從 36.5°C 走完徵店長與告別（七段）、第二封信、咖啡地圖、常態店（凱文顧店）與重新整理。
 // 階段 7：聲音（點過畫面後出聲、沖咖啡有磨豆與注水聲、選單的音樂／音量／店裡的聲音）、效能（解析度倍率、貼圖數）、
 // 試玩心得連結、常態店的按鈕寫「請凱文沖一杯」。從新存檔玩到結尾的全流程另見 tests/playthrough.mjs（npm run playthrough）。
+// 接正式美術：角色與龍眼的材質來自 assets/art；攔下 assets/art 的請求（斷線、404、解碼錯誤）時退回 Canvas 繪圖，照樣坐下、沖一杯、沒有 JS 錯誤。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -1070,6 +1071,60 @@ try {
     await page.click('#nb-links button:has-text("你的咖啡地圖")');
     check((await page.textContent('#map-back')) === '闔上', '從記事本打開的地圖可以闔上');
     await page.click('#map-back');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+
+  /* ---------- 接正式美術：角色與龍眼的手繪圖（assets/art/），以及載入失敗時退回 Canvas 繪圖 ---------- */
+  console.log('\n正式美術：角色與龍眼');
+  {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    const errors = [];
+    const got = new Map();
+    page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+    page.on('response', (r) => { const m = r.url().match(/assets\/art\/([^/?]+)\.webp/); if (m) got.set(m[1], r.status()); });
+    await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(1500);
+    const art = await page.evaluate(() => window.__cafe.art);
+    check(got.size === 18 && [...got.values()].every((s) => s === 200), `從 assets/art 載入 18 張圖（${got.size} 張）`);
+    check(art.loaded.length === 18 && art.loaded.every((n) => got.has(n)), `18 張都解碼成功、用在角色上（${art.loaded.length} 張）`);
+    check(art.now.deshu === 'char_deshu_stand' && art.now.cat === 'cat_longan_sleep', `德叔與龍眼的材質來自 assets/art（${art.now.deshu}、${art.now.cat}）`);
+    check(['yuan', 'zhe', 'kevin', 'grandpa'].every((w) => art.now[w]?.startsWith(`char_${w}_`)), `熟客與阿公的材質來自 assets/art ${JSON.stringify(art.now)}`);
+    const info = await page.evaluate(() => window.__cafe.artInfo);
+    check(info.ppm >= 400 && info.mip && info.trilinear && info.srgb, `手繪圖的材質：每公尺 ${Math.round(info.ppm)} 像素、mipmap、三線性過濾、sRGB`);
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+  {
+    // 攔截 assets/art 的請求讓它失敗（像離線或檔案不見了）：退回 Canvas 繪圖，照樣坐下、沖一杯、溫度上升、沒有 JS 錯誤
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    const errors = [];
+    let blocked = 0;
+    page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    // 被攔下來的請求，瀏覽器會記一筆「Failed to load resource」：那是網路層的訊息，不是 JS 錯誤
+    page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(`console: ${m.text()}`); });
+    // 德叔的圖回一個壞掉的檔案（解碼錯誤）、阿哲的回 404，其他的直接斷線
+    await page.route('**/assets/art/**', (r) => {
+      blocked++;
+      if (/deshu/.test(r.request().url())) return r.fulfill({ status: 200, contentType: 'image/webp', body: 'not a webp' });
+      if (/zhe/.test(r.request().url())) return r.fulfill({ status: 404, body: '' });
+      return r.abort('failed');
+    });
+    await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(1800);
+    const art = await page.evaluate(() => window.__cafe.art);
+    check(blocked >= 18 && art.loaded.length === 0 && Object.values(art.now).every((v) => v === null) && !art.yuanChair, `assets/art 全部失敗（斷線、404、解碼錯誤，攔下 ${blocked} 個請求）：人物退回 Canvas 繪圖`);
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForTimeout(1600);
+    check(await page.evaluate(() => window.__cafe.mode === 'seat'), '沒有手繪圖也能坐下');
+    await page.click('#brew');
+    await page.waitForFunction(() => window.__cafe.brewing, null, { timeout: 5000 });
+    await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 20000 });
+    check(await page.evaluate(() => window.__cafe.tasks.includes('first-coffee') && window.__cafe.temp === 20.5), '沒有手繪圖也能沖一杯（杯子上桌、溫度 +0.5）');
+    await page.screenshot({ path: OUT + 'phone-art-fallback.png' });
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }
