@@ -361,22 +361,32 @@ const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // 紙片轉向鏡頭。階段 7 打磨：
 // 1. 俯瞰時店前半部的紙片幾乎是從正上方看，只剩一條線：不靠牆的紙片往後仰一點（鏡頭越高越仰，最多約 27°），坐下時不仰
 // 2. 角落沙發平常只能小角度轉（坐下看起來才自然），俯瞰時整張轉向鏡頭，不再是側面；轉的時候慢慢轉
+// 美術評分修正 d：俯瞰時不靠牆的紙片只繞垂直軸轉到和畫面平行（不是各自對著鏡頭的位置，畫面邊上的才不會斜成側面），
+// 往後仰的角度不變，剩下看不到的高度用往上拉長補回來（最多 1.8 倍）：原本仰 27° 還是扁扁的，看起來像倒在地上
+const camFwd = new THREE.Vector3();
 function faceCamera(dt = 0) {
   const over = state.mode === 'overview';
+  camera.getWorldDirection(camFwd);
+  const screenYaw = Math.atan2(-camFwd.x, -camFwd.z); // 和畫面平行的方向（美術評分修正 d）
   for (const m of hanging) m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z);
   for (const p of papers) {
-    const yaw = Math.atan2(camera.position.x - p.position.x, camera.position.z - p.position.z);
+    const free = p.userData.clamp >= Math.PI - 1e-6 || p.userData.overClamp; // 站在地上、可以整張轉的紙片（靠牆的不算）
+    const yaw = over && free ? screenYaw : Math.atan2(camera.position.x - p.position.x, camera.position.z - p.position.z);
     const clamp = over && p.userData.overClamp ? Math.PI : p.userData.clamp;
     const d = THREE.MathUtils.clamp(wrapAngle(yaw - p.userData.base), -clamp, clamp);
     const target = p.userData.base + d;
     if (p.userData.overClamp && dt) p.rotation.y += wrapAngle(target - p.rotation.y) * Math.min(1, dt * 4);
     else p.rotation.y = target;
     if (p.userData.shadow) p.userData.shadow.rotation.z = -p.rotation.y; // 影子保持朝地
-    if (p.userData.clamp >= Math.PI - 1e-6 || p.userData.overClamp) {
+    if (free) {
       const m = p.userData.mesh;
       const h = m.geometry.parameters.height * 0.5 + m.position.y;
       const elev = Math.atan2(camera.position.y - h, Math.hypot(camera.position.x - p.position.x, camera.position.z - p.position.z));
-      m.rotation.x = -THREE.MathUtils.clamp((elev - 0.5) * 0.6, 0, 0.47);
+      const lean = THREE.MathUtils.clamp((elev - 0.5) * 0.6, 0, 0.47);
+      m.rotation.x = -lean;
+      // 美術評分修正 d：俯瞰時剩下的角度用拉長補回來，畫出來和原圖一樣高，不會看起來扁扁地躺在地上
+      const sy = over ? Math.min(1.8, 1 / Math.cos(Math.max(0, elev - lean))) : 1;
+      m.scale.y = sy * (p.userData.squash ?? 1);
     }
   }
 }
@@ -422,7 +432,6 @@ const M = {
   coffee: new THREE.MeshLambertMaterial({ color: '#3f2010' }),
   grounds: new THREE.MeshLambertMaterial({ color: '#6b4428' }),
   water: new THREE.MeshBasicMaterial({ color: '#d9eef5', transparent: true, opacity: 0.7 }),
-  cocoa: new THREE.MeshLambertMaterial({ color: '#8a5a3c' }),
   longan: new THREE.MeshLambertMaterial({ color: '#7a4120' }),
   enamel: new THREE.MeshLambertMaterial({ color: '#f4f2ec' }), // 那個舊的琺瑯杯：白底、深藍杯緣
   navy: new THREE.MeshLambertMaterial({ color: '#23406e' }),
@@ -458,20 +467,26 @@ const CUP_SCALE = 1.25; // 原本直徑 8 公分在手機上太不明顯，放�
 const CUP_H = 0.07 * CUP_SCALE;
 // kind：'hot'（手沖）、'cocoa'（德叔給予安的熱可可）、'iced'（凱文的冰美式）、'enamel'（最後一晚，德叔用那個琺瑯杯）；
 // dish：旁邊放一小碟窯烤龍眼乾
-const enamelArt = A.artLoaded('prop_cup') ? A.cup() : null;
-const enamelTex = enamelArt && A.tex(enamelArt);
+// 美術評分修正 d：熱的杯子（手沖、熱可可、最後一晚的琺瑯杯）都用手繪的 prop_cup（白底綠邊、裝著咖啡），一直面向鏡頭；
+// 沒有載到時用 A.cup() 的 Canvas 杯子（最後一晚的琺瑯杯照舊是立體的藍邊杯，和平常的杯子分得出來）。凱文的冰美式照舊是立體的玻璃杯
+const cupImg = A.cup();
+const cupArt = A.artLoaded('prop_cup');
+const cupMat = new THREE.SpriteMaterial({ map: A.tex(cupImg), alphaTest: 0.35, color: '#f2ece4' }); // 每個杯子共用；不受光照，夜裡由 applyLight() 調暗
+function cupSprite(g) {
+  const s = new THREE.Sprite(cupMat);
+  const h = (cupArt ? 0.095 : 0.12) / CUP_SCALE; // 手繪圖裁掉了留白，杯身約 9.5 公分高；Canvas 杯子的畫布上下有留白
+  s.scale.set(h * cupImg.width / cupImg.height, h, 1);
+  s.center.set(0.5, 0);
+  const liquid = new THREE.Object3D(); // 圖裡已經有咖啡：倒進去之前也是滿的（沒有空杯的圖）
+  g.add(s, liquid);
+  g.userData.liquid = liquid;
+  g.userData.sprite = s;
+}
 function makeCup(kind = 'hot', dish = false) {
   const g = new THREE.Group();
   g.scale.setScalar(CUP_SCALE);
-  if (kind === 'enamel' && enamelTex) {
-    // 接正式美術第二批：琺瑯杯用手繪圖（prop_cup，白底綠邊、裝著咖啡），一直面向鏡頭；杯身約 9.5 公分高
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: enamelTex, alphaTest: 0.35, color: '#f2ece4' }));
-    const h = 0.095 / CUP_SCALE;
-    s.scale.set(h * enamelArt.width / enamelArt.height, h, 1);
-    s.center.set(0.5, 0);
-    const liquid = new THREE.Object3D(); // 圖裡已經有咖啡：倒進去之前也是滿的（沒有空杯的圖）
-    g.add(s, liquid);
-    g.userData.liquid = liquid;
+  if (kind === 'enamel' && cupArt) {
+    cupSprite(g);
     g.userData.enamel = true;
     return g;
   }
@@ -494,12 +509,7 @@ function makeCup(kind = 'hot', dish = false) {
     g.userData.iced = true;
     return g;
   }
-  const body = cyl(0.04, 0.034, 0.07, M.ceramic); body.position.y = 0.035;
-  const saucer = cyl(0.07, 0.065, 0.008, M.ceramic); saucer.position.y = 0.004;
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.005, 8, 16), M.ceramic);
-  handle.position.set(0.048, 0.04, 0);
-  const liquid = cyl(0.036, 0.036, 0.004, kind === 'cocoa' ? M.cocoa : M.coffee); liquid.position.y = 0.066; liquid.visible = false;
-  g.add(body, saucer, handle, liquid);
+  cupSprite(g);
   if (dish) {
     const plate = cyl(0.035, 0.03, 0.006, M.ceramic); plate.position.set(-0.075, 0.003, 0.05);
     g.add(plate);
@@ -509,10 +519,9 @@ function makeCup(kind = 'hot', dish = false) {
       g.add(b);
     }
   }
-  g.userData.liquid = liquid;
   return g;
 }
-const CUP_SPOT = new THREE.Vector3(1.95, TOP, -1.35);
+const CUP_SPOT = new THREE.Vector3(1.9, TOP, -1.42); // 美術評分修正 d：往德叔靠一點，看德叔沖的特寫才放得進來
 let stationCup = makeCup();
 stationCup.position.copy(CUP_SPOT);
 scene.add(stationCup);
@@ -531,6 +540,14 @@ const KETTLE_REST = new THREE.Vector3(2.22, TOP, -1.25);
 kettle.position.copy(KETTLE_REST);
 scene.add(kettle);
 
+// 美術評分修正 d：德叔的沖煮圖（char_deshu_brew）已經畫了手沖壺、濾杯與下壺，吧台上的立體器具（磨豆機、濾杯與下壺、手沖壺、水柱）
+// 收起來，不要同時出現兩套；沖煮的六個步驟照舊用聲音、熱氣、德叔的小動作與杯子呈現。凱文顧店（他的圖沒有器具）與退回 Canvas 時照舊
+const kitInArt = () => !keeper() && A.artLoaded('char_deshu_brew');
+function syncBrewKit() {
+  const on = !kitInArt();
+  for (const o of [grinder, brewer, kettle]) o.visible = on;
+}
+syncBrewKit();
 // 水柱
 const stream = cyl(0.0035, 0.0035, 1, M.water, 8);
 stream.visible = false;
@@ -598,6 +615,7 @@ counterBag.visible = save.menu.includes('longan');
 // 老先生的信：德叔從吧台抽屜拿出來，放在吧台上
 const envelope = paper(A.envelope(), 1.8, -0.75, { y: TOP, shadow: false });
 envelope.userData.mesh.scale.setScalar(1.7); // 從俯瞰鏡頭也看得到
+envelope.userData.squash = 1.7; // 高度由 faceCamera() 每一格設（俯瞰時會拉長）
 envelope.visible = false;
 // 門口的徵才啟事：告別第 2 段貼出去，凱文來面試之後收起來
 const noticeSign = paper(A.noticeBoard(''), 0.95, 3.45, { name: 'notice' });
@@ -1044,7 +1062,11 @@ let phase = null;
 let deshuReturning = null; // 德叔端完杯子走回吧台，是獨立的背景動作
 const cups = [];
 // 看德叔沖：正對吧台，磨豆機、濾杯、杯子排成一列在畫面中間，德叔的臉在上方約 1/3（美術評分修正 a：原本斜看，直立畫面只看得到吧台一角）
-const CLOSE = { pos: new THREE.Vector3(-0.1, 1.55, -1.7), look: new THREE.Vector3(2.6, 1.41, -1.68) };
+const CLOSE_KIT = { pos: new THREE.Vector3(-0.1, 1.55, -1.7), look: new THREE.Vector3(2.6, 1.41, -1.68), fov: 52 };
+// 美術評分修正 d：德叔的沖煮圖自己拿著手沖壺與濾杯，吧台上沒有立體器具：鏡頭拉高往下看、推近一點，
+// 吧台正面只剩畫面最下面一條（直立畫面約 11%），德叔的臉在上方約 1/3，吧台上的杯子在他右手邊
+const CLOSE_ART = { pos: new THREE.Vector3(0.3, 1.75, -1.55), look: new THREE.Vector3(2.6, 1.24, -1.55), fov: 42 };
+const closeView = () => (kitInArt() ? CLOSE_ART : CLOSE_KIT);
 const WALK = 0.85; // 德叔端杯的走速（公尺／秒）
 
 // 正常速度下吧台沖煮約 19 秒：六個動作都保留，只縮短停頓與注水
@@ -1074,7 +1096,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   say(keeper() ? F.KEEPER.brewStart : '好，等我一下。', 2500);
   state.closeup = true;
   cam.yaw = 0; cam.pitch = 0; focusP = null; // 視線回到正前方：下一句話要重新轉向說話的人
-  moveCamera(CLOSE.pos, CLOSE.look, 1.2);
+  moveCamera(closeView().pos, closeView().look, 1.2);
   updateUI();
   await wait(1.2);
 
@@ -1082,71 +1104,8 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   const dripTop = brewer.position.clone().add(new THREE.Vector3(0, 0.19, 0));
   const cupSteam = cupTop.clone().add(new THREE.Vector3(0, 0.02, 0));
   const dripSteam = dripTop.clone();
-
-  // 1. 溫杯：熱水沖進杯子，冒出熱氣
-  setPaper(deshu, deshuCanvas.pour);
-  await moveKettle(cupTop);
-  stream.visible = true;
-  steamSources.add(cupSteam);
-  audio.start('pour');
-  await animate(1.6, () => updateStream(cupTop.y));
-  audio.stop('pour');
-  stream.visible = false;
-  await moveKettle(null, 0.7);
-  setPaper(deshu, deshuCanvas.idle);
-
-  // 2. 磨豆：把手轉動，濾杯裡的粉慢慢堆起來
-  await wait(0.3);
-  setPaper(deshu, deshuCanvas.pour);
-  audio.start('grind');
-  await animate(3.0, (k) => {
-    gHandle.rotation.y = k * Math.PI * 10;
-    grinder.position.x = 2.05 + Math.sin(k * 60) * 0.002;
-    groundsBed.scale.y = Math.max(0.01, k);
-  });
-  audio.stop('grind');
-  setPaper(deshu, deshuCanvas.idle);
-  await wait(0.3);
-
-  // 3. 悶蒸：少量注水，粉層膨脹冒泡
-  setPaper(deshu, deshuCanvas.pour);
-  await moveKettle(dripTop);
-  stream.visible = true;
-  audio.start('pour');
-  await animate(1.0, (k) => { updateStream(dripTop.y - 0.04); bloom.scale.set(k * 0.8, k * 0.5, k * 0.8); });
-  audio.stop('pour');
-  stream.visible = false;
-  steamSources.add(dripSteam);
-  await animate(2.2, (k) => {
-    const b = 0.8 + 0.2 * ease(k);
-    bloom.scale.set(b, 0.5 + 0.5 * ease(k), b);
-  });
-
-  // 4. 注水：手沖壺繞小圈，下壺的咖啡慢慢升起
-  stream.visible = true;
-  const base = kettle.position.clone();
-  audio.start('pour');
-  await animate(4.6, (k) => {
-    const a = k * Math.PI * 6;
-    kettle.position.set(base.x + Math.cos(a) * 0.012, base.y, base.z + Math.sin(a) * 0.012);
-    updateStream(dripTop.y - 0.04);
-    serverLiquid.scale.y = 0.001 + k * 0.085;
-    serverLiquid.position.y = serverLiquid.scale.y / 2 + 0.002;
-  });
-  audio.stop('pour');
-  stream.visible = false;
-  await moveKettle(null, 0.7);
-  setPaper(deshu, deshuCanvas.idle);
-  await wait(0.4);
-
-  // 5. 倒進杯子
-  stationCup.userData.liquid.visible = true;
-  audio.start('pourCup');
-  await animate(1.2, (k) => {
-    serverLiquid.scale.y = 0.086 * (1 - k) + 0.001;
-    serverLiquid.position.y = serverLiquid.scale.y / 2 + 0.002;
-  });
-  audio.stop('pourCup');
+  if (kitInArt()) await brewInArt(cupSteam);
+  else await brewWithKit(cupTop, dripTop, cupSteam, dripSteam);
   steamSources.delete(cupSteam);
   steamSources.delete(dripSteam);
 
@@ -1215,6 +1174,118 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   })();
 }
 
+// 吧台上的立體器具沖（凱文顧店、德叔的圖沒有載到）
+async function brewWithKit(cupTop, dripTop, cupSteam, dripSteam) {
+  // 1. 溫杯：熱水沖進杯子，冒出熱氣
+  setPaper(deshu, deshuCanvas.pour);
+  await moveKettle(cupTop);
+  stream.visible = true;
+  steamSources.add(cupSteam);
+  audio.start('pour');
+  await animate(1.6, () => updateStream(cupTop.y));
+  audio.stop('pour');
+  stream.visible = false;
+  await moveKettle(null, 0.7);
+  setPaper(deshu, deshuCanvas.idle);
+
+  // 2. 磨豆：把手轉動，濾杯裡的粉慢慢堆起來
+  await wait(0.3);
+  setPaper(deshu, deshuCanvas.pour);
+  audio.start('grind');
+  await animate(3.0, (k) => {
+    gHandle.rotation.y = k * Math.PI * 10;
+    grinder.position.x = 2.05 + Math.sin(k * 60) * 0.002;
+    groundsBed.scale.y = Math.max(0.01, k);
+  });
+  audio.stop('grind');
+  setPaper(deshu, deshuCanvas.idle);
+  await wait(0.3);
+
+  // 3. 悶蒸：少量注水，粉層膨脹冒泡
+  setPaper(deshu, deshuCanvas.pour);
+  await moveKettle(dripTop);
+  stream.visible = true;
+  audio.start('pour');
+  await animate(1.0, (k) => { updateStream(dripTop.y - 0.04); bloom.scale.set(k * 0.8, k * 0.5, k * 0.8); });
+  audio.stop('pour');
+  stream.visible = false;
+  steamSources.add(dripSteam);
+  await animate(2.2, (k) => {
+    const b = 0.8 + 0.2 * ease(k);
+    bloom.scale.set(b, 0.5 + 0.5 * ease(k), b);
+  });
+
+  // 4. 注水：手沖壺繞小圈，下壺的咖啡慢慢升起
+  stream.visible = true;
+  const base = kettle.position.clone();
+  audio.start('pour');
+  await animate(4.6, (k) => {
+    const a = k * Math.PI * 6;
+    kettle.position.set(base.x + Math.cos(a) * 0.012, base.y, base.z + Math.sin(a) * 0.012);
+    updateStream(dripTop.y - 0.04);
+    serverLiquid.scale.y = 0.001 + k * 0.085;
+    serverLiquid.position.y = serverLiquid.scale.y / 2 + 0.002;
+  });
+  audio.stop('pour');
+  stream.visible = false;
+  await moveKettle(null, 0.7);
+  setPaper(deshu, deshuCanvas.idle);
+  await wait(0.4);
+
+  // 5. 倒進杯子
+  stationCup.userData.liquid.visible = true;
+  audio.start('pourCup');
+  await animate(1.2, (k) => {
+    serverLiquid.scale.y = 0.086 * (1 - k) + 0.001;
+    serverLiquid.position.y = serverLiquid.scale.y / 2 + 0.002;
+  });
+  audio.stop('pourCup');
+}
+
+// 美術評分修正 d：德叔的沖煮圖已經拿著手沖壺與濾杯：六個步驟的節奏照舊（時間、聲音、熱氣、杯子），
+// 器具不另外畫，改成德叔的小動作——注水時身體微微側傾、磨豆時輕輕晃、繞圈注水時左右慢慢擺；沖到倒進杯子為止都用沖煮圖，不換回站姿
+async function brewInArt(cupSteam) {
+  const m = deshu.userData.mesh;
+  const dripSteam = deshu.position.clone().add(new THREE.Vector3(-0.15, 1.12, -0.03)); // 圖裡濾杯的位置（大約，在他胸前）
+  const lean = (to, sec) => { const from = m.rotation.z; return animate(sec, (k) => { m.rotation.z = from + (to - from) * ease(k); }); };
+  setPaper(deshu, deshuCanvas.pour);
+  // 1. 溫杯：熱水沖進杯子，冒出熱氣
+  await lean(0.025, 0.9);
+  steamSources.add(cupSteam);
+  audio.start('pour');
+  await wait(1.6);
+  audio.stop('pour');
+  await lean(0, 0.7);
+  // 2. 磨豆
+  await wait(0.3);
+  audio.start('grind');
+  await animate(3.0, (k) => { m.position.x = Math.sin(k * 90) * 0.006; });
+  m.position.x = 0;
+  audio.stop('grind');
+  await wait(0.3);
+  // 3. 悶蒸：少量注水，濾杯冒出熱氣
+  await lean(0.025, 0.9);
+  audio.start('pour');
+  await wait(1.0);
+  audio.stop('pour');
+  steamSources.add(dripSteam);
+  await wait(2.2);
+  // 4. 注水：繞小圈，身體跟著左右慢慢擺
+  audio.start('pour');
+  await animate(4.6, (k) => { m.position.x = Math.sin(k * Math.PI * 6) * 0.012; });
+  m.position.x = 0;
+  audio.stop('pour');
+  await lean(0, 0.7);
+  await wait(0.4);
+  // 5. 倒進杯子
+  stationCup.userData.liquid.visible = true;
+  audio.start('pourCup');
+  await wait(1.2);
+  audio.stop('pourCup');
+  steamSources.delete(dripSteam);
+  setPaper(deshu, deshuCanvas.idle);
+}
+
 // 杯子落桌：輕輕一沉一彈、冒一陣熱氣；同一個座位只留最新的一杯
 function placeCup(cup, seat) {
   for (let i = cups.length - 1; i >= 0; i--) {
@@ -1244,7 +1315,7 @@ function toggleCloseup() {
   if (!state.seat) return;
   state.closeup = !state.closeup;
   cam.yaw = 0; cam.pitch = 0; focusP = null;
-  if (state.closeup) moveCamera(CLOSE.pos, CLOSE.look);
+  if (state.closeup) moveCamera(closeView().pos, closeView().look);
   else { moveCamera(state.seat.eye, state.seat.look); refocusSpeaker(); }
   updateUI();
 }
@@ -1260,6 +1331,7 @@ let catHoldUntil = 0; // 龍眼陪著熟客（跳上凱文的腿、睡在予安�
 let catSpot = null; // 今天睡的地方（cat.js 的 CAT_SPOTS）
 let catAtHome = false; // 在睡覺的地方
 let catOnSeat = null; // 跳上了哪張椅子（座位 id）
+let catOnSill = false; // 老闆坐窗邊座時，睡在後面那扇窗的窗台上（美術評分修正 d）
 let catSeatUntil = 0;
 const catMood = { taps: [], awayUntil: 0 }; // 點太多次就走開（cat.js 的 petCat）
 
@@ -1297,6 +1369,8 @@ function catHop(y, sec = 0.45) {
 }
 // 走到某處（在高處就先跳下來），到了再跳上去
 async function catGo(to, y = 0, pose = 'sleep', speed = 0.45) {
+  catOnSill = false;
+  cat.userData.shadow.visible = true;
   setPaper(cat, catCanvas.walk);
   if (cat.userData.mesh.position.y > 0.02) await catHop(0);
   await walk(cat, to, speed);
@@ -1329,6 +1403,8 @@ function placeCatAtHome() {
   setPaper(cat, catCanvas.sleep);
   catAtHome = true;
   catOnSeat = null;
+  catOnSill = false;
+  cat.userData.shadow.visible = true;
   if (catSpot.items && !save.cat.seen.includes(catSpot.id)) { save.cat.seen.push(catSpot.id); persist(); }
 }
 // 擺飾換了、換了一天：睡覺的地方可能也換了
@@ -1341,6 +1417,7 @@ const catHeld = () => catBusy || performance.now() < catHoldUntil || performance
 // 偶爾起來走一走；陪完熟客、跳上椅子一陣子、走開一陣子之後，回去睡
 setInterval(async () => {
   if (catBusy || performance.now() < catHoldUntil || !catSpot) return;
+  if (catOnSill) { if (state.mode === 'seat' && state.seat?.id === 'window') return; catHome(); return; } // 老闆站起來了：回去睡
   if (catOnSeat) { if (performance.now() > catSeatUntil) catHome(); return; }
   if (!catAtHome) { if (performance.now() > catMood.awayUntil) catHome(); return; }
   if (Math.random() > 0.35 || state.scene) return;
@@ -1358,9 +1435,8 @@ function petTheCat() {
   if (r === 'ignore') return;
   if (r === 'purr') {
     say(PURR[Math.floor(Math.random() * PURR.length)], 2500, cat);
-    const m = cat.userData.mesh;
     let t = 0;
-    realWaiters.push((dt) => { t += dt; m.scale.y = 1 - Math.sin(Math.PI * Math.min(1, t / 0.5)) * 0.12; return t >= 0.5; });
+    realWaiters.push((dt) => { t += dt; cat.userData.squash = 1 - Math.sin(Math.PI * Math.min(1, t / 0.5)) * 0.12; return t >= 0.5; });
     return;
   }
   bubble.classList.remove('show');
@@ -1401,6 +1477,38 @@ function maybeCatChair(seat, satSec) {
     checkTasks({ delay: 500 }); // 德叔的一句話寫在 tasks.js（【待定】）
   })();
 }
+// 美術評分修正 d：老闆坐窗邊座時，龍眼睡在後面那扇窗的窗台上。窗邊座以窗景為主體（D130），
+// 原本畫面裡只有窗戶和牆，沒有一個看得到的焦點；龍眼睡在窗台的右邊，窗景和他一起是這個位子的畫面。
+// 從店的另一頭走過來要十幾秒，所以趁鏡頭從俯瞰移下來的途中直接換過去（那時畫面在動，看不出來）；
+// 老闆站起來之後，他照舊會跳上還熱著的椅子，或回去原本睡覺的地方
+const SILL = { pos: V3(-1.3, 0, -3.84), y: 1.1 };
+async function catToSill(seat) {
+  await realWait(600);
+  const here = () => state.mode === 'seat' && state.seat === seat && !catOnSill;
+  if (!here() || state.scene || performance.now() < catHoldUntil || performance.now() < catMood.awayUntil) return;
+  if (catBusy || catOnSeat) {
+    // 正在散步、正在讓位，或睡在另一張還熱著的椅子上（任務 #7 在跳上去的時候就算了）：
+    // 等他走完，再自己走過來、跳上窗台（最多等 8 秒）
+    for (let i = 0; catBusy && i < 16; i++) await realWait(500);
+    if (!here() || catBusy || catHeld() || state.scene) return;
+    catBusy = true;
+    catAtHome = false;
+    catOnSeat = null;
+    await catGo(SILL.pos, SILL.y, 'sleep', 0.9);
+    catBusy = false;
+    if (!here()) return; // 走到一半老闆站起來了：下一次散步的時間回去睡
+    cat.userData.shadow.visible = false;
+    catOnSill = true;
+    return;
+  }
+  cat.position.copy(SILL.pos);
+  catPrev.copy(SILL.pos);
+  cat.userData.mesh.position.y = SILL.y;
+  setPaper(cat, catCanvas.sleep);
+  cat.userData.shadow.visible = false; // 地上的影子在窗台下面，收起來
+  catAtHome = false;
+  catOnSill = true;
+}
 // 老闆要坐的椅子上有龍眼（或他就睡在旁邊）：他跳下來，走到旁邊
 function catShoo() {
   if (catBusy) return;
@@ -1433,6 +1541,7 @@ function applyLight() {
     m.emissive.set(n ? '#6a5a4c' : '#000000');
     m.needsUpdate = true;
   }
+  cupMat.color.set(n ? '#c4b29e' : wet ? '#e2dbd2' : '#f2ece4'); // 杯子的圖不受光照：夜裡、雨天暗一點，才不會比桌子亮
   for (const r of rainPlanes) { r.visible = wet; r.material.map = storm ? rainTex.typhoon : rainTex.rain; r.material.opacity = storm ? 0.95 : 0.7; r.material.needsUpdate = true; }
   scene.background = new THREE.Color(n ? '#13151d' : '#ece2d0');
   renderer.toneMappingExposure = n ? 1.15 : 1.0;
@@ -1495,7 +1604,11 @@ function measureUi() {
   return changed;
 }
 const OVER_BASE = { yaw: Math.atan2(OVER.pos.x - OVER.look.x, OVER.pos.z - OVER.look.z), look: OVER.look.clone() };
-const propTop = (p) => p.userData.mesh.geometry.parameters.height + p.userData.mesh.position.y;
+// 美術評分修正 d：俯瞰時紙片會往後仰、拉長（faceCamera()），上緣的高度跟著算
+const tallOf = (m) => m.geometry.parameters.height * m.scale.y * Math.cos(m.rotation.x);
+const propTop = (p) => tallOf(p.userData.mesh) + p.userData.mesh.position.y;
+// 紙片上緣中點在世界座標的位置（含後仰）
+const topPoint = (p, out) => out.set(0, p.userData.mesh.geometry.parameters.height, 0).applyMatrix4(p.userData.mesh.matrixWorld);
 function fitOverview(smooth = false) {
   const w = app.clientWidth, h = app.clientHeight;
   if (!w || !h) return;
@@ -1638,7 +1751,7 @@ function updateCamera(dt) {
     cam.look.lerpVectors(tween.fromLook, tween.toLook, k);
     if (tween.t >= 1) tween = null;
   }
-  const targetFov = state.mode === 'overview' ? 50 : state.closeup ? 52 : state.focus ? focusFov : seatFov();
+  const targetFov = state.mode === 'overview' ? 50 : state.closeup ? closeView().fov : state.focus ? focusFov : seatFov();
   // 推近跟著開發者模式的倍率（和轉向說話的人一樣）；一般玩家的倍率是 1，沒有差別
   if (Math.abs(camera.fov - targetFov) > 0.05) { camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 3 * DEV_SPEED); camera.updateProjectionMatrix(); }
   if (state.mode === 'overview') {
@@ -1667,6 +1780,7 @@ function sit(seat) {
   moveCamera(seat.eye, seat.look);
   state.satAt = performance.now();
   catShoo(); // 椅子上（或旁邊）睡著龍眼的話，他跳下來讓位
+  if (seat.id === 'window') catToSill(seat);
   if (state.guest === 'sit') {
     // 客人模式：坐下之後德叔過來點單
     if (!save.seatsSat.includes(seat.id)) { save.seatsSat.push(seat.id); persist(); }
@@ -2223,7 +2337,7 @@ function inkTop(img) {
 }
 const headOf = (p) => {
   const m = p.userData.mesh;
-  const h = m.geometry.parameters.height;
+  const h = tallOf(m);
   return (HEAD.get(p) ?? h * (1 - inkTop(m.material.map?.image)) + 0.06) + m.position.y; // 龍眼睡在書架上、椅子上時泡泡跟著高
 };
 const LINES = new Map([
@@ -3273,6 +3387,7 @@ async function postNotice() {
 async function handKeys(w) {
   const k = paper(A.key(), deshu.position.x, deshu.position.z, { y: 1.05, shadow: false });
   k.userData.mesh.scale.setScalar(1.6);
+  k.userData.squash = 1.6;
   const from = deshu.position.clone(), to = PEOPLE[w].position.clone();
   setPaper(deshu, deshuCanvas.pour);
   await animate(1.1, (t) => {
@@ -3315,6 +3430,7 @@ function becomeKeeper() {
   for (const k of ['a', 'b']) { wipeTex[k]?.dispose(); wipeTex[k] = null; }
   setArt(deshu, deshuCanvas.idle);
   deshu.position.copy(HOME);
+  syncBrewKit(); // 凱文的圖沒有手沖器具：吧台上的立體器具拿出來
   NAMES.set(deshu, F.KEEPER.name);
   kevin.visible = false;
   live.arrived.delete('kevin');
@@ -3966,7 +4082,7 @@ function placeLabels(W, H, avoid) {
   const items = SEATS.map((st, i) => {
     const el = labels[i];
     // 家具在畫面上的上緣：底部與頂部投影比較高（畫面上比較上面）的那一個
-    sv.copy(st.prop.position).setY(propTop(st.prop)).project(camera);
+    topPoint(st.prop, sv).project(camera);
     const y1 = ((1 - sv.y) / 2) * H, x = ((sv.x + 1) / 2) * W;
     sv.copy(st.prop.position).project(camera);
     const y0 = ((1 - sv.y) / 2) * H;
@@ -4030,7 +4146,7 @@ function loop() {
   flipCat();
   updateOcclusion(dt);
   // 龍眼睡覺時的呼吸
-  if (!catBusy) cat.userData.mesh.scale.y = 1 + Math.sin(performance.now() / 900) * 0.03;
+  if (!catBusy) cat.userData.squash = 1 + Math.sin(performance.now() / 900) * 0.03;
   // 予安偶爾低頭打字
   yuan.userData.mesh.position.y = Math.sin(performance.now() / 1300) > 0.85 ? 0.01 : 0;
   // 吧台上的信輕輕晃，等老闆來拿
@@ -4250,6 +4366,8 @@ if (DEV) {
     // 階段 5：龍眼、打烊後、客人模式
     get catSpot() { return catSpot?.id || null; },
     get catOnSeat() { return catOnSeat; },
+    get catOnSill() { return catOnSill; },
+    get brewKit() { return grinder.visible || brewer.visible || kettle.visible; }, // 美術評分修正 d：吧台上的立體沖煮器具有沒有出來 // 美術評分修正 d：老闆坐窗邊座時睡在窗台上
     get catBusy() { return catBusy; },
     get catAway() { return performance.now() < catMood.awayUntil; },
     get catHome() { return catAtHome; },
@@ -4280,7 +4398,7 @@ if (DEV) {
     say(text, ms = 6000) { say(text, ms); }, // 美術評分修正 c：讓德叔說一句，測試泡泡的位置
     // 美術評分修正 c：鏡頭停好了（沒有在移動、轉向，推近也到了），全流程截圖等這個再拍
     get camStill() {
-      const want = state.mode === 'overview' ? 50 : state.closeup ? 52 : state.focus ? focusFov : seatFov();
+      const want = state.mode === 'overview' ? 50 : state.closeup ? closeView().fov : state.focus ? focusFov : seatFov();
       return !tween && (!turnTok || turnTok !== lookTok) && Math.abs(camera.fov - want) < 1;
     },
     // 美術評分修正 c：桌子（桌面、桌腳）占整個畫面多少（在格點上打射線，第一個碰到的是桌子就算）

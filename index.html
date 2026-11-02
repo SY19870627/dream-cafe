@@ -308,10 +308,11 @@
   @media (min-aspect-ratio: 3/5) {
     /* art2b：桌機的場景欄加寬（720 高時 480px，原本 332px），俯瞰的房間與角色才不會太小（評審：角色約 20px） */
     #app { max-width: calc(100vh * 2 / 3); }
-    #bubble { font-size: 16px; max-width: 250px; }
-    #ask { font-size: 16px; }
-    #bubble b, #ask b { font-size: 14px; }
-    #labels .seat-label span { font-size: 15px; }
+    /* 美術評分修正 d：評審說桌機俯瞰的標籤與泡泡仍偏小，再大一號 */
+    #bubble { font-size: 18px; max-width: 280px; }
+    #ask { font-size: 17px; }
+    #bubble b, #ask b { font-size: 15px; }
+    #labels .seat-label span { font-size: 17px; padding: 8px 14px; }
     .hint, #speed { font-size: 14px; }
     .title { font-size: 14px; line-height: 17px; }
     .title b { font-size: 14px; line-height: 18px; }

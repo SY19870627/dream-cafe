@@ -170,10 +170,18 @@ try {
     await page.waitForTimeout(1600);
     check(await page.evaluate(() => window.__cafe.mode === 'seat'), '點「窗邊座」可以坐下');
     check((await smallTargets(page)).length === 0, '坐下後的按鈕都 ≥ 44px');
+    // 美術評分修正 d：坐窗邊座時，龍眼睡在窗台上、在畫面裡（窗邊座的焦點）
+    await page.waitForFunction(() => window.__cafe.catOnSill, null, { timeout: 5000 }).catch(() => {});
+    const sill = await page.evaluate(() => ({ on: window.__cafe.catOnSill, at: window.__cafe.catOnScreen(), w: document.getElementById('app').clientWidth, h: document.getElementById('app').clientHeight }));
+    check(sill.on && sill.at.inFront && sill.at.x > 0 && sill.at.x < sill.w && sill.at.y > 0 && sill.at.y < sill.h, `坐窗邊座時龍眼睡在窗台上、在畫面裡 ${JSON.stringify(sill)}`);
 
     await page.click('#brew');
     await page.waitForTimeout(200);
     check(await page.evaluate(() => window.__cafe.brewing && window.__cafe.closeup), '按沖咖啡後鏡頭移到吧台');
+    // 美術評分修正 d：德叔的沖煮圖已經拿著手沖壺與濾杯，吧台上的立體器具收起來；沖煮中一直是沖煮圖
+    await page.waitForFunction(() => window.__cafe.phase === 'brew' && window.__cafe.art.now.deshu === 'char_deshu_brew', null, { timeout: 5000 }).catch(() => {});
+    const kit = await page.evaluate(() => ({ kit: window.__cafe.brewKit, deshu: window.__cafe.art.now.deshu }));
+    check(!kit.kit && kit.deshu === 'char_deshu_brew', `沖煮中德叔是沖煮圖、吧台上沒有另一套立體器具 ${JSON.stringify(kit)}`);
     check((await page.textContent('#brew')) === '回座位', '沖煮中按鈕是「回座位」');
     // 按住畫面 ×3
     const box = await page.locator('#app canvas').boundingBox();
@@ -733,14 +741,16 @@ try {
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     check(['sofa', 'step', 'sill'].includes(await cafe('catSpot')), `沒有貓窩時，龍眼睡在沙發、台階或窗台下（${await cafe('catSpot')}）`);
     // 坐一會兒再站起來：椅子還熱著，龍眼跳上去（任務 #7）
+    // 美術評分修正 d：記下泡泡說過的每一句（德叔那句話可能很快被下一句蓋掉；逾時時印出來看是哪一句）
+    await page.evaluate(() => { window.__said = []; new MutationObserver(() => window.__said.push(document.getElementById('bubble').textContent)).observe(document.getElementById('bubble'), { childList: true, subtree: true, characterData: true }); });
     await page.click('.seat-label >> text=窗邊座');
     await page.waitForTimeout(1200);
     await page.click('#stand');
     await page.waitForFunction(() => window.__cafe.catOnSeat === 'window', null, { timeout: 15000 });
     await page.waitForFunction(() => window.__cafe.tasks.includes('cat-chair'), null, { timeout: 5000 });
     check(Math.abs((await cafe('catPos')).y - 0.42) < 0.01, '龍眼跳上老闆剛坐過的椅子，任務 #7 完成');
-    await page.waitForFunction(() => document.getElementById('bubble').textContent.includes('龍眼最會挑位子'), null, { timeout: 5000 });
-    check(true, '德叔一句話帶出（不跳任務清單）');
+    const catLine = await page.waitForFunction(() => window.__said.some((t) => t.includes('龍眼最會挑位子')), null, { timeout: 8000 }).then(() => true, () => false);
+    check(catLine, `德叔一句話帶出（不跳任務清單）${catLine ? '' : JSON.stringify(await page.evaluate(() => ({ said: window.__said, bubble: document.getElementById('bubble').textContent, w: window.__cafe.waitInfo })))}`);
     await page.screenshot({ path: OUT + 'phone-cat-chair.png' });
     // 坐回去：龍眼跳下來讓位
     await page.click('.seat-label >> text=窗邊座');
@@ -1154,6 +1164,7 @@ try {
     check(await page.evaluate(() => window.__cafe.mode === 'seat'), '沒有手繪圖也能坐下');
     await page.click('#brew');
     await page.waitForFunction(() => window.__cafe.brewing, null, { timeout: 5000 });
+    check(await page.evaluate(() => window.__cafe.brewKit), '沒有沖煮圖時，吧台上照舊是立體的沖煮器具');
     await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 20000 });
     check(await page.evaluate(() => window.__cafe.tasks.includes('first-coffee') && window.__cafe.temp === 20.5), '沒有手繪圖也能沖一杯（杯子上桌、溫度 +0.5）');
     await page.screenshot({ path: OUT + 'phone-art-fallback.png' });
