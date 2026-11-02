@@ -79,14 +79,25 @@ window.addEventListener('resize', resize);
 const ROOM = { w: 6, d: 8, h: 3.2 };
 const lambert = (map, extra = {}) => new THREE.MeshLambertMaterial({ map, ...extra });
 
-const floorTex = A.tex(A.woodFloor(), [3, 4]);
+// 接正式美術第二批：地板、牆、天花板、吧台與桌面是手繪的無縫材質（沒有載到時 art.js 回傳同樣大小的 Canvas 版本），依公尺設定 repeat
+const floorTex = A.tex(A.woodFloor(), [ROOM.w / 2, ROOM.d / 2]); // 一張 2×2 公尺
+// 同一張圖的不同 repeat：clone() 共用同一份圖（GPU 只上傳一次）
+const texRepeat = (t, x, y) => { const c = t.clone(); c.repeat.set(x, y); c.needsUpdate = true; return c; };
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), lambert(floorTex));
 floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
 
+// 牆：上半石灰牆、下半 1 公尺高的紅磚腰牆（上緣是木腰帶），各一片平鋪 1×1 公尺的材質
+const WAINSCOT = 1.0;
+const plasterTex = A.tex(A.wallPlaster(), [1, 1]), wainscotTex = A.tex(A.wallWainscot(), [1, 1]);
 function addWall(w, x, z, ry) {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, ROOM.h), lambert(A.tex(A.wall(w, ROOM.h))));
-  m.position.set(x, ROOM.h / 2, z);
+  const m = new THREE.Group();
+  const up = new THREE.Mesh(new THREE.PlaneGeometry(w, ROOM.h - WAINSCOT), lambert(texRepeat(plasterTex, w, ROOM.h - WAINSCOT)));
+  up.position.y = (ROOM.h + WAINSCOT) / 2;
+  const low = new THREE.Mesh(new THREE.PlaneGeometry(w, WAINSCOT), lambert(texRepeat(wainscotTex, w, 1)));
+  low.position.y = WAINSCOT / 2;
+  m.add(up, low);
+  m.position.set(x, 0, z);
   m.rotation.y = ry;
   scene.add(m);
   return m;
@@ -96,12 +107,13 @@ addWall(ROOM.d, -ROOM.w / 2, 0, Math.PI / 2); // 左牆
 addWall(ROOM.d, ROOM.w / 2, 0, -Math.PI / 2); // 右牆（吧台後）
 const frontWall = addWall(ROOM.w, 0, ROOM.d / 2, Math.PI); // 前牆，只在坐下時顯示
 
-const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), lambert(A.tex(A.ceiling(ROOM.w, ROOM.d))));
+const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), lambert(A.tex(A.ceiling(), [ROOM.w, ROOM.d]))); // 一張 1×1 公尺
 ceiling.rotation.x = Math.PI / 2;
 ceiling.position.y = ROOM.h;
 scene.add(ceiling);
 
-// 窗戶（不受光照影響，自己發亮）；窗外隨白天／夜晚與天氣（晴、雨、颱風）換一張
+// 窗戶（不受光照影響，自己發亮）；窗外隨白天／夜晚與天氣（晴、雨、颱風）換一張。
+// 接正式美術第二批：窗景六張是畫好的最終亮度；窗框是另一張透明圖，貼在窗景與雨絲前面（受店裡的光照）
 const winTexCache = new Map();
 function winTex(night, weather) {
   const k = `${night}:${weather}`;
@@ -112,6 +124,7 @@ const windows = [];
 const rainTex = { rain: A.tex(A.rain(false)), typhoon: A.tex(A.rain(true)) };
 for (const t of Object.values(rainTex)) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 1.2); }
 const rainPlanes = [];
+const frameTex = A.tex(A.windowFrame());
 function addWindow(x, y, z, ry) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.3), new THREE.MeshBasicMaterial({ map: winTex(false, 'clear') }));
   m.position.set(x, y, z);
@@ -126,15 +139,32 @@ function addWindow(x, y, z, ry) {
   r.visible = false;
   scene.add(r);
   rainPlanes.push(r);
+  const f = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.3), lambert(frameTex, { transparent: true, alphaTest: 0.35 }));
+  f.position.set(x, y, z);
+  f.rotation.y = ry;
+  f.translateZ(0.035);
+  scene.add(f);
 }
 addWindow(-1.7, 1.75, -ROOM.d / 2 + 0.02, 0);
 addWindow(-ROOM.w / 2 + 0.02, 1.7, -0.6, Math.PI / 2);
 
-// 吧台後方層架（小黑板寫著今日手沖；阿哲的豆上架後多一行）
+// 吧台後方層架（小黑板寫著今日手沖；阿哲的豆上架後多一行）。
+// 接正式美術第二批：手繪的層架下半是一座有抽屜的櫃子，底邊在離地 0.95 公尺：底下補一座靠牆的矮櫃（正面用吧台正面的材質）撐著
 const backBar = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.8), lambert(A.tex(A.backBar(2.8, 1.8, save.menu)), { transparent: true, alphaTest: 0.1 }));
 backBar.position.set(ROOM.w / 2 - 0.02, 1.85, -1.6);
 backBar.rotation.y = -Math.PI / 2;
 scene.add(backBar);
+const BACK_BASE = { d: 0.2, h: 0.95 };
+const counterFrontTex = A.tex(A.counterFront(), [1, 1]);
+const woodTopTex = A.tex(A.woodTop(), [1, 1]);
+{
+  const front = lambert(texRepeat(counterFrontTex, 2.8 / 1.7, BACK_BASE.h));
+  const top = lambert(texRepeat(woodTopTex, BACK_BASE.d, 2.8));
+  const side = lambert(texRepeat(counterFrontTex, BACK_BASE.d / 1.7, BACK_BASE.h));
+  const base = new THREE.Mesh(new THREE.BoxGeometry(BACK_BASE.d, BACK_BASE.h, 2.8), [side, front, top, top, side, side]);
+  base.position.set(ROOM.w / 2 - BACK_BASE.d / 2, BACK_BASE.h / 2, -1.6);
+  scene.add(base);
+}
 function drawBackBar(menu = save.menu) {
   backBar.material.map?.dispose();
   backBar.material.map = A.tex(A.backBar(2.8, 1.8, menu));
@@ -153,19 +183,27 @@ thermoGlow.position.set(1.4, 1.65, -ROOM.d / 2 + 0.01);
 thermoGlow.visible = false;
 scene.add(thermoGlow);
 
-// 吧台（實體盒子；大型家具用立體，小擺飾與人物用紙片）
-const wood = new THREE.MeshLambertMaterial({ color: '#8a5a3b' });
-const woodTop = new THREE.MeshLambertMaterial({ color: '#5e3c28' });
-const counter = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 3.4), wood);
+// 吧台（實體盒子；大型家具用立體，小擺飾與人物用紙片）。
+// 接正式美術第二批：正面（客人那一側）與兩端貼吧台正面的材質（1.7×1 公尺一張），檯面與圓桌貼木頭檯面（1×1 公尺一張）
+// BoxGeometry 六個面的順序：+x、−x、+y、−y、+z、−z
+const counterSide = lambert(texRepeat(counterFrontTex, 0.7 / 1.7, 1));
+const counterFace = lambert(texRepeat(counterFrontTex, 3.4 / 1.7, 1));
+const counter = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.0, 3.4), [counterFace, counterFace, counterSide, counterSide, counterSide, counterSide]);
 counter.position.set(2.0, 0.5, -1.5);
 scene.add(counter);
-const counterTop = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.06, 3.5), woodTop);
+// 檯面：木紋順著吧台長的方向（材質轉 90°）
+const topTex = texRepeat(woodTopTex, 3.5, 0.8);
+topTex.center.set(0.5, 0.5); topTex.rotation = Math.PI / 2;
+const topEdge = lambert(texRepeat(woodTopTex, 3.5, 0.06)), topEnd = lambert(texRepeat(woodTopTex, 0.8, 0.06));
+const counterTop = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.06, 3.5), [topEdge, topEdge, lambert(topTex), topEnd, topEnd, topEnd]);
 counterTop.position.set(2.0, 1.03, -1.5);
 scene.add(counterTop);
 
+const tableEdge = new THREE.MeshLambertMaterial({ color: '#8a5a3b' });
 function table(x, z, h = 0.74, r = 0.38) {
   const g = new THREE.Group();
-  const top = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.04, 32), woodTop);
+  const face = lambert(texRepeat(woodTopTex, 2 * r, 2 * r)); // 圓桌面的 UV 是整個圓：直徑幾公尺就重複幾次
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.04, 32), [tableEdge, face, face]);
   top.position.y = h;
   const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, h, 12), new THREE.MeshLambertMaterial({ color: '#3a3330' }));
   leg.position.y = h / 2;
@@ -178,16 +216,31 @@ function table(x, z, h = 0.74, r = 0.38) {
   return { x, z, h };
 }
 
-// 吊燈
+// 吊燈。接正式美術第二批：手繪的吊燈是紙片（燈罩下緣在原本圓錐的下緣 2.35 公尺，電線往上接到天花板），
+// 只轉水平方向面向鏡頭（hanging）；燈罩的亮度用 emissive（只有燈罩那段發亮）。沒有載到就用原本的立體圓錐
 const pendants = [];
+const hanging = [];
+const lampArt = A.pendantLamp();
+const lampTex = lampArt && A.tex(lampArt), lampGlow = lampArt && A.tex(lampArt.glow);
 for (const z of [-2.5, -0.7]) {
-  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.2, 20, 1, true), new THREE.MeshBasicMaterial({ color: '#ffd59a', side: THREE.DoubleSide }));
-  shade.position.set(2.0, 2.45, z);
-  const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.65), new THREE.MeshBasicMaterial({ color: '#222' }));
-  cord.position.set(2.0, 2.87, z);
+  let shade;
+  if (lampTex) {
+    const w = lampArt.width / lampArt.ppm, h = lampArt.height / lampArt.ppm;
+    shade = new THREE.Mesh(new THREE.PlaneGeometry(w, h).translate(0, h / 2, 0),
+      new THREE.MeshLambertMaterial({ map: lampTex, emissiveMap: lampGlow, emissive: '#ffffff', emissiveIntensity: 0.7, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide }));
+    shade.position.set(2.0, 2.35, z);
+    hanging.push(shade);
+    scene.add(shade);
+  } else {
+    shade = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.2, 20, 1, true), new THREE.MeshBasicMaterial({ color: '#ffd59a', side: THREE.DoubleSide }));
+    shade.position.set(2.0, 2.45, z);
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.65), new THREE.MeshBasicMaterial({ color: '#222' }));
+    cord.position.set(2.0, 2.87, z);
+    scene.add(shade, cord);
+  }
   const light = new THREE.PointLight('#ffb46b', 6, 0, 1.6);
   light.position.set(2.0, 2.3, z);
-  scene.add(shade, cord, light);
+  scene.add(light);
   pendants.push({ shade, light, level: 1, pos: new THREE.Vector3(2.0, 2.45, z) });
 }
 // 夜裡吧台正面（客人那一側）的補光：吊燈在吧台正上方，正面原本只剩一片暗（階段 7）；跟著吊燈一起開關
@@ -208,6 +261,13 @@ scene.add(sun);
 /* ---------- 紙片 ---------- */
 const papers = [];
 const blobTex = A.tex(A.blob());
+// 落地燈亮的時候燈罩前面的暖光（手繪的落地燈用）
+const haloTex = A.tex(A.glow());
+const floorGlow = new Map(); // 手繪落地燈的圖 → 只有燈罩的發光材質（每張圖做一次）
+function lampGlowTex(art) {
+  if (!floorGlow.has(art)) floorGlow.set(art, A.tex(A.glowOnly(art, 0, 0.24)));
+  return floorGlow.get(art);
+}
 
 function paper(canvas, x, z, opt = {}) {
   const w = canvas.width / A.ppmOf(canvas), h = canvas.height / A.ppmOf(canvas);
@@ -257,7 +317,7 @@ function removePaper(p) {
   papers.splice(papers.indexOf(p), 1);
   p.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
-    if (o.material) { if (o.material.map !== blobTex) o.material.map?.dispose(); o.material.dispose(); }
+    if (o.material) { if (o.material.map !== blobTex && o.material.map !== haloTex) o.material.map?.dispose(); o.material.dispose(); }
   });
 }
 
@@ -267,6 +327,7 @@ const wrapAngle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // 2. 角落沙發平常只能小角度轉（坐下看起來才自然），俯瞰時整張轉向鏡頭，不再是側面；轉的時候慢慢轉
 function faceCamera(dt = 0) {
   const over = state.mode === 'overview';
+  for (const m of hanging) m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z);
   for (const p of papers) {
     const yaw = Math.atan2(camera.position.x - p.position.x, camera.position.z - p.position.z);
     const clamp = over && p.userData.overClamp ? Math.PI : p.userData.clamp;
@@ -361,9 +422,23 @@ const CUP_SCALE = 1.25; // 原本直徑 8 公分在手機上太不明顯，放�
 const CUP_H = 0.07 * CUP_SCALE;
 // kind：'hot'（手沖）、'cocoa'（德叔給予安的熱可可）、'iced'（凱文的冰美式）、'enamel'（最後一晚，德叔用那個琺瑯杯）；
 // dish：旁邊放一小碟窯烤龍眼乾
+const enamelArt = A.artLoaded('prop_cup') ? A.cup() : null;
+const enamelTex = enamelArt && A.tex(enamelArt);
 function makeCup(kind = 'hot', dish = false) {
   const g = new THREE.Group();
   g.scale.setScalar(CUP_SCALE);
+  if (kind === 'enamel' && enamelTex) {
+    // 接正式美術第二批：琺瑯杯用手繪圖（prop_cup，白底綠邊、裝著咖啡），一直面向鏡頭；杯身約 9.5 公分高
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: enamelTex, alphaTest: 0.35, color: '#f2ece4' }));
+    const h = 0.095 / CUP_SCALE;
+    s.scale.set(h * enamelArt.width / enamelArt.height, h, 1);
+    s.center.set(0.5, 0);
+    const liquid = new THREE.Object3D(); // 圖裡已經有咖啡：倒進去之前也是滿的（沒有空杯的圖）
+    g.add(s, liquid);
+    g.userData.liquid = liquid;
+    g.userData.enamel = true;
+    return g;
+  }
   if (kind === 'enamel') {
     const body = cyl(0.04, 0.04, 0.075, M.enamel); body.position.y = 0.0375;
     const rim = cyl(0.0415, 0.0415, 0.01, M.navy, 24, true); rim.position.y = 0.072;
@@ -457,7 +532,14 @@ function setPose(who, pose) {
 // 予安的椅子：手繪的予安坐著沒有畫椅子，窗邊那張小桌放一張（在她身後一點，鏡頭都在南邊，椅子總是在她後面）。
 // 她不在的時候，就是一張空椅子；退回 Canvas 繪圖（她的圖自己有坐姿）時不放
 const yuanChair = paper(A.chair(), -0.4, -1.86);
-yuanChair.visible = A.artLoaded('char_yuan_sit');
+const YUAN_CHAIR = A.artLoaded('char_yuan_sit');
+yuanChair.visible = YUAN_CHAIR;
+// 接正式美術第二批：她坐在這張椅子上時，椅子已經畫進她的圖裡（A.yuan() 坐姿），店裡這張先收起來，免得兩張疊在一起
+function updateYuanChair() {
+  const on = yuan.visible && poses.yuan !== 'book' && poses.yuan !== 'frame' && poses.yuan !== 'stand'
+    && Math.hypot(yuan.position.x - yuanChair.position.x, yuan.position.z - yuanChair.position.z) < 0.5;
+  yuanChair.visible = YUAN_CHAIR && !on;
+}
 
 // 德叔與龍眼
 const HOME = new THREE.Vector3(2.6, 0, -1.6);
@@ -472,6 +554,10 @@ const showYuan = () => { if (!REGULARS_ON) yuan.visible = today() >= 2; };
 showYuan();
 // 吧台上的那袋龍眼乾（阿哲第一次來時放的）
 const counterBag = paper(A.longanBag(), 1.95, -0.1, { y: TOP, shadow: false });
+// 接正式美術第二批：吧台裡側最裡面放一組手繪的手沖器具（德叔沖煮用的是前面那組立體的，這組是擺著的）；
+// 窗邊座的桌上放一張手寫菜單的杯墊當焦點。兩張都只有手繪圖，沒有載到就不放
+if (A.artLoaded('kettleSet')) paper(A.kettleSet(), 2.2, -2.85, { y: TOP, shadow: false, clamp: 0.9, base: -Math.PI / 2 });
+if (A.coaster()) paper(A.coaster(), tA.x + 0.2, tA.z - 0.14, { y: tA.h + 0.02, shadow: false });
 counterBag.visible = save.menu.includes('longan');
 // 老先生的信：德叔從吧台抽屜拿出來，放在吧台上
 const envelope = paper(A.envelope(), 1.8, -0.75, { y: TOP, shadow: false });
@@ -594,6 +680,16 @@ function decorPaper(e) {
     l.position.set(0, 1.45, 0.3); // 放在紙片前面一點：光源和紙片同一平面時照不到紙片本身
     p.add(l);
     lampLights.push(l);
+    // 接正式美術第二批：手繪的落地燈沒有畫光暈（畫師照規格留給程式），燈罩前面加一圈放射狀的暖光，亮的時候才出現
+    if (artFor(item).art) {
+      const h = p.userData.mesh.geometry.parameters.height;
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: '#ffbf73', transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending }));
+      halo.position.set(0, h * 0.89, 0.06);
+      halo.scale.setScalar(0.85);
+      halo.visible = false;
+      p.add(halo);
+      p.userData.halo = halo;
+    }
   }
   return p;
 }
@@ -622,10 +718,12 @@ function applyLamps() {
     const item = itemById(e.item);
     if (!item.light) continue;
     const on = state.night && lightOn(p.userData.lightId);
-    setPaper(p, artFor(item, on));
-    // 晚上燈罩自己發亮
+    const art = artFor(item, on);
+    setPaper(p, art);
+    if (p.userData.halo) p.userData.halo.visible = on;
+    // 晚上燈罩自己發亮（手繪的落地燈只有上面燈罩那段發亮，黃銅燈桿不亮）
     const m = p.userData.mesh.material;
-    m.emissiveMap = m.map;
+    m.emissiveMap = art.art ? lampGlowTex(art) : m.map;
     m.emissive.set(on ? '#ffffff' : '#000000');
     m.emissiveIntensity = 0.75;
     m.needsUpdate = true;
@@ -3387,7 +3485,8 @@ function updateLights(dt) {
     let I = (state.night ? 9 : 3) * p.level;
     if (state.weather === 'typhoon' && state.night && Math.random() < 0.004) I = 2 * p.level; // 颱風夜吊燈偶爾閃一下
     p.light.intensity = I;
-    p.shade.material.color.copy(SHADE_OFF).lerp(SHADE_ON, p.level);
+    if (p.shade.material.emissiveMap) p.shade.material.emissiveIntensity = 0.7 * p.level; // 手繪的吊燈：關掉時燈罩不再發亮
+    else p.shade.material.color.copy(SHADE_OFF).lerp(SHADE_ON, p.level);
   });
   const avg = pendants.reduce((a, p) => a + p.level, 0) / pendants.length;
   barFill.intensity = state.night ? 2.2 * avg : 0;
@@ -3800,6 +3899,7 @@ function loop() {
   for (let i = realWaiters.length - 1; i >= 0; i--) if (realWaiters[i](dt)) realWaiters.splice(i, 1);
   updateCamera(dt);
   faceCamera(dt);
+  updateYuanChair();
   flipCat();
   updateOcclusion(dt);
   // 龍眼睡覺時的呼吸
@@ -3917,7 +4017,11 @@ if (DEV) {
     // 接正式美術：載到了哪些手繪圖、每個人現在的材質是哪一張（Canvas 繪圖是 null）
     get art() {
       const of = (p) => { const img = p.userData.mesh.material.map?.image; return (img?.canvas || img)?.art || null; };
-      return { loaded: A.artNames(), now: Object.fromEntries(Object.entries({ ...PEOPLE, cat }).map(([k, p]) => [k, of(p)])), yuanChair: yuanChair.visible };
+      const img = (m) => { const i = m.map?.image; return i?.canvas || i; };
+      return { loaded: A.artNames(), room: A.roomArtNames(), now: Object.fromEntries(Object.entries({ ...PEOPLE, cat }).map(([k, p]) => [k, of(p)])), yuanChair: yuanChair.visible,
+        // 接正式美術第二批：店內用到的手繪圖（座位的椅子、吧台後的層架、溫度計、吊燈紙片、窗景與材質的像素寬）
+        props: Object.fromEntries(SEATS.map((st) => [st.id, of(st.prop)])), backBar: img(backBar.material)?.art || null, thermo: img(thermoMat)?.art || null,
+        hanging: hanging.length, windowW: img(windows[0].material)?.width, floorW: floorTex.image?.width };
     },
     // 俯瞰：畫面裡看得到的地板最下緣，離提示（或按鈕列）上緣還有幾 px
     overviewGap() {

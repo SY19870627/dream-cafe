@@ -62,6 +62,69 @@ const ART_TIMEOUT = 15000; // 網路太慢就不等了：還沒到的圖用 Canv
 const ART = new Map(); // 檔名 → { c：裁好、縮好的圖（底邊就是腳底），ppm，hip（公尺），spec }
 let artClosed = false;
 
+// 接正式美術第二批（art2a）：店內空間、家具與小道具。size：交付規格裡畫布代表幾公尺（寬, 高），每公尺像素＝圖寬÷寬
+// （家具 1000、前景的椅子與高腳椅 1500、桌上小物 3000）。
+// 透明的家具與小道具依透明度裁掉四周留白（畫師：藤椅、黑板立牌、碗櫥上方，貓跳台、貓軟墊左右有留白，都沒有拉伸）：
+// 比例照每公尺像素、不拉伸，底邊就是接地點，左右以畫到的範圍置中。
+// keep：掛在牆上、或程式要在固定位置疊字的圖（畫布外框就是物件外框），整張用、不裁。opaque：不透明的材質與窗景。
+const ROOM_SPEC = {
+  tex_floor_wood: { size: [2, 2], opaque: true }, tex_wall_plaster: { size: [1, 1], opaque: true },
+  tex_wall_wainscot: { size: [1, 1], opaque: true }, tex_ceiling_beam: { size: [1, 1], opaque: true },
+  tex_wood_top: { size: [1, 1], opaque: true }, tex_counter_front: { size: [1.7, 1], opaque: true },
+  window_day_clear: { size: [1.6, 1.3], opaque: true }, window_day_rain: { size: [1.6, 1.3], opaque: true },
+  window_day_typhoon: { size: [1.6, 1.3], opaque: true }, window_night_clear: { size: [1.6, 1.3], opaque: true },
+  window_night_rain: { size: [1.6, 1.3], opaque: true }, window_night_typhoon: { size: [1.6, 1.3], opaque: true },
+  window_frame: { size: [1.6, 1.3], keep: true }, backbar: { size: [2.8, 1.8], keep: true },
+  thermometer_frame: { size: [0.36, 0.9], keep: true }, pendant_lamp: { size: [0.36, 0.9], keep: true },
+  noticeBoard: { size: [0.6, 1.25], keep: true },
+  stool: { size: [0.45, 0.8] }, chair: { size: [0.5, 0.95] }, sofa: { size: [1.5, 0.9] }, bookWall: { size: [1.9, 2.5] },
+  bookshelf: { size: [1, 1.9] }, plant: { size: [0.8, 1.4] }, cabinet: { size: [0.9, 1.6] }, rattanChair: { size: [0.8, 1.2] },
+  easel: { size: [0.7, 1.5] }, radio: { size: [0.55, 0.95] }, recordPlayer: { size: [0.7, 0.85] }, catTree: { size: [0.8, 1.7] },
+  menuBoard: { size: [0.6, 1] }, coffeeSack: { size: [0.6, 0.75] }, catCushion: { size: [0.7, 0.3] },
+  succulent: { size: [0.5, 1] }, bookStack: { size: [0.5, 0.5] }, longanJar: { size: [0.5, 0.95] },
+  floorLamp_on: { size: [0.6, 1.7] }, floorLamp_off: { size: [0.6, 1.7] },
+  prop_cup: { size: [0.2, 0.14] }, prop_coaster_menu: { size: [0.2, 0.2] }, key: { size: [0.22, 0.12] },
+  longanBag: { size: [0.22, 0.2] }, kettleSet: { size: [0.7, 0.45] }, napkin: { size: [0.5, 0.95] },
+  yuanBook: { size: [0.5, 0.95] }, framedNapkin: { size: [0.5, 0.95] }, beanBag: { size: [0.5, 0.95] },
+};
+const ROOM = new Map(); // 檔名 → canvas（c.ppm；透明的圖另有 c.art 與 c.src：裁切前的原圖座標怎麼換到這張）
+// 解碼一張店內的圖：透明的裁掉留白；手機和人物一樣縮到長邊 1024（桌機 2048），每公尺像素跟著縮
+async function decodeRoom(name, blob) {
+  const spec = ROOM_SPEC[name];
+  const bmp = await createImageBitmap(blob);
+  try {
+    const W = bmp.width, H = bmp.height;
+    let x0 = 0, y0 = 0, x1 = W, y1 = H;
+    if (!spec.opaque && !spec.keep) {
+      const q = W * H > 600000 ? 4 : 2, mw = Math.ceil(W / q), mh = Math.ceil(H / q);
+      const m = document.createElement('canvas'); m.width = mw; m.height = mh;
+      const mg = m.getContext('2d', { willReadFrequently: true });
+      mg.drawImage(bmp, 0, 0, mw, mh);
+      const d = mg.getImageData(0, 0, mw, mh).data;
+      let top = mh, bottom = -1, left = mw, right = -1;
+      for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
+        if (d[(y * mw + x) * 4 + 3] <= 24) continue;
+        if (y < top) top = y; if (y > bottom) bottom = y; if (x < left) left = x; if (x > right) right = x;
+      }
+      if (bottom < 0) throw new Error(`${name}: 整張是透明的`);
+      x0 = Math.max(0, left * q - 4); y0 = Math.max(0, top * q - 4);
+      x1 = Math.min(W, (right + 1) * q + 4); y1 = Math.min(H, (bottom + 1) * q);
+    }
+    const s = Math.min(1, ART_MAX / Math.max(W, H));
+    const c = document.createElement('canvas');
+    c.width = Math.round((x1 - x0) * s);
+    c.height = Math.round((y1 - y0) * s);
+    const g = c.getContext('2d', { willReadFrequently: !spec.opaque });
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(bmp, x0, y0, x1 - x0, y1 - y0, 0, 0, c.width, c.height);
+    c.ppm = (W / spec.size[0]) * s;
+    if (!spec.opaque) { c.art = name; c.src = { x: x0, y: y0, s, w: W, h: H }; }
+    return c;
+  } finally {
+    bmp.close?.();
+  }
+}
+
 async function fetchArt(name) {
   const res = await fetch(new URL(`../assets/art/${name}.webp`, import.meta.url));
   if (!res.ok) throw new Error(`${name}: ${res.status}`);
@@ -104,14 +167,15 @@ async function decodeArt(name, blob) {
 }
 async function loadArt() {
   if (typeof document === 'undefined' || typeof fetch !== 'function' || typeof createImageBitmap !== 'function') return;
-  const names = Object.keys(ART_SPEC);
+  const names = [...Object.keys(ART_SPEC), ...Object.keys(ROOM_SPEC)];
   const blobs = names.map((n) => fetchArt(n).catch(() => null)); // 同時下載
   for (let i = 0; i < names.length; i++) {
     const blob = await blobs[i];
     if (!blob || artClosed) continue;
     try {
-      const a = await decodeArt(names[i], blob);
-      if (!artClosed) ART.set(names[i], a);
+      const n = names[i];
+      if (ART_SPEC[n]) { const a = await decodeArt(n, blob); if (!artClosed) ART.set(n, a); }
+      else { const c = await decodeRoom(n, blob); if (!artClosed) ROOM.set(n, c); }
     } catch { /* 解碼失敗：這張用 Canvas 畫 */ }
   }
 }
@@ -120,14 +184,39 @@ try {
 } catch { /* 任何意外都當作沒有圖 */ }
 artClosed = true; // 逾時之後才到的圖不用：同一場遊戲裡，人物不會中途換畫風
 
-export const artLoaded = (name) => ART.has(name);
-export const artNames = () => [...ART.keys()];
+export const artLoaded = (name) => ART.has(name) || ROOM.has(name);
+export const artNames = () => [...ART.keys(), ...ROOM.keys()];
+export const roomArtNames = () => [...ROOM.keys()];
+// 店內的手繪圖（沒有載到就是 null）：同一張 canvas 共用，要疊字的（黑板、溫度計、徵才啟事）另外複製一張再畫
+const room = (name) => ROOM.get(name) || null;
 
-// 坐姿底下的椅子（seat：'chair' 一般椅子，照臀部高度縮放；'stool' 吧台的高腳椅，人往上抬到椅面、腳踩在橫桿附近）
+// 坐姿底下的椅子（seat：'chair' 一般椅子，照臀部高度縮放；'stool' 吧台的高腳椅，人往上抬到椅面、腳踩在橫桿附近）。
+// 接正式美術第二批：椅子與高腳椅換成手繪圖（和予安、凱文一樣是 3/4 側面、面向畫面左邊）。
+// sit：坐的地方在原圖的哪個像素（椅面靠後、臀部壓著的那一點），對到人物的臀部；椅子照實際大小，不縮放
 const SEATS_ART = {
-  chair: { w: 0.5, h: 0.95, top: 0.45, draw: (g) => drawChair(g) },
-  stool: { w: 0.45, h: 0.8, top: 0.73, draw: (g) => drawStool(g) },
+  chair: { w: 0.5, h: 0.95, top: 0.45, draw: (g) => drawChair(g), art: 'chair', sit: [400, 770] },
+  stool: { w: 0.45, h: 0.8, top: 0.73, draw: (g) => drawStool(g), art: 'stool', sit: [345, 205] },
 };
+// 手繪的椅子放在手繪人物底下：回傳合成好的 canvas（原點仍是臀部的中線）；沒有椅子的圖就回傳 null，改用 Canvas 畫的椅子
+function seatUnder(a, seat) {
+  const S = SEATS_ART[seat], C = room(S.art);
+  if (!C || !a.hip) return null;
+  const f = a.ppm / C.ppm; // 椅子的像素換成人物的像素
+  const hx = a.c.width / 2, hy = a.c.height - a.hip * a.ppm; // 臀部（人物圖裡）
+  const sx = (S.sit[0] - C.src.x) * C.src.s * f, sy = (S.sit[1] - C.src.y) * C.src.s * f; // 坐的地方（椅子圖裡，換成人物像素）
+  const cl = hx - sx, ct = hy - sy, cw = C.width * f, ch = C.height * f; // 椅子在人物圖座標的位置
+  const top = Math.min(0, ct), bottom = Math.max(a.c.height, ct + ch);
+  const half = Math.max(hx, a.c.width - hx, hx - cl, cl + cw - hx);
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(2 * half);
+  c.height = Math.ceil(bottom - top);
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.imageSmoothingQuality = 'high';
+  const ox = half - hx, oy = -top;
+  g.drawImage(C, cl + ox, ct + oy, cw, ch);
+  g.drawImage(a.c, ox, oy);
+  return c;
+}
 const built = new Map();
 // 取一張手繪圖（沒有載到就回傳 null，呼叫的函式改用 Canvas 畫）。seat：在臀部底下畫椅子
 function art(name, seat = null) {
@@ -137,11 +226,14 @@ function art(name, seat = null) {
   const key = seat && (a.hip || seat === 'stool') ? `${name}:${seat}` : name;
   if (built.has(key)) return built.get(key);
   let c = a.c;
-  if (key !== name) {
+  const drawn = key !== name ? seatUnder(a, seat) : null;
+  if (drawn) c = drawn;
+  else if (key !== name) {
     const S = SEATS_ART[seat];
+    const C = a.hip ? null : room(S.art); // 站在高腳椅旁邊：有手繪的高腳椅就用它（照實際大小）
     const k = seat === 'stool' || !a.hip ? 1 : a.hip / S.top; // 一般椅子：椅面剛好在臀部底下
     const lift = a.hip && seat === 'stool' ? Math.max(0, S.top - a.hip) : 0;
-    const sw = S.w * k * a.ppm, sh = S.h * k * a.ppm, lp = Math.round(lift * a.ppm);
+    const sw = (C ? C.width / C.ppm : S.w) * k * a.ppm, sh = (C ? C.height / C.ppm : S.h) * k * a.ppm, lp = Math.round(lift * a.ppm);
     const side = a.hip ? 0 : 0.3 * a.ppm; // 站著：高腳椅在他右手邊（畫面右邊）0.3 公尺
     c = document.createElement('canvas');
     c.width = Math.max(a.c.width, Math.ceil(2 * (side + sw / 2)) + 2);
@@ -149,9 +241,12 @@ function art(name, seat = null) {
     const g = c.getContext('2d', { willReadFrequently: true });
     g.save();
     g.translate((c.width - sw) / 2 + side, c.height - sh);
-    g.scale(a.ppm * k, a.ppm * k);
-    g.lineJoin = 'round'; g.lineCap = 'round';
-    S.draw(g);
+    if (C) g.drawImage(C, 0, 0, sw, sh);
+    else {
+      g.scale(a.ppm * k, a.ppm * k);
+      g.lineJoin = 'round'; g.lineCap = 'round';
+      S.draw(g);
+    }
     g.restore();
     g.drawImage(a.c, (c.width - a.c.width) / 2, c.height - lp - a.c.height);
   }
@@ -209,8 +304,13 @@ function rng(seed) {
 }
 
 /* ---------- 建築材質 ---------- */
+// 接正式美術第二批：地板、牆、天花板、吧台與桌面改用手繪的無縫材質（每張代表幾公尺見 ROOM_SPEC，main.js 依公尺設定 repeat）；
+// 沒有載到就用下面的 Canvas 版本（大小一樣，repeat 不用改）
 
+// 地板：一張 2×2 公尺
 export function woodFloor() {
+  const a = room('tex_floor_wood');
+  if (a) return a;
   const c = document.createElement('canvas');
   c.width = 512; c.height = 512;
   const g = c.getContext('2d');
@@ -241,44 +341,75 @@ export function woodFloor() {
   return c;
 }
 
-// 牆：下半紅磚、上半石灰白牆（三合院的感覺）
-export function wall(wm, hm) {
-  const { c, g } = canvas(wm, hm);
+// 牆（三合院的感覺）：上半石灰白牆、下半 1 公尺高的紅磚腰牆，各一張 1×1 公尺的材質，main.js 分成上下兩片平鋪
+export function wallPlaster() {
+  const a = room('tex_wall_plaster');
+  if (a) return a;
+  const { c, g } = canvas(1, 1, 256);
   g.fillStyle = '#efe6d6';
-  g.fillRect(0, 0, wm, hm);
+  g.fillRect(0, 0, 1, 1);
   const r = rng(11);
   g.fillStyle = 'rgba(160,140,110,0.08)';
-  for (let i = 0; i < 400; i++) g.fillRect(r() * wm, r() * hm, 0.06, 0.03);
-  const brickTop = hm - 1.0;
+  for (let i = 0; i < 60; i++) g.fillRect(r() * 0.94, r() * 0.97, 0.06, 0.03);
+  return c;
+}
+export function wallWainscot() {
+  const a = room('tex_wall_wainscot');
+  if (a) return a;
+  const { c, g } = canvas(1, 1, 256);
   g.fillStyle = '#a24a33';
-  g.fillRect(0, brickTop, wm, 1.0);
-  const bh = 0.09, bw = 0.24;
-  for (let row = 0; row * bh < 1.0; row++) {
+  g.fillRect(0, 0, 1, 1);
+  const r = rng(13);
+  const top = 0.06, bh = (1 - top) / 10, bw = 0.25; // 磚寬 0.25 公尺：左右剛好接得起來
+  for (let row = 0; row < 10; row++) {
     const off = row % 2 ? bw / 2 : 0;
-    for (let x = -off; x < wm; x += bw) {
+    for (let x = -off; x < 1; x += bw) {
       const t = r();
       g.fillStyle = t < 0.3 ? '#9a4430' : t < 0.6 ? '#ad5239' : '#a34b34';
-      g.fillRect(x + 0.008, brickTop + row * bh + 0.008, bw - 0.016, bh - 0.016);
+      g.fillRect(x + 0.008, top + row * bh + 0.008, bw - 0.016, bh - 0.016);
     }
   }
   g.fillStyle = '#6e4a32';
-  g.fillRect(0, brickTop - 0.05, wm, 0.06); // 腰帶木條
+  g.fillRect(0, 0, 1, top); // 腰帶木條
   return c;
 }
 
-export function ceiling(wm, hm) {
-  const { c, g } = canvas(wm, hm);
+// 天花板：一張 1×1 公尺，木板加一道橫樑
+export function ceiling() {
+  const a = room('tex_ceiling_beam');
+  if (a) return a;
+  const { c, g } = canvas(1, 1, 128);
   g.fillStyle = '#5a3d2b';
-  g.fillRect(0, 0, wm, hm);
-  for (let x = 0.3; x < wm; x += 0.9) {
-    g.fillStyle = '#3f2a1d';
-    g.fillRect(x, 0, 0.16, hm);
-  }
+  g.fillRect(0, 0, 1, 1);
+  g.fillStyle = '#3f2a1d';
+  g.fillRect(0.42, 0, 0.16, 1);
   return c;
 }
 
-// weather：'clear'、'rain'（灰藍的雨天）、'typhoon'（颱風夜：暗、樹被吹彎）
+// 吧台檯面與圓桌：一張 1×1 公尺的木頭檯面
+export function woodTop() {
+  const a = room('tex_wood_top');
+  if (a) return a;
+  const { c, g } = canvas(1, 1, 128);
+  g.fillStyle = '#5e3c28';
+  g.fillRect(0, 0, 1, 1);
+  return c;
+}
+// 吧台正面：一張 1.7×1 公尺（左右接得起來），3.4 公尺長的吧台重複兩次
+export function counterFront() {
+  const a = room('tex_counter_front');
+  if (a) return a;
+  const { c, g } = canvas(1.7, 1, 128);
+  g.fillStyle = '#8a5a3b';
+  g.fillRect(0, 0, 1.7, 1);
+  return c;
+}
+
+// weather：'clear'、'rain'（灰藍的雨天）、'typhoon'（颱風夜：暗、樹被吹彎）。窗框另外一張（windowFrame()），雨絲由 main.js 疊上去
 export function windowView(night, weather = 'clear') {
+  return room(`window_${night ? 'night' : 'day'}_${weather}`) || drawWindowView(night, weather);
+}
+function drawWindowView(night, weather) {
   const { c, g } = canvas(1.6, 1.3);
   const sky = g.createLinearGradient(0, 0, 0, 1.3);
   const wet = weather !== 'clear';
@@ -328,7 +459,13 @@ export function windowView(night, weather = 'clear') {
       g.beginPath(); g.moveTo(x, y); g.lineTo(x - (heavy ? 0.06 : 0.01), y + l); g.stroke();
     }
   }
-  // 窗框
+  return c;
+}
+// 窗框（透明，1.6×1.3 公尺，六種窗景共用），貼在窗景與雨絲前面
+export function windowFrame() {
+  const a = room('window_frame');
+  if (a) return a;
+  const { c, g } = canvas(1.6, 1.3);
   g.strokeStyle = '#4a3122';
   g.lineWidth = 0.07;
   g.strokeRect(0.035, 0.035, 1.53, 1.23);
@@ -337,8 +474,45 @@ export function windowView(night, weather = 'clear') {
   return c;
 }
 
+// 菜單黑板的字（公尺；黑板中線 x＝wm/2）
+function menuText(g, wm, menu) {
+  g.fillStyle = '#f2ead8';
+  g.font = '0.09px "PingFang TC","Noto Sans TC",sans-serif';
+  g.textAlign = 'center';
+  g.fillText('今日手沖', wm / 2, 1.3);
+  g.font = '0.075px "PingFang TC","Noto Sans TC",sans-serif';
+  if (menu.includes('zhe-beans')) {
+    g.fillText('東山 日曬', wm / 2, 1.41);
+    g.fillText('阿里山 水洗', wm / 2, 1.5);
+    g.font = 'bold 0.085px "PingFang TC","Noto Sans TC",sans-serif';
+    g.fillStyle = '#ffd27a';
+    g.fillText('阿哲的豆', wm / 2, 1.61); // 「好啦，寫大一點。」
+  } else {
+    g.fillText('東山 日曬', wm / 2, 1.44);
+    g.fillText('阿里山 水洗', wm / 2, 1.56);
+  }
+}
+// 程式在手繪圖上疊東西：複製一張同樣大小的 canvas，座標用公尺（原點是圖的左上角）
+function overlay(a) {
+  const c = document.createElement('canvas');
+  c.width = a.width; c.height = a.height;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(a, 0, 0);
+  g.scale(a.ppm, a.ppm);
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  c.ppm = a.ppm; c.art = a.art;
+  return { c, g };
+}
+
 // menu：菜單上的東西（阿哲的豆上架後，小黑板多一行）
 export function backBar(wm, hm, menu = []) {
+  // 手繪的層架：黑板（x 0.95～1.85、y 1.15～1.65 公尺）留空，菜單的字由程式寫
+  const a = room('backbar');
+  if (a) {
+    const { c, g } = overlay(a);
+    menuText(g, wm, menu);
+    return c;
+  }
   // 吧台後方牆上的層架與罐子
   const { c, g } = canvas(wm, hm);
   const r = rng(5);
@@ -357,40 +531,34 @@ export function backBar(wm, hm, menu = []) {
   // 小黑板
   rr(g, wm / 2 - 0.45, 1.15, 0.9, 0.5, 0.03);
   g.fillStyle = '#2f3a33'; g.fill(); outline(g, 0.02);
-  g.fillStyle = '#f2ead8';
-  g.font = '0.09px "PingFang TC","Noto Sans TC",sans-serif';
-  g.textAlign = 'center';
-  g.fillText('今日手沖', wm / 2, 1.3);
-  g.font = '0.075px "PingFang TC","Noto Sans TC",sans-serif';
-  if (menu.includes('zhe-beans')) {
-    g.fillText('東山 日曬', wm / 2, 1.41);
-    g.fillText('阿里山 水洗', wm / 2, 1.5);
-    g.font = 'bold 0.085px "PingFang TC","Noto Sans TC",sans-serif';
-    g.fillStyle = '#ffd27a';
-    g.fillText('阿哲的豆', wm / 2, 1.61); // 「好啦，寫大一點。」
-  } else {
-    g.fillText('東山 日曬', wm / 2, 1.44);
-    g.fillText('阿里山 水洗', wm / 2, 1.56);
-  }
+  menuText(g, wm, menu);
   return c;
 }
 
+// 老溫度計。手繪的木框已經畫了「溫度」與 20～37°C 的刻度（20°C 在 0.7 公尺、37°C 在 0.16 公尺），玻璃管、水銀與數字由程式畫
 export function thermometer(temp) {
-  const { c, g } = canvas(0.36, 0.9);
-  rr(g, 0.03, 0.02, 0.3, 0.86, 0.05);
-  g.fillStyle = '#e8d7b5'; g.fill(); outline(g, 0.015);
-  g.fillStyle = INK;
-  g.font = 'bold 0.05px "PingFang TC","Noto Sans TC",sans-serif';
-  g.textAlign = 'center';
-  g.fillText('溫度', 0.18, 0.1);
-  rr(g, 0.155, 0.14, 0.05, 0.58, 0.025);
-  g.fillStyle = '#fff'; g.fill(); outline(g, 0.01);
+  const a = room('thermometer_frame');
+  let c, g;
+  if (a) ({ c, g } = overlay(a));
+  else {
+    ({ c, g } = canvas(0.36, 0.9));
+    rr(g, 0.03, 0.02, 0.3, 0.86, 0.05);
+    g.fillStyle = '#e8d7b5'; g.fill(); outline(g, 0.015);
+    g.fillStyle = INK;
+    g.font = 'bold 0.05px "PingFang TC","Noto Sans TC",sans-serif';
+    g.textAlign = 'center';
+    g.fillText('溫度', 0.18, 0.1);
+  }
+  rr(g, 0.165, 0.14, 0.03, 0.58, 0.015);
+  g.fillStyle = a ? 'rgba(255,255,255,0.75)' : '#fff'; g.fill(); outline(g, 0.006);
   const t = Math.max(20, Math.min(37, temp));
   const top = 0.7 - ((t - 20) / 17) * 0.54;
   g.fillStyle = '#c4382c';
-  g.fillRect(0.165, top, 0.03, 0.72 - top);
-  ell(g, 0.18, 0.76, 0.05, 0.05); g.fill(); outline(g, 0.01);
-  g.font = '0.04px "PingFang TC","Noto Sans TC",sans-serif';
+  g.fillRect(0.171, top, 0.018, 0.74 - top);
+  ell(g, 0.18, 0.76, 0.04, 0.04); g.fill(); outline(g, 0.008);
+  g.fillStyle = INK;
+  g.textAlign = 'center';
+  g.font = `${a ? 'bold ' : ''}0.045px "PingFang TC","Noto Sans TC",sans-serif`;
   g.fillText(t.toFixed(1) + '°', 0.18, 0.86);
   return c;
 }
@@ -511,9 +679,10 @@ function drawCat(pose) {
 
 // 予安：坐著寫稿的作家。pose：'type'（看筆電）、'napkin'（借了筆在紙巾上寫字）、'read'（念稿子）、'book'（拿著剛印好的書）
 // 手繪圖只有坐著開筆電（sit）與站著抱一本書（stand）：念稿、借筆用坐著的；拿書、拿裱框的紙巾、走路用站著的。
-// 她的椅子是店裡的（main.js 的 yuanChair），圖裡不畫
+// 接正式美術第二批：坐著時，手繪的椅子（同樣 3/4 側面）畫進她的圖裡、椅面對準臀部；她不在或站起來時，店裡那張空椅子（main.js 的 yuanChair）才出現
 export function yuan(pose = 'type') {
-  return art(`char_yuan_${pose === 'book' || pose === 'frame' || pose === 'stand' ? 'stand' : 'sit'}`) || drawYuan(pose);
+  const stand = pose === 'book' || pose === 'frame' || pose === 'stand';
+  return art(`char_yuan_${stand ? 'stand' : 'sit'}`, stand ? null : 'chair') || drawYuan(pose);
 }
 function drawYuan(pose) {
   const { c, g } = canvas(0.8, 1.35, HI);
@@ -567,6 +736,8 @@ function drawYuan(pose) {
 }
 
 export function chair() {
+  const a = room('chair'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.5, 0.95);
   drawChair(g);
   return c;
@@ -585,6 +756,8 @@ function drawChair(g) {
 }
 
 export function stool() {
+  const a = room('stool'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.45, 0.8);
   drawStool(g);
   return c;
@@ -599,6 +772,8 @@ function drawStool(g) {
 }
 
 export function sofa() {
+  const a = room('sofa'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(1.5, 0.9);
   rr(g, 0.1, 0.05, 1.3, 0.5, 0.12); g.fillStyle = '#5f7b6a'; g.fill(); outline(g);
   rr(g, 0.02, 0.35, 0.22, 0.45, 0.08); g.fill(); outline(g);
@@ -613,6 +788,8 @@ export function sofa() {
 }
 
 export function plant() {
+  const a = room('plant'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.8, 1.4);
   const r = rng(9);
   for (let i = 0; i < 14; i++) {
@@ -632,6 +809,8 @@ export function plant() {
 }
 
 export function bookshelf() {
+  const a = room('bookshelf'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(1.0, 1.9);
   rr(g, 0.02, 0.02, 0.96, 1.86, 0.03); g.fillStyle = '#7a5038'; g.fill(); outline(g);
   const r = rng(21);
@@ -651,6 +830,8 @@ export function bookshelf() {
 }
 
 export function recordPlayer() {
+  const a = room('recordPlayer'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.7, 0.85);
   rr(g, 0.05, 0.3, 0.6, 0.52, 0.03); g.fillStyle = '#8c5d3f'; g.fill(); outline(g);
   rr(g, 0.1, 0.38, 0.5, 0.18, 0.02); g.fillStyle = '#6b452f'; g.fill(); outline(g, 0.012);
@@ -662,6 +843,8 @@ export function recordPlayer() {
 }
 
 export function floorLamp(on) {
+  const a = room(on ? 'floorLamp_on' : 'floorLamp_off');
+  if (a) return a;
   const { c, g } = canvas(0.6, 1.7);
   if (on) {
     const grd = g.createRadialGradient(0.3, 0.25, 0.02, 0.3, 0.25, 0.3);
@@ -677,6 +860,8 @@ export function floorLamp(on) {
 }
 
 export function menuBoard() {
+  const a = room('menuBoard'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.6, 1.0);
   g.strokeStyle = '#6b452f'; g.lineWidth = 0.035;
   g.beginPath(); g.moveTo(0.1, 0.98); g.lineTo(0.18, 0.05); g.moveTo(0.5, 0.98); g.lineTo(0.42, 0.05); g.stroke();
@@ -703,6 +888,8 @@ function sideTable(g, cx, top, w = 0.4, h = 0.55) {
 }
 
 export function longanJar() {
+  const a = room('longanJar'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 龍眼乾玻璃罐，放在小邊桌上
   const { c, g } = canvas(0.5, 0.95);
   sideTable(g, 0.25, 0.4);
@@ -717,6 +904,8 @@ export function longanJar() {
 }
 
 export function succulent() {
+  const a = room('succulent'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 小花架上的三盆多肉
   const { c, g } = canvas(0.5, 1.0);
   g.strokeStyle = '#6b452f'; g.lineWidth = 0.03;
@@ -736,6 +925,8 @@ export function succulent() {
 }
 
 export function bookStack() {
+  const a = room('bookStack'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 地上的一疊舊書
   const { c, g } = canvas(0.5, 0.5);
   const r = rng(41);
@@ -750,6 +941,8 @@ export function bookStack() {
 }
 
 export function coffeeSack() {
+  const a = room('coffeeSack'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 印著「東山」的生豆麻布袋
   const { c, g } = canvas(0.6, 0.75);
   g.beginPath();
@@ -767,6 +960,8 @@ export function coffeeSack() {
 }
 
 export function catCushion() {
+  const a = room('catCushion'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 窗邊的貓咪軟墊
   const { c, g } = canvas(0.7, 0.3);
   ell(g, 0.35, 0.19, 0.32, 0.1); g.fillStyle = '#d98f6a'; g.fill(); outline(g);
@@ -777,6 +972,8 @@ export function catCushion() {
 }
 
 export function easel() {
+  const a = room('easel'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 畫架：畫的是窗外那片山（畫得不太像）
   const { c, g } = canvas(0.7, 1.5);
   g.strokeStyle = '#8a5a3b'; g.lineWidth = 0.035;
@@ -792,6 +989,8 @@ export function easel() {
 }
 
 export function radio() {
+  const a = room('radio'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 老收音機，放在小邊桌上
   const { c, g } = canvas(0.55, 0.95);
   sideTable(g, 0.275, 0.4, 0.45);
@@ -805,6 +1004,8 @@ export function radio() {
 }
 
 export function cabinet() {
+  const a = room('cabinet'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 老碗櫥：玻璃門後面放著不成套的杯子
   const { c, g } = canvas(0.9, 1.6);
   rr(g, 0.04, 0.04, 0.82, 1.52, 0.03); g.fillStyle = '#7a5038'; g.fill(); outline(g);
@@ -824,6 +1025,8 @@ export function cabinet() {
 }
 
 export function catTree() {
+  const a = room('catTree'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 貓跳台：最上面那層是給龍眼看窗外的
   const { c, g } = canvas(0.8, 1.7);
   g.fillStyle = '#d9c6a3';
@@ -839,6 +1042,8 @@ export function catTree() {
 }
 
 export function rattanChair() {
+  const a = room('rattanChair'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 藤編搖椅
   const { c, g } = canvas(0.8, 1.2);
   rr(g, 0.14, 0.05, 0.52, 0.65, 0.18); g.fillStyle = '#d2a868'; g.fill(); outline(g);
@@ -854,6 +1059,8 @@ export function rattanChair() {
 }
 
 export function bookWall() {
+  const a = room('bookWall'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 整面書牆：從地板到天花板
   const W = 1.9, H = 2.5; // 寬 1.9 公尺：後牆的窗戶與老溫度計之間剛好放得下
   const { c, g } = canvas(W, H);
@@ -883,6 +1090,8 @@ export function bookWall() {
 }
 
 export function kettleSet() {
+  const a = room('kettleSet'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   // 吧台上的手沖架與磨豆機
   const { c, g } = canvas(0.7, 0.45, HI);
   rr(g, 0.05, 0.05, 0.16, 0.38, 0.03); g.fillStyle = '#5a4a40'; g.fill(); outline(g, 0.012);
@@ -894,7 +1103,32 @@ export function kettleSet() {
   return c;
 }
 
+// 吊燈（手繪，0.36×0.9 公尺：電線＋燈罩，燈罩下緣就是圖的底邊）；沒有載到回傳 null，main.js 用原本的立體圓錐。
+// glow：夜裡自己發亮的部分，只留燈罩那一段（下面 32%），電線與黃銅燈頭不發亮
+export function pendantLamp() {
+  const a = room('pendant_lamp');
+  if (!a) return null;
+  a.glow ??= glowOnly(a, 0.68, 1);
+  return a;
+}
+// 燈自己發亮的部分：只留圖的 y0～y1（圖高的比例）那一段，其他透明（當 emissiveMap 用：燈罩亮、燈桿與電線不亮）
+export function glowOnly(a, y0, y1) {
+  const c = document.createElement('canvas');
+  c.width = a.width; c.height = a.height;
+  const g = c.getContext('2d');
+  const t = Math.round(a.height * y0), b = Math.round(a.height * y1);
+  g.drawImage(a, 0, t, a.width, b - t, 0, t, a.width, b - t);
+  c.ppm = a.ppm; c.art = a.art;
+  return c;
+}
+
+// 桌上的杯墊（手寫菜單卡；窗邊座桌上的焦點）。只有手繪圖，沒有載到就不放
+export const coaster = () => room('prop_coaster_menu');
+
+// 琺瑯杯（手繪：白底綠邊，裡面有咖啡）。Canvas 版是一般的白瓷杯
 export function cup() {
+  const a = room('prop_cup');
+  if (a) return a;
   const { c, g } = canvas(0.2, 0.14, HI);
   ell(g, 0.1, 0.125, 0.09, 0.015); g.fillStyle = '#e8e2d6'; g.fill(); outline(g, 0.008);
   rr(g, 0.045, 0.03, 0.11, 0.09, 0.025); g.fillStyle = '#f6f2ea'; g.fill(); outline(g, 0.008);
@@ -1314,6 +1548,8 @@ function drawGrandpa(pose) {
 
 // 熟客送的擺飾：寫滿字的紙巾（放在小邊桌上，用一塊小石頭壓著）
 export function napkin() {
+  const a = room('napkin'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.5, 0.95);
   sideTable(g, 0.25, 0.4);
   g.save(); g.translate(0.25, 0.3); g.rotate(-0.08);
@@ -1328,6 +1564,8 @@ export function napkin() {
 
 // 予安的書：立在小書架上，封面朝外
 export function yuanBook() {
+  const a = room('yuanBook'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.5, 0.95);
   sideTable(g, 0.25, 0.4);
   rr(g, 0.13, 0.08, 0.24, 0.32, 0.015); g.fillStyle = '#c2683f'; g.fill(); outline(g, 0.012);
@@ -1341,6 +1579,8 @@ export function yuanBook() {
 
 // 裱框的紙巾：予安告別時送的，立在小邊桌上
 export function framedNapkin() {
+  const a = room('framedNapkin'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.5, 0.95);
   sideTable(g, 0.25, 0.42);
   rr(g, 0.08, 0.06, 0.34, 0.36, 0.012); g.fillStyle = '#7a5532'; g.fill(); outline(g, 0.012);
@@ -1355,6 +1595,8 @@ export function framedNapkin() {
 
 // 一包阿哲的豆：牛皮紙袋，手寫的大字
 export function beanBag() {
+  const a = room('beanBag'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.5, 0.95);
   sideTable(g, 0.25, 0.42);
   g.beginPath(); g.moveTo(0.11, 0.42); g.lineTo(0.13, 0.12); g.lineTo(0.37, 0.12); g.lineTo(0.39, 0.42); g.closePath();
@@ -1369,15 +1611,23 @@ export function beanBag() {
 }
 
 // 門口的徵才啟事：貼在一塊小立牌上（text：老闆選的那一句）
+// 手繪圖的紙面是空白的（中心 0.3, 0.35 公尺、0.42×0.52、轉 −0.03 弧度），字由程式疊上去
 export function noticeBoard(text = '') {
-  const { c, g } = canvas(0.6, 1.25);
-  g.fillStyle = '#6b452f';
-  rr(g, 0.27, 0.6, 0.06, 0.63, 0.01); g.fill(); outline(g, 0.012);
-  rr(g, 0.14, 1.18, 0.32, 0.05, 0.02); g.fill(); outline(g, 0.012);
-  rr(g, 0.04, 0.04, 0.52, 0.62, 0.02); g.fillStyle = '#8a5a3b'; g.fill(); outline(g, 0.014);
-  g.save(); g.translate(0.3, 0.35); g.rotate(-0.03);
-  rr(g, -0.21, -0.26, 0.42, 0.52, 0.006); g.fillStyle = '#fbf8f0'; g.fill(); outline(g, 0.008);
-  g.fillStyle = 'rgba(220,200,150,.8)'; g.fillRect(-0.06, -0.29, 0.12, 0.05); // 膠帶
+  const a = room('noticeBoard');
+  let c, g;
+  if (a) {
+    ({ c, g } = overlay(a));
+    g.save(); g.translate(0.3, 0.35); g.rotate(-0.03);
+  } else {
+    ({ c, g } = canvas(0.6, 1.25));
+    g.fillStyle = '#6b452f';
+    rr(g, 0.27, 0.6, 0.06, 0.63, 0.01); g.fill(); outline(g, 0.012);
+    rr(g, 0.14, 1.18, 0.32, 0.05, 0.02); g.fill(); outline(g, 0.012);
+    rr(g, 0.04, 0.04, 0.52, 0.62, 0.02); g.fillStyle = '#8a5a3b'; g.fill(); outline(g, 0.014);
+    g.save(); g.translate(0.3, 0.35); g.rotate(-0.03);
+    rr(g, -0.21, -0.26, 0.42, 0.52, 0.006); g.fillStyle = '#fbf8f0'; g.fill(); outline(g, 0.008);
+    g.fillStyle = 'rgba(220,200,150,.8)'; g.fillRect(-0.06, -0.29, 0.12, 0.05); // 膠帶
+  }
   g.fillStyle = INK;
   g.textAlign = 'center';
   g.font = 'bold 0.062px "PingFang TC","Noto Sans TC",sans-serif';
@@ -1393,6 +1643,8 @@ export function noticeBoard(text = '') {
 
 // 吧台的鑰匙：一把舊的黃銅鑰匙，綁著紅繩
 export function key() {
+  const a = room('key'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.22, 0.12, HI);
   ell(g, 0.05, 0.06, 0.035, 0.035); g.fillStyle = '#c9a24a'; g.fill(); outline(g, 0.008);
   ell(g, 0.05, 0.06, 0.013, 0.013); g.fillStyle = '#6b4b20'; g.fill();
@@ -1453,6 +1705,8 @@ export function coffeeMap() {
 
 // 吧台上的那袋龍眼乾（阿哲的阿公送的）
 export function longanBag() {
+  const a = room('longanBag'); // 手繪圖（art2a）；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.22, 0.2, HI);
   g.beginPath(); g.moveTo(0.03, 0.19); g.lineTo(0.05, 0.05); g.lineTo(0.17, 0.05); g.lineTo(0.19, 0.19); g.closePath();
   g.fillStyle = '#d8b874'; g.fill(); outline(g, 0.01);

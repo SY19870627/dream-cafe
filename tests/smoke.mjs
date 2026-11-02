@@ -11,6 +11,7 @@
 // 階段 7：聲音（點過畫面後出聲、沖咖啡有磨豆與注水聲、選單的音樂／音量／店裡的聲音）、效能（解析度倍率、貼圖數）、
 // 試玩心得連結、常態店的按鈕寫「請凱文沖一杯」。從新存檔玩到結尾的全流程另見 tests/playthrough.mjs（npm run playthrough）。
 // 接正式美術：角色與龍眼的材質來自 assets/art；攔下 assets/art 的請求（斷線、404、解碼錯誤）時退回 Canvas 繪圖，照樣坐下、沖一杯、沒有 JS 錯誤。
+// 接正式美術第二批（art2a）：店內的材質、窗景、家具與小道具也來自 assets/art，全部失敗時一樣退回 Canvas 繪圖。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -1088,8 +1089,12 @@ try {
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(1500);
     const art = await page.evaluate(() => window.__cafe.art);
-    check(got.size === 18 && [...got.values()].every((s) => s === 200), `從 assets/art 載入 18 張圖（${got.size} 張）`);
-    check(art.loaded.length === 18 && art.loaded.every((n) => got.has(n)), `18 張都解碼成功、用在角色上（${art.loaded.length} 張）`);
+    check(got.size === 64 && [...got.values()].every((s) => s === 200), `從 assets/art 載入 64 張圖（第一批 18、第二批店內 46；${got.size} 張）`);
+    check(art.loaded.length === 64 && art.loaded.every((n) => got.has(n)), `64 張都解碼成功（${art.loaded.length} 張）`);
+    // 接正式美術第二批：座位的椅子、高腳椅、沙發、吧台後的層架、溫度計、吊燈都是手繪圖；窗景與地板是原圖大小（桌機 2048）
+    check(art.props.window === 'chair' && art.props.bar === 'stool' && art.props.sofa === 'sofa' && art.backBar === 'backbar' && art.thermo === 'thermometer_frame' && art.hanging === 2,
+      `店內的家具、層架、溫度計、吊燈來自 assets/art ${JSON.stringify(art.props)} ${art.backBar} ${art.thermo} 吊燈 ${art.hanging}`);
+    check(art.windowW >= 1024 && art.floorW >= 1024, `窗景與地板是手繪材質（寬 ${art.windowW}、${art.floorW} 像素）`);
     check(art.now.deshu === 'char_deshu_stand' && art.now.cat === 'cat_longan_sleep', `德叔與龍眼的材質來自 assets/art（${art.now.deshu}、${art.now.cat}）`);
     check(['yuan', 'zhe', 'kevin', 'grandpa'].every((w) => art.now[w]?.startsWith(`char_${w}_`)), `熟客與阿公的材質來自 assets/art ${JSON.stringify(art.now)}`);
     const info = await page.evaluate(() => window.__cafe.artInfo);
@@ -1108,15 +1113,17 @@ try {
     // 德叔的圖回一個壞掉的檔案（解碼錯誤）、阿哲的回 404，其他的直接斷線
     await page.route('**/assets/art/**', (r) => {
       blocked++;
-      if (/deshu/.test(r.request().url())) return r.fulfill({ status: 200, contentType: 'image/webp', body: 'not a webp' });
-      if (/zhe/.test(r.request().url())) return r.fulfill({ status: 404, body: '' });
+      if (/deshu|backbar/.test(r.request().url())) return r.fulfill({ status: 200, contentType: 'image/webp', body: 'not a webp' });
+      if (/zhe|sofa/.test(r.request().url())) return r.fulfill({ status: 404, body: '' });
       return r.abort('failed');
     });
     await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(1800);
     const art = await page.evaluate(() => window.__cafe.art);
-    check(blocked >= 18 && art.loaded.length === 0 && Object.values(art.now).every((v) => v === null) && !art.yuanChair, `assets/art 全部失敗（斷線、404、解碼錯誤，攔下 ${blocked} 個請求）：人物退回 Canvas 繪圖`);
+    check(blocked >= 64 && art.loaded.length === 0 && Object.values(art.now).every((v) => v === null) && !art.yuanChair, `assets/art 全部失敗（斷線、404、解碼錯誤，攔下 ${blocked} 個請求）：人物退回 Canvas 繪圖`);
+    check(Object.values(art.props).every((v) => v === null) && !art.backBar && !art.thermo && art.hanging === 0 && art.windowW <= 400 && art.floorW === 512,
+      `店內的家具、層架、溫度計、吊燈、窗景與地板也退回 Canvas 繪圖 ${JSON.stringify(art.props)} 窗 ${art.windowW} 地板 ${art.floorW}`);
     await page.click('.seat-label >> text=窗邊座');
     await page.waitForTimeout(1600);
     check(await page.evaluate(() => window.__cafe.mode === 'seat'), '沒有手繪圖也能坐下');
