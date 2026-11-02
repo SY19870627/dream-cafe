@@ -3,6 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content">
+<meta name="theme-color" content="#3b2a20">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/art/app_icon_192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/art/app_icon_180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<!-- 【待定】App 短名稱「夢想咖啡店」（manifest.webmanifest 的 short_name 也是）是自行補寫的，見計畫檔 Q62 -->
+<meta name="apple-mobile-web-app-title" content="夢想咖啡店">
+<link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="assets/art/splash_1170x2532.webp">
 <title>我單方面辭退老闆後，開了一間夢想中的咖啡店｜試玩版</title>
 <style>
   :root { --ink: #3b2a20; --paper: #f6efe2; --accent: #c4382c; }
@@ -18,6 +27,12 @@
     opacity: 0; transition: opacity 1.2s; }
   #backdrop canvas.on { opacity: 1; }
   /* 手機直立：在寬螢幕上也維持直式比例 */
+  /* art2b：啟動畫面（splash_1170x2532）：圖和遊戲一起下載，main.js 開始跑（手繪圖都載完）就淡出；圖沒有載到是暖色底＋標題 */
+  #splash { position: fixed; inset: 0; z-index: 50; pointer-events: none; display: flex; align-items: flex-end; justify-content: center;
+    background: url(assets/art/splash_1170x2532.webp) 50% 50% / cover no-repeat, #d8b98c; transition: opacity .6s; }
+  #splash.out { opacity: 0; }
+  #splash p { margin: 0 16px 9vh; padding: 10px 16px; border-radius: 14px; background: rgba(246,239,226,.9); color: var(--ink); font-size: 15px; line-height: 1.5;
+    text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.2); }
   #app { position: relative; height: 100%; max-width: calc(100vh * 9 / 19.5); margin: 0 auto; overflow: clip; touch-action: none; }
   #labels { position: absolute; inset: 0; overflow: clip; pointer-events: none; }
   #labels .seat-label { pointer-events: auto; }
@@ -46,6 +61,13 @@
   button:disabled { opacity: .5; }
   button.primary { background: var(--ink); color: var(--paper); }
   [hidden] { display: none !important; }
+  /* art2b：介面圖示（ui_icons.svg 的 <symbol>，main.js 載到時才換上；顏色跟著文字色 currentColor） */
+  .icon { width: 22px; height: 22px; flex: none; vertical-align: middle; }
+  .has-icon { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+  #menu-btn .icon { width: 26px; height: 26px; color: var(--ink); }
+  .temp .icon { width: 20px; height: 20px; margin-left: -4px; }
+  #speed .icon { width: 18px; height: 18px; color: var(--ink); }
+  #lights .light-label .icon { width: 20px; height: 20px; }
   /* 開發者的快轉：併進右上角，和溫度、選單同一列 */
   #speed { pointer-events: auto; min-height: 44px; padding: 0 12px; font-size: 13px; line-height: 44px; background: rgba(246,239,226,.94); }
   /* 座位標籤：看得到的是小一號的牌子＋指向家具的小三角；按得到的範圍仍是 44px（透明的外框） */
@@ -75,7 +97,9 @@
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .grid button { font-size: 14px; padding: 8px; }
   /* 佈置鈕：溫度基金撥款時輕輕亮一下 */
-  #place.rise { animation: rise 2.6s ease-out; }
+  /* art2b：只發光、不放大（Q50：打烊時按鈕列只剩它一顆、佔滿整列，放大 1.12 倍會凸出畫面） */
+  #place.rise { animation: glow-only 2.6s ease-out; }
+  @keyframes glow-only { 0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,.2); } 20% { box-shadow: 0 0 0 6px rgba(255,190,110,.55), 0 2px 12px rgba(0,0,0,.25); } }
   /* 店的記事本 */
   .overlay { position: absolute; inset: 0; background: rgba(20,14,10,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 11; }
   /* 手機鍵盤打開時（--kb＝鍵盤擋住的高度），卡片往上移到鍵盤上面 */
@@ -86,6 +110,8 @@
   .overlay .sub { margin: 0 0 6px; font-size: 13px; opacity: .8; }
   /* 紙：橫線只畫在寫字的地方（.ruled），間距＝文字的 line-height，線在每一行的底下（基線下方），跟著內容一起捲（美術評分修正 b） */
   .card.paper { background: #fbf5e6; }
+  /* art2b：信紙、日誌、日記的紙纖維（ui_paper_lined，1024 無縫，鋪成 512px）；橫線仍由 .ruled 的 CSS 畫，紙色和原本的米黃差不多 */
+  .card.paper, #letter .card { background-image: var(--art-paper, none); background-size: 512px 512px; }
   .ruled { --lh: 28px; --rule: #e6d8bc; background-image: repeating-linear-gradient(transparent 0 calc(var(--lh) - 1px), var(--rule) calc(var(--lh) - 1px) var(--lh));
     background-attachment: local; }
   #nb-list { list-style: none; margin: 8px 0 14px; padding: 0; }
@@ -119,6 +145,8 @@
   #bubble::after { content: ""; position: absolute; left: var(--tail); bottom: -9px; margin-left: -8px; border: 8px solid transparent;
     border-top-color: var(--ink); border-bottom: 0; }
   #bubble.notail::after { display: none; }
+  /* art2b：泡泡外框用手繪的九宮格（ui_bubble_9slice，192²、四邊各切 48）；尾巴照舊由 CSS 畫。沒有載到就是原本的 2px 墨色框 */
+  #app.art-bubble #bubble:not(.me), #app.art-bubble #ask { border-image: var(--art-bubble) 48 fill / 16px stretch; background: none; }
   /* 對話時的聚焦：畫面略微推近，四周暗一點 */
   #vignette { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .9s;
     background: radial-gradient(ellipse 75% 60% at 50% 40%, rgba(0,0,0,0) 55%, rgba(20,12,6,.5) 100%); }
@@ -134,7 +162,8 @@
     background: rgba(246,239,226,.16); color: #f1ece2; box-shadow: none; border: 1px solid rgba(246,239,226,.35); }
   .op-caption { margin: 0; font-size: 15px; line-height: 1.7; opacity: .9; text-align: center; }
   /* 第一幕：16:49 的辦公室 */
-  .op-office { background: linear-gradient(#2c3340, #1b1f27 70%); }
+  /* art2b：手繪的深夜辦公桌（scene_office_night，中間壓暗留給卡片）；--art-office 由 main.js 在圖載到時設定，沒有就是原本的漸層 */
+  .op-office, .op-mailbox.reading { background: var(--art-office, none) 50% 100% / cover no-repeat, linear-gradient(#2c3340, #1b1f27 70%); }
   .op-clock { position: absolute; top: 14px; left: 18px; font: 600 26px/44px ui-monospace, "Consolas", monospace; letter-spacing: 2px; color: #ffcf8a; }
   .op-clock.flip { animation: flip .6s ease-out; }
   @keyframes flip { 0% { transform: scaleY(1); } 45% { transform: scaleY(.1); } 100% { transform: scaleY(1); } }
@@ -164,11 +193,12 @@
   .op-credit a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; justify-content: center; padding: 0 8px; color: inherit; }
   /* 第二幕：信箱與律師信 */
   .op-mailbox { background: #23262d; }
+  .op-mailbox { transition: opacity .7s, background .9s; }
   /* 辭呈與信箱：內容在畫面裡垂直置中（內容比畫面高時照常從上面開始捲） */
   .op-office::before, .op-mailbox::before { content: ""; margin-top: auto; }
   .op-office::after, .op-mailbox::after { content: ""; margin-bottom: auto; }
   .op-box-btn { padding: 0; background: none; box-shadow: none; border-radius: 12px; overflow: hidden; flex: none; }
-  .op-box-btn img { display: block; width: 100%; height: auto; }
+  .op-box-btn img, .op-box-btn canvas { display: block; width: 100%; height: auto; }
   .op-box-btn.shake { animation: shake .22s ease-in-out 5; }
   @keyframes shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-1.6deg) translateX(-3px); } 75% { transform: rotate(1.6deg) translateX(3px); } }
   /* 律師信：不透明的紙色卡片配深色字（比照辭呈那張）；展開只動形狀，不從透明淡入，任何時候截圖都看得清楚 */
@@ -180,7 +210,7 @@
   @keyframes unfold { from { transform: scaleY(.82) translateY(-12px); } to { transform: none; } }
   /* 第三幕：175 縣道 */
   .op-road { background: #1f1a22; padding: 0; justify-content: flex-end; }
-  .op-road img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 55%; }
+  .op-road-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 55%; }
   .op-road-ui { position: relative; padding: 40px 18px 18px; display: flex; flex-direction: column; gap: 12px;
     background: linear-gradient(rgba(20,16,22,0), rgba(20,16,22,.78) 45%); }
   /* 進店後的「略過」 */
@@ -263,7 +293,7 @@
   #app.modal #labels, #app.modal #lights, #app.modal #bubble, #app.modal .bottom, #app.modal #shade { visibility: hidden; transition: none; } /* 泡泡收起來時的延遲也不要 */
   .map-card { align-items: stretch; }
   .map-wrap { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; margin: 4px 0 6px; }
-  .map-wrap img { display: block; max-width: 100%; max-height: 100%; height: auto; object-fit: contain; border-radius: 10px;
+  .map-wrap > * { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 10px;
     box-shadow: inset 0 0 0 1px rgba(59,42,32,.2); }
   #map-list { list-style: none; margin: 0 0 4px; padding: 0; flex: none; }
   /* 兩欄固定：左邊地名、右邊說明，不折行（窄的時候說明縮小一點） */
@@ -276,6 +306,8 @@
   .map-line { margin: 6px 0 10px; font-size: 16px; text-align: center; flex: none; }
   /* 桌機（視窗比直式畫面寬很多，場景欄約 330px）：字放大（美術評分修正 c）：標籤、提示、清單至少 14px，泡泡與問句的內文 16px */
   @media (min-aspect-ratio: 3/5) {
+    /* art2b：桌機的場景欄加寬（720 高時 480px，原本 332px），俯瞰的房間與角色才不會太小（評審：角色約 20px） */
+    #app { max-width: calc(100vh * 2 / 3); }
     #bubble { font-size: 16px; max-width: 250px; }
     #ask { font-size: 16px; }
     #bubble b, #ask b { font-size: 14px; }
@@ -292,6 +324,7 @@
 </head>
 <body>
 <div id="backdrop"></div>
+<div id="splash"><p>我單方面辭退老闆後，<br>開了一間夢想中的咖啡店</p></div>
 <div id="app">
   <div id="vignette"></div>
   <div class="top">
@@ -431,7 +464,7 @@
     <div class="card paper map-card">
       <h2 id="map-title">你的咖啡地圖</h2>
       <p class="sub" id="map-sub">第一站，完。</p>
-      <div class="map-wrap"><img id="map-img" alt="台灣地圖：台南東山亮著一盞燈，花蓮舞鶴待續"></div>
+      <div class="map-wrap" id="map-wrap"></div>
       <ul id="map-list"></ul>
       <p class="map-line hand" id="map-line"></p>
       <button id="map-back" class="primary wide">回東山坐坐</button>

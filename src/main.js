@@ -19,6 +19,42 @@ import { createAudio, VOLUMES, VOLUME_NAMES } from './audio.js';
 const $ = (id) => document.getElementById(id);
 const lightsEl = $('lights'); // 打烊後每盞燈旁邊的「關燈／開燈」
 
+/* ---------- art2b：開場、介面的手繪圖（CSS 變數）、介面圖示、啟動畫面 ---------- */
+// 圖載到了才設 CSS 變數，index.html 用 var(--art-*, none)：沒有載到就是原本的漸層、純色與 2px 墨色框
+for (const [v, name] of [['--art-office', 'scene_office_night'], ['--art-paper', 'ui_paper_lined'], ['--art-bubble', 'ui_bubble_9slice']]) {
+  const url = A.artUrl(name);
+  if (url) document.documentElement.style.setProperty(v, `url("${url}")`);
+}
+$('app').classList.toggle('art-bubble', !!A.artUrl('ui_bubble_9slice'));
+// 介面圖示：ui_icons.svg 的四個 <symbol> 放進頁面裡（同一份文件，<use href="#icon-…"> 一定找得到），
+// 選單、快轉、溫度、開燈前面加圖示；沒有載到就照舊只有文字（選單是「≡」）
+const ICONS = !!A.iconSymbols();
+if (ICONS) {
+  const sprite = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  sprite.setAttribute('aria-hidden', 'true');
+  sprite.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+  sprite.innerHTML = A.iconSymbols();
+  document.body.prepend(sprite);
+}
+const iconSvg = (id) => `<svg class="icon" aria-hidden="true" focusable="false"><use href="#icon-${id}"/></svg>`;
+// 按鈕前面加圖示，文字放進 .lbl（之後改字用 setLabel，圖示不會被蓋掉）；only＝只要圖示（選單）
+function iconize(el, id, only = false) {
+  if (!ICONS || el.querySelector('.icon')) return;
+  const text = el.textContent;
+  el.innerHTML = iconSvg(id) + (only ? '' : '<span class="lbl"></span>');
+  if (!only) el.querySelector('.lbl').textContent = text;
+  el.classList.add('has-icon');
+}
+const setLabel = (el, text) => { (el.querySelector('.lbl') || el).textContent = text; };
+iconize($('menu-btn'), 'menu', true);
+iconize($('speed'), 'fastforward');
+iconize($('temp'), 'temperature');
+// 啟動畫面：main.js 開始跑時手繪圖都載完了（art.js 的 top-level await），淡出後拿掉
+{
+  const sp = $('splash');
+  if (sp) { sp.classList.add('out'); setTimeout(() => sp.remove(), 700); }
+}
+
 /* ---------- 開發者模式：網址加 ?dev=1（測試可再加 &speed=20 讓動作加速） ---------- */
 const params = new URLSearchParams(location.search);
 const DEV = params.get('dev') === '1';
@@ -803,7 +839,7 @@ function drawThermo() {
   thermoMat.map?.dispose();
   thermoMat.map = A.tex(A.thermometer(t));
   thermoMat.needsUpdate = true;
-  $('temp').textContent = t.toFixed(1) + '°C';
+  setLabel($('temp'), t.toFixed(1) + '°C');
   $('temp').style.backgroundColor = tempColor(t);
 }
 drawThermo();
@@ -868,8 +904,10 @@ let lastSaid = null; // 最後一句話（誰、什麼時候）：選項出現�
 function say(text, ms = 3500, who = deshu, name = null) {
   if (!String(text ?? '').trim()) { bubble.classList.remove('show'); return; } // 沒有字的泡泡不畫
   speaker = who;
+  // art2b：熟客的場景演到一半、老闆正在看德叔沖（吧台特寫）時，別人開口：先回到座位的視角再轉向他（原本畫面停在吧台，聽得到看不到）
+  if (state.scene && state.closeup && state.mode === 'seat' && who !== deshu && who !== 'player' && isPerson(who) && who.visible) { toggleCloseup(); focusP = null; }
   // 對話中（熟客的場景、客人模式的聊天）：說話的人轉進畫面裡
-  if (conversing() && state.mode === 'seat' && !state.closeup && who && who !== 'player' && who.visible && isPerson(who) && who !== focusP) lookToward(who, 2.3);
+  if (conversing() && state.mode === 'seat' && !state.closeup && who && who !== 'player' && who.visible && isPerson(who) && (who !== focusP || movedSinceLook(who))) lookToward(who, 2.3);
   sayEnds = performance.now() + (ms || 4000);
   bubble.classList.toggle('me', who === 'player');
   const label = name ?? (who === 'player' ? '你' : nameOf(who));
@@ -1117,7 +1155,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   const cup = stationCup;
   const atSeat = () => state.mode === 'seat' && state.seat === seat;
   state.closeup = false;
-  if (atSeat()) { cam.yaw = 0; cam.pitch = 0; focusP = null; moveCamera(seat.eye, seat.look); }
+  if (atSeat()) { cam.yaw = 0; cam.pitch = 0; focusP = null; moveCamera(seat.eye, seat.look); refocusSpeaker(); }
   updateUI();
   const path = [new THREE.Vector3(2.6, 0, 0.6), new THREE.Vector3(1.3, 0, 0.8), seat.serve];
   if (seat.serve) {
@@ -1207,7 +1245,7 @@ function toggleCloseup() {
   state.closeup = !state.closeup;
   cam.yaw = 0; cam.pitch = 0; focusP = null;
   if (state.closeup) moveCamera(CLOSE.pos, CLOSE.look);
-  else moveCamera(state.seat.eye, state.seat.look);
+  else { moveCamera(state.seat.eye, state.seat.look); refocusSpeaker(); }
   updateUI();
 }
 
@@ -1418,6 +1456,7 @@ const FIT_FRONT = [1, 3]; // FIT_ROOM 裡地板靠鏡頭（z＝ROOM.d / 2）的�
 const FIT_BAR = [];
 for (const x of [1.6, 2.4]) for (const z of [-3.25, 0.25]) for (const y of [0, 1.06]) FIT_BAR.push(new THREE.Vector3(x, y, z));
 const FIT_MARGIN = 24;
+const OVER_DESK_MIN = Number(params.get('overmin')) || 44; // art2b：桌機俯瞰最低的仰角
 const WALL_SINK = 0.5; // 房間被寬度卡住時，後牆上緣最多可以往下沉到可用高度的一半（空白留在頂部介面那一帶，不留在提示上面）
 // 圖真正畫到的地方離中線多遠（圖寬的比例，0～0.5）：從透明度量，每張圖只量一次；量不到（換成跨網域的圖檔等）就當作整張
 const drawnCache = new WeakMap();
@@ -1564,13 +1603,19 @@ function fitOverview(smooth = false) {
     return { ok: ok && hi <= top + 0.01 && lo >= bottom - 0.01, span: f1 - f0, dir };
   };
   // 仰角 58°～66°、水平方向在原本的角度左右 8° 以內，挑地板看起來最高的（直立畫面原本被寬度卡住，下面留一塊空白）
+  // art2b：桌機（場景欄比直式寬，CSS 的 @media (min-aspect-ratio: 3/5)）的俯瞰角色太小（評審：約 20px）：仰角放低到 OVER_DESK_MIN，
+  // 改挑德叔畫出來最高的角度（地板變扁、站著的紙片變高）。手機照舊挑地板最高的
+  const desk = innerWidth / innerHeight >= 3 / 5;
+  const tall = new THREE.Vector3(), feet = new THREE.Vector3();
+  const deshuPx = () => { feet.copy(HOME).project(probe); tall.copy(HOME).setY(1.67).project(probe); return tall.y - feet.y; };
   let best = null;
-  for (let deg = 58; deg <= 74; deg += 2) for (let yd = -8; yd <= 8; yd += 4) {
+  for (let deg = desk ? OVER_DESK_MIN : 58; deg <= 74; deg += 2) for (let yd = -8; yd <= 8; yd += 4) {
     const e = THREE.MathUtils.degToRad(deg), yaw = OVER_BASE.yaw + THREE.MathUtils.degToRad(yd);
     let lo = 6, hi = 60;
     for (let i = 0; i < 20; i++) { const mid = (lo + hi) / 2; if (place(e, mid, yaw).ok) hi = mid; else lo = mid; }
     const r = place(e, hi, yaw);
-    if (r.ok && (!best || r.span > best.span + 0.02)) best = { deg, yd, span: r.span, pos: look.clone().addScaledVector(r.dir, hi), look: look.clone() };
+    if (desk) r.span = deshuPx();
+    if (r.ok && (!best || r.span > best.span + (desk ? 0.002 : 0.02))) best = { deg, yd, span: r.span, pos: look.clone().addScaledVector(r.dir, hi), look: look.clone() };
   }
   if (!best) return;
   OVER.deg = best.deg;
@@ -1928,10 +1973,10 @@ $('night').onclick = () => { state.night = !state.night; applyLight(); };
 const speedLabel = () => `×${state.devSpeed}`;
 $('speed').setAttribute('aria-label', '快轉（開發者）');
 $('speed').hidden = !DEV;
-$('speed').textContent = speedLabel();
+setLabel($('speed'), speedLabel());
 $('speed').onclick = () => {
   state.devSpeed = state.devSpeed === 1 ? (DEV_SPEED > 1 ? DEV_SPEED : 4) : 1;
-  $('speed').textContent = speedLabel();
+  setLabel($('speed'), speedLabel());
 };
 
 /* ---------- 選單：關於（開發者資訊）、店的記事本、開發者工具 ---------- */
@@ -2642,8 +2687,34 @@ async function deshuGo(target) {
 function nearSpot(w) {
   const spot = live.at[w];
   const pos = spot?.pos || PEOPLE[w].position;
-  if (spot?.counter) return V2(2.5, pos.z);
+  if (spot?.counter) return V2(2.5, behindBarZ(PEOPLE[w], pos.z));
   return V2(THREE.MathUtils.clamp(pos.x + (pos.x < 0.45 ? 0.5 : -0.5), -2.7, 2.7), THREE.MathUtils.clamp(pos.z + 0.12, -3.7, 3.6));
+}
+
+// art2b：吧台前的人，德叔從吧台裡面走到他對面時，在吧台裡錯開一點（評審：颱風夜阿哲正好站在德叔前面，看起來像一個雙頭人）。
+// 從現在的鏡頭看過去，兩個人畫出來的範圍（左右）不能重疊：在吧台裡面（z −3.0～0）找離那個人最近、又不重疊的位置；
+// 怎麼放都重疊時，挑分得最開的
+const barProbe = new THREE.Vector3();
+function behindBarZ(p, z) {
+  camera.updateMatrixWorld();
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+  const span = (x, zz, half) => {
+    const xs = [-1, 1].map((sg) => { barProbe.set(x, 1.0, zz).addScaledVector(right, sg * half).project(camera); return barProbe.x; });
+    return [Math.min(...xs), Math.max(...xs)];
+  };
+  const halfOf = (q) => q.userData.mesh.geometry.parameters.width * drawnHalf(q.userData.mesh.material.map?.image);
+  const [a0, a1] = span(p.position.x, p.position.z, halfOf(p) * 0.85);
+  const dh = halfOf(deshu) * 0.85;
+  let best = z, bestGap = -Infinity;
+  for (let k = 0; k <= 12; k++) for (const sg of k ? [-1, 1] : [1]) {
+    const zz = z + sg * k * 0.1;
+    if (zz < -3.0 || zz > 0) continue;
+    const [b0, b1] = span(2.5, zz, dh);
+    const gap = Math.max(b0 - a1, a0 - b1); // 正的＝分開了多少（NDC）
+    if (gap > 0.04) return zz;
+    if (gap > bestGap) { bestGap = gap; best = zz; }
+  }
+  return best;
 }
 
 // 德叔端東西給熟客：從吧台拿杯子，走過去放在他桌上（沒有桌子就交到他手上）
@@ -2731,6 +2802,9 @@ let focusFov = FOCUS_FOV;
 const SPEAKER_SHARE = 0.52, FOCUS_FOV_MIN = 30; // 0.52：headOf() 算到泡泡的位置、比畫出來的頭頂高，實測畫面上約 37%
 const FACE_DROP = 0.2; // 臉的中心在頭頂（headOf）往下多少
 let focusP = null;
+// art2b：轉向說話的人時他站在哪裡；同一個人走開了（德叔說完「我端過去」走到桌邊才說下一句），下一句要重新轉過去
+const focusAt = new THREE.Vector3();
+const movedSinceLook = (p) => p.position.distanceTo(focusAt) > 0.8;
 let lookTok = 0, turnTok = 0; // turnTok：正在轉向的那一次（轉完是 0；開發者模式的 camStill 用）
 const isPerson = (p) => p === cat || Object.values(PEOPLE).includes(p);
 const conversing = () => !!state.scene || (!!state.guest && state.guest !== 'enter' && state.guest !== 'sit'); // 客人模式：坐下之後的點單、上桌、聊天
@@ -2739,6 +2813,7 @@ function lookToward(p, max = 1.2) {
   const s = state.seat;
   const person = !!p && isPerson(p);
   focusP = person ? p : null;
+  if (person) focusAt.copy(p.position);
   if (person && conversing()) state.focus = true;
   $('vignette').classList.toggle('on', !!state.focus && !state.closeup);
   const b = s.look.clone().sub(s.eye), t = p ? p.position.clone().sub(s.eye) : b;
@@ -2772,6 +2847,11 @@ function lookToward(p, max = 1.2) {
     return k >= 1;
   });
 }
+// art2b：對話中途看完德叔沖、鏡頭移回座位時，視線回到正前方：正在說話的人（泡泡還在）要再轉回來
+// （原本要等下一個人開口才轉；颱風夜阿哲的最後一句，畫面停在窗戶上、泡泡沒有尾巴）。lookToward() 會等鏡頭移完再轉
+function refocusSpeaker() {
+  if (conversing() && bubble.classList.contains('show') && speaker && speaker !== 'player' && isPerson(speaker) && speaker.visible) lookToward(speaker, 2.3);
+}
 // 鏡頭移動（例如端上桌之後移回座位）做完：對話的下一句等鏡頭到了再說，說話的人才會在畫面裡（快轉時台詞比鏡頭快很多）
 const camSettled = () => new Promise((r) => { const f = () => (tween ? requestAnimationFrame(f) : r()); f(); });
 // 對話結束（場景演完、客人模式聊完）：推近與暗角收起來，視線回到座位原本的方向
@@ -2786,7 +2866,9 @@ function endFocus() {
 const occ = new THREE.Vector3();
 const BIG_FG = 1.3; // 前景的人看起來比說話的人大 1.3 倍以上就淡出
 function updateOcclusion(dt) {
-  const f = state.mode === 'seat' && !state.closeup && focusP && focusP.visible ? focusP : null;
+  // art2b：鏡頭轉向誰（focusP）之外，對話中正在說話的人也算（客人模式德叔端上桌的那句，鏡頭剛移回座位、還沒轉向他）
+  const talker = focusP || (conversing() && bubble.classList.contains('show') && speaker && speaker !== 'player' && isPerson(speaker) ? speaker : null);
+  const f = state.mode === 'seat' && !state.closeup && talker && talker.visible ? talker : null;
   let face = null;
   const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
   if (f) {
@@ -2810,11 +2892,54 @@ function updateOcclusion(dt) {
         else if (occ.z < 1 && Math.abs(occ.x) < 1 + hx && Math.abs(occ.y) < 1 + hy && (q.position.y + headOf(q)) / d > BIG_FG * face.size) target = 0;
       }
     }
-    if (Math.abs(mat.opacity - target) < 0.005) continue;
-    mat.opacity += (target - mat.opacity) * Math.min(1, dt * 6);
-    if (Math.abs(mat.opacity - target) < 0.005) mat.opacity = target;
-    mat.alphaTest = mat.opacity < 0.99 ? 0.08 : 0.35;
+    fadeTo(mat, target, dt);
   }
+  // art2b：前景的擺飾與椅子也一樣（評審：桌機客人模式，前景的畫架擋住右邊 1/3 和德叔；高腳椅在畫面正中下方）。
+  // 比說話的人近、畫出來的範圍和說話的人左右重疊（擋在中間），或在畫面裡看起來比說話的人高，就淡到 30%；試擺中的東西本來就是 72%
+  let body = null;
+  if (face) {
+    const r = screenRect(f, 0.8);
+    if (r) body = r;
+  }
+  for (const q of occProps()) {
+    const mat = q.userData.mesh.material;
+    const base = q.userData.entry?.trial ? 0.72 : 1;
+    let target = base;
+    if (body && q.visible) {
+      const r = screenRect(q, 0.92);
+      if (r && r.d < face.d - 0.3 && r.x1 > -1 && r.x0 < 1 && r.y1 > -1 && r.y0 < 1) {
+        // 擋在鏡頭和說話的人中間：左右和說話的人重疊（上下不看：吧台前的高腳椅比吧台後的德叔低，但正好在他前面）
+        const ox = Math.min(r.x1, body.x1) - Math.max(r.x0, body.x0);
+        if (ox > 0.3 * Math.min(r.x1 - r.x0, body.x1 - body.x0) || r.size > face.size) target = Math.min(base, 0.3);
+      }
+    }
+    fadeTo(mat, target, dt);
+  }
+}
+function fadeTo(mat, target, dt) {
+  if (Math.abs(mat.opacity - target) < 0.005) return;
+  mat.opacity += (target - mat.opacity) * Math.min(1, dt * 6);
+  if (Math.abs(mat.opacity - target) < 0.005) mat.opacity = target;
+  mat.alphaTest = mat.opacity < 0.99 ? 0.08 : 0.35;
+}
+// 會擋到人的擺飾與椅子（老闆自己坐的那張也算：坐吧台時高腳椅就在鏡頭前面；在鏡頭後面的 screenRect() 會略過）
+const occProps = () => [...decorPapers.values(), ...SEATS.map((st) => st.prop), stoolMid, stoolFar, yuanChair, noticeSign];
+// 紙片畫出來的範圍在畫面上的外框（NDC）、離鏡頭多遠、看起來多高（公尺÷距離）；shrink：外框往內縮一點（圖的邊緣多半是細的椅腳、葉子）
+const rectV = new THREE.Vector3(), rectR = new THREE.Vector3();
+function screenRect(q, shrink = 1) {
+  const m = q.userData.mesh, prm = m.geometry.parameters;
+  const img = m.material.map?.image;
+  const half = prm.width * drawnHalf(img) * shrink;
+  const y0 = q.position.y + m.position.y, y1 = y0 + prm.height * (1 - inkTop(img)) * (shrink < 1 ? 0.96 : 1);
+  rectR.set(1, 0, 0).applyQuaternion(camera.quaternion);
+  const d = camera.position.distanceTo(rectV.copy(q.position).setY((y0 + y1) / 2));
+  let x0 = Infinity, x1 = -Infinity, ya = Infinity, yb = -Infinity;
+  for (const sg of [-1, 1]) for (const y of [y0, y1]) {
+    rectV.copy(q.position).setY(y).addScaledVector(rectR, sg * half).project(camera);
+    if (rectV.z >= 1) return null; // 在鏡頭後面
+    x0 = Math.min(x0, rectV.x); x1 = Math.max(x1, rectV.x); ya = Math.min(ya, rectV.y); yb = Math.max(yb, rectV.y);
+  }
+  return { x0, x1, y0: ya, y1: yb, d, size: (y1 - y0 + Math.max(0, y0)) / d };
 }
 
 // 颱風夜：天色一下子暗下來，窗外的雨斜著打，風雨聲
@@ -3228,7 +3353,8 @@ const mapEl = $('map');
 let mapMode = null;
 function showMap(mode) {
   mapMode = mode;
-  if (!$('map-img').getAttribute('src')) $('map-img').src = A.coffeeMap().toDataURL();
+  // art2b：手繪地圖是 SVG（標記由程式畫），沒有載到是 Canvas；第一次打開才做，之後沿用
+  if (!$('map-wrap').firstElementChild) $('map-wrap').appendChild(A.coffeeMap('台灣地圖：台南東山亮著一盞燈，花蓮舞鶴待續'));
   $('map-title').textContent = F.MAP.title;
   $('map-sub').textContent = F.MAP.sub;
   $('map-line').textContent = F.MAP.line;
@@ -3452,6 +3578,7 @@ function buildLightLabels() {
   for (const l of lightList()) {
     const b = document.createElement('button');
     b.className = 'light-label';
+    if (ICONS) { b.innerHTML = iconSvg('light') + '<span class="lbl"></span>'; b.classList.add('has-icon'); }
     b.dataset.light = l.id;
     b.onclick = () => {
       H.toggleLight(save, l.id);
@@ -3468,7 +3595,7 @@ function buildLightLabels() {
 function refreshLightLabels() {
   for (const l of lightLabels) {
     const on = lightOn(l.id);
-    l.el.textContent = on ? '關燈' : '開燈';
+    setLabel(l.el, on ? '關燈' : '開燈');
     l.el.classList.toggle('off', !on);
     l.el.setAttribute('aria-label', `${l.id.startsWith('p') ? '吊燈' : '落地燈'}：${on ? '關燈' : '開燈'}`);
   }
@@ -4021,8 +4148,12 @@ if (DEV) {
       return { loaded: A.artNames(), room: A.roomArtNames(), now: Object.fromEntries(Object.entries({ ...PEOPLE, cat }).map(([k, p]) => [k, of(p)])), yuanChair: yuanChair.visible,
         // 接正式美術第二批：店內用到的手繪圖（座位的椅子、吧台後的層架、溫度計、吊燈紙片、窗景與材質的像素寬）
         props: Object.fromEntries(SEATS.map((st) => [st.id, of(st.prop)])), backBar: img(backBar.material)?.art || null, thermo: img(thermoMat)?.art || null,
-        hanging: hanging.length, windowW: img(windows[0].material)?.width, floorW: floorTex.image?.width };
+        hanging: hanging.length, windowW: img(windows[0].material)?.width, floorW: floorTex.image?.width,
+        // art2b：開場、地圖與介面的圖（DOM 用）、介面圖示、吧台上老先生的信封
+        ui: A.uiArtNames(), icons: ICONS, envelope: img(envelope.userData.mesh.material)?.art || null };
     },
+    // art2b：地圖、縣道、信箱各自是哪一種元素（手繪圖：svg／IMG；沒有圖：CANVAS）
+    uiArtTags() { return { map: A.coffeeMap().tagName, road: A.countyRoad().tagName, mail: A.mailboxes().tagName }; },
     // 俯瞰：畫面裡看得到的地板最下緣，離提示（或按鈕列）上緣還有幾 px
     overviewGap() {
       const H = app.clientHeight, W = app.clientWidth, v = new THREE.Vector3();
@@ -4087,6 +4218,34 @@ if (DEV) {
       if (!p?.visible) return null;
       const v = p.position.clone().add(new THREE.Vector3(0, 0.8, 0)).project(camera);
       return { x: ((v.x + 1) / 2) * app.clientWidth, y: ((1 - v.y) / 2) * app.clientHeight, inFront: v.z < 1 };
+    },
+    // art2b：某個人畫出來的左右範圍（相對 #app 的像素）
+    spanOnScreen(w) {
+      const p = w === 'deshu' ? deshu : PEOPLE[w];
+      const r = p?.visible ? screenRect(p, 0.85) : null;
+      return r && [((r.x0 + 1) / 2) * app.clientWidth, ((r.x1 + 1) / 2) * app.clientWidth].map(Math.round);
+    },
+    // art2b：鏡頭的狀態（轉了多少、在不在推近、看著誰）
+    get camInfo() { return { yaw: Math.round(cam.yaw * 100) / 100, focus: !!state.focus, closeup: !!state.closeup, focusP: focusP ? nameOf(focusP) : null, tween: !!tween, mode: state.mode, seat: state.seat?.id || null, speaker: isPerson(speaker) ? nameOf(speaker) : null, scene: state.scene?.id || null, show: bubble.classList.contains('show'), zheVisible: zhe.visible, guest: state.guest }; },
+    // art2b：直接演某一個熟客里程碑的場景（截圖檢查站位用；會照常記進存檔）
+    playScene(id) { const m = S.milestoneById(id); if (m && !state.scene) runScene(m); return !!m; },
+    // art2b：對話時前景淡出的狀態：誰是說話的人、哪些擺飾與椅子淡掉了（透明度 < 1）
+    get occlusion() {
+      const talker = focusP || (conversing() && bubble.classList.contains('show') && isPerson(speaker) ? speaker : null);
+      const name = (q) => q?.userData.name || q?.userData.item?.id || (q === stoolMid ? 'stoolMid' : q === stoolFar ? 'stoolFar' : q === yuanChair ? 'yuanChair' : '?');
+      return { talker: talker ? nameOf(talker) : null, faded: occProps().filter((q) => q.visible && q.userData.mesh.material.opacity < 0.99).map(name),
+        rects: occProps().filter((q) => q.visible).map((q) => { const r = screenRect(q, 0.92); return [name(q), r && Math.round(r.d * 10) / 10, r && [r.x0, r.x1, r.y0, r.y1].map((v) => Math.round(v * 100) / 100)]; }) };
+    },
+    // art2b：某個人（含德叔、龍眼）在畫面上畫出來有幾 px 高（腳底到頭頂）
+    heightOnScreen(w) {
+      const p = w === 'deshu' ? deshu : w === 'cat' ? cat : PEOPLE[w];
+      if (!p?.visible) return null;
+      const a = p.position.clone(), b = a.clone();
+      a.y += p.userData.mesh.position.y;
+      const m = p.userData.mesh;
+      b.y = a.y + m.geometry.parameters.height * (1 - inkTop(m.material.map?.image));
+      a.project(camera); b.project(camera);
+      return Math.round(Math.abs(b.y - a.y) / 2 * app.clientHeight);
     },
     // 階段 5：龍眼、打烊後、客人模式
     get catSpot() { return catSpot?.id || null; },

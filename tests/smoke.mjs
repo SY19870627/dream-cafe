@@ -1089,8 +1089,23 @@ try {
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(1500);
     const art = await page.evaluate(() => window.__cafe.art);
-    check(got.size === 64 && [...got.values()].every((s) => s === 200), `從 assets/art 載入 64 張圖（第一批 18、第二批店內 46；${got.size} 張）`);
-    check(art.loaded.length === 64 && art.loaded.every((n) => got.has(n)), `64 張都解碼成功（${art.loaded.length} 張）`);
+    // art2b：第二批的開場、地圖與介面再加 7 張 webp（信封、辭呈與律師信背景、信箱、縣道、地圖、信紙、泡泡外框）＋ CSS 的啟動畫面
+    check(got.size === 72 && [...got.values()].every((s) => s === 200) && got.has('splash_1170x2532'), `從 assets/art 載入 72 張 webp（第一批 18、第二批店內 46、開場與介面 7、啟動畫面 1；${got.size} 張）`);
+    check(art.loaded.length === 71 && art.loaded.every((n) => got.has(n)), `71 張都解碼成功（${art.loaded.length} 張；啟動畫面由 CSS 直接用）`);
+    const tags = await page.evaluate(() => window.__cafe.uiArtTags());
+    check(tags.map === 'svg' && tags.road === 'svg' && tags.mail === 'IMG', `地圖與縣道是手繪圖＋程式畫的標記（SVG）、信箱是手繪圖 ${JSON.stringify(tags)}`);
+    check(art.ui.length === 6 && art.icons && art.envelope === 'envelope', `開場、地圖與介面的圖、介面圖示、信封都載到了 ${JSON.stringify(art.ui)} 圖示 ${art.icons}`);
+    const ui = await page.evaluate(() => ({
+      vars: ['--art-office', '--art-paper', '--art-bubble'].map((v) => getComputedStyle(document.documentElement).getPropertyValue(v).startsWith('url(')),
+      bubble: getComputedStyle(document.getElementById('bubble')).borderImageSource.startsWith('url('),
+      icons: ['#menu-btn', '#speed', '#temp'].map((s) => !!document.querySelector(`${s} svg.icon use`)),
+      temp: document.getElementById('temp').textContent, splash: !document.getElementById('splash'),
+      manifest: document.querySelector('link[rel=manifest]')?.getAttribute('href'),
+    }));
+    check(ui.vars.every(Boolean) && ui.bubble && ui.icons.every(Boolean) && ui.temp === '20.0°C' && ui.splash,
+      `介面用上手繪圖：信紙、泡泡外框、辭呈背景的 CSS 變數，選單／快轉／溫度的圖示，啟動畫面已收起 ${JSON.stringify(ui)}`);
+    const mf = await page.evaluate(async (h) => { const r = await fetch(h); const j = await r.json(); const icons = await Promise.all(j.icons.map(async (i) => (await fetch(i.src)).status)); return { name: j.short_name, icons }; }, ui.manifest);
+    check(mf.icons.length === 3 && mf.icons.every((st) => st === 200), `manifest 的圖示都在（${JSON.stringify(mf)}）`);
     // 接正式美術第二批：座位的椅子、高腳椅、沙發、吧台後的層架、溫度計、吊燈都是手繪圖；窗景與地板是原圖大小（桌機 2048）
     check(art.props.window === 'chair' && art.props.bar === 'stool' && art.props.sofa === 'sofa' && art.backBar === 'backbar' && art.thermo === 'thermometer_frame' && art.hanging === 2,
       `店內的家具、層架、溫度計、吊燈來自 assets/art ${JSON.stringify(art.props)} ${art.backBar} ${art.thermo} 吊燈 ${art.hanging}`);
@@ -1124,6 +1139,16 @@ try {
     check(blocked >= 64 && art.loaded.length === 0 && Object.values(art.now).every((v) => v === null) && !art.yuanChair, `assets/art 全部失敗（斷線、404、解碼錯誤，攔下 ${blocked} 個請求）：人物退回 Canvas 繪圖`);
     check(Object.values(art.props).every((v) => v === null) && !art.backBar && !art.thermo && art.hanging === 0 && art.windowW <= 400 && art.floorW === 512,
       `店內的家具、層架、溫度計、吊燈、窗景與地板也退回 Canvas 繪圖 ${JSON.stringify(art.props)} 窗 ${art.windowW} 地板 ${art.floorW}`);
+    // art2b：開場、地圖與介面的圖、圖示全部沒有：CSS 變數不設（原本的漸層與 2px 墨色框）、按鈕照舊是文字、信封是 Canvas、地圖是 Canvas
+    const ui = await page.evaluate(() => ({
+      vars: ['--art-office', '--art-paper', '--art-bubble'].map((v) => getComputedStyle(document.documentElement).getPropertyValue(v)).join(''),
+      border: getComputedStyle(document.getElementById('bubble')).borderImageSource, menu: document.getElementById('menu-btn').textContent,
+      icons: document.querySelectorAll('svg.icon').length, temp: document.getElementById('temp').textContent,
+      tags: window.__cafe.uiArtTags(),
+    }));
+    check(art.ui.length === 0 && !art.icons && art.envelope === null && ui.vars === '' && ui.border === 'none' && ui.menu === '≡' && ui.icons === 0 && ui.temp === '20.0°C'
+      && ui.tags.map === 'CANVAS' && ui.tags.road === 'CANVAS' && ui.tags.mail === 'CANVAS',
+      `開場、地圖與介面的圖也全部失敗：介面退回原本的 CSS、選單是「≡」、信封是 Canvas ${JSON.stringify(ui)}`);
     await page.click('.seat-label >> text=窗邊座');
     await page.waitForTimeout(1600);
     check(await page.evaluate(() => window.__cafe.mode === 'seat'), '沒有手繪圖也能坐下');
@@ -1133,6 +1158,46 @@ try {
     check(await page.evaluate(() => window.__cafe.tasks.includes('first-coffee') && window.__cafe.temp === 20.5), '沒有手繪圖也能沖一杯（杯子上桌、溫度 +0.5）');
     await page.screenshot({ path: OUT + 'phone-art-fallback.png' });
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+  {
+    // art2b：颱風夜（評分不通過）：從窗邊座看，德叔端咖啡給吧台前的阿哲之後，兩人畫出來的範圍不能重疊（原本疊成一個雙頭人）
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    await page.goto(url + '?dev=1&speed=8&opening=0&regulars=0&weather=clear');
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(1200);
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => window.__cafe.playScene('zhe3'));
+    await page.waitForFunction(() => document.getElementById('bubble').textContent.includes('四十年') && window.__cafe.camStill, null, { timeout: 60000, polling: 'raf' });
+    const [z, d] = await page.evaluate(() => [window.__cafe.spanOnScreen('zhe'), window.__cafe.spanOnScreen('deshu')]);
+    check(z && d && (d[0] >= z[1] || d[1] <= z[0]), `颱風夜：阿哲與德叔在畫面上沒有重疊（阿哲 ${z}、德叔 ${d}）`);
+    await page.screenshot({ path: OUT + 'phone-typhoon-apart.png' });
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+  {
+    // art2b：assets/art 全部失敗時的開場（新存檔）：辭呈、信箱、律師信、縣道都退回原本的 Canvas 與 CSS，照樣走到推門進店
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(`console: ${m.text()}`); });
+    await page.route('**/assets/art/**', (r) => (/office|county|paper/.test(r.request().url()) ? r.fulfill({ status: 200, contentType: 'image/webp', body: 'not a webp' }) : r.abort('failed')));
+    await page.goto(url + '?dev=1&speed=20');
+    await page.waitForSelector('.op-office.on');
+    const bg = await page.evaluate(() => getComputedStyle(document.querySelector('.op-office')).backgroundImage);
+    check(!bg.includes('url(') && bg.includes('linear-gradient'), `沒有手繪圖：辭呈的背景是原本的漸層（${bg.slice(0, 60)}）`);
+    await page.click('#op-skip'); await page.waitForSelector('.op-title.on');
+    await page.click('#op-next'); await page.waitForSelector('.op-mailbox.on');
+    check(await page.isVisible('#op-env canvas'), '沒有手繪圖：信箱是 Canvas 畫的');
+    await page.click('#op-env'); await page.waitForSelector('.op-lawyer');
+    await page.click('.op-mailbox #op-next'); await page.waitForSelector('.op-road.on');
+    check(await page.isVisible('.op-road canvas.op-road-art'), '沒有手繪圖：縣道是 Canvas 畫的');
+    await page.click('.op-road #op-next');
+    await page.waitForFunction(() => window.__cafe.openingStage === 'shop', null, { timeout: 5000 });
+    check(errors.length === 0, `沒有手繪圖也能走完開場、沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }
 } catch (e) {

@@ -86,7 +86,14 @@ const ROOM_SPEC = {
   prop_cup: { size: [0.2, 0.14] }, prop_coaster_menu: { size: [0.2, 0.2] }, key: { size: [0.22, 0.12] },
   longanBag: { size: [0.22, 0.2] }, kettleSet: { size: [0.7, 0.45] }, napkin: { size: [0.5, 0.95] },
   yuanBook: { size: [0.5, 0.95] }, framedNapkin: { size: [0.5, 0.95] }, beanBag: { size: [0.5, 0.95] },
+  envelope: { size: [0.26, 0.18] }, // art2b：老先生的信封（德叔放在吧台上），每公尺 3000 像素
 };
+// art2b：開場、地圖與介面的圖不進 3D 場景，只給 DOM 用（<img>、SVG 的 <image>、CSS 的 background／border-image）：
+// 下載後先解碼一次確認是好的圖（解完馬上釋放），留下壓縮過的檔案（object URL），用到的時候瀏覽器才解碼，
+// 手機不用一直抱著四張 1170×2532 的點陣圖。沒有載到就是 null，用的地方退回原本的 Canvas 繪圖或 CSS 的純色
+const UI_ART = ['scene_office_night', 'scene_mailboxes', 'scene_county_road', 'map_taiwan', 'ui_paper_lined', 'ui_bubble_9slice'];
+const UI = new Map(); // 檔名 → object URL
+let ICONS = null; // ui_icons.svg 的內容（四個 <symbol>）
 const ROOM = new Map(); // 檔名 → canvas（c.ppm；透明的圖另有 c.art 與 c.src：裁切前的原圖座標怎麼換到這張）
 // 解碼一張店內的圖：透明的裁掉留白；手機和人物一樣縮到長邊 1024（桌機 2048），每公尺像素跟著縮
 async function decodeRoom(name, blob) {
@@ -167,25 +174,47 @@ async function decodeArt(name, blob) {
 }
 async function loadArt() {
   if (typeof document === 'undefined' || typeof fetch !== 'function' || typeof createImageBitmap !== 'function') return;
-  const names = [...Object.keys(ART_SPEC), ...Object.keys(ROOM_SPEC)];
+  const names = [...Object.keys(ART_SPEC), ...Object.keys(ROOM_SPEC), ...UI_ART];
   const blobs = names.map((n) => fetchArt(n).catch(() => null)); // 同時下載
+  const icons = fetchIcons().catch(() => null);
   for (let i = 0; i < names.length; i++) {
     const blob = await blobs[i];
     if (!blob || artClosed) continue;
     try {
       const n = names[i];
       if (ART_SPEC[n]) { const a = await decodeArt(n, blob); if (!artClosed) ART.set(n, a); }
-      else { const c = await decodeRoom(n, blob); if (!artClosed) ROOM.set(n, c); }
+      else if (ROOM_SPEC[n]) { const c = await decodeRoom(n, blob); if (!artClosed) ROOM.set(n, c); }
+      else {
+        const bmp = await createImageBitmap(blob); // 解得開才算數（壞掉的檔案、404 的網頁都不行）
+        bmp.close?.();
+        if (!artClosed) UI.set(n, URL.createObjectURL(blob));
+      }
     } catch { /* 解碼失敗：這張用 Canvas 畫 */ }
   }
+  const svg = await icons;
+  if (svg && !artClosed) ICONS = svg;
+}
+// 介面圖示：只收 <symbol>，四個都在才用（少一個就整組用原本的文字）
+const ICON_IDS = ['icon-menu', 'icon-fastforward', 'icon-light', 'icon-temperature'];
+async function fetchIcons() {
+  const res = await fetch(new URL('../assets/art/ui_icons.svg', import.meta.url));
+  if (!res.ok) throw new Error(`ui_icons: ${res.status}`);
+  const doc = new DOMParser().parseFromString(await res.text(), 'image/svg+xml');
+  const syms = [...doc.querySelectorAll('symbol')].filter((n) => ICON_IDS.includes(n.id));
+  if (syms.length !== ICON_IDS.length) throw new Error('ui_icons: 圖示不齊');
+  return syms.map((n) => { n.querySelectorAll('script').forEach((x) => x.remove()); return new XMLSerializer().serializeToString(n); }).join('');
 }
 try {
   await Promise.race([loadArt(), new Promise((r) => setTimeout(r, ART_TIMEOUT))]);
 } catch { /* 任何意外都當作沒有圖 */ }
 artClosed = true; // 逾時之後才到的圖不用：同一場遊戲裡，人物不會中途換畫風
 
-export const artLoaded = (name) => ART.has(name) || ROOM.has(name);
-export const artNames = () => [...ART.keys(), ...ROOM.keys()];
+export const artLoaded = (name) => ART.has(name) || ROOM.has(name) || UI.has(name);
+export const artNames = () => [...ART.keys(), ...ROOM.keys(), ...UI.keys()];
+export const uiArtNames = () => [...UI.keys()];
+// art2b：開場、地圖與介面的圖（object URL；沒有載到是 null）與介面圖示（四個 <symbol> 的字串；沒有載到是 null）
+export const artUrl = (name) => UI.get(name) || null;
+export const iconSymbols = () => ICONS;
 export const roomArtNames = () => [...ROOM.keys()];
 // 店內的手繪圖（沒有載到就是 null）：同一張 canvas 共用，要疊字的（黑板、溫度計、徵才啟事）另外複製一張再畫
 const room = (name) => ROOM.get(name) || null;
@@ -1179,6 +1208,8 @@ export function glow() {
 
 // 老先生的信封（德叔從吧台抽屜拿出來，放在吧台上）
 export function envelope() {
+  const a = room('envelope'); // 手繪圖（art2b）：牛皮紙信封、紅色封蠟與郵票；沒有載到就用下面的 Canvas 繪圖
+  if (a) return a;
   const { c, g } = canvas(0.26, 0.18, HI);
   rr(g, 0.01, 0.01, 0.24, 0.16, 0.012); g.fillStyle = '#f3e7cf'; g.fill(); outline(g, 0.01);
   g.beginPath(); g.moveTo(0.015, 0.02); g.lineTo(0.13, 0.1); g.lineTo(0.245, 0.02);
@@ -1187,8 +1218,35 @@ export function envelope() {
   return c;
 }
 
-// 第二幕：租屋處樓下的信箱，一格露出牛皮紙信封
-export function mailboxes() {
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs = {}, text = '') {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text) e.textContent = text;
+  return e;
+}
+// 一張手繪圖鋪滿的 SVG（cover：preserveAspectRatio slice），程式要疊的字與標記畫在同一個座標系（原圖像素）裡
+function artSvg(url, w, h, label, fit = 'xMidYMid slice') {
+  const svg = svgEl('svg', { viewBox: `0 0 ${w} ${h}`, preserveAspectRatio: fit, role: 'img', 'aria-label': label });
+  svg.appendChild(svgEl('image', { href: url, x: 0, y: 0, width: w, height: h, preserveAspectRatio: 'none' }));
+  return svg;
+}
+
+// 第二幕：租屋處樓下的信箱，一格露出牛皮紙信封。回傳一個 DOM 元素（opening.js 直接放進按鈕裡）：
+// 有手繪圖（art2b：scene_mailboxes，1950×1200）就是 <img>，沒有就是下面 Canvas 畫的 <canvas>
+export function mailboxes(label = '') {
+  const url = artUrl('scene_mailboxes');
+  if (url) {
+    const img = document.createElement('img');
+    img.src = url; img.alt = label; img.width = 1950; img.height = 1200;
+    img.dataset.art = 'scene_mailboxes';
+    return img;
+  }
+  const c = drawMailboxes();
+  c.setAttribute('role', 'img'); c.setAttribute('aria-label', label);
+  return c;
+}
+function drawMailboxes() {
   const W = 3.9, H = 2.4; // 美術評分修正 a：下方原本有一條很寬的深色地板，裁掉只留一道邊
   const { c, g } = canvas(W, H);
   const bg = g.createLinearGradient(0, 0, 0, H);
@@ -1219,8 +1277,23 @@ export function mailboxes() {
   return c;
 }
 
-// 第三幕：傍晚的 175 縣道，兩旁是龍眼樹，三合院正廳的窗亮著一盞燈，台階上睡著一隻橘貓
-export function countyRoad() {
+// 第三幕：傍晚的 175 縣道，兩旁是龍眼樹，三合院正廳的窗亮著一盞燈，台階上睡著一隻橘貓。回傳一個 DOM 元素：
+// 有手繪圖（art2b：scene_county_road，1170×2532）就是鋪滿畫面的 SVG，路牌上的「175」由程式寫（畫師留白）；沒有就是 Canvas
+const ROAD_SIGN = { x: 1028, y: 1604, w: 118, h: 86 }; // 路牌空白板面的中心與大小（原圖像素，從圖上量的）
+export function countyRoad(label = '') {
+  const url = artUrl('scene_county_road');
+  if (url) {
+    const svg = artSvg(url, 1170, 2532, label);
+    svg.dataset.art = 'scene_county_road';
+    svg.appendChild(svgEl('text', { x: ROAD_SIGN.x, y: ROAD_SIGN.y + 21, 'text-anchor': 'middle', 'font-size': 60, 'font-weight': 700, fill: '#2f5d8a',
+      'font-family': '"PingFang TC","Noto Sans TC",sans-serif', 'letter-spacing': 1 }, '175'));
+    return svg;
+  }
+  const c = drawCountyRoad();
+  c.setAttribute('role', 'img'); c.setAttribute('aria-label', label);
+  return c;
+}
+function drawCountyRoad() {
   // 直立的畫面：上面多留天空，下面多留路（手機直立時用 cover 填滿，左右只會切掉一點）
   const W = 3.9, TOPPAD = 1.5, H = 4.2 + TOPPAD + 1.0;
   const { c, g } = canvas(W, H);
@@ -1659,7 +1732,40 @@ const TAIWAN = [[121.54, 25.3], [121.75, 25.15], [122.0, 25.01], [121.85, 24.85]
   [121.38, 23.1], [121.15, 22.75], [120.9, 22.33], [120.85, 21.9], [120.73, 21.93], [120.62, 22.25], [120.45, 22.46],
   [120.27, 22.62], [120.15, 23.0], [120.05, 23.15], [120.15, 23.38], [120.18, 23.7], [120.4, 24.08], [120.5, 24.28],
   [120.68, 24.5], [120.9, 24.82], [121.05, 25.05], [121.4, 25.17]];
-export function coffeeMap() {
+// 回傳一個 DOM 元素：有手繪圖（art2b：map_taiwan，1040×1720，和程式同一個投影、放大兩倍）就是 SVG，
+// 東山的燈、舞鶴的虛線圈與地名由程式畫在圖上（畫師沒有畫標記）；沒有就是下面 Canvas 畫的整張地圖
+export function coffeeMap(label = '') {
+  const url = artUrl('map_taiwan');
+  if (!url) {
+    const c = drawCoffeeMap();
+    c.setAttribute('role', 'img'); c.setAttribute('aria-label', label);
+    return c;
+  }
+  const k = 2, P = ([lon, lat]) => [(lon - 119.79) * 421.8, (25.47 - lat) * 460]; // 東山 ≈ (266, 998)、舞鶴 ≈ (679, 906)
+  const font = '"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif';
+  const svg = artSvg(url, 1040, 1720, label, 'xMidYMid meet');
+  svg.dataset.art = 'map_taiwan';
+  svg.setAttribute('width', 1040); svg.setAttribute('height', 1720);
+  const defs = svgEl('defs');
+  const grad = svgEl('radialGradient', { id: 'map-glow' });
+  for (const [o, c] of [[0, 'rgba(255,214,140,.95)'], [0.35, 'rgba(255,170,80,.45)'], [1, 'rgba(255,170,80,0)']]) grad.appendChild(svgEl('stop', { offset: o, 'stop-color': c }));
+  defs.appendChild(grad); svg.appendChild(defs);
+  const [dx, dy] = P([120.42, 23.3]), [wx, wy] = P([121.4, 23.5]);
+  // 下一站：還沒點亮的燈，虛線圈
+  svg.appendChild(svgEl('circle', { cx: wx, cy: wy, r: 14 * k, fill: 'none', stroke: 'rgba(59,42,32,.55)', 'stroke-width': 2.5 * k, 'stroke-dasharray': `${6 * k} ${6 * k}` }));
+  svg.appendChild(svgEl('circle', { cx: wx, cy: wy, r: 5 * k, fill: 'rgba(59,42,32,.35)' }));
+  // 東山：亮著的一盞燈
+  svg.appendChild(svgEl('circle', { cx: dx, cy: dy, r: 70 * k, fill: 'url(#map-glow)' }));
+  svg.appendChild(svgEl('circle', { cx: dx, cy: dy, r: 9 * k, fill: '#c4382c', stroke: INK, 'stroke-width': 2.5 * k }));
+  // 地名：紙色描邊，壓在海浪紋和山上也看得清楚
+  const name = (x, y, t, size, anchor, fill, weight = 400) => svg.appendChild(svgEl('text', { x, y, 'text-anchor': anchor, 'font-size': size * k, 'font-weight': weight,
+    fill, stroke: 'rgba(246,236,210,.92)', 'stroke-width': 5 * k, 'paint-order': 'stroke', 'stroke-linejoin': 'round', 'font-family': font }, t));
+  name(dx - 20 * k, dy + 10 * k, '東山', 30, 'end', INK, 700);
+  name(wx + 22 * k, wy - 2 * k, '舞鶴', 26, 'start', 'rgba(59,42,32,.75)');
+  name(wx + 22 * k, wy + 24 * k, '待續', 20, 'start', 'rgba(59,42,32,.75)');
+  return svg;
+}
+function drawCoffeeMap() {
   const W = 520, H = 860;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;

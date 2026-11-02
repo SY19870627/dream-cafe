@@ -117,13 +117,20 @@ async function play([W, H]) {
         const c = window.__cafe;
         return { busy: c.storyBusy, scene: c.scene, closing: c.closing, guest: c.guest, mode: c.mode, brewing: c.brewing, keeper: c.keeper, map: c.mapOpen, arriving: c.arriving, temp: c.temp, weather: c.weather, placing: c.placing, cin: c.cinematic };
       });
+      // art2b：颱風夜拍德叔端咖啡給阿哲之後、阿哲說最後一句的那一格（評審看到兩人疊在一起的就是這裡）。
+      // 快轉 20 倍時整場只有幾秒，等第一句話拍完再等常常已經演完了：這一場直接等最後一句，同一格也當作場景的截圖
+      if (s.scene === 'zhe3' && !shots.includes('typhoon-night')) {
+        await page.waitForFunction(() => !window.__cafe.scene || (document.getElementById('bubble').classList.contains('show') && document.getElementById('bubble').textContent.includes('四十年') && window.__cafe.camStill), null, { timeout: 90000, polling: 'raf' }).catch(() => {});
+        await page.waitForTimeout(150);
+        await shot('typhoon-night');
+        await shot('scene-zhe3');
+      }
       if (s.scene && !shots.includes(`scene-${s.scene}`)) {
         // 美術評分修正 c：場景一開始先轉向說話的人，等第一句話的泡泡出來再拍（原本拍到的是還沒開口的那一格）
         await page.waitForFunction(() => window.__cafe.camStill && document.getElementById('bubble').classList.contains('show'), null, { timeout: 5000, polling: 'raf' }).catch(() => {});
         await page.waitForTimeout(300); // 泡泡淡入 0.3 秒
         await shot(`scene-${s.scene}`);
       }
-      if (s.weather === 'typhoon') await shot('typhoon-night');
       if (s.map) { await page.waitForTimeout(1200); await shot('coffee-map'); return 'map'; }
       if (await vis('#choices')) {
         await shot(`choice-${s.scene || s.guest || s.closing || 'brew'}`);
@@ -140,7 +147,12 @@ async function play([W, H]) {
         await page.click('.seat-label >> text=窗邊座');
         continue;
       }
-      if (s.guest === 'talk') await shot('guest-talk');
+      // art2b：客人模式拍熟客聊天的那一格（說話的是熟客、鏡頭轉好了）；原本拍到的常是德叔端上桌後走回吧台、說話的人已經不在畫面裡
+      if (s.guest === 'talk' && !shots.includes('guest-talk')) {
+        await page.waitForFunction(() => window.__cafe.guest !== 'talk' || (/^(予安|阿哲|凱文)/.test(document.querySelector('#bubble b')?.textContent || '') && document.getElementById('bubble').classList.contains('show') && window.__cafe.camStill), null, { timeout: 30000, polling: 'raf' }).catch(() => {});
+        await page.waitForTimeout(300);
+        await shot('guest-talk');
+      }
       if (s.closing === 'after' && !s.scene && !s.busy && !s.brewing && !s.cin) {
         await page.waitForTimeout(1500);
         await shot('closing-after');

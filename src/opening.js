@@ -118,12 +118,13 @@ export function runOpening({ root, save, persist, art, speed = 1, sound = {} }) 
   /* ---------- 第二幕：信箱裡的律師信 ---------- */
   function mailbox() {
     setAct(2);
-    const img = art.mailboxes().toDataURL();
     // 【待定】旁白兩句是自行補寫的（劇本的舞台說明改寫）
     const el = show('mailbox', `
       <p class="op-caption" id="op-cap">回到租屋處。信箱裡有一個牛皮紙信封。</p>
-      <button class="op-box-btn" id="op-env" aria-label="拿出信封"><img alt="一整排鐵信箱，其中一格露出牛皮紙信封" src="${img}"></button>
+      <button class="op-box-btn" id="op-env" aria-label="拿出信封"></button>
       <p class="op-caption" id="op-tap">點信箱，把信封拿出來。</p>`);
+    // 信箱的圖：手繪圖（art2b）是 <img>，沒有載到是 Canvas 畫的 <canvas>，都直接放進按鈕（不再轉成 data URL）
+    el.querySelector('#op-env').appendChild(art.mailboxes('一整排鐵信箱，其中一格露出牛皮紙信封'));
     el.querySelector('#op-env').onclick = async (ev) => {
       const btn = ev.currentTarget;
       if (btn.disabled) return;
@@ -137,6 +138,7 @@ export function runOpening({ root, save, persist, art, speed = 1, sound = {} }) 
       if (my !== token) return;
       btn.remove();
       el.querySelector('#op-cap').remove();
+      el.classList.add('reading'); // 讀律師信：背景換成深夜的桌子（art2b：scene_office_night，CSS 變數沒有設就維持原本的深色）
       el.insertAdjacentHTML('beforeend', `
         <article class="op-lawyer" aria-label="律師信">
           <h2>律師信</h2>
@@ -151,13 +153,15 @@ export function runOpening({ root, save, persist, art, speed = 1, sound = {} }) 
   /* ---------- 第三幕：175 縣道 ---------- */
   function road() {
     setAct(3);
-    const img = art.countyRoad().toDataURL();
     const el = show('road', `
-      <img alt="傍晚的山路，兩旁是龍眼樹；三合院的窗亮著一盞燈，台階上睡著一隻橘貓" src="${img}">
       <div class="op-road-ui">
         <p class="op-caption">傍晚，175 縣道。<br>正廳的窗亮著一盞燈，門口的台階上睡著一隻橘貓。</p>
         <button id="op-next" class="primary">推門進去</button>
       </div>`); // 旁白取自劇本第三幕的舞台說明
+    // 縣道的圖：手繪圖（art2b）是鋪滿畫面的 SVG（路牌的 175 由程式寫），沒有載到是 Canvas
+    const pic = art.countyRoad('傍晚的山路，兩旁是龍眼樹；三合院的窗亮著一盞燈，台階上睡著一隻橘貓');
+    pic.classList.add('op-road-art');
+    el.prepend(pic);
     el.querySelector('#op-next').onclick = () => enter(true);
   }
 
