@@ -48,6 +48,10 @@ const ART_SPEC = {
   char_deshu_stand: { h: 1.67 }, char_deshu_brew: { h: 1.67 }, char_deshu_serve: { h: 1.67, cup: [-0.14, 1.03] },
   char_deshu_smile: { h: 1.67 }, char_deshu_thermo: { h: 1.67 }, char_deshu_sit: { h: 1.3 },
   char_kevin_stand: { h: 1.61 }, char_kevin_bar: { h: 1.61 }, char_kevin_sit: { h: 1.28, ax: 0.78, hip: 0.6 },
+  // 美術評分修正 d2：凱文坐在吧台高腳椅上（圖裡自己畫了高腳椅，和 stool.webp 同視角）。底邊是最前面那支椅腳，
+  // 椅面中心（臀部壓著的地方，原圖約 x 670、y 1105）到地面照 stool.webp 的 0.66 公尺，換算整張畫到的高度約 1.41 公尺；
+  // ax 對到椅面中心，紙片原點就是高腳椅的位置（和原本在他底下畫一張高腳椅時一樣）
+  char_kevin_barstool: { h: 1.41, ax: 0.654 },
   char_yuan_sit: { h: 1.22, ax: 0.8, hip: 0.63 }, char_yuan_stand: { h: 1.56 },
   char_zhe_stand: { h: 1.62 }, char_zhe_wet: { h: 1.62 },
   char_grandpa_stand: { h: 1.5 }, char_grandpa_sit: { h: 1.2 },
@@ -667,11 +671,11 @@ function drawDeshu(pose) {
   return c;
 }
 
-// 那個舊的琺瑯杯：白底、深藍杯緣，有一點掉漆（x, y 是杯子左上角）
+// 那個舊的琺瑯杯：白底、綠杯緣（Q59：和 prop_cup 一樣白杯綠邊），有一點掉漆（x, y 是杯子左上角）
 function enamelCup(g, x, y) {
   rr(g, x, y, 0.13, 0.12, 0.02); g.fillStyle = '#f4f2ec'; g.fill(); outline(g, 0.012);
-  g.fillStyle = '#23406e'; g.fillRect(x + 0.005, y, 0.12, 0.018);
-  g.beginPath(); g.arc(x + 0.135, y + 0.06, 0.03, -1.3, 1.3); g.strokeStyle = '#23406e'; g.lineWidth = 0.014; g.stroke();
+  g.fillStyle = '#3d6b4f'; g.fillRect(x + 0.005, y, 0.12, 0.018);
+  g.beginPath(); g.arc(x + 0.135, y + 0.06, 0.03, -1.3, 1.3); g.strokeStyle = '#3d6b4f'; g.lineWidth = 0.014; g.stroke();
   g.fillStyle = '#4a4440'; ell(g, x + 0.03, y + 0.09, 0.008, 0.006); g.fill(); // 掉漆的一小塊
 }
 
@@ -1424,9 +1428,11 @@ function drawZhe(pose) {
 // 'shirt'（來面試那天，穿著一件燙過的襯衫，站著）、'apron'（當了店長，繫著圍裙，站著）
 // 手繪圖：sit（坐著開筆電、戴耳機；闔上筆電那一下也用它）、stand（走路、面試那天；沒帶筆電的日子 free 與躲到角落 hide
 // 也用站著的，因為坐著的圖一定開著筆電，和「以後都不用開會了」對不上）、bar（繫圍裙：當了店長）。
-// seat 是 main.js 依他在哪裡決定的（'stool' 吧台的高腳椅、其他 'chair'）：坐著的畫在他底下；free 在吧台時，高腳椅畫在他旁邊
+// seat 是 main.js 依他在哪裡決定的（'stool' 吧台的高腳椅、其他 'chair'）：坐著的畫在他底下；free 在吧台時，高腳椅畫在他旁邊。
+// 美術評分修正 d2：坐在吧台高腳椅上有自己的圖（char_kevin_barstool，高腳椅畫在圖裡）；沒有載到就照舊在坐姿底下畫一張
 export function kevin(pose = 'sit', seat = 'chair') {
   const name = pose === 'sit' || pose === 'closed' ? 'sit' : pose === 'apron' ? 'bar' : 'stand';
+  if (name === 'sit' && seat === 'stool') { const b = art('char_kevin_barstool'); if (b) return b; }
   return art(`char_kevin_${name}`, name === 'sit' || pose === 'free' ? seat : null) || drawKevin(pose);
 }
 function drawKevin(pose) {

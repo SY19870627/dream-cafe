@@ -433,8 +433,8 @@ const M = {
   grounds: new THREE.MeshLambertMaterial({ color: '#6b4428' }),
   water: new THREE.MeshBasicMaterial({ color: '#d9eef5', transparent: true, opacity: 0.7 }),
   longan: new THREE.MeshLambertMaterial({ color: '#7a4120' }),
-  enamel: new THREE.MeshLambertMaterial({ color: '#f4f2ec' }), // 那個舊的琺瑯杯：白底、深藍杯緣
-  navy: new THREE.MeshLambertMaterial({ color: '#23406e' }),
+  enamel: new THREE.MeshLambertMaterial({ color: '#f4f2ec' }), // 那個舊的琺瑯杯：白底、綠杯緣（Q59：統一成 prop_cup 的白杯綠邊）
+  enamelRim: new THREE.MeshLambertMaterial({ color: '#3d6b4f' }),
 };
 const cyl = (rt, rb, h, mat, seg = 24, open = false) => new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg, 1, open), mat);
 
@@ -468,7 +468,7 @@ const CUP_H = 0.07 * CUP_SCALE;
 // kind：'hot'（手沖）、'cocoa'（德叔給予安的熱可可）、'iced'（凱文的冰美式）、'enamel'（最後一晚，德叔用那個琺瑯杯）；
 // dish：旁邊放一小碟窯烤龍眼乾
 // 美術評分修正 d：熱的杯子（手沖、熱可可、最後一晚的琺瑯杯）都用手繪的 prop_cup（白底綠邊、裝著咖啡），一直面向鏡頭；
-// 沒有載到時用 A.cup() 的 Canvas 杯子（最後一晚的琺瑯杯照舊是立體的藍邊杯，和平常的杯子分得出來）。凱文的冰美式照舊是立體的玻璃杯
+// 沒有載到時用 A.cup() 的 Canvas 杯子（最後一晚的琺瑯杯照舊是立體的杯子，和平常的杯子分得出來；杯緣和 prop_cup 一樣是綠的，Q59）。凱文的冰美式照舊是立體的玻璃杯
 const cupImg = A.cup();
 const cupArt = A.artLoaded('prop_cup');
 const cupMat = new THREE.SpriteMaterial({ map: A.tex(cupImg), alphaTest: 0.35, color: '#f2ece4' }); // 每個杯子共用；不受光照，夜裡由 applyLight() 調暗
@@ -492,8 +492,8 @@ function makeCup(kind = 'hot', dish = false) {
   }
   if (kind === 'enamel') {
     const body = cyl(0.04, 0.04, 0.075, M.enamel); body.position.y = 0.0375;
-    const rim = cyl(0.0415, 0.0415, 0.01, M.navy, 24, true); rim.position.y = 0.072;
-    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.005, 8, 16), M.navy);
+    const rim = cyl(0.0415, 0.0415, 0.01, M.enamelRim, 24, true); rim.position.y = 0.072;
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.02, 0.005, 8, 16), M.enamelRim);
     handle.position.set(0.05, 0.04, 0);
     const liquid = cyl(0.037, 0.037, 0.004, M.coffee); liquid.position.y = 0.07; liquid.visible = false;
     g.add(body, rim, handle, liquid);
