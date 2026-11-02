@@ -224,7 +224,8 @@ try {
     await page.click('#menu-btn');
     check(await page.isVisible('#about'), '「≡」打開關於面板');
     const links = await page.$$eval('#about a', (as) => as.map((a) => [a.href, a.target, a.rel]));
-    check(links.some(([h]) => h === 'https://github.com/SY19870627') && links.some(([h]) => h === 'https://x.com/nelsonyehfon'), '面板有 GitHub 與 X 連結');
+    check(links.some(([h]) => h === 'https://github.com/SY19870627') && links.some(([h]) => h === 'https://x.com/nelsonyehfon')
+      && links.some(([h]) => h === 'https://www.threads.com/@ye.c.feng') && links.some(([h]) => h === 'https://vocus.cc/user/@SY19870627'), '面板有 GitHub、X、Threads、方格子連結');
     check(links.every(([, t, r]) => t === '_blank' && r.includes('noopener')), '連結另開分頁（noopener）');
     check((await page.textContent('#about')).includes('SY'), '面板寫著開發者 SY');
     check(links.some(([h]) => h.startsWith('https://github.com/SY19870627/dream-cafe/issues/new')) && (await page.textContent('#about')).includes('試玩版'), '面板有「留下試玩心得」連結、寫著試玩版');
@@ -367,7 +368,7 @@ try {
     await page.waitForSelector('.op-title.on');
     check(JSON.stringify(await page.evaluate(() => window.__clock)) === '["16:49","16:50"]', '按下送出，時鐘跳到 16:50');
     const credit = await page.$$eval('.op-credit a', (as) => as.map((a) => a.href));
-    check(credit.includes('https://github.com/SY19870627') && credit.includes('https://x.com/nelsonyehfon') && (await page.textContent('.op-credit')).includes('SY'), '標題畫面底部有開發者資訊');
+    check(credit.includes('https://github.com/SY19870627') && credit.includes('https://x.com/nelsonyehfon') && credit.includes('https://www.threads.com/@ye.c.feng') && credit.includes('https://vocus.cc/user/@SY19870627') && (await page.textContent('.op-credit')).includes('SY'), '標題畫面底部有開發者資訊');
     await page.waitForTimeout(600);
     check((await smallTargets(page)).length === 0, '標題畫面的按鈕與連結都 ≥ 44px');
     await page.screenshot({ path: OUT + 'phone-opening-title.png' });
