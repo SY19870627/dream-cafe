@@ -18,33 +18,28 @@ function newSave() {
 }
 const place = (s, item) => s.owned.push({ uid: s.nextUid++, item, placed: true, x: 0, z: 0 });
 
-test('龍眼睡哪裡：依擺飾決定，同一天結果固定；有書櫃、軟墊時常睡那裡，不會每天都換', () => {
+test('龍眼（老闆不在的日子，營業日誌用）睡哪裡：依擺飾決定，同一天結果固定；有書櫃、軟墊時常睡那裡，不會每天都換', () => {
+  const spotOn = (s, d) => C.catSpotFor(C.placedSet(s), (Number(s.createdAt) || 0) % 2147483647, d);
   const s = newSave();
   const base = new Set(C.availableSpots(C.placedSet(s)).map((x) => x.id));
   assert.deepEqual([...base].sort(), ['sill', 'sofa', 'step'], '沒有貓窩時：沙發、台階、窗台下');
   place(s, 'bookshelf');
   place(s, 'cat-cushion');
   const ids = [];
-  for (let d = 1; d <= 60; d++) ids.push(C.catSpotOn(s, d).id);
-  assert.deepEqual(ids, Array.from({ length: 60 }, (_, k) => C.catSpotOn(s, k + 1).id), '同一天永遠一樣');
+  for (let d = 1; d <= 60; d++) ids.push(spotOn(s, d).id);
+  assert.deepEqual(ids, Array.from({ length: 60 }, (_, k) => spotOn(s, k + 1).id), '同一天永遠一樣');
   const fav = ids.filter((id) => id === 'bookshelf' || id === 'cushion').length;
   assert.ok(fav > 30, `書櫃與軟墊比較常選（${fav}/60）`);
   const changes = ids.filter((id, k) => k && id !== ids[k - 1]).length;
   assert.ok(changes > 5 && changes < 45, `會換，但不是每天換（換了 ${changes} 次）`);
   // 擺飾收起來，那個地方就不會再選
   s.owned.forEach((o) => { if (o.item === 'bookshelf') o.placed = false; });
-  for (let d = 1; d <= 30; d++) assert.notEqual(C.catSpotOn(s, d).id, 'bookshelf');
+  for (let d = 1; d <= 30; d++) assert.notEqual(spotOn(s, d).id, 'bookshelf');
 });
 
-test('龍眼：擺了新的貓窩，當天先去試睡；營業日誌只在換地方的那天寫一句', () => {
+test('龍眼：營業日誌只在換地方的那天寫一句', () => {
   const s = newSave();
-  const before = C.placedSet(s);
   place(s, 'cat-tree');
-  const t = C.tryNewSpot(s, before, 5);
-  assert.equal(t.id, 'cat-tree');
-  assert.equal(C.catSpotOn(s, 5).id, 'cat-tree', '當天睡貓跳台');
-  s.cat.seen.push('cat-tree');
-  assert.equal(C.tryNewSpot(s, before, 6), null, '睡過的不再試');
   // 日誌：換了地方的那天才寫
   const page = writeJournal(s, T0, T0 + 20 * DAY);
   const texts = C.CAT_SPOTS.flatMap((x) => [x.journal, x.journalAlt]);
@@ -156,7 +151,7 @@ test('予安念稿改由打烊觸發；新的句子裡沒有上班或「不划�
   assert.ok(m.needClosing && m.needClosingHint);
   assert.ok(!m.scene.some((x) => x.do === 'closing'), '不再自己演打烊');
   assert.equal(m.scene[m.scene.length - 1].do, 'leave', '念完稿，她回家');
-  const all = [...H.allAfterLines(), ...C.CAT_SPOTS.flatMap((x) => [x.journal, x.journalAlt, x.first]), ...C.PURR, ...Object.values(C.CAT_LINES)].filter(Boolean);
+  const all = [...H.allAfterLines(), ...C.CAT_SPOTS.flatMap((x) => [x.journal, x.journalAlt]), ...C.PURR, ...Object.values(C.CAT_LINES)].filter(Boolean);
   for (const t of all) assert.doesNotMatch(t, /不划算|划不來|KPI|業績|餘額|不足|打卡|加班/);
   assert.ok(H.CLOSING.lastCup === '最後一杯，是老闆的。' && H.GUEST.welcome === '歡迎。不急，先坐。', '劇本原文');
 });

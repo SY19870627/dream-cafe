@@ -420,9 +420,25 @@ export function ceiling() {
 }
 
 // 吧台檯面與圓桌：一張 1×1 公尺的木頭檯面
+// 美術評分修正 f：手繪的檯面上畫了四圈杯印（米色的細線），貼到吧台上很淡，看起來像畫壞的圓圈（評審：沖煮視角吧台上的圓形殘痕）。
+// 是杯印，所以照原圖的位置描一圈咖啡色、裡面淡淡一層，看得出是杯子放過的痕跡；切在圖邊緣的兩圈連另一邊一起描，接縫兩邊接得起來
+const CUP_RINGS = [[0.175, 0.19, 0.07, 0.085], [0.75, 0.04, 0.065, 0.06], [0.73, 0.75, 0.075, 0.09], [0.26, 0.96, 0.065, 0.07]];
 export function woodTop() {
   const a = room('tex_wood_top');
-  if (a) return a;
+  if (a) {
+    const { c, g } = overlay(a);
+    for (const [x, y, rx, ry] of CUP_RINGS) for (const dy of [-1, 0, 1]) {
+      if (y + dy - ry > 1 || y + dy + ry < 0) continue;
+      g.beginPath();
+      g.ellipse(x, y + dy, rx, ry, 0, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(96,52,24,0.07)';
+      g.fill();
+      g.strokeStyle = 'rgba(96,52,24,0.36)';
+      g.lineWidth = 0.006;
+      g.stroke();
+    }
+    return c;
+  }
   const { c, g } = canvas(1, 1, 128);
   g.fillStyle = '#5e3c28';
   g.fillRect(0, 0, 1, 1);
@@ -507,23 +523,28 @@ export function windowFrame() {
   return c;
 }
 
-// 菜單黑板的字（公尺；黑板中線 x＝wm/2）
+// 菜單黑板的字（公尺；黑板在 x 0.95～1.85）
 // 美術評分修正 e：整段字往下移到黑板的下半（原本「今日手沖」在黑板上緣，德叔站在吧台後時正好在他的頭旁邊）
-function menuText(g, wm, menu) {
-  g.fillStyle = '#f2ead8';
-  g.font = '0.085px "PingFang TC","Noto Sans TC",sans-serif';
+// 美術評分修正 f：整段字收進黑板的下緣（德叔肩膀以下的高度）、中線往右移到 1.47、字小一點。
+// 量過：看德叔沖的近景，德叔的臉在黑板 y 1.36 左右，肩膀以下擋住 x 約 1.10～1.66；颱風夜德叔站在黑板前，
+// 手機約擋住 1.26～1.78、桌機約 1.29～1.62。原本「今日手沖」在臉的高度，兩個畫面都有一兩個字露在他的頭旁邊
+function menuText(g, menu) {
+  const cx = 1.47; // 字的中線（公尺）
+  const line = (text, y, size, color = '#f2ead8', bold = '') => {
+    g.fillStyle = color;
+    g.font = `${bold}${size}px "PingFang TC","Noto Sans TC",sans-serif`;
+    g.fillText(text, cx, y);
+  };
   g.textAlign = 'center';
-  g.fillText('今日手沖', wm / 2, 1.4);
-  g.font = '0.07px "PingFang TC","Noto Sans TC",sans-serif';
   if (menu.includes('zhe-beans')) {
-    g.fillText('東山 日曬', wm / 2, 1.48);
-    g.fillText('阿里山 水洗', wm / 2, 1.555);
-    g.font = 'bold 0.08px "PingFang TC","Noto Sans TC",sans-serif';
-    g.fillStyle = '#ffd27a';
-    g.fillText('阿哲的豆', wm / 2, 1.64); // 「好啦，寫大一點。」
+    line('今日手沖', 1.47, 0.064);
+    line('東山 日曬', 1.53, 0.05);
+    line('阿里山 水洗', 1.585, 0.05);
+    line('阿哲的豆', 1.643, 0.058, '#ffd27a', 'bold '); // 「好啦，寫大一點。」
   } else {
-    g.fillText('東山 日曬', wm / 2, 1.5);
-    g.fillText('阿里山 水洗', wm / 2, 1.6);
+    line('今日手沖', 1.49, 0.07);
+    line('東山 日曬', 1.565, 0.055);
+    line('阿里山 水洗', 1.635, 0.055);
   }
 }
 // 程式在手繪圖上疊東西：複製一張同樣大小的 canvas，座標用公尺（原點是圖的左上角）
@@ -544,7 +565,7 @@ export function backBar(wm, hm, menu = []) {
   const a = room('backbar');
   if (a) {
     const { c, g } = overlay(a);
-    menuText(g, wm, menu);
+    menuText(g, menu);
     return c;
   }
   // 吧台後方牆上的層架與罐子
@@ -565,7 +586,7 @@ export function backBar(wm, hm, menu = []) {
   // 小黑板
   rr(g, wm / 2 - 0.45, 1.15, 0.9, 0.5, 0.03);
   g.fillStyle = '#2f3a33'; g.fill(); outline(g, 0.02);
-  menuText(g, wm, menu);
+  menuText(g, menu);
   return c;
 }
 

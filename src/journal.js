@@ -160,4 +160,4 @@ export function keepPage(save, page) {
 }
 
 // 測試用：日誌裡所有寫得出來的句子
-export const ALL_TEXTS = [...VISITOR_TAILS.map((t) => t.text), ...POOL.map((p) => p.text), ...CAT_SPOTS.flatMap((s) => [s.journal, s.journalAlt, s.first].filter(Boolean)), RAIN_LINE];
+export const ALL_TEXTS = [...VISITOR_TAILS.map((t) => t.text), ...POOL.map((p) => p.text), ...CAT_SPOTS.flatMap((s) => [s.journal, s.journalAlt].filter(Boolean)), RAIN_LINE];

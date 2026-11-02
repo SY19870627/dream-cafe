@@ -11,7 +11,7 @@ import { writeJournal, keepPage } from './journal.js';
 import { runOpening } from './opening.js';
 import { weatherOn, rainFloorDue, RAIN_HINT } from './weather.js';
 import * as S from './story.js';
-import { catSpotOn, tryNewSpot, placedSet, petCat, jumpsOnChair, PURR, CAT_LINES } from './cat.js';
+import { petCat, jumpsOnChair, PURR, CAT_LINES } from './cat.js';
 import * as H from './afterhours.js';
 import * as F from './farewell.js';
 import { createAudio, VOLUMES, VOLUME_NAMES } from './audio.js';
@@ -487,14 +487,16 @@ const dailyArt = A.artLoaded('prop_cup_daily');
 const enamelImg = A.cup();
 const cupArt = A.artLoaded('prop_cup');
 const DAILY_SHRINK = 0.95; // 畫師提醒：馬克杯放進去看起來大約 5%，縮一點才和桌面、手的比例對得上
-// 每個杯子共用；不受光照，夜裡由 applyLight() 調暗
-const cupMat = new THREE.SpriteMaterial({ map: A.tex(dailyImg), alphaTest: 0.35, color: '#f2ece4' });
+const NEAR_SHRINK = 0.95; // 美術評分修正 f：老闆自己那杯（沖煮、上桌都是近景）再縮 5%（評審：近景約大 5～10%，中景合適）
+// 每個杯子共用；不受光照，夜裡由 applyLight() 調暗。
+// 美術評分修正 f：平常的杯子不套色調映射（toneMapped: false）：ACES 會把米白和細的赭黃杯緣一起推亮、洗成白色（評審：看起來像白杯配淡米色邊）
+const cupMat = new THREE.SpriteMaterial({ map: A.tex(dailyImg), alphaTest: 0.35, color: '#f2ece4', toneMapped: false });
 const enamelMat = new THREE.SpriteMaterial({ map: A.tex(enamelImg), alphaTest: 0.35, color: '#f2ece4' });
-function cupSprite(g, enamel = false) {
+function cupSprite(g, enamel = false, near = false) {
   const img = enamel ? enamelImg : dailyImg;
   const s = new THREE.Sprite(enamel ? enamelMat : cupMat);
   // 手繪圖裁掉了留白，杯身約 9.5 公分高；Canvas 杯子的畫布上下有留白
-  const h = (enamel ? (cupArt ? 0.095 : 0.12) : (dailyArt ? 0.095 * DAILY_SHRINK : 0.12)) / CUP_SCALE;
+  const h = (enamel ? (cupArt ? 0.095 : 0.12) : (dailyArt ? 0.095 * DAILY_SHRINK * (near ? NEAR_SHRINK : 1) : 0.12)) / CUP_SCALE;
   s.scale.set(h * img.width / img.height, h, 1);
   s.center.set(0.5, 0);
   const liquid = new THREE.Object3D(); // 圖裡已經有咖啡：倒進去之前也是滿的（沒有空杯的圖）
@@ -502,7 +504,8 @@ function cupSprite(g, enamel = false) {
   g.userData.liquid = liquid;
   g.userData.sprite = s;
 }
-function makeCup(kind = 'hot', dish = false) {
+// near：老闆自己那杯（stationCup，沖煮與上桌都是近景）
+function makeCup(kind = 'hot', dish = false, near = false) {
   const g = new THREE.Group();
   g.scale.setScalar(CUP_SCALE);
   if (kind === 'enamel' && cupArt) {
@@ -522,7 +525,7 @@ function makeCup(kind = 'hot', dish = false) {
     return g;
   }
   if (kind === 'iced') g.userData.iced = true;
-  cupSprite(g);
+  cupSprite(g, false, near);
   if (dish) {
     const plate = cyl(0.035, 0.03, 0.006, M.ceramic); plate.position.set(-0.075, 0.003, 0.05);
     g.add(plate);
@@ -535,7 +538,7 @@ function makeCup(kind = 'hot', dish = false) {
   return g;
 }
 const CUP_SPOT = new THREE.Vector3(1.9, TOP, -1.42); // 美術評分修正 d：往德叔靠一點，看德叔沖的特寫才放得進來
-let stationCup = makeCup();
+let stationCup = makeCup('hot', false, true);
 stationCup.position.copy(CUP_SPOT);
 scene.add(stationCup);
 
@@ -1125,7 +1128,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
     scene.add(stationCup);
   } else if (withLongan) {
     scene.remove(stationCup);
-    stationCup = makeCup('hot', true);
+    stationCup = makeCup('hot', true, true);
     stationCup.position.copy(CUP_SPOT);
     scene.add(stationCup);
   }
@@ -1180,7 +1183,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   // 收拾吧台，準備下一杯
   groundsBed.scale.y = 0.01;
   bloom.scale.setScalar(0.001);
-  stationCup = makeCup();
+  stationCup = makeCup('hot', false, true);
   stationCup.position.copy(CUP_SPOT);
   scene.add(stationCup);
 
@@ -1357,35 +1360,21 @@ function toggleCloseup() {
   updateUI();
 }
 
-/* ---------- 龍眼：睡覺的地方、散步、給不給摸、跳上老闆的椅子（src/cat.js） ---------- */
-// 睡覺的地方依擺飾換（cat.js 決定，和營業日誌同一個結果）；平常睡在那裡，偶爾起來走一走再回去
+/* ---------- 龍眼：睡在窗台、給不給摸、跳上老闆的椅子（src/cat.js） ---------- */
+// 美術評分修正 f（Q64，作者：「好，固定吧」）：龍眼在店裡固定睡在後面那扇窗的窗台上，不再依擺飾每天換地方（D71 的店內部分）、
+// 也不再自己起來散步。離開窗台的只有劇本、企劃寫到的時候與熟客的場景：跳上老闆剛坐過的椅子（任務 #7）、
+// 點太多次走開（可以拒絕互動）、陪熟客（凱文的腿、予安旁邊、最後一晚）、開場德叔介紹他、客人模式聊天時走到兩人前面；
+// 這些結束後他回窗台。營業日誌照舊寫他「換到哪裡睡」（劇本的日誌範例），那是老闆不在店裡的日子
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
-const CAT_WANDER = [V3(-0.9, 0, 3.2), V3(0.9, 0, 0.3), V3(-2.4, 0, 1.2), V3(0.6, 0, -3.3), V3(-0.3, 0, 1.4)];
+const CAT_WANDER = [V3(-0.9, 0, 3.2), V3(0.9, 0, 0.3), V3(-2.4, 0, 1.2), V3(0.6, 0, -3.3), V3(-0.3, 0, 1.4)]; // 走開、讓位時去的地方
 const CAT_SEAT_Y = { window: 0.42, bar: 0.72, sofa: 0.42 }; // 三張椅子的椅面高度
-const CAT_ITEM_Y = { bookshelf: 1.88, 'book-wall': 2.48, 'cat-cushion': 0.1, 'cat-tree': 1.5, 'rattan-chair': 0.55 }; // 睡在擺飾上的高度
+const SILL = { pos: V3(-1.3, 0, -3.84), y: 1.1 }; // 後面那扇窗的窗台右邊（美術評分修正 d 起坐窗邊座時睡這裡）
 let catBusy = false;
-let catHoldUntil = 0; // 龍眼陪著熟客（跳上凱文的腿、睡在予安旁邊）的時候不散步
-let catSpot = null; // 今天睡的地方（cat.js 的 CAT_SPOTS）
-let catAtHome = false; // 在睡覺的地方
+let catHoldUntil = 0; // 龍眼陪著熟客（跳上凱文的腿、睡在予安旁邊）的時候不回窗台
+let catAtHome = false; // 睡在窗台上
 let catOnSeat = null; // 跳上了哪張椅子（座位 id）
-let catOnSill = false; // 老闆坐窗邊座時，睡在後面那扇窗的窗台上（美術評分修正 d）
 let catSeatUntil = 0;
 const catMood = { taps: [], awayUntil: 0 }; // 點太多次就走開（cat.js 的 petCat）
-
-// 睡覺的地方在店裡的哪裡：擺飾的位置（靠牆的東西往室內一點），沒有擺飾的地方是固定的點
-function catSpotPlace(spot) {
-  if (spot.items) {
-    const p = [...decorPapers.values()].find((d) => spot.items.includes(d.userData.item.id) && !d.userData.entry.trial);
-    if (p) {
-      const b = p.userData.base;
-      const n = V3(Math.sin(b), 0, Math.cos(b)); // 擺飾面向室內的方向
-      return { pos: p.position.clone().setY(0).addScaledVector(n, 0.12), y: CAT_ITEM_Y[p.userData.item.id] ?? 0 };
-    }
-  }
-  if (spot.id === 'sofa') return { pos: V3(-1.65, 0, 3.45), y: 0.42 };
-  if (spot.id === 'step') return { pos: V3(0.75, 0, 3.6), y: 0 };
-  return { pos: V3(-1.7, 0, -3.55), y: 0 }; // 窗台下
-}
 // 接正式美術：走路的龍眼面向左，往畫面右邊走的時候鏡像（停下來就維持最後的方向，換成別張圖就轉回來）
 const catPrev = new THREE.Vector3();
 const camRight = new THREE.Vector3();
@@ -1406,7 +1395,7 @@ function catHop(y, sec = 0.45) {
 }
 // 走到某處（在高處就先跳下來），到了再跳上去
 async function catGo(to, y = 0, pose = 'sleep', speed = 0.45) {
-  catOnSill = false;
+  catAtHome = false;
   cat.userData.shadow.visible = true;
   setPaper(cat, catCanvas.walk);
   if (cat.userData.mesh.position.y > 0.02) await catHop(0);
@@ -1416,62 +1405,49 @@ async function catGo(to, y = 0, pose = 'sleep', speed = 0.45) {
   cat.userData.mesh.position.y = y;
   setPaper(cat, catCanvas[pose]);
 }
-// 回到今天睡覺的地方；第一次睡上新的擺飾時，德叔說一句（announce）
-async function catHome(announceFirst = false) {
-  if (catBusy || !catSpot) return;
-  catBusy = true;
-  catOnSeat = null;
-  const spot = catSpot, at = catSpotPlace(spot);
-  await catGo(at.pos, at.y);
-  catBusy = false;
-  catAtHome = spot === catSpot;
-  if (spot.items && !save.cat.seen.includes(spot.id)) {
-    save.cat.seen.push(spot.id);
-    persist();
-    if (announceFirst && spot.first) announce([['德叔', spot.first]], 600);
-  }
-}
-// 開店時龍眼已經睡在那裡了
-function placeCatAtHome() {
-  catSpot = catSpotOn(save, today());
-  const at = catSpotPlace(catSpot);
-  cat.position.copy(at.pos);
-  cat.userData.mesh.position.y = at.y;
+// 睡在窗台上：地上的影子在窗台下面，收起來
+function catSillPose() {
+  cat.userData.mesh.position.y = SILL.y;
   setPaper(cat, catCanvas.sleep);
+  cat.userData.shadow.visible = false;
   catAtHome = true;
   catOnSeat = null;
-  catOnSill = false;
-  cat.userData.shadow.visible = true;
-  if (catSpot.items && !save.cat.seen.includes(catSpot.id)) { save.cat.seen.push(catSpot.id); persist(); }
 }
-// 擺飾換了、換了一天：睡覺的地方可能也換了
-function refreshCat(announceFirst = false) {
-  catSpot = catSpotOn(save, today());
-  catAtHome = false;
-  if (!catBusy && performance.now() > catHoldUntil && !catOnSeat) catHome(announceFirst);
+// 走回窗台、跳上去
+async function catHome() {
+  if (catBusy || catAtHome) return;
+  catBusy = true;
+  catOnSeat = null;
+  await catGo(SILL.pos, SILL.y, 'sleep', 0.9);
+  catBusy = false;
+  catSillPose();
+}
+// 開店時龍眼已經睡在窗台上了
+function placeCatAtHome() {
+  cat.position.copy(SILL.pos);
+  catPrev.copy(SILL.pos);
+  catSillPose();
+}
+// 擺飾換了、換了一天：不在窗台上（也沒在陪人、沒有走開）的話，回窗台
+function refreshCat() {
+  if (!catBusy && !catHeld() && !catOnSeat) catHome();
 }
 const catHeld = () => catBusy || performance.now() < catHoldUntil || performance.now() < catMood.awayUntil;
-// 偶爾起來走一走；陪完熟客、跳上椅子一陣子、走開一陣子之後，回去睡
-setInterval(async () => {
-  if (catBusy || performance.now() < catHoldUntil || !catSpot) return;
-  if (catOnSill) { if (state.mode === 'seat' && state.seat?.id === 'window') return; catHome(); return; } // 老闆站起來了：回去睡
+// 陪完熟客、跳上椅子一陣子、走開一陣子之後，回窗台（不再自己起來散步）
+setInterval(() => {
+  if (catBusy || catAtHome || performance.now() < catHoldUntil || state.scene) return;
   if (catOnSeat) { if (performance.now() > catSeatUntil) catHome(); return; }
-  if (!catAtHome) { if (performance.now() > catMood.awayUntil) catHome(); return; }
-  if (Math.random() > 0.35 || state.scene) return;
-  catBusy = true;
-  catAtHome = false;
-  await catGo(CAT_WANDER[Math.floor(Math.random() * CAT_WANDER.length)], 0, 'sit', 0.35);
-  await wait(5);
-  catBusy = false;
-  catHome();
-}, 22000);
+  if (performance.now() > catMood.awayUntil) catHome();
+}, 6000);
 
 // 美術評分修正 e：有人提到龍眼、畫面卻看不到他的時候（開場德叔介紹龍眼、客人模式熟客聊天），他自己走進畫面裡、坐下來。
 // hold：之後幾秒不去散步、不回去睡（時間到了照常由上面的散步回去）。龍眼正忙（陪熟客、走開了）就不叫
+let catVisiting = false; // catVisit() 的停留（不是陪熟客）：老闆坐窗邊座時可以中斷（美術評分修正 f）
 async function catVisit(pos, hold = 30) {
   if (catBusy || catHeld() || catOnSeat) return;
   catBusy = true;
   catAtHome = false;
+  catVisiting = true;
   catHoldUntil = performance.now() + (hold * 1000) / DEV_SPEED;
   await catGo(pos, 0, 'sit', 0.9);
   catBusy = false;
@@ -1525,37 +1501,20 @@ function maybeCatChair(seat, satSec) {
     checkTasks({ delay: 500 }); // 德叔的一句話寫在 tasks.js（【待定】）
   })();
 }
-// 美術評分修正 d：老闆坐窗邊座時，龍眼睡在後面那扇窗的窗台上。窗邊座以窗景為主體（D130），
-// 原本畫面裡只有窗戶和牆，沒有一個看得到的焦點；龍眼睡在窗台的右邊，窗景和他一起是這個位子的畫面。
-// 從店的另一頭走過來要十幾秒，所以趁鏡頭從俯瞰移下來的途中直接換過去（那時畫面在動，看不出來）；
-// 老闆站起來之後，他照舊會跳上還熱著的椅子，或回去原本睡覺的地方
-const SILL = { pos: V3(-1.3, 0, -3.84), y: 1.1 };
+// 美術評分修正 d：老闆坐窗邊座時，龍眼睡在後面那扇窗的窗台上，窗景和他一起是這個位子的畫面（D130）。
+// 美術評分修正 f：窗台就是他平常睡的地方（Q64），通常已經在那裡了；不在的話（剛跳下別張還熱著的椅子、
+// 走開後回來的途中），等他手上的事做完（最多 8 秒）再走過來跳上窗台。陪熟客、走開了、正在演熟客場景時不過來
+// 開場德叔介紹龍眼、客人模式聊天時走過來坐著（catVisit()）的停留不算：老闆一坐下就回窗台（評審：開場 phone-4 這一格龍眼不在窗台）。
+// 他閒著的話，趁鏡頭從俯瞰移下來的途中直接換過去（那時畫面在動，看不出來；美術評分修正 d 的做法）
 async function catToSill(seat) {
   await realWait(600);
-  const here = () => state.mode === 'seat' && state.seat === seat && !catOnSill;
+  const here = () => state.mode === 'seat' && state.seat === seat && !catAtHome;
+  if (catVisiting && !state.scene) { catVisiting = false; catHoldUntil = 0; }
   if (!here() || state.scene || performance.now() < catHoldUntil || performance.now() < catMood.awayUntil) return;
-  if (catBusy || catOnSeat) {
-    // 正在散步、正在讓位，或睡在另一張還熱著的椅子上（任務 #7 在跳上去的時候就算了）：
-    // 等他走完，再自己走過來、跳上窗台（最多等 8 秒）
-    for (let i = 0; catBusy && i < 16; i++) await realWait(500);
-    if (!here() || catBusy || catHeld() || state.scene) return;
-    catBusy = true;
-    catAtHome = false;
-    catOnSeat = null;
-    await catGo(SILL.pos, SILL.y, 'sleep', 0.9);
-    catBusy = false;
-    if (!here()) return; // 走到一半老闆站起來了：下一次散步的時間回去睡
-    cat.userData.shadow.visible = false;
-    catOnSill = true;
-    return;
-  }
-  cat.position.copy(SILL.pos);
-  catPrev.copy(SILL.pos);
-  cat.userData.mesh.position.y = SILL.y;
-  setPaper(cat, catCanvas.sleep);
-  cat.userData.shadow.visible = false; // 地上的影子在窗台下面，收起來
-  catAtHome = false;
-  catOnSill = true;
+  if (!catBusy) { catOnSeat = null; placeCatAtHome(); return; }
+  for (let i = 0; catBusy && i < 16; i++) await realWait(500);
+  if (!here() || catBusy || catHeld() || state.scene) return;
+  catHome();
 }
 // 老闆要坐的椅子上有龍眼（或他就睡在旁邊）：他跳下來，走到旁邊
 function catShoo() {
@@ -1589,7 +1548,8 @@ function applyLight() {
     m.emissive.set(n ? '#6a5a4c' : '#000000');
     m.needsUpdate = true;
   }
-  for (const m of [cupMat, enamelMat]) m.color.set(n ? '#c4b29e' : wet ? '#e2dbd2' : '#f2ece4'); // 杯子的圖不受光照：夜裡、雨天暗一點，才不會比桌子亮
+  enamelMat.color.set(n ? '#c4b29e' : wet ? '#e2dbd2' : '#f2ece4'); // 杯子的圖不受光照：夜裡、雨天暗一點，才不會比桌子亮
+  cupMat.color.set(n ? '#a89a8a' : wet ? '#ddd5cb' : '#f2ece4'); // 平常的杯子不套色調映射（美術評分修正 f），夜裡要再暗一點才和琺瑯杯差不多
   for (const r of rainPlanes) { r.visible = wet; r.material.map = storm ? rainTex.typhoon : rainTex.rain; r.material.opacity = storm ? 0.95 : 0.7; r.material.needsUpdate = true; }
   scene.background = new THREE.Color(n ? '#13151d' : '#ece2d0');
   renderer.toneMappingExposure = n ? 1.15 : 1.0;
@@ -1826,9 +1786,17 @@ function updateCamera(dt) {
     const dir = cam.look.clone().sub(cam.pos);
     dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), cam.yaw);
     const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
-    dir.applyAxisAngle(side, cam.pitch);
+    dir.applyAxisAngle(side, cam.pitch + barTilt());
     camera.lookAt(cam.pos.clone().add(dir));
   }
+}
+
+// 美術評分修正 f：吧台座往左轉頭看凱文（他坐在最裡面那張高腳椅，比站著的德叔低）時，鏡頭跟著往下壓約 9°：
+// 他的高腳椅和腳露在提示條上方、上半部的空牆收掉（評審：凱文太低、凳子被按鈕列蓋住、上半部約一半是空牆）。
+// 轉向說話的人、演熟客場景、看德叔沖的時候不壓（那些鏡頭自己算好角度）
+function barTilt() {
+  if (state.mode !== 'seat' || state.seat?.id !== 'bar' || state.closeup || state.scene || focusP) return 0;
+  return -0.16 * THREE.MathUtils.smoothstep(cam.yaw, 0.35, 0.85);
 }
 
 function sit(seat) {
@@ -1944,7 +1912,7 @@ function updateUI() {
   $('day').textContent = `開店第 ${today()} 天`;
   // 打烊後沒有任何提示（企劃：沒有任何任務）；沖煮中的「按住畫面」與佈置的操作說明照常
   const hint = choosing ? '' // 選項的問句在選項上面那一行（#ask）
-    : film ? (state.scene ? '看著就好，故事會自己往下走' : '') // 【待定】美術評分修正 e：熟客的場景沒有按鈕，補一行提示（評審：颱風夜畫面上沒有提示）
+    : film ? (state.scene ? '這裡唯一要做的事情就是放鬆' : '') // 作者已確認（美術評分修正 f）：熟客的場景沒有按鈕時的提示
     : letter ? '德叔把一封信放在吧台上' // 【待定】
     : tut === 'sit' || g === 'sit' ? '點一張椅子坐下'
     : tut === 'gift' || tut === 'choose' ? ''
@@ -1994,9 +1962,7 @@ function revertPlacing() {
 
 function finishPlacing() {
   const before = save.owned.filter((o) => o.placed).length;
-  const beforeSet = placedSet(save);
   const r = commitLayout(save, layout, now());
-  tryNewSpot(save, beforeSet, today()); // 擺了新的貓窩：龍眼今天先去試睡
   layout = null;
   state.placing = false;
   select(null);
@@ -2009,7 +1975,7 @@ function finishPlacing() {
   if (r.returned.length) say(`${itemById(r.returned[0]).name}${r.returned.length > 1 ? '那幾件' : ''}，我先放回型錄。基金再撥一點下來，就帶回來。`, 4200);
   else if (!ids.some((id) => taskById(id).line) && (r.bought.length || after > before)) say('這個放這裡，從吧台看過去剛好。');
   updateUI();
-  refreshCat(true);
+  refreshCat();
 }
 
 // 把一件東西擺進店裡（從倉庫拿出來，或從型錄試擺），擺好後直接選起來，點地板就能換位置
@@ -2935,11 +2901,13 @@ async function catTo(w, lap) {
   catAtHome = false;
   catOnSeat = null;
   catHoldUntil = performance.now() + 120000 / DEV_SPEED;
+  catVisiting = false; // 陪熟客的停留，老闆坐窗邊座也不中斷
   const p = PEOPLE[w];
   const toCam = V2(camera.position.x - p.position.x, camera.position.z - p.position.z).setLength(lap ? 0.14 : 0.45);
   const target = p.position.clone().add(toCam);
   setPaper(cat, catCanvas.walk);
-  if (cat.userData.mesh.position.y > 0.02) await catHop(0); // 睡在書架上、椅子上的話，先跳下來
+  cat.userData.shadow.visible = true;
+  if (cat.userData.mesh.position.y > 0.02) await catHop(0); // 睡在窗台上、椅子上的話，先跳下來
   cat.userData.mesh.position.y = 0;
   await walk(cat, target, 0.6);
   if (lap) { setPaper(cat, catCanvas.sit); await animate(0.4, (k) => { cat.userData.mesh.position.y = 0.48 * ease(k) + Math.sin(Math.PI * k) * 0.12; }); }
@@ -3110,7 +3078,7 @@ function updateOcclusion(dt) {
     fadeTo(mat, target, dt);
   }
   // art2b：前景的擺飾與椅子也一樣（評審：桌機客人模式，前景的畫架擋住右邊 1/3 和德叔；高腳椅在畫面正中下方）。
-  // 比說話的人近、畫出來的範圍和說話的人左右重疊（擋在中間），或在畫面裡看起來比說話的人高，就淡到 30%；試擺中的東西本來就是 72%
+  // 比說話的人近、畫出來的範圍和說話的人左右重疊（擋在中間），或在畫面裡看起來比說話的人高，就淡出（修正 f 以前是 30%）；試擺中的東西本來就是 72%
   let body = null;
   if (face) {
     const r = screenRect(f, 0.8);
@@ -3124,14 +3092,16 @@ function updateOcclusion(dt) {
     let target = base;
     if (state.mode === 'seat' && !state.closeup && q.visible) {
       const r = screenRect(q, 0.92);
-      if (r && r.d < 2.0 && r.y1 < uiLine && r.x1 > -1 && r.x0 < 1) target = 0;
+      // 美術評分修正 f：一半以上在按鈕列與提示條底下就算（吧台座看凱文時鏡頭往下壓，前景那張空高腳椅的上緣變高了）
+      if (r && r.d < 2.0 && r.x1 > -1 && r.x0 < 1 && (Math.min(uiLine, r.y1) - r.y0) / Math.max(1e-3, r.y1 - r.y0) > 0.5) target = 0;
     }
     if (body && q.visible) {
       const r = screenRect(q, 0.92);
       if (r && r.d < face.d - 0.3 && r.x1 > -1 && r.x0 < 1 && r.y1 > -1 && r.y0 < 1) {
         // 擋在鏡頭和說話的人中間：左右和說話的人重疊（上下不看：吧台前的高腳椅比吧台後的德叔低，但正好在他前面）
         const ox = Math.min(r.x1, body.x1) - Math.max(r.x0, body.x0);
-        if (ox > 0.3 * Math.min(r.x1 - r.x0, body.x1 - body.x0) || r.size > face.size) target = Math.min(base, 0.3);
+        // 美術評分修正 f：直接淡到看不見（評審：颱風夜阿哲前面停著一張半透明的凳子殘影）
+        if (ox > 0.3 * Math.min(r.x1 - r.x0, body.x1 - body.x0) || r.size > face.size) target = 0;
       }
       // 美術評分修正 e：前景被畫面邊緣切掉一大塊的椅子、擺飾（評審：左邊一條深色的椅子弧線）也淡出
       if (r && r.d < face.d - 0.3 && edgeCut(q, r)) target = 0;
@@ -4229,23 +4199,36 @@ function placeLabels(W, H, avoid) {
     sv.copy(st.prop.position).project(camera);
     let tip = ((1 - sv.y) / 2) * H;
     for (const q of seatTops(st, labelTops)) { sv.copy(q).project(camera); if (sv.z < 1) tip = Math.min(tip, ((1 - sv.y) / 2) * H); }
-    return { el, x, tip: tip - 6, w: el.offsetWidth, h: el.offsetHeight };
+    const fr = screenRect(st.prop);
+    return { el, x, tip: tip - 6, foot: fr ? ((1 - fr.y0) / 2) * H : null, w: el.offsetWidth, h: el.offsetHeight };
   }).sort((a, b) => b.tip - a.tip); // 從畫面下面的標籤開始放：上面的被推的時候往上走
   const placed = avoid ? [avoid] : [];
   // 美術評分修正 e：標籤也不蓋住龍眼（標籤移到桌子上方之後，龍眼跳下椅子坐的地方常在標籤底下，點不到他）
   const cr = cat.visible ? screenRect(cat) : null;
   if (cr) placed.push({ l: ((cr.x0 + 1) / 2) * W - 4, r: ((cr.x1 + 1) / 2) * W + 4, t: ((1 - cr.y1) / 2) * H - 4, b: ((1 - cr.y0) / 2) * H + 4 });
+  // 美術評分修正 f：吧台前另外兩張高腳椅（評審：「吧台座」的標籤壓在中間那張凳子上）。三張排成一直線往後，
+  // 標籤往上移只會改壓到後面那張，所以壓到的話改放在吧台座那張凳子的下面、小三角朝上（.under）
+  const stools = [stoolMid, stoolFar].filter((q) => q.visible).map((q) => screenRect(q, 0.9)).filter(Boolean)
+    .map((r) => ({ l: ((r.x0 + 1) / 2) * W, r: ((r.x1 + 1) / 2) * W, t: ((1 - r.y1) / 2) * H, b: ((1 - r.y0) / 2) * H }));
   for (const it of items) {
     const left = clampN(it.x - it.w / 2, EDGE, W - EDGE - it.w);
     let top = clampN(it.tip - it.h, minTop, maxBottom - it.h);
-    let below = false;
+    let below = false, under = false;
     for (let n = 0; n < 8; n++) {
       const hit = placed.find((p) => rectHit({ l: left, t: top, r: left + it.w, b: top + it.h }, p));
       if (!hit) break;
       if (hit.t - 4 - it.h >= minTop) top = hit.t - 4 - it.h;
       else { top = hit.b + 4; below = true; }
     }
+    // 標籤的牌子（看得到的部分，不含 44px 透明外框上方的空白）有沒有壓到別的凳子
+    const onStool = (t) => stools.some((p) => rectHit({ l: left + 4, t: t + it.h - 34, r: left + it.w - 4, b: t + it.h - 7 }, p));
+    if (it.foot !== null && onStool(top)) {
+      const t2 = it.foot - 4;
+      const r2 = { l: left, t: t2, r: left + it.w, b: t2 + it.h };
+      if (t2 + it.h <= maxBottom && !placed.some((p) => rectHit(r2, p)) && !stools.some((p) => rectHit(r2, p))) { top = t2; under = true; below = false; }
+    }
     placed.push({ l: left, t: top, r: left + it.w, b: top + it.h });
+    it.el.classList.toggle('under', under);
     it.el.classList.toggle('below', below);
     it.el.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
   }
@@ -4511,9 +4494,9 @@ if (DEV) {
       return Math.round(Math.abs(b.y - a.y) / 2 * app.clientHeight);
     },
     // 階段 5：龍眼、打烊後、客人模式
-    get catSpot() { return catSpot?.id || null; },
+    get catSpot() { return 'sill'; }, // 美術評分修正 f：固定睡窗台（Q64）
     get catOnSeat() { return catOnSeat; },
-    get catOnSill() { return catOnSill; },
+    get catOnSill() { return catAtHome; },
     get brewKit() { return grinder.visible || brewer.visible || kettle.visible; }, // 美術評分修正 d：吧台上的立體沖煮器具有沒有出來 // 美術評分修正 d：老闆坐窗邊座時睡在窗台上
     get catBusy() { return catBusy; },
     get catAway() { return performance.now() < catMood.awayUntil; },

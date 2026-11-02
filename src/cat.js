@@ -1,26 +1,24 @@
 // 店貓龍眼（劇本：三合院本來就有的橘貓）：
-// - 睡覺的地方依店裡的擺飾換（有書櫃就睡書架上、有軟墊就睡軟墊……），營業日誌會寫牠換到哪裡；
+// - 老闆在店裡時固定睡在窗台上（美術評分修正 f，Q64，畫面在 main.js）；
+//   老闆不在的日子，睡覺的地方依店裡的擺飾換（有書櫃就睡書架上、有軟墊就睡軟墊……），營業日誌會寫牠換到哪裡；
 // - 點太多次會走開（動物可以拒絕互動）；
 // - 老闆坐過的椅子還熱著時，會跳上去（溫度任務 #7）。
-// 純邏輯，不依賴 Three.js 或 DOM；畫面上的位置由 main.js 依 id 對到店裡的擺飾。
+// 純邏輯，不依賴 Three.js 或 DOM；店裡的畫面（窗台、跳上椅子、走開）在 main.js。
 import { hash01 } from './weather.js';
 
 // items：要店裡擺著這些東西才會選；w：權重（擺飾的位置比較常選）
-// journal：營業日誌裡「換位子」那天的句子；first：第一次在店裡睡上去時德叔說的話
+// journal：營業日誌裡「換位子」那天的句子
+// （美術評分修正 f：原本還有 first「第一次在店裡睡上去時德叔說的話」與擺了新貓窩當天去試睡；龍眼固定睡窗台之後拿掉了）
 export const CAT_SPOTS = [
   { id: 'bookshelf', items: ['bookshelf', 'book-wall'], w: 3,
     journal: '龍眼把睡覺的地方改到書架上了。大概是喜歡予安小姐的書。', // 劇本範例句
-    journalAlt: '龍眼把睡覺的地方改到書架上了。那裡看得到整間店。', // 【待定】還沒見過予安的時候
-    first: '龍眼上了書架。那裡看得到整間店。' }, // 【待定】
+    journalAlt: '龍眼把睡覺的地方改到書架上了。那裡看得到整間店。' }, // 【待定】還沒見過予安的時候
   { id: 'cushion', items: ['cat-cushion'], w: 3,
-    journal: '龍眼今天睡在新的軟墊上，睡到客人都走了才醒。', // 【待定】
-    first: '軟墊，他收下了。' }, // 【待定】
+    journal: '龍眼今天睡在新的軟墊上，睡到客人都走了才醒。' }, // 【待定】
   { id: 'cat-tree', items: ['cat-tree'], w: 3,
-    journal: '龍眼在貓跳台最上面，看了一下午的窗外。', // 【待定】
-    first: '最上面那層，他已經上去了。' }, // 【待定】
+    journal: '龍眼在貓跳台最上面，看了一下午的窗外。' }, // 【待定】
   { id: 'rattan', items: ['rattan-chair'], w: 2,
-    journal: '藤編搖椅被龍眼佔走了。有客人想坐，他沒讓。', // 【待定】
-    first: '搖椅，龍眼先坐了。' }, // 【待定】
+    journal: '藤編搖椅被龍眼佔走了。有客人想坐，他沒讓。' }, // 【待定】
   { id: 'sofa', w: 1, journal: '龍眼把睡覺的地方換到角落沙發。' }, // 【待定】
   { id: 'step', w: 1, journal: '龍眼今天睡在門口的台階上，跟老闆第一次來那天一樣。' }, // 【待定】
   { id: 'sill', w: 1, journal: '龍眼睡在窗台下面，有太陽的那一塊。' }, // 【待定】
@@ -51,27 +49,7 @@ export function catSpotFor(placed, seed, day) {
   return cur;
 }
 
-const seedOf = (save) => (Number(save.createdAt) || 0) % 2147483647;
 export const placedSet = (save) => new Set(save.owned.filter((o) => o.placed).map((o) => o.item));
-
-// 老闆在店裡的這天龍眼睡哪裡：剛擺了新的貓窩（軟墊、貓跳台……），當天先去試睡
-export function catSpotOn(save, day) {
-  const placed = placedSet(save);
-  const t = save.cat?.tryDay === day && catSpotById(save.cat.tryId);
-  if (t && availableSpots(placed).includes(t)) return t;
-  return catSpotFor(placed, seedOf(save), day);
-}
-
-// 佈置之後：多出來的、龍眼還沒睡過的地方，今天就去試睡。回傳那個地方（沒有就 null）
-export function tryNewSpot(save, before, day) {
-  const after = placedSet(save);
-  const fresh = availableSpots(after).filter((s) => s.items && !availableSpots(before).includes(s) && !save.cat.seen.includes(s.id));
-  if (!fresh.length) return null;
-  const s = fresh.sort((a, b) => b.w - a.w)[0];
-  save.cat.tryId = s.id;
-  save.cat.tryDay = day;
-  return s;
-}
 
 // 營業日誌：這天龍眼換了地方，就寫一句（c：journal.js 的情境，含 placed 與 met）
 export function catJournalLine(seed, c) {

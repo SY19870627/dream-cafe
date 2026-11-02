@@ -78,6 +78,9 @@
   #labels .seat-label span::after { content: ""; position: absolute; left: 50%; bottom: -8px; margin-left: -6px; border: 6px solid transparent;
     border-top-color: var(--ink); border-bottom: 0; }
   #labels .seat-label.below span::after { display: none; }
+  /* 美術評分修正 f：放在家具下面（上面被別的凳子佔了）：牌子在上緣、小三角朝上 */
+  #labels .seat-label.under { align-items: flex-start; padding: 7px 0 0; }
+  #labels .seat-label.under span::after { top: -8px; bottom: auto; border-width: 0 6px 6px; border-color: transparent transparent var(--ink); }
   /* 關於面板：蓋在畫面上，點外面關閉 */
   #about { position: absolute; inset: 0; background: rgba(20,14,10,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 10; }
   #about .card { width: 100%; max-width: 320px; max-height: 100%; overflow-y: auto; touch-action: pan-y; background: var(--paper); border-radius: 18px; padding: 20px 18px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }

@@ -739,7 +739,8 @@ try {
   {
     const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0');
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
-    check(['sofa', 'step', 'sill'].includes(await cafe('catSpot')), `沒有貓窩時，龍眼睡在沙發、台階或窗台下（${await cafe('catSpot')}）`);
+    // 美術評分修正 f（Q64）：龍眼在店裡固定睡在窗台上
+    check(await cafe('catOnSill') && Math.abs((await cafe('catPos')).y - 1.1) < 0.01, `一進店龍眼就睡在窗台上 ${JSON.stringify(await cafe('catPos'))}`);
     // 坐一會兒再站起來：椅子還熱著，龍眼跳上去（任務 #7）
     // 美術評分修正 d：記下泡泡說過的每一句（德叔那句話可能很快被下一句蓋掉；逾時時印出來看是哪一句）
     await page.evaluate(() => { window.__said = []; new MutationObserver(() => window.__said.push(document.getElementById('bubble').textContent)).observe(document.getElementById('bubble'), { childList: true, subtree: true, characterData: true }); });
@@ -765,7 +766,7 @@ try {
       await page.waitForTimeout(150);
     }
     check(await cafe('catAway'), '點龍眼太多次，他走開了（可以拒絕互動）');
-    // 擺一個貓咪軟墊：龍眼當天就去睡
+    // 擺一個貓咪軟墊：龍眼還是回窗台睡（Q64）
     await page.click('#menu-btn');
     await page.click('#dev-fund');
     await page.click('#about-close');
@@ -773,8 +774,9 @@ try {
     await page.click('#p-catalog');
     await page.click('.sheet-row:has-text("貓咪軟墊") button');
     await page.click('#p-done');
-    await page.waitForFunction(() => window.__cafe.catSpot === 'cushion', null, { timeout: 5000 });
-    check((await cafe('placed')).includes('cat-cushion'), '擺了貓咪軟墊之後，龍眼今天換到軟墊上睡');
+    check((await cafe('placed')).includes('cat-cushion'), '擺了貓咪軟墊');
+    await page.waitForFunction(() => window.__cafe.catOnSill, null, { timeout: 20000 });
+    check(true, '走開一陣子之後、擺了軟墊之後，龍眼回到窗台上睡');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }
