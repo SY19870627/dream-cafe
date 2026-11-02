@@ -588,13 +588,18 @@ try {
     await page.click('.seat-label >> text=窗邊座');
     const shots = new Set();
     let choiceSmall = null, kevinOptions = null, kevinAsk = '';
+    let typhoonHint = null, kevinHint = null; // 熟客場景的提示：颱風夜不顯示，其他照舊
     const closedFor = new Set();
     let readAfterClosing = false, guestSeen = false;
     // 一天裡要發生的事都發生完：選項就選第一個、信就讀、紙就收好
     async function pump(label) {
       const t0 = Date.now();
       while (Date.now() - t0 < 90000) {
-        const s = await page.evaluate(() => ({ busy: window.__cafe.storyBusy, scene: window.__cafe.scene, weather: window.__cafe.weather, choosing: window.__cafe.choosing }));
+        const s = await page.evaluate(() => ({ busy: window.__cafe.storyBusy, scene: window.__cafe.scene, weather: window.__cafe.weather, choosing: window.__cafe.choosing,
+          hint: document.getElementById('hint').hidden ? '' : document.getElementById('hint').textContent }));
+        // 熟客場景的提示和場景在同一刻讀（場景演完、提示就換了）：颱風夜整段都沒有，凱文第二幕有
+        if (s.scene === 'zhe3') typhoonHint = (typhoonHint || '') + s.hint;
+        if (s.scene === 'kevin2' && kevinHint === null && !s.choosing) kevinHint = s.hint;
         if (s.scene === 'zhe3' && s.weather === 'typhoon' && !shots.has('typhoon')) {
           await page.waitForTimeout(150);
           shots.add('typhoon');
@@ -659,6 +664,7 @@ try {
     check(kevinAsk.includes('凱文') && kevinAsk.includes('你當初怎麼敢辭職的？'), `三選一的上面一行是凱文的問句（${kevinAsk}）`);
     check(choiceSmall && choiceSmall.length === 0, '選項按鈕都 ≥ 44px');
     check(shots.has('kevin2') && shots.has('manuscript'), '凱文被罵時龍眼陪他、予安念稿');
+    check(typhoonHint === '' && kevinHint === '這裡唯一要做的事情就是放鬆', `颱風夜不顯示場景提示，凱文第二幕照舊（颱風夜「${typhoonHint}」、凱文「${kevinHint}」）`);
     check(closedFor.has('yuan5') && readAfterClosing, '予安念稿：老闆按了「打烊」、喝完最後一杯之後才念');
     check(guestSeen && (await cafe('tasks')).includes('guest-visit'), '溫度到了 28°C，德叔邀請老闆從門口進來一次（客人模式）');
     const tasks = await cafe('tasks');

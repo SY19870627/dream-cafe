@@ -1912,7 +1912,7 @@ function updateUI() {
   $('day').textContent = `開店第 ${today()} 天`;
   // 打烊後沒有任何提示（企劃：沒有任何任務）；沖煮中的「按住畫面」與佈置的操作說明照常
   const hint = choosing ? '' // 選項的問句在選項上面那一行（#ask）
-    : film ? (state.scene ? '這裡唯一要做的事情就是放鬆' : '') // 作者已確認（美術評分修正 f）：熟客的場景沒有按鈕時的提示
+    : film ? S.sceneHint(state.scene) // 熟客的場景沒有按鈕時的提示；颱風夜（noHint）不顯示
     : letter ? '德叔把一封信放在吧台上' // 【待定】
     : tut === 'sit' || g === 'sit' ? '點一張椅子坐下'
     : tut === 'gift' || tut === 'choose' ? ''

@@ -44,6 +44,11 @@ export const DOCS = {
 // 颱風過後的隔天，日誌多一句 【待定】
 export const AFTER_TYPHOON = '颱風過了。台階上都是葉子，我掃了一個早上。';
 
+// 熟客的場景沒有按鈕時，畫面底部的提示（作者已確認，美術評分修正 f）
+// 里程碑標了 noHint 的場景不顯示（作者 2026-11-02：「颱風夜隱藏」）；要再加場景，就在那個里程碑標 noHint: true
+export const SCENE_HINT = '這裡唯一要做的事情就是放鬆';
+export const sceneHint = (m) => (m && !m.noHint ? SCENE_HINT : '');
+
 // 場景步驟（main.js 依序演出）：
 //   say：角色說話（who 可以是 deshu、yuan、zhe、kevin、grandpa、boss、player）；name：泡泡上的名字（覆寫）
 //   wait：停一下（秒）；look：坐著時鏡頭轉向某人；pose：換姿勢；enter／walk／leave：走進來、走到某處、離開
@@ -115,7 +120,7 @@ export const MILESTONES = [
     scene: [say('zhe', '德叔，我跟你說，我阿公喔，咖啡豆只肯日曬。'), // 【待定】
       say('zhe', '我想試蜜處理、試厭氧，他連聽都不聽，說古早就是這樣曬。'), // 【待定】
       say('deshu', '你阿公曬的豆，我年輕時喝過。'), say('zhe', '蛤？'), { do: 'glance', who: 'deshu' }] },
-  { id: 'zhe3', who: 'zhe', n: 3, present: true, task: 'typhoon', entrance: true,
+  { id: 'zhe3', who: 'zhe', n: 3, present: true, task: 'typhoon', entrance: true, noHint: true, // 颱風夜不顯示「這裡唯一要做的事情就是放鬆」
     when: (c) => c.day >= WEEK2,
     waiting: '晚上的風很大。阿哲來看了一下天空，說果園的樹要綁一綁。', // 【待定】
     // 颱風夜：天色暗下來、風雨聲，阿哲全身是泥衝進店裡；德叔沒說話，遞毛巾與咖啡
