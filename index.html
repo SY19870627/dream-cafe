@@ -87,8 +87,9 @@
   #about dt { font-size: 12px; opacity: .7; margin-top: 6px; }
   #about dd { margin: 0; }
   #about .links { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-  #about .links a { display: flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 12px; background: #fff;
-    border: 2px solid var(--ink); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; }
+  /* 美術評分修正 e：連結列和上面的按鈕同一套：米色膠囊配細邊框（原本是白底黑色粗框） */
+  #about .links a { display: flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 22px; background: #efe4cf;
+    border: 1px solid rgba(59,42,32,.35); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
   #about .links a span { margin-left: auto; font-weight: 400; font-size: 13px; opacity: .7; }
   #about-close, .wide { width: 100%; }
   #open-notebook, .sound-grid { margin-bottom: 10px; }
@@ -140,11 +141,16 @@
   /* 泡泡：位置由 main.js 的 layoutOverlays() 決定（避開頂部介面與座位標籤）；收起來時淡出後整個不畫 */
   #bubble { position: absolute; left: 0; top: 0; max-width: 220px; background: #fffaf0; border: 2px solid var(--ink);
     border-radius: 14px; padding: 8px 12px; font-size: 14px; line-height: 1.4; pointer-events: none;
-    opacity: 0; visibility: hidden; transition: opacity .2s, visibility 0s .2s; --tail: 50%; }
-  #bubble.show { opacity: 1; visibility: visible; transition: opacity .3s; }
+    opacity: 0; visibility: hidden; transition: none; --tail: 50%; }
+  /* 美術評分修正 e：淡入、淡出時不透明度不低於 0.6（原本截圖會拍到淡出一半、半透明疊在牆上的泡泡）：從 0.6 淡入，收起來時直接不畫 */
+  #bubble.show { opacity: 1; visibility: visible; animation: bubin .25s ease-out; }
+  @keyframes bubin { from { opacity: .6; } to { opacity: 1; } }
   #bubble::after { content: ""; position: absolute; left: var(--tail); bottom: -9px; margin-left: -8px; border: 8px solid transparent;
     border-top-color: var(--ink); border-bottom: 0; }
   #bubble.notail::after { display: none; }
+  /* 美術評分修正 e：畫外音（視訊裡的主管）：虛線框、沒有尾巴 */
+  #bubble.voice, #app.art-bubble #bubble.voice:not(.me) { border-image: none; border: 2px dashed rgba(59,42,32,.7); background: rgba(255,250,240,.93); }
+  #bubble.voice::after { display: none; }
   /* art2b：泡泡外框用手繪的九宮格（ui_bubble_9slice，192²、四邊各切 48）；尾巴照舊由 CSS 畫。沒有載到就是原本的 2px 墨色框 */
   #app.art-bubble #bubble:not(.me), #app.art-bubble #ask { border-image: var(--art-bubble) 48 fill / 16px stretch; background: none; }
   /* 對話時的聚焦：畫面略微推近，四周暗一點 */
@@ -180,8 +186,10 @@
   .op-choices { display: flex; flex-direction: column; gap: 8px; }
   .op-choices button { text-align: left; background: rgba(246,239,226,.1); color: #f1ece2; border: 1px solid rgba(246,239,226,.35); box-shadow: none; font-weight: 500; }
   .op-choices button[aria-pressed="true"] { background: #f1ece2; color: #1b1f27; border-color: #f1ece2; }
-  .op-keys { font-size: 13px; opacity: .5; text-align: center; letter-spacing: 3px; animation: keys 2.4s ease-in-out infinite; }
-  @keyframes keys { 0%, 100% { opacity: .2; } 50% { opacity: .6; } }
+  /* 美術評分修正 e：「喀噠」提示的對比至少 4.5:1（原本透明度 .2～.6，幾乎看不見）：文字底下墊一點深色、透明度在 .8～1 之間呼吸 */
+  .op-keys { align-self: center; font-size: 13px; color: #f1ece2; text-align: center; letter-spacing: 3px; padding: 2px 10px; border-radius: 10px;
+    background: rgba(15,18,24,.55); animation: keys 2.4s ease-in-out infinite; }
+  @keyframes keys { 0%, 100% { opacity: .8; } 50% { opacity: 1; } }
   .op-stage button.primary { background: #f1ece2; color: #1b1f27; flex: none; }
   /* 標題 */
   .op-title { background: #0b0c0f; justify-content: center; align-items: center; text-align: center; }
@@ -199,6 +207,11 @@
   .op-office::after, .op-mailbox::after { content: ""; margin-bottom: auto; }
   .op-box-btn { padding: 0; background: none; box-shadow: none; border-radius: 12px; overflow: hidden; flex: none; }
   .op-box-btn img, .op-box-btn canvas { display: block; width: 100%; height: auto; }
+  /* 美術評分修正 e：直立畫面的信箱插圖放大到整個畫面寬、裁成接近正方形（以露出信封的那一格為中心），上下的空白少一點 */
+  @media (max-aspect-ratio: 3/5) {
+    .op-box-btn { margin: 0 -18px; border-radius: 0; }
+    .op-box-btn img, .op-box-btn canvas { aspect-ratio: 1 / 1; height: auto; max-height: 56vh; object-fit: cover; object-position: 66% 60%; }
+  }
   .op-box-btn.shake { animation: shake .22s ease-in-out 5; }
   @keyframes shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-1.6deg) translateX(-3px); } 75% { transform: rotate(1.6deg) translateX(3px); } }
   /* 律師信：不透明的紙色卡片配深色字（比照辭呈那張）；展開只動形狀，不從透明淡入，任何時候截圖都看得清楚 */
@@ -218,6 +231,8 @@
   .row #op-skip-shop { flex: none; padding-left: 14px; padding-right: 14px; font-size: 14px; font-weight: 500; background: rgba(246,239,226,.82); }
   /* 營業日誌與信：手寫風的紙 */
   .hand { font-family: var(--hand); }
+  /* 美術評分修正 e：手寫風的卡片裡，按鈕照舊用黑體（和其他按鈕一致；沒有楷體的電腦會退回明朝體，評審：10、19、21 的按鈕是明朝體） */
+  .hand button { font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
   #journal .card, #letter .card { max-width: 350px; }
   .jr-scroll, .lt-scroll { overflow-y: auto; flex: 1 1 auto; min-height: 0; margin: 4px 0 12px; touch-action: pan-y; }
   .jr-day { margin: 0; font-size: 13px; line-height: 28px; color: rgba(59,42,32,.72); font-weight: 600; }
@@ -291,10 +306,13 @@
   @keyframes card-in { from { transform: translateY(14px); } to { transform: none; } }
   /* 彈窗打開時：場景上的標籤、提示、泡泡、按鈕列都收起來，不從遮罩後面透出來 */
   #app.modal #labels, #app.modal #lights, #app.modal #bubble, #app.modal .bottom, #app.modal #shade { visibility: hidden; transition: none; } /* 泡泡收起來時的延遲也不要 */
+  /* 美術評分修正 e：咖啡地圖（整個畫面的彈窗）打開時，頂部介面也收起來（評審：從卡片後面露出來） */
+  #app:has(#map:not([hidden])) .top { visibility: hidden; }
   .map-card { align-items: stretch; }
   .map-wrap { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; margin: 4px 0 6px; }
   .map-wrap > * { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 10px;
     box-shadow: inset 0 0 0 1px rgba(59,42,32,.2); }
+  .map-wrap > svg { box-shadow: none; border-radius: 0; } /* 手繪地圖的框畫在 SVG 裡（art.js 的 coffeeMap()），和圖同比例 */
   #map-list { list-style: none; margin: 0 0 4px; padding: 0; flex: none; }
   /* 兩欄固定：左邊地名、右邊說明，不折行（窄的時候說明縮小一點） */
   #map-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 8px; padding: 5px 2px; border-bottom: 1px dashed rgba(59,42,32,.3); font-size: 14px; opacity: .6; }
@@ -360,6 +378,7 @@
       <button id="tut-place" class="primary" hidden>開始佈置</button>
       <button id="night">白天</button>
       <button id="close-shop" hidden>打烊</button>
+      <button id="lights-btn" hidden>關燈</button>
       <button id="diary-btn" hidden>今天的一杯</button>
       <button id="goodnight" class="primary" hidden>明天見</button>
     </div>

@@ -87,7 +87,7 @@ const ROOM_SPEC = {
   menuBoard: { size: [0.6, 1] }, coffeeSack: { size: [0.6, 0.75] }, catCushion: { size: [0.7, 0.3] },
   succulent: { size: [0.5, 1] }, bookStack: { size: [0.5, 0.5] }, longanJar: { size: [0.5, 0.95] },
   floorLamp_on: { size: [0.6, 1.7] }, floorLamp_off: { size: [0.6, 1.7] },
-  prop_cup: { size: [0.2, 0.14] }, prop_coaster_menu: { size: [0.2, 0.2] }, key: { size: [0.22, 0.12] },
+  prop_cup: { size: [0.2, 0.14] }, prop_cup_daily: { size: [0.2, 0.14] }, prop_coaster_menu: { size: [0.2, 0.2] }, key: { size: [0.22, 0.12] },
   longanBag: { size: [0.22, 0.2] }, kettleSet: { size: [0.7, 0.45] }, napkin: { size: [0.5, 0.95] },
   yuanBook: { size: [0.5, 0.95] }, framedNapkin: { size: [0.5, 0.95] }, beanBag: { size: [0.5, 0.95] },
   envelope: { size: [0.26, 0.18] }, // art2b：老先生的信封（德叔放在吧台上），每公尺 3000 像素
@@ -508,21 +508,22 @@ export function windowFrame() {
 }
 
 // 菜單黑板的字（公尺；黑板中線 x＝wm/2）
+// 美術評分修正 e：整段字往下移到黑板的下半（原本「今日手沖」在黑板上緣，德叔站在吧台後時正好在他的頭旁邊）
 function menuText(g, wm, menu) {
   g.fillStyle = '#f2ead8';
-  g.font = '0.09px "PingFang TC","Noto Sans TC",sans-serif';
+  g.font = '0.085px "PingFang TC","Noto Sans TC",sans-serif';
   g.textAlign = 'center';
-  g.fillText('今日手沖', wm / 2, 1.3);
-  g.font = '0.075px "PingFang TC","Noto Sans TC",sans-serif';
+  g.fillText('今日手沖', wm / 2, 1.4);
+  g.font = '0.07px "PingFang TC","Noto Sans TC",sans-serif';
   if (menu.includes('zhe-beans')) {
-    g.fillText('東山 日曬', wm / 2, 1.41);
-    g.fillText('阿里山 水洗', wm / 2, 1.5);
-    g.font = 'bold 0.085px "PingFang TC","Noto Sans TC",sans-serif';
+    g.fillText('東山 日曬', wm / 2, 1.48);
+    g.fillText('阿里山 水洗', wm / 2, 1.555);
+    g.font = 'bold 0.08px "PingFang TC","Noto Sans TC",sans-serif';
     g.fillStyle = '#ffd27a';
-    g.fillText('阿哲的豆', wm / 2, 1.61); // 「好啦，寫大一點。」
+    g.fillText('阿哲的豆', wm / 2, 1.64); // 「好啦，寫大一點。」
   } else {
-    g.fillText('東山 日曬', wm / 2, 1.44);
-    g.fillText('阿里山 水洗', wm / 2, 1.56);
+    g.fillText('東山 日曬', wm / 2, 1.5);
+    g.fillText('阿里山 水洗', wm / 2, 1.6);
   }
 }
 // 程式在手繪圖上疊東西：複製一張同樣大小的 canvas，座標用公尺（原點是圖的左上角）
@@ -1158,7 +1159,7 @@ export function glowOnly(a, y0, y1) {
 // 桌上的杯墊（手寫菜單卡；窗邊座桌上的焦點）。只有手繪圖，沒有載到就不放
 export const coaster = () => room('prop_coaster_menu');
 
-// 琺瑯杯（手繪：白底綠邊，裡面有咖啡）。Canvas 版是一般的白瓷杯
+// 琺瑯杯（手繪：白底綠邊，裡面有咖啡）：德叔自己的杯子。Canvas 版是一般的白瓷杯
 export function cup() {
   const a = room('prop_cup');
   if (a) return a;
@@ -1166,6 +1167,20 @@ export function cup() {
   ell(g, 0.1, 0.125, 0.09, 0.015); g.fillStyle = '#e8e2d6'; g.fill(); outline(g, 0.008);
   rr(g, 0.045, 0.03, 0.11, 0.09, 0.025); g.fillStyle = '#f6f2ea'; g.fill(); outline(g, 0.008);
   ell(g, 0.1, 0.035, 0.055, 0.012); g.fillStyle = '#5b3420'; g.fill();
+  g.beginPath(); g.arc(0.165, 0.07, 0.022, -1.4, 1.4); outline(g, 0.01);
+  return c;
+}
+
+// 美術評分修正 e：平常的杯子（手繪 prop_cup_daily：米白陶瓷馬克杯、杯緣一圈細的赭黃色線，Q63）。給老闆、熟客與一次客人；
+// 琺瑯杯只留給德叔自己的場景。Canvas 版：米白杯身、赭黃杯緣線
+export function cupDaily() {
+  const a = room('prop_cup_daily');
+  if (a) return a;
+  const { c, g } = canvas(0.2, 0.14, HI);
+  ell(g, 0.1, 0.125, 0.09, 0.015); g.fillStyle = '#e6dcc6'; g.fill(); outline(g, 0.008);
+  rr(g, 0.045, 0.03, 0.11, 0.09, 0.025); g.fillStyle = '#f0e6cf'; g.fill(); outline(g, 0.008);
+  ell(g, 0.1, 0.035, 0.057, 0.014); g.strokeStyle = '#c8952f'; g.lineWidth = 0.006; g.stroke();
+  ell(g, 0.1, 0.035, 0.05, 0.011); g.fillStyle = '#5b3420'; g.fill();
   g.beginPath(); g.arc(0.165, 0.07, 0.022, -1.4, 1.4); outline(g, 0.01);
   return c;
 }
@@ -1769,6 +1784,8 @@ export function coffeeMap(label = '') {
   name(dx - 20 * k, dy + 10 * k, '東山', 30, 'end', INK, 700);
   name(wx + 22 * k, wy - 2 * k, '舞鶴', 26, 'start', 'rgba(59,42,32,.75)');
   name(wx + 22 * k, wy + 24 * k, '待續', 20, 'start', 'rgba(59,42,32,.75)');
+  // 美術評分修正 e：細框畫在 SVG 裡、和圖一樣大（原本框是元素的外框，桌機的框比圖寬，左右各空約 30px）
+  svg.appendChild(svgEl('rect', { x: 1, y: 1, width: 1038, height: 1718, rx: 18, fill: 'none', stroke: 'rgba(59,42,32,.22)', 'stroke-width': 2 }));
   return svg;
 }
 function drawCoffeeMap() {

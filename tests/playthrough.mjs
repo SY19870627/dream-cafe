@@ -158,7 +158,9 @@ async function play([W, H]) {
         await shot('closing-after');
         if (!diaryWritten && await vis('#diary-btn')) {
           // 打烊後：關燈、寫一句今天的一杯、明天見
-          for (const b of await page.$$('.light-label:not(.off)')) { await b.click().catch(() => {}); await page.waitForTimeout(300); }
+          for (const b of await page.$$('.light-label:not(.off)')) { if (await b.isVisible()) { await b.click().catch(() => {}); await page.waitForTimeout(300); } }
+          // 美術評分修正 e：坐著的時候燈的開關在底部按鈕列（一次一盞）
+          for (let i = 0; i < 8 && await vis('#lights-btn') && (await page.textContent('#lights-btn')).includes('關燈'); i++) { await page.click('#lights-btn'); await page.waitForTimeout(300); }
           await page.waitForTimeout(1200);
           await shot('closing-lights-off');
           await page.click('#diary-btn');

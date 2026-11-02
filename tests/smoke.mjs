@@ -1100,8 +1100,8 @@ try {
     await page.waitForTimeout(1500);
     const art = await page.evaluate(() => window.__cafe.art);
     // art2b：第二批的開場、地圖與介面再加 7 張 webp（信封、辭呈與律師信背景、信箱、縣道、地圖、信紙、泡泡外框）＋ CSS 的啟動畫面
-    check(got.size === 73 && [...got.values()].every((s) => s === 200) && got.has('splash_1170x2532'), `從 assets/art 載入 73 張 webp（第一批 18＋凱文坐高腳椅 1、第二批店內 46、開場與介面 7、啟動畫面 1；${got.size} 張）`);
-    check(art.loaded.length === 72 && art.loaded.every((n) => got.has(n)), `72 張都解碼成功（${art.loaded.length} 張；啟動畫面由 CSS 直接用）`);
+    check(got.size === 74 && [...got.values()].every((s) => s === 200) && got.has('splash_1170x2532'), `從 assets/art 載入 74 張 webp（第一批 18＋凱文坐高腳椅 1、第二批店內 46＋平常杯子 1、開場與介面 7、啟動畫面 1；${got.size} 張）`);
+    check(art.loaded.length === 73 && art.loaded.every((n) => got.has(n)), `73 張都解碼成功（${art.loaded.length} 張；啟動畫面由 CSS 直接用）`);
     const tags = await page.evaluate(() => window.__cafe.uiArtTags());
     check(tags.map === 'svg' && tags.road === 'svg' && tags.mail === 'IMG', `地圖與縣道是手繪圖＋程式畫的標記（SVG）、信箱是手繪圖 ${JSON.stringify(tags)}`);
     check(art.ui.length === 6 && art.icons && art.envelope === 'envelope', `開場、地圖與介面的圖、介面圖示、信封都載到了 ${JSON.stringify(art.ui)} 圖示 ${art.icons}`);
