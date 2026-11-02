@@ -111,7 +111,7 @@ export function runOpening({ root, save, persist, art, speed = 1, sound = {} }) 
       <h1>我單方面辭退老闆後，<br>開了一間夢想中的咖啡店</h1>
       <p class="sub">試玩版・台南東山</p>
       <button id="op-next" class="primary">下班</button>
-      <div class="op-credit">開發者 SY・<a href="https://github.com/SY19870627" target="_blank" rel="noopener">GitHub</a>・<a href="https://x.com/nelsonyehfon" target="_blank" rel="noopener">X</a>・<a href="https://www.threads.com/@ye.c.feng" target="_blank" rel="noopener">Threads</a>・<a href="https://vocus.cc/user/@SY19870627" target="_blank" rel="noopener">方格子</a></div>`);
+      <div class="op-credit">開發者 SY・<a href="https://github.com/SY19870627" target="_blank" rel="noopener">GitHub</a>・<a href="https://www.threads.com/@ye.c.feng" target="_blank" rel="noopener">Threads</a>・<a href="https://vocus.cc/user/@SY19870627" target="_blank" rel="noopener">方格子</a></div>`);
     el.querySelector('#op-next').onclick = mailbox;
   }
 

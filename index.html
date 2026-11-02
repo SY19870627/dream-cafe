@@ -94,11 +94,6 @@
   #about .links a { display: flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 22px; background: #efe4cf;
     border: 1px solid rgba(59,42,32,.35); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
   #about .links a span { margin-left: auto; font-weight: 400; font-size: 13px; opacity: .7; }
-  /* 開發者連結有四個：兩欄排，名稱在上、帳號在下；「留下試玩心得」單獨佔一整列 */
-  #about .links { display: grid; grid-template-columns: 1fr 1fr; }
-  #about .links a:not(#feedback-link) { flex-direction: column; align-items: flex-start; justify-content: center; padding: 6px 14px; border-radius: 16px; min-width: 0; }
-  #about .links a:not(#feedback-link) span { margin-left: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #feedback-link { grid-column: 1 / -1; }
   #about-close, .wide { width: 100%; }
   #open-notebook, .sound-grid { margin-bottom: 10px; }
   #dev-tools { border-top: 1px dashed rgba(59,42,32,.4); padding-top: 10px; margin-bottom: 12px; }
@@ -405,12 +400,11 @@
       <dl><dt>開發者</dt><dd>SY</dd></dl>
       <div class="links">
         <a href="https://github.com/SY19870627" target="_blank" rel="noopener">GitHub<span>SY19870627</span></a>
-        <a href="https://x.com/nelsonyehfon" target="_blank" rel="noopener">X<span>@nelsonyehfon</span></a>
         <a href="https://www.threads.com/@ye.c.feng" target="_blank" rel="noopener">Threads<span>@ye.c.feng</span></a>
         <a href="https://vocus.cc/user/@SY19870627" target="_blank" rel="noopener">方格子<span>@SY19870627</span></a>
         <a id="feedback-link" href="https://github.com/SY19870627/dream-cafe/issues/new?template=playtest.yml" target="_blank" rel="noopener">留下試玩心得<span>GitHub</span></a>
       </div>
-      <p class="sub">沒有 GitHub 帳號，也可以在 X 私訊，或直接傳訊息給開發者。</p>
+      <p class="sub">沒有 GitHub 帳號，也可以直接傳訊息給開發者。</p>
       <div id="dev-tools" hidden>
         <p class="sub" id="dev-day"></p>
         <p class="sub" id="dev-perf"></p>
