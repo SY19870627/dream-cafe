@@ -1,7 +1,8 @@
-// 承峰 11/3 試玩回饋：等客人的提示（D179）
+// 承峰 11/3 試玩回饋：等客人的提示（D179）、完成任務的小紙條（D180）
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../../src/story.js';
+import { TASKS, stageNoteText } from '../../src/tasks.js';
 
 test('熟客場景的提示仍是作者的原文（D177 不動）', () => {
   assert.equal(S.SCENE_HINT, '什麼都不用做，在這裡就好');
@@ -36,4 +37,13 @@ test('等待的句子不催促、不報時間，用全形標點', () => {
     assert.doesNotMatch(t, /\.\.\./);
   }
   assert.ok(S.allLines().includes(S.WAIT_HINT.approach), '校稿清單裡有等待的句子');
+});
+
+test('完成任務的小紙條：每個任務都有名稱與升了幾度，和記事本同一個名稱', () => {
+  for (const t of TASKS) {
+    const n = stageNoteText(t);
+    assert.equal(n.title, t.name);
+    assert.equal(n.sub, `店裡暖了一點 +${t.temp}°C`);
+    assert.doesNotMatch(n.title + n.sub, /KPI|不划算|任務完成|達成/);
+  }
 });

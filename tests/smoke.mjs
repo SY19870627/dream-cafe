@@ -197,6 +197,22 @@ try {
     check(await page.evaluate(() => window.__cafe.tasks.includes('first-coffee') && window.__cafe.temp === 20.5), '杯子上桌那一刻完成任務、溫度 +0.5');
     await page.waitForFunction(() => document.getElementById('temp').textContent === '20.5°C', null, { timeout: 5000 });
     check(true, '右上角溫度爬到 20.5°C');
+    // 承峰 11/3 回饋（D180）：完成任務時，地點牌下方淡入一張小紙條，不擋地點牌、溫度與按鈕，幾秒後淡出
+    await page.waitForFunction(() => window.__cafe.stageNote, null, { timeout: 5000 });
+    {
+      const r = await page.evaluate(() => {
+        const box = (q) => document.querySelector(q).getBoundingClientRect();
+        const n = box('#stage-note'), t = box('.title'), tp = box('#temp'), b = [...document.querySelectorAll('.bottom button')].filter((e) => e.offsetWidth).map((e) => e.getBoundingClientRect());
+        const hit = (a, c) => a.left < c.right && c.left < a.right && a.top < c.bottom && c.top < a.bottom;
+        return { text: document.getElementById('stage-note').textContent, below: n.top >= t.bottom, clear: !hit(n, t) && !hit(n, tp) && b.every((x) => !hit(n, x)), inside: n.left >= 0 && n.right <= 390 };
+      });
+      check(r.text.includes('第一次坐下喝德叔的咖啡') && r.text.includes('+0.5°C'), `完成任務的小紙條：${r.text}`);
+      check(r.below && r.clear && r.inside, '小紙條在地點牌下方，不擋地點牌、溫度與按鈕');
+      await page.screenshot({ path: OUT + 'phone-stage-note.png' });
+      { const p = await overlayProblems(page); check(p.length === 0, `小紙條出現時，泡泡不碰頂部介面 ${p.join('；')}`); }
+      await page.waitForFunction(() => !window.__cafe.stageNote, null, { timeout: 8000 });
+      check(true, '小紙條幾秒後淡出');
+    }
     await page.waitForTimeout(1200); // 鏡頭回到座位
     // 階段 7：聲音（WebAudio 合成）與效能
     const au = await page.evaluate(() => window.__cafe.audio);

@@ -57,6 +57,15 @@
   .hint.breathe { animation: breathe 3.6s ease-in-out infinite; }
   @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .6; } }
   @media (prefers-reduced-motion: reduce) { .hint.breathe { animation: none; } }
+  /* 承峰 11/3 回饋（D180）：完成一個溫度任務時，地點牌下方淡入一張小紙條、幾秒後淡出；點不到、不擋按鈕（top 由 main.js 依頂部介面的高度設） */
+  #stage-note { position: absolute; left: 12px; top: 64px; max-width: min(250px, calc(100% - 24px)); padding: 7px 13px 8px; border-radius: 14px;
+    background: rgba(246,239,226,.95); box-shadow: 0 2px 8px rgba(0,0,0,.18); font-size: 12px; line-height: 17px; pointer-events: none;
+    opacity: 0; transform: translateY(-6px); transition: opacity .7s ease, transform .7s ease; }
+  #stage-note b { display: block; font-size: 13.5px; line-height: 19px; }
+  #stage-note span { color: #8a4b2a; font-weight: 600; }
+  #stage-note.show { opacity: 1; transform: none; }
+  #app.modal #stage-note { visibility: hidden; }
+  @media (prefers-reduced-motion: reduce) { #stage-note { transition: opacity .7s ease; transform: none; } }
   .row { display: flex; gap: 8px; }
   .row button { flex: 1 1 auto; white-space: nowrap; padding-left: 8px; padding-right: 8px; } /* 窄欄（桌機上約 330px）也不換行 */
   /* 手機點擊目標至少 44px */
@@ -341,6 +350,8 @@
     .hint, #speed { font-size: 14px; }
     .title { font-size: 14px; line-height: 17px; }
     .title b { font-size: 14px; line-height: 18px; }
+    #stage-note { font-size: 14px; line-height: 19px; max-width: 300px; }
+    #stage-note b { font-size: 15px; line-height: 21px; }
     #about .sub, #about dt, #about .links a span, .overlay .sub, #nb-list small, #nb-list span, #nb-people h3, .nb-person span,
     #sheet .sub, #sheet-list h3, .sheet-row .info span, .sheet-row .info small, .jr-day, .cl-date, #dy-count, #map-list span { font-size: 14px; }
     #map-list span { white-space: normal; overflow: visible; } /* 14px 放不下一行：說明在右欄裡折行，不要被刪節號吃掉 */
@@ -361,6 +372,7 @@
       <button id="menu-btn" aria-label="選單" aria-controls="about" aria-expanded="false">≡</button>
     </div>
   </div>
+  <div id="stage-note" role="status" aria-live="polite"></div>
   <div id="labels"></div>
   <div id="lights"></div>
   <div id="bubble"></div>

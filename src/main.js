@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import * as A from './art.js';
 import { createStore, giveStarters } from './save.js';
-import { temperature, completeTasks, taskById, TASKS, isDone } from './tasks.js';
+import { temperature, completeTasks, taskById, TASKS, isDone, stageNoteText } from './tasks.js';
 import { CATALOG, CATEGORY, itemById, balance, commitLayout } from './catalog.js';
 import { dayIndex, daysOpen, dateLabel, JUMP_DAY_MS } from './clock.js';
 import { LETTERS, LAWYER_LETTER, letterById, dueLetter, markRead } from './letters.js';
@@ -1048,8 +1048,44 @@ function checkTasks({ delay = 1200 } = {}) {
   glowFund();
   const lines = done.filter((t) => t.line).map((t) => t.line);
   announce(lines, delay);
+  stageNote(done);
   deshuMoment('thermo', 2600).then((ok) => { if (ok && lines.length) deshuMoment('smile', 2600); });
   return done.map((t) => t.id);
+}
+
+// 完成一個溫度任務：地點牌下方淡入一張小紙條（任務名稱＋店裡暖了多少），幾秒後淡出（承峰 11/3 試玩回饋 4，D180）。
+// 點不到、不擋按鈕與地點牌；同時完成幾個就一張一張來；彈窗（日誌、信、選單）打開時先等它關上
+const STAGE_NOTE_MS = 4200;
+const stageEl = $('stage-note');
+const stageQueue = [];
+const stageLog = []; // 測試用：出現過的紙條
+let stageBusy = false;
+const realSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function stageNote(tasks) {
+  stageQueue.push(...tasks.map(stageNoteText));
+  if (!stageBusy) runStageNotes();
+}
+async function runStageNotes() {
+  stageBusy = true;
+  await realSleep(300); // 和溫度膠囊亮起來差一點點
+  while (stageQueue.length) {
+    while (overlayOpen() || sceneHidden()) await realSleep(400);
+    const n = stageQueue.shift();
+    stageEl.innerHTML = `<b>${esc(n.title)}</b><span>${esc(n.sub)}</span>`;
+    stageEl.style.top = `${UI_SPACE.top + 6}px`;
+    stageEl.classList.add('show');
+    stageLog.push(n);
+    await realSleep(STAGE_NOTE_MS);
+    stageEl.classList.remove('show');
+    await realSleep(900); // 淡出（.7 秒）之後才換下一張
+  }
+  stageBusy = false;
+}
+// 紙條在畫面上的範圍（相對 #app）：泡泡與座位標籤避開它；沒有顯示時是 null
+function stageRect() {
+  if (!stageEl.classList.contains('show')) return null;
+  const a = app.getBoundingClientRect(), r = stageEl.getBoundingClientRect();
+  return { l: r.left - a.left, t: r.top - a.top, r: r.right - a.left, b: r.bottom - a.top };
 }
 
 // 基金撥款時，「佈置」鈕輕輕亮一下（錢只用來佈置；不跳提示框）
@@ -2042,6 +2078,7 @@ function updateUI() {
     : placingHint();
   $('hint').textContent = hint;
   $('hint').hidden = !hint;
+  // 熟客場景的提示與等待的句子：提示列慢慢呼吸，看得出畫面沒有停住（承峰 11/3 回饋，D179）
   $('hint').classList.toggle('breathe', !!hint && (hint === S.SCENE_HINT || Object.values(S.WAIT_HINT).includes(hint)));
   refreshAsk(choosing);
   if (measureUi()) fitOverview(); // 「略過開場」出現或收起：俯瞰鏡頭跟著可用的高度重算
@@ -4304,7 +4341,7 @@ function rectHull(r, hull) {
   }
   return true;
 }
-function placeBubble(W, H) {
+function placeBubble(W, H, note = null) {
   if (!speaker || !bubble.textContent.trim() || getComputedStyle(bubble).visibility === 'hidden') return null;
   const bw = bubble.offsetWidth, bh = bubble.offsetHeight;
   const minTop = UI_SPACE.top + UI_GAP;
@@ -4320,6 +4357,8 @@ function placeBubble(W, H) {
   let left = clampN(x - bw / 2, EDGE, W - EDGE - bw);
   const want = top;
   top = clampN(top, minTop, H - EDGE - bh - 9);
+  // 承峰 11/3 回饋（D180）：左上角的小紙條還在的時候，泡泡放到它下面
+  if (note && speaker !== 'player' && left < note.r + 4 && top < note.b + UI_GAP) top = Math.min(note.b + UI_GAP, H - EDGE - bh - 9);
   // 美術評分修正 c：俯瞰時泡泡不要蓋在吧台上：先往上推（德叔上方），推到頂還蓋到，就放到吧台旁邊
   if (state.mode === 'overview' && speaker !== 'player') {
     const bar = barHull(W, H), box = (l, t) => ({ l, t, r: l + bw, b: t + bh + 9 });
@@ -4342,7 +4381,7 @@ function placeBubble(W, H) {
   return bubble.classList.contains('show') ? { l: left, t: top, r: left + bw, b: top + bh + 9 } : null;
 }
 const labelTops = [];
-function placeLabels(W, H, avoid) {
+function placeLabels(W, H, avoid, note = null) {
   if ($('labels').style.display === 'none') return;
   const minTop = UI_SPACE.top + UI_GAP, maxBottom = H - UI_SPACE.bottom;
   const items = SEATS.map((st, i) => {
@@ -4357,6 +4396,7 @@ function placeLabels(W, H, avoid) {
     return { el, x, tip: tip - 6, foot: fr ? ((1 - fr.y0) / 2) * H : null, w: el.offsetWidth, h: el.offsetHeight };
   }).sort((a, b) => b.tip - a.tip); // 從畫面下面的標籤開始放：上面的被推的時候往上走
   const placed = avoid ? [avoid] : [];
+  if (note) placed.push({ l: note.l - 4, t: note.t - 4, r: note.r + 4, b: note.b + 4 });
   // 美術評分修正 e：標籤也不蓋住龍眼（標籤移到桌子上方之後，龍眼跳下椅子坐的地方常在標籤底下，點不到他）
   const cr = cat.visible ? screenRect(cat) : null;
   if (cr) placed.push({ l: ((cr.x0 + 1) / 2) * W - 4, r: ((cr.x1 + 1) / 2) * W + 4, t: ((1 - cr.y1) / 2) * H - 4, b: ((1 - cr.y0) / 2) * H + 4 });
@@ -4389,7 +4429,8 @@ function placeLabels(W, H, avoid) {
 }
 function layoutOverlays() {
   const W = app.clientWidth, H = app.clientHeight;
-  placeLabels(W, H, placeBubble(W, H));
+  const note = stageRect(); // 完成任務的小紙條（D180）：泡泡與標籤都讓開
+  placeLabels(W, H, placeBubble(W, H, note), note);
 }
 
 // 每 2 秒算一次 FPS；開店前 6 秒（著色器編譯、貼圖上傳）不算；分頁在背景時不算
@@ -4683,7 +4724,10 @@ if (DEV) {
     get enamelOnTable() { return cups.some((c) => c.userData.enamel); },
     say(text, ms = 6000) { say(text, ms); }, // 美術評分修正 c：讓德叔說一句，測試泡泡的位置
     // 承峰 11/3 回饋：完成任務的小紙條（現在顯示的、出現過的）、等客人的狀態；note() 直接放一張紙條（截圖用）
+    get stageNote() { return stageEl.classList.contains('show') ? stageEl.textContent : null; },
+    get stageLog() { return stageLog.map((n) => ({ ...n })); },
     get door() { return { open: Math.round(doorMotion.open * 100) / 100, visible: frontWall.visible && door.visible, stub: frontStub.visible }; },
+    note(id = 'first-coffee') { const t = taskById(id); if (t) stageNote([t]); return !!t; },
     get waitHint() { return { line: waiting.line, approach: !!waiting.approach, next: nextArrivalMs(), hint: $('hint').hidden ? '' : $('hint').textContent, breathe: $('hint').classList.contains('breathe') }; },
     // 承峰 11/3 回饋：坐著時直接轉頭到某個角度（截圖用；和手指拖曳一樣受座位的轉頭範圍限制）
     look(yaw = 0, pitch = 0) { if (state.mode !== 'seat') return false; focusP = null; lookTok++; cam.yaw = THREE.MathUtils.clamp(yaw, ...yawRange()); cam.pitch = THREE.MathUtils.clamp(pitch, -0.35, 0.35); return true; },

@@ -1,5 +1,5 @@
 // 第一站的 20 個溫度任務（劇本「溫度任務清單」）：溫度合計 +17°C（20 → 37°C），基金合計撥款 38,500 元。
-// 任務完成不跳清單，由德叔或客人的一句話（line）或一個動作帶出。
+// 任務完成不跳清單，由德叔或客人的一句話（line）或一個動作帶出；另外在地點牌下方淡入一張小紙條（stageNoteText()，D180）。
 // 判定條件全部由存檔狀態推得（when(save, ctx)），同一個任務只會完成一次。
 // 純邏輯，不依賴 Three.js 或 DOM。
 import { placedItems, bookCount } from './catalog.js';
@@ -55,6 +55,10 @@ export function temperature(save) {
 }
 
 export const isDone = (save, id) => save.tasks.some((d) => d.id === id);
+
+// 完成任務時地點牌下方的小紙條（承峰 11/3 試玩回饋 4，D180）：任務名稱（和記事本的「溫度紀錄」同一個）＋店裡暖了多少。
+// 台詞照舊由德叔或客人說；紙條只是讓玩家知道「這一段完成了」，幾秒後自己淡出，不是任務清單
+export const stageNoteText = (t) => ({ title: t.name, sub: `店裡暖了一點 +${t.temp}°C` }); // 【待定】「店裡暖了一點」
 
 // 找出條件已達成、但還沒完成的任務
 export function pending(save, ctx) {
