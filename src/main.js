@@ -963,6 +963,8 @@ function updateSteam(dt) {
 // tutorial：開場在店裡的段落 'enter'（第三幕德叔的三句話）→ 'sit' → 'brew' → 'gift' → 'choose'（第四幕），null 代表不在開場
 // letter：德叔放在吧台上、還沒讀的信；cinematic：讀完信後看德叔擦琺瑯杯的鏡頭
 // scene：正在演的熟客里程碑；choice：畫面下方的選項開著
+// 等客人（承峰 11/3 回饋，D179）：line＝提示列現在的等待句子、approach＝有人快走到門口、quietFrom＝上次有人走進來的時間
+const waiting = { line: '', approach: null, quietFrom: 0 };
 const state = { temp: temperature(save), satThisVisit: 0, weather: 'clear', devSpeed: DEV_SPEED, hold: false, night: false, mode: 'overview', seat: null, placing: false, selected: null,
   tutorial: null, letter: null, cinematic: false, scene: null, choice: false };
 
@@ -2034,12 +2036,13 @@ function updateUI() {
     : tut === 'gift' || tut === 'choose' ? ''
     : cl && !brewing && !placing ? ''
     : !over
-    ? (brewing ? (state.hold ? '時間走快了一點……' : '按住畫面可以讓時間走快一點') : g ? '' : '左右拖曳環顧四周，點人物可以搭話')
-    : !placing ? '點座位坐下，用客人的角度看看這間店'
+    ? (brewing ? (state.hold ? '時間走快了一點……' : '按住畫面可以讓時間走快一點') : g ? '' : waiting.line || '左右拖曳環顧四周，點人物可以搭話')
+    : !placing ? (waiting.approach ? S.WAIT_HINT.approach : '點座位坐下，用客人的角度看看這間店')
     : sel ? `已選：${state.selected.userData.name}，點地板放到那裡`
     : placingHint();
   $('hint').textContent = hint;
   $('hint').hidden = !hint;
+  $('hint').classList.toggle('breathe', !!hint && (hint === S.SCENE_HINT || Object.values(S.WAIT_HINT).includes(hint)));
   refreshAsk(choosing);
   if (measureUi()) fitOverview(); // 「略過開場」出現或收起：俯瞰鏡頭跟著可用的高度重算
   endFocus();
@@ -2873,6 +2876,7 @@ async function enterPerson(w, spot, walkPose, thenPose, fast) {
   p.visible = true;
   if (!(w === 'grandpa' && PEOPLE.zhe.visible && PEOPLE.zhe.position.distanceTo(DOOR_IN) < 1)) audio.play('bell'); // 有人推門進來（阿公跟在阿哲後面，鈴只響一次）
   swingDoor(w === 'grandpa' ? 3200 : 1600); // 阿公走得慢：門開久一點
+  waiting.approach = null; waiting.quietFrom = performance.now();
   if (!(await walkPath(p, route(DOOR_IN, spot.pos), walkSpeed(w, fast), true))) return; // 走到一半就要離開了（打烊）
   if (tok !== live.token) return; // 走到一半換了一天（開發者跳天數）
   settle(w, spot);
@@ -3484,6 +3488,38 @@ function storyTick() {
   farewellTick(d);
 }
 setInterval(storyTick, 500);
+
+/* ---------- 等客人（承峰 11/3 試玩回饋 3，D179） ---------- */
+// 「要玩家等，但要等啥沒讓玩家知道，會以為當機了」：熟客快走到門口的前幾秒，門外有腳步聲、門上的鈴輕輕晃，
+// 提示列寫「好像有人往這邊走來了……」；坐著、一陣子沒人說話時，提示列換成等待的句子（文字與規則在 story.js 的 waitHint()）。
+// 熟客場景裡「什麼都不用做，在這裡就好」（D177）一字不改，只讓提示列慢慢呼吸（index.html 的 .hint.breathe），看得出畫面沒有停住
+// 下一位熟客還有幾毫秒走進門（遊戲時間，開發者倍率換算回來）；今天沒有人要來、客人模式、打烊時是 null
+function nextArrivalMs() {
+  if (!REGULARS_ON || !live.day || live.day !== today() || state.guest || state.closing) return null;
+  const t = performance.now();
+  let best = null;
+  for (const [w, at] of live.expect) {
+    if (!Number.isFinite(at)) continue;
+    const m = S.nextMilestone(save, w);
+    if (m?.entrance && S.isDue(save, m, live.day) && !sceneReady()) continue; // 走進來就是演出的：要等店裡安靜下來，時間說不準
+    best = Math.min(best ?? Infinity, Math.max(0, at - t) * DEV_SPEED);
+  }
+  return best;
+}
+function waitTick() {
+  const next = nextArrivalMs();
+  if (next !== null && next <= S.APPROACH_MS && !waiting.approach) {
+    waiting.approach = { until: performance.now() + (next + 4000) / DEV_SPEED };
+    audio.play('steps');
+    ringDoorBell();
+  }
+  if (waiting.approach && performance.now() > waiting.approach.until) waiting.approach = null;
+  const here = PEOPLE_IDS.some((w) => PEOPLE[w].visible);
+  const idleMs = (performance.now() - Math.max(state.satAt || 0, sayEnds, waiting.quietFrom)) * DEV_SPEED;
+  const line = S.waitHint({ approaching: !!waiting.approach, nextMs: next, idleMs, here });
+  if (line !== waiting.line) { waiting.line = line; updateUI(); }
+}
+setInterval(waitTick, 500);
 
 // 測試用：熟客這邊還有沒有事情要發生（正在演、還沒走進來、或有里程碑等著演）
 // withGuest：德叔準備邀請老闆當一次客人，也算還有事（測試快轉天數時不會跳過）
@@ -4646,7 +4682,9 @@ if (DEV) {
     get departureDue() { return F.departureDue(save, today()); },
     get enamelOnTable() { return cups.some((c) => c.userData.enamel); },
     say(text, ms = 6000) { say(text, ms); }, // 美術評分修正 c：讓德叔說一句，測試泡泡的位置
+    // 承峰 11/3 回饋：完成任務的小紙條（現在顯示的、出現過的）、等客人的狀態；note() 直接放一張紙條（截圖用）
     get door() { return { open: Math.round(doorMotion.open * 100) / 100, visible: frontWall.visible && door.visible, stub: frontStub.visible }; },
+    get waitHint() { return { line: waiting.line, approach: !!waiting.approach, next: nextArrivalMs(), hint: $('hint').hidden ? '' : $('hint').textContent, breathe: $('hint').classList.contains('breathe') }; },
     // 承峰 11/3 回饋：坐著時直接轉頭到某個角度（截圖用；和手指拖曳一樣受座位的轉頭範圍限制）
     look(yaw = 0, pitch = 0) { if (state.mode !== 'seat') return false; focusP = null; lookTok++; cam.yaw = THREE.MathUtils.clamp(yaw, ...yawRange()); cam.pitch = THREE.MathUtils.clamp(pitch, -0.35, 0.35); return true; },
     // 美術評分修正 c：鏡頭停好了（沒有在移動、轉向，推近也到了），全流程截圖等這個再拍

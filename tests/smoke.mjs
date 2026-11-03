@@ -722,6 +722,35 @@ try {
     await page.close();
   }
 
+  /* ---------- 承峰 11/3 試玩回饋：門口有門、等客人的提示（D178、D179） ---------- */
+  console.log('手機 390×844（門口與等客人）');
+  {
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=4&opening=0&weather=clear');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    check((await cafe('door')).stub && !(await cafe('door')).visible, '俯瞰：前牆收起來，門口留出缺口（剖面＋門檻＋腳踏墊）');
+    await page.click('.seat-label >> text=角落沙發');
+    await page.waitForTimeout(1500);
+    await page.mouse.click(195, 300); // 點一下畫面：聲音開始（瀏覽器要使用者先互動）
+    check((await cafe('door')).visible && !(await cafe('door')).stub, '坐下：前牆上有門');
+    await page.evaluate(() => window.__cafe.look(-1.2));
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: OUT + 'phone-door-sofa.png' });
+    // 第 1 天阿哲會來：走進門之前幾秒，提示列寫「好像有人往這邊走來了……」，門外有腳步聲
+    await page.waitForFunction(() => window.__cafe.waitHint.approach, null, { timeout: 30000 });
+    const w = await cafe('waitHint');
+    check(w.hint === '好像有人往這邊走來了……' && w.breathe, `有人快走到門口：${w.hint}`);
+    { const au = await cafe('audio'); check((au.sfx.steps || 0) >= 1, `門外有腳步聲（${au.ctx}）`); }
+    check(!(await cafe('here')).includes('zhe'), '腳步聲在阿哲走進門之前');
+    await page.waitForFunction(() => window.__cafe.here.includes('zhe'), null, { timeout: 15000 });
+    await page.waitForFunction(() => window.__cafe.door.open > 0.05, null, { timeout: 3000 });
+    check(true, '阿哲推門進來：門往店裡開');
+    await page.waitForFunction(() => window.__cafe.scene, null, { timeout: 30000 });
+    const sh = await cafe('waitHint');
+    check(sh.hint === '什麼都不用做，在這裡就好' && sh.breathe, '熟客場景的提示一字不改，提示列慢慢呼吸');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+
   /* ---------- 階段 4：雨天坐窗邊、颱風夜的畫面 ---------- */
   console.log('手機 390×844（雨天）');
   {

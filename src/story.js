@@ -49,6 +49,29 @@ export const AFTER_TYPHOON = '颱風過了。台階上都是葉子，我掃了�
 export const SCENE_HINT = '什麼都不用做，在這裡就好';
 export const sceneHint = (m) => (m && !m.noHint ? SCENE_HINT : '');
 
+// 等客人的時候，畫面底部的提示（承峰 11/3 試玩回饋：「要玩家等，但要等啥沒讓玩家知道，會以為當機了」，D179）
+// 不催促、不報時間，只讓玩家知道店還活著、有人會來（或今天不會再有人來，也沒關係）。
+// approach：有熟客快走到門口（門外同時有腳步聲、門上的鈴輕輕晃）；soon：一分半鐘內有人會來；
+// later：今天還有人會來，但還要一陣子；quiet：今天不會再有人來，店裡也沒有人
+export const WAIT_HINT = {
+  approach: '好像有人往這邊走來了……', // 【待定】
+  soon: '店裡很安靜。等一下，也許會有人推門進來', // 【待定】
+  later: '晚一點也許還會有人來。想待多久都可以', // 【待定】
+  quiet: '今天店裡很安靜。想待多久都可以', // 【待定】
+};
+export const APPROACH_MS = 7000; // 有人走進門之前幾毫秒開始有腳步聲
+export const WAIT_IDLE_MS = 20000; // 坐著、沒有人說話超過這麼久，才把操作說明換成等待的句子
+export const WAIT_SOON_MS = 90000;
+// 坐著、沒在沖咖啡時的提示：回傳 '' 表示照舊顯示操作說明（左右拖曳環顧四周，點人物可以搭話）
+// nextMs：下一位熟客還有幾毫秒走進門（今天沒有人要來是 null）；idleMs：多久沒有人說話；here：店裡有沒有熟客
+export function waitHint({ approaching = false, nextMs = null, idleMs = 0, here = false } = {}) {
+  if (approaching) return WAIT_HINT.approach;
+  if (idleMs < WAIT_IDLE_MS) return '';
+  if (nextMs !== null && nextMs <= WAIT_SOON_MS) return WAIT_HINT.soon;
+  if (here) return ''; // 有人在店裡：點人物可以搭話，這句比較有用
+  return nextMs !== null ? WAIT_HINT.later : WAIT_HINT.quiet;
+}
+
 // 場景步驟（main.js 依序演出）：
 //   say：角色說話（who 可以是 deshu、yuan、zhe、kevin、grandpa、boss、player）；name：泡泡上的名字（覆寫）
 //   wait：停一下（秒）；look：坐著時鏡頭轉向某人；pose：換姿勢；enter／walk／leave：走進來、走到某處、離開
@@ -364,6 +387,7 @@ export function allLines() {
     if (m.needClosingHint) out.push(m.needClosingHint);
     walk(m.scene);
   }
+  out.push(...Object.values(WAIT_HINT));
   for (const list of Object.values(TALK)) for (const t of list) out.push(...t.lines);
   out.push(AFTER_TYPHOON, ...Object.values(DOCS).flatMap((d) => d.paragraphs));
   return out;

@@ -267,6 +267,13 @@ export function createAudio({ AudioContextClass = globalThis.AudioContext || glo
       case 'thunder': // 颱風夜的閃電之後：遠遠的悶雷
         noiseSrc(t + 0.4 + Math.random() * 0.8, 2.6, out, { type: 'lowpass', freq: 160, q: 0.7, gain: 0.35, attack: 0.25, release: 0.9 });
         break;
+      case 'steps': // 門外的腳步聲（承峰 11/3 回饋）：石板路上五步，由遠走近，悶悶的、很小聲
+        for (let i = 0; i < 5; i++) {
+          const tt = t + i * 0.52 + Math.random() * 0.06, v = 0.35 + i * 0.16;
+          noiseSrc(tt, 0.05, out, { type: 'lowpass', freq: 380 + i * 30, gain: 0.05 * v, attack: 0.004, release: 0.07 });
+          tone(tt, 85 + Math.random() * 10, 0.004, out, { gain: 0.018 * v, decay: 0.05 });
+        }
+        break;
       case 'door': // 推門：老木門低低的一聲
         noiseSrc(t, 0.5, out, { type: 'lowpass', freq: 380, gain: 0.08, attack: 0.08, release: 0.2 });
         break;
