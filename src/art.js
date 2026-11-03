@@ -1946,6 +1946,61 @@ export function note() {
   return c;
 }
 
+/* ---------- 熟客最愛的咖啡：照片（承峰 11/4 Q75、Q76；favorites.js 的 PHOTOS） ---------- */
+// 一段一張圖（D192：只用一張圖加程式動態）：assets/art/photo_<人>_<段>.webp，橫式 4:3（建議 2048×1536，不透明）。
+// 照片不在開店時一起載（九張大圖會拖慢進店），第一次要用（淡入、打開相簿）時才下載；之後同一場遊戲用同一個 object URL。
+// 沒有這張圖（還沒畫：404）、解不開時回傳 null，呼叫端改用 photoPlaceholder()。把畫好的檔案放進 assets/art/ 就會自動換上，不用改程式
+const photoCache = new Map();
+export function photoUrl(file) {
+  if (!photoCache.has(file)) {
+    photoCache.set(file, (async () => {
+      if (typeof fetch !== 'function' || typeof createImageBitmap !== 'function') return null;
+      try {
+        const res = await fetch(new URL(`../assets/art/${file}.webp`, import.meta.url));
+        if (!res.ok) return null;
+        const blob = await res.blob();
+        const bmp = await createImageBitmap(blob); // 解得開才算數
+        bmp.close?.();
+        return URL.createObjectURL(blob);
+      } catch { return null; }
+    })());
+  }
+  return photoCache.get(file);
+}
+// 照片還沒畫之前的佔位圖（程式畫的，不是美術）：暖色的底、虛線框，正中間寫「照片待畫」與檔名，下面一行是這張照片的說明。
+// 一看就知道是暫代的；同一張只畫一次
+const placeholderCache = new Map();
+export function photoPlaceholder(file, caption = '') {
+  if (placeholderCache.has(file)) return placeholderCache.get(file);
+  const W = 1024, H = 768;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const bg = g.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#6b5240'); bg.addColorStop(1, '#3e2f25');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W * 0.62, H * 0.38, 20, W * 0.62, H * 0.38, W * 0.6);
+  glow.addColorStop(0, 'rgba(255,214,150,.35)'); glow.addColorStop(1, 'rgba(255,214,150,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,240,215,.55)'; g.lineWidth = 6; g.setLineDash([26, 18]);
+  g.strokeRect(48, 48, W - 96, H - 96);
+  g.setLineDash([]);
+  g.fillStyle = '#fff3dd'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = 'bold 76px "PingFang TC","Noto Sans TC",sans-serif';
+  g.fillText('照片待畫', W / 2, H / 2 - 70); // 佔位圖的字（不是正式文字）
+  g.font = '44px ui-monospace,Consolas,monospace';
+  g.fillText(`${file}.webp`, W / 2, H / 2 + 20);
+  if (caption) {
+    g.globalAlpha = 0.75;
+    g.font = '34px "PingFang TC","Noto Sans TC",sans-serif';
+    g.fillText(caption, W / 2, H / 2 + 110, W - 160);
+    g.globalAlpha = 1;
+  }
+  const url = c.toDataURL('image/png');
+  placeholderCache.set(file, url);
+  return url;
+}
+
 export const SIZES = { PPM, HI };
 // 一張圖每公尺幾個像素（程式畫的圖記在 c.ppm；之後換成手繪圖檔時沒有這個欄位，用預設的 PPM）
 export const ppmOf = (c) => c?.ppm || PPM;

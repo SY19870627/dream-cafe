@@ -13,6 +13,8 @@
 // 接正式美術：角色與龍眼的材質來自 assets/art；攔下 assets/art 的請求（斷線、404、解碼錯誤）時退回 Canvas 繪圖，照樣坐下、沖一杯、沒有 JS 錯誤。
 // 接正式美術第二批（art2a）：店內的材質、窗景、家具與小道具也來自 assets/art，全部失敗時一樣退回 Canvas 繪圖。
 // 承峰 11/3 第二輪回饋：店裡的小事（擺飾第一次擺出來的反應、第 1 天予安探頭、店內小事件、&idle=N）。
+// 熟客最愛的咖啡（承峰 11/4 Q75～Q78）：點熟客出現「請德叔端一杯給他」、從黑板選、端錯的溫和反應與一天一杯、錯兩次的提示、端對淡入照片（佔位圖）、
+// 劇情演出中不出現、找到最愛溫度 +0.5°C、相簿有空格、記事本的入口、重新整理後還在。
 // 點黑板打開菜單本（D191）：角落沙發、吧台座、看德叔沖點黑板打開菜單本，點到黑板前面的德叔照舊搭話，拖曳、選項、佈置時不開；
 // 黑板菜單（D185～D188）：菜單本（佈置模式的「菜單」、記事本）、寫上／擦掉／寫滿時換一行、最後一杯喝的擦不掉、德叔照黑板沖、
 // 德叔換黑板只換黑板上真的有的東西、重新整理後黑板還在、還沒解鎖的品項看不到。
@@ -1039,6 +1041,117 @@ try {
     await page.touchscreen.tap(bv.tap.pageX, bv.tap.pageY);
     await page.waitForTimeout(300);
     check(await page.evaluate(() => window.__cafe.menu.open), `觸控：坐角落沙發用手指點黑板（${bv.tap.pageX}, ${bv.tap.pageY}）打開菜單本`);
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await ctx.close();
+  }
+
+  /* ---------- 熟客最愛的咖啡、相簿（承峰 11/4 Q75～Q78，favorites.js） ---------- */
+  console.log('手機 390×844（熟客最愛的咖啡、相簿）');
+  {
+    // 觸控的手機（isMobile、hasTouch、deviceScaleFactor 2）。照片還沒畫：assets/art/photo_*.webp 是 404，
+    // 瀏覽器會記一筆「Failed to load resource」（網路層的訊息，不是 JS 錯誤），只放過照片的那幾筆
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    page.on('console', (m) => { if (m.type() === 'error' && !/\/assets\/art\/photo_/.test(m.location().url || '')) errors.push(`console: ${m.text()}`); });
+    await page.goto(url + '?dev=1&speed=8&opening=0&weather=clear&moments=0&board=dongshan,black,iced,longan');
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(2200);
+    const fav = () => page.evaluate(() => window.__cafe.fav);
+    const choices = () => page.$$eval('#choices button', (b) => b.map((x) => x.textContent));
+    const tapPerson = async (w) => { const p = await page.evaluate((w) => window.__cafe.personOnScreen(w), w); await page.touchscreen.tap(p.x, p.y); await page.waitForTimeout(500); };
+    check(!!(await page.evaluate(() => window.__cafe.favSetup('yuan', 1))), '予安走到第一段、人在店裡');
+    check((await fav()).offerable.yuan, '予安可以收老闆請的那杯');
+    await tapPerson('yuan');
+    check(JSON.stringify(await choices()) === JSON.stringify(['請德叔端一杯給予安', '只是聊聊']), `點予安搭話：下方多一個「請德叔端一杯給予安」（${(await choices()).join('、')}）`);
+    await page.screenshot({ path: OUT + 'phone-fav-offer.png' });
+    await page.tap('#choices button >> text=只是聊聊');
+    await page.waitForTimeout(300);
+    check((await choices()).length === 0 && (await fav()).log.length === 0, '「只是聊聊」：照舊只搭話，沒有端');
+    await page.waitForTimeout(400);
+    await tapPerson('yuan');
+    await page.tap('#choices button >> nth=0');
+    await page.waitForTimeout(400);
+    const drinks = await choices();
+    check(JSON.stringify(drinks) === JSON.stringify(['東山的豆', '黑咖啡', '冰美式', '再想想']), `從黑板上喝的東西選（${drinks.join('、')}）`);
+    check(/要端哪一杯給予安/.test(await page.textContent('#ask')), '選項上面問「要端哪一杯給予安？」');
+    await page.screenshot({ path: OUT + 'phone-fav-drinks.png' });
+    await page.tap('#choices button >> text=東山的豆');
+    await page.waitForTimeout(300);
+    check((await fav()).busy === 'yuan' && !(await page.isVisible('#place')), '端過去的時候：下面的按鈕收起來');
+    await page.waitForFunction(() => window.__cafe.fav.log.length === 1, null, { timeout: 40000 });
+    const miss = (await fav()).log[0];
+    check(miss.right === false && miss.hint === '' && !(await fav()).photoOpen, `端錯：予安照喝、說一句溫和的話（${miss.line}），沒有照片、沒有提示`);
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: OUT + 'phone-fav-miss.png' });
+    await page.waitForFunction(() => !window.__cafe.fav.busy, null, { timeout: 30000 });
+    const f1 = await fav();
+    check(f1.favorites.yuan.misses === 1 && f1.favorites.yuan.stage === 0 && !f1.offerable.yuan, '一天一杯：今天收過了就不再出現選項');
+    await page.waitForTimeout(400);
+    await tapPerson('yuan');
+    check(!(await choices()).includes('請德叔端一杯給予安'), '再點予安：只搭話');
+    // 同一段端錯第二次：德叔說一句更靠近的話
+    await page.evaluate(() => window.__cafe.favSetup('yuan', 1, { misses: 1 }));
+    const r2 = await page.evaluate(() => window.__cafe.favServe('yuan', 'iced'));
+    check(r2 && !r2.right && /黑的/.test(r2.hint), `同一段端錯第二次：德叔「${r2?.hint}」`);
+    // 端對：淡入照片（佔位圖）
+    await page.evaluate(() => window.__cafe.favSetup('yuan', 1));
+    const right = page.evaluate(() => window.__cafe.favServe('yuan', 'black'));
+    await page.waitForFunction(() => window.__cafe.fav.photoShow, null, { timeout: 40000 });
+    const ph = await fav();
+    check(ph.photoFile === 'photo_yuan_1' && ph.placeholder, '端對：畫面淡入予安第一段的照片（還沒畫：程式畫的佔位圖）');
+    check(await page.evaluate(() => document.getElementById('app').classList.contains('modal')), '照片開著時，場景上的按鈕、泡泡收起來');
+    await page.waitForTimeout(2200);
+    await page.screenshot({ path: OUT + 'phone-fav-photo.png' });
+    const rr = await right;
+    check(rr?.right && rr.first && rr.photo === 'yuan-1' && !(await fav()).photoOpen, '照片幾秒後自己淡回店裡；第一張照片');
+    check((await page.evaluate(() => window.__cafe.moments.lastSaid?.text)) === '這張，我收進記事本的相簿了。', '第一張照片：德叔說收進記事本的相簿');
+    // 劇情演出中不出現這個選項
+    await page.evaluate(() => window.__cafe.favSetup('zhe', 1, { alone: false }));
+    check((await fav()).offerable.zhe, '阿哲第一段開放、人在店裡');
+    await page.evaluate(() => window.__cafe.playScene('zhe2'));
+    await page.waitForTimeout(300);
+    check(!(await fav()).offerable.zhe && !(await fav()).offerable.yuan, '熟客劇情演出中：不能請德叔端一杯');
+    await page.waitForFunction(() => !window.__cafe.scene, null, { timeout: 60000 });
+    // 找到最愛：溫度 +0.5°C
+    await page.evaluate(() => window.__cafe.favSetup('kevin', 3));
+    const t0 = (await fav()).temp;
+    const fr = await page.evaluate(() => window.__cafe.favServe('kevin', 'dongshan'));
+    await page.waitForTimeout(2600);
+    check(fr?.right && fr.favorite && (await fav()).temp === Math.round((t0 + 0.5) * 10) / 10, `凱文第三段「老闆的那杯」（老闆還沒喝過：東山的豆）：找到最愛，溫度 ${t0} → ${(await fav()).temp}°C`);
+    check((await page.evaluate(() => window.__cafe.shownTemp)) >= t0 + 0.49, '右上角的溫度跟著升上去');
+    // 相簿：見過的熟客一列三格，拿到的是照片，還沒拿到的是空格
+    await page.evaluate(() => window.__cafe.album());
+    await page.waitForTimeout(600);
+    const al = (await fav()).album;
+    check(al.open && al.slots === 9 && al.empty === 5, `相簿：三位熟客九格，拿到 4 張、空格 ${al.empty} 格`);
+    check(await page.$$eval('.album-slot.empty', (els) => els.every((e) => !e.textContent.trim() && e.tagName !== 'BUTTON')), '空格不寫字、不能點');
+    check(/^凱文：老闆的那杯（東山的豆）。$/.test(await page.textContent('.album-fav')), '三段都找到的那一頁：最後一句寫他的最愛');
+    await page.screenshot({ path: OUT + 'phone-fav-album.png' });
+    check((await smallTargets(page)).length === 0, `相簿的按鈕 ≥ 44px ${JSON.stringify(await smallTargets(page))}`);
+    await page.tap('.album-slot:not(.empty) >> nth=0');
+    await page.waitForTimeout(1800);
+    check((await fav()).photoOpen && await page.isVisible('#photo-close'), '點縮圖看大圖（有「闔上」）');
+    await page.tap('#photo-close');
+    await page.waitForTimeout(1500);
+    check(!(await fav()).photoOpen && (await fav()).album.open, '闔上大圖回到相簿');
+    await page.tap('#sheet-close');
+    await page.evaluate(() => { document.getElementById('menu-btn').click(); });
+    await page.waitForTimeout(300);
+    await page.evaluate(() => document.getElementById('open-notebook').click());
+    await page.waitForTimeout(300);
+    check(await page.isVisible('#nb-links button >> text=相簿'), '記事本有「相簿」');
+    await page.tap('#nb-links button >> text=相簿');
+    await page.waitForTimeout(400);
+    check((await fav()).album.open, '從記事本打開相簿');
+    await page.tap('#sheet-close');
+    // 重新整理：照片、段落還在
+    await page.reload();
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(1800);
+    const after = await fav();
+    check(after.photos.length === 4 && after.favorites.kevin.stage === 3 && after.favorites.yuan.stage === 1, '重新整理：相簿與段落存在存檔裡');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await ctx.close();
   }

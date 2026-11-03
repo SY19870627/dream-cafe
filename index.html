@@ -160,6 +160,32 @@
   .sheet-row button:disabled { opacity: .45; }
   #sheet-list .wide { width: 100%; margin-top: 10px; }
   #nb-menu { margin-top: 6px; font-size: 14px; padding: 8px 10px; background: #fff; border: 1px solid rgba(59,42,32,.35); box-shadow: none; }
+  /* 相簿（熟客最愛的咖啡，Q75～Q77）：一位熟客一列三格；拿到的照片是縮圖（程式在執行時縮，圖本身不另外畫縮圖），還沒拿到的是空格（Q77） */
+  .album-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 6px; }
+  .album-slot { position: relative; aspect-ratio: 4 / 3; border-radius: 6px; overflow: hidden; padding: 0; min-height: 44px; border: 0; box-shadow: 0 2px 6px rgba(0,0,0,.18); background: #fbf6ec; }
+  .album-slot img { position: absolute; inset: 4px; width: calc(100% - 8px); height: calc(100% - 8px); object-fit: cover; border-radius: 2px; }
+  /* 空格：淡淡的一個框，不寫字、不寫數字、不能點（Q77：安靜、不催促） */
+  .album-slot.empty { background: transparent; box-shadow: none; border: 1.5px dashed rgba(59,42,32,.22); pointer-events: none; }
+  .album-cap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 4px; font-size: 12px; line-height: 1.35; opacity: .8; }
+  .album-cap small { display: block; opacity: .7; }
+  .album-fav { margin: 4px 0 10px; font-size: 13.5px; color: #7a4a2c; }
+  /* 端對時淡入的照片（Q76「照片是回憶畫面」）：照片外的白邊與陰影由程式畫，圖裡不畫相框；淡入、極慢的推近、一道暖光由 CSS 做（D192） */
+  #photo { position: absolute; inset: 0; z-index: 13; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px;
+    background: rgba(20,14,10,.72); opacity: 0; transition: opacity 1.6s ease; }
+  #photo.show { opacity: 1; }
+  #photo .photo-frame { margin: 0; width: min(100%, 520px); background: #fbf6ec; padding: 10px 10px 0; border-radius: 3px; box-shadow: 0 14px 34px rgba(0,0,0,.5);
+    transform: rotate(-1.2deg) translateY(10px); transition: transform 2.4s ease; }
+  #photo.show .photo-frame { transform: rotate(-1.2deg) translateY(0); }
+  #photo .photo-img { position: relative; overflow: hidden; aspect-ratio: 4 / 3; background: #3a2e25; }
+  #photo .photo-img img { width: 100%; height: 100%; object-fit: cover; display: block; transform: scale(1.0); transform-origin: 55% 45%; transition: transform 12s cubic-bezier(.2,.4,.3,1); filter: sepia(.12) saturate(.95); }
+  #photo.show .photo-img img { transform: scale(1.07); }
+  #photo .photo-light { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
+    background: linear-gradient(110deg, transparent 35%, rgba(255,222,160,.26) 50%, transparent 65%); background-size: 260% 100%; background-position: 120% 0; }
+  #photo.show .photo-light { animation: photo-light 7s ease-in-out .6s both; }
+  @keyframes photo-light { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+  #photo figcaption { padding: 10px 6px 14px; text-align: center; font-size: 15px; line-height: 1.5; color: #4a3a2c; }
+  #photo figcaption small { display: block; font-size: 12px; opacity: .65; }
+  #photo-close { min-height: 44px; min-width: 120px; }
   /* 泡泡：位置由 main.js 的 layoutOverlays() 決定（避開頂部介面與座位標籤）；收起來時淡出後整個不畫 */
   #bubble { position: absolute; left: 0; top: 0; max-width: 220px; background: #fffaf0; border: 2px solid var(--ink);
     border-radius: 14px; padding: 8px 12px; font-size: 14px; line-height: 1.4; pointer-events: none;
@@ -519,6 +545,11 @@
     </div>
   </div>
   <div id="fade"></div>
+  <!-- 熟客最愛的咖啡：端對時淡入的照片（回憶畫面）、相簿裡點縮圖看的大圖 -->
+  <div id="photo" hidden role="dialog" aria-modal="true" aria-label="照片">
+    <figure class="photo-frame"><div class="photo-img"><img id="photo-img" alt=""><i class="photo-light"></i></div><figcaption id="photo-cap"></figcaption></figure>
+    <button id="photo-close" hidden>闔上</button>
+  </div>
   <!-- 開場：第一幕到第三幕（新存檔才會出現），由 src/opening.js 建立 -->
   <div id="opening" hidden></div>
 </div>
