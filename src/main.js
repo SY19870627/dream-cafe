@@ -633,6 +633,121 @@ const envelope = paper(A.envelope(), 1.8, -0.75, { y: TOP, shadow: false });
 envelope.userData.mesh.scale.setScalar(1.7); // 從俯瞰鏡頭也看得到
 envelope.userData.squash = 1.7; // 高度由 faceCamera() 每一格設（俯瞰時會拉長）
 envelope.visible = false;
+/* ---------- 門口（承峰 11/3 試玩回饋：「門口沒有門，只有牆」，D178） ---------- */
+// 客人從前牆 x 0.15 的地方進出（DOOR_IN），原本那裡只有一整片牆。還沒有門的手繪圖：先用程式的幾何＋現有材質（吧台正面的木板、
+// 檯面的木頭）做一扇老木門：門框、下半木板、上半四格玻璃（看得到窗景）、黃銅把手、門楣上的黃銅小鈴。
+// 門與門外的景掛在前牆底下，跟著前牆只在坐下時出現；門檻與門口的腳踏墊在地上，俯瞰也看得到門在哪裡。
+// 有人推門進來或走出去時門往店裡開、鈴晃一下（swingDoor()）；有人快走到門口時鈴先輕輕晃（ringDoorBell()）
+const DOORWAY = { x: 0.15, w: 0.92, h: 2.1, jamb: 0.08 };
+const doorWood = lambert(texRepeat(counterFrontTex, DOORWAY.w / 1.7, 0.72));
+doorWood.map.offset.y = 0.28; // 吧台正面的材質下緣是一段磨石子踢腳：門板只用上面的木板
+const doorTrim = new THREE.MeshLambertMaterial({ color: '#5b3b27' });
+const brass = new THREE.MeshLambertMaterial({ color: '#c9a04a', emissive: '#3a2a10' });
+const doorView = new Map(); // 窗景裁成直的一條（門的比例），白天／夜裡、天氣各一張
+function doorViewTex(night, weather) {
+  const k = `${night}:${weather}`;
+  if (!doorView.has(k)) {
+    const t = winTex(night, weather).clone();
+    t.repeat.set((DOORWAY.w / DOORWAY.h) / (1.6 / 1.3), 1);
+    t.offset.set(0.5 - t.repeat.x / 2, 0);
+    t.needsUpdate = true;
+    doorView.set(k, t);
+  }
+  return doorView.get(k);
+}
+const door = new THREE.Group(); // 前牆的子物件：前牆轉了 180°，所以 x 要反過來、+z 朝店裡
+door.position.set(-DOORWAY.x, 0, 0);
+frontWall.add(door);
+const doorOutside = new THREE.Mesh(new THREE.PlaneGeometry(DOORWAY.w, DOORWAY.h), new THREE.MeshBasicMaterial({ map: doorViewTex(false, 'clear') }));
+doorOutside.position.set(0, DOORWAY.h / 2, 0.004);
+door.add(doorOutside);
+{
+  const J = DOORWAY.jamb, W = DOORWAY.w, H = DOORWAY.h;
+  const side = new THREE.BoxGeometry(J, H + J, 0.07);
+  for (const s of [-1, 1]) { const m = new THREE.Mesh(side, doorTrim); m.position.set(s * (W + J) / 2, (H + J) / 2, 0.035); door.add(m); }
+  const head = new THREE.Mesh(new THREE.BoxGeometry(W + 2 * J + 0.06, J + 0.02, 0.09), doorTrim);
+  head.position.set(0, H + J / 2 + 0.01, 0.045);
+  door.add(head);
+}
+// 門板：鉸鏈在前牆的本地 −x（從店裡看過去是左邊），往店裡開
+const doorLeaf = new THREE.Group();
+doorLeaf.position.set(-DOORWAY.w / 2, 0, 0.03);
+door.add(doorLeaf);
+{
+  const W = DOORWAY.w - 0.01, H = DOORWAY.h - 0.01, T = 0.045, S = 0.09, low = 0.95;
+  const box = (w, h, x, y, mat, d = T) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, 0); doorLeaf.add(m); return m; };
+  const cx = W / 2; // 門板的本地座標從鉸鏈算起
+  box(W - 2 * S, low - S, cx, S + (low - S) / 2, doorWood, T * 0.7); // 下半的木板
+  box(S, H, S / 2, H / 2, doorTrim); box(S, H, W - S / 2, H / 2, doorTrim); // 左右門梃
+  box(W, S, cx, S / 2, doorTrim); box(W, S * 0.8, cx, low, doorTrim); box(W, S, cx, H - S / 2, doorTrim); // 下、中、上冒頭
+  box(0.035, H - low - S, cx, (low + H - S) / 2, doorTrim, T * 0.8); // 玻璃的直櫺
+  box(W - 2 * S, 0.03, cx, (low + H - S) / 2 + 0.02, doorTrim, T * 0.8); // 玻璃的橫櫺
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(W - 2 * S, H - low - S), new THREE.MeshBasicMaterial({ color: '#fff3dc', transparent: true, opacity: 0.16, depthWrite: false }));
+  glass.position.set(cx, (low + H - S) / 2, 0.004);
+  doorLeaf.add(glass);
+  // 把手（店裡那一側，鉸鏈的另一邊）
+  const plate = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.2, 0.01), brass);
+  plate.position.set(W - 0.1, 1.0, T / 2 + 0.005);
+  const knob = cyl(0.022, 0.022, 0.05, brass, 12); knob.rotation.x = Math.PI / 2; knob.position.set(W - 0.1, 0.98, T / 2 + 0.03);
+  doorLeaf.add(plate, knob);
+}
+// 門楣上的黃銅小鈴：吊在門開的那一邊，門一推就碰到
+const doorBell = new THREE.Group();
+doorBell.position.set(DOORWAY.w / 2 - 0.18, DOORWAY.h - 0.02, 0.11);
+{
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.09), brass); arm.position.set(0, 0.03, -0.04);
+  const string = cyl(0.003, 0.003, 0.08, doorTrim, 6); string.position.y = -0.01;
+  const cup = cyl(0.012, 0.038, 0.06, brass, 16, true); cup.position.y = -0.08; cup.material.side = THREE.DoubleSide;
+  const clap = new THREE.Mesh(new THREE.SphereGeometry(0.01, 8, 6), doorTrim); clap.position.y = -0.11;
+  doorBell.add(arm, string, cup, clap);
+}
+door.add(doorBell);
+// 門檻與腳踏墊（地上，不跟前牆一起收起來）
+const threshold = new THREE.Mesh(new THREE.BoxGeometry(DOORWAY.w + 2 * DOORWAY.jamb, 0.025, 0.14), new THREE.MeshLambertMaterial({ color: '#a8977f' })); // 磨石子門檻
+threshold.position.set(DOORWAY.x, 0.0125, ROOM.d / 2 - 0.07);
+scene.add(threshold);
+const doorMat = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.5), lambert(A.tex(A.doorMat())));
+doorMat.rotation.x = -Math.PI / 2;
+doorMat.position.set(DOORWAY.x, 0.006, ROOM.d / 2 - 0.42);
+scene.add(doorMat);
+// 俯瞰時前牆收起來：改成一道矮矮的剖面（紅磚＋木壓條），門口那一段留空，看得出客人從哪裡進來
+const frontStub = new THREE.Group();
+const capWood = new THREE.MeshLambertMaterial({ color: '#9a5a33' }); // 比門框亮、比地板深的木壓條：門口的缺口才看得出來
+{
+  const SH = 0.45, gap0 = DOORWAY.x - DOORWAY.w / 2 - DOORWAY.jamb, gap1 = DOORWAY.x + DOORWAY.w / 2 + DOORWAY.jamb;
+  for (const [x0, x1] of [[-ROOM.w / 2, gap0], [gap1, ROOM.w / 2]]) {
+    const w = x1 - x0;
+    const brick = new THREE.Mesh(new THREE.BoxGeometry(w, SH, 0.1), lambert(texRepeat(wainscotTex, w, SH)));
+    brick.position.set((x0 + x1) / 2, SH / 2, ROOM.d / 2 - 0.05);
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(w, 0.03, 0.14), capWood);
+    cap.position.set((x0 + x1) / 2, SH + 0.015, ROOM.d / 2 - 0.05);
+    frontStub.add(brick, cap);
+  }
+  for (const s of [-1, 1]) { // 門框的兩根柱子，同樣剖到這個高度
+    const post = new THREE.Mesh(new THREE.BoxGeometry(DOORWAY.jamb, SH + 0.15, 0.16), doorTrim);
+    post.position.set(DOORWAY.x + s * (DOORWAY.w + DOORWAY.jamb) / 2, (SH + 0.15) / 2, ROOM.d / 2 - 0.05);
+    frontStub.add(post);
+  }
+}
+scene.add(frontStub);
+// 門的動作：open 0～1（1＝開到約 75°），bell 是鈴擺動的幅度，每一格衰減
+const doorMotion = { open: 0, want: 0, holdUntil: 0, bell: 0, phase: 0 };
+function swingDoor(holdMs = 1600) {
+  doorMotion.want = 1;
+  doorMotion.holdUntil = performance.now() + holdMs / speedNow();
+  doorMotion.bell = Math.max(doorMotion.bell, 0.6);
+}
+function ringDoorBell(amount = 0.22) { doorMotion.bell = Math.max(doorMotion.bell, amount); }
+function updateDoor(dt) {
+  const m = doorMotion;
+  if (m.want && performance.now() > m.holdUntil) m.want = 0;
+  const k = Math.min(1, dt * (m.want ? 2.4 : 1.6) * speedNow());
+  m.open += (m.want - m.open) * k;
+  doorLeaf.rotation.y = -m.open * 1.3;
+  m.phase += dt * 9;
+  m.bell *= Math.exp(-dt * 1.4);
+  doorBell.rotation.z = Math.sin(m.phase) * m.bell * 0.6;
+}
 // 門口的徵才啟事：告別第 2 段貼出去，凱文來面試之後收起來
 const noticeSign = paper(A.noticeBoard(''), 0.95, 3.45, { name: 'notice' });
 let noticeDrawn = '';
@@ -1541,6 +1656,7 @@ function applyLight() {
   sun.intensity = n ? 0 : wet ? 0.6 : 2.0;
   applyLamps(); // 吊燈的亮度每一幀由 updateLights() 依開關慢慢調
   for (const w of windows) { w.material.map = winTex(n, state.weather); w.material.needsUpdate = true; }
+  doorOutside.material.map = doorViewTex(n, state.weather); doorOutside.material.needsUpdate = true;
   // 夜裡（打烊、颱風夜）人物與龍眼帶一點自己的光：站在吊燈前面背光時，才不會只剩一個黑影
   for (const p of [deshu, yuan, zhe, kevin, grandpa, cat]) {
     const m = p.userData.mesh.material;
@@ -2307,6 +2423,7 @@ function setHold(on) {
   state.hold = on;
   updateUI();
 }
+const yawRange = () => [-1.2, 1.2]; // 坐著時左右轉頭的範圍（弧度）
 renderer.domElement.addEventListener('pointerdown', (e) => {
   down = { x: e.clientX, y: e.clientY, t: performance.now(), yaw: cam.yaw, pitch: cam.pitch, held: brewing };
   setHold(true);
@@ -2316,7 +2433,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   if (!down) return;
   const dx = e.clientX - down.x, dy = e.clientY - down.y;
   if (state.mode === 'seat') {
-    cam.yaw = THREE.MathUtils.clamp(down.yaw + dx * 0.004, -1.2, 1.2);
+    cam.yaw = THREE.MathUtils.clamp(down.yaw + dx * 0.004, ...yawRange());
     cam.pitch = THREE.MathUtils.clamp(down.pitch - dy * 0.003, -0.35, 0.35);
   } else if (!state.placing) {
     cam.yaw = THREE.MathUtils.clamp(down.yaw - dx * 0.004, -0.6, 0.6);
@@ -2755,6 +2872,7 @@ async function enterPerson(w, spot, walkPose, thenPose, fast) {
   p.position.copy(DOOR_IN);
   p.visible = true;
   if (!(w === 'grandpa' && PEOPLE.zhe.visible && PEOPLE.zhe.position.distanceTo(DOOR_IN) < 1)) audio.play('bell'); // 有人推門進來（阿公跟在阿哲後面，鈴只響一次）
+  swingDoor(w === 'grandpa' ? 3200 : 1600); // 阿公走得慢：門開久一點
   if (!(await walkPath(p, route(DOOR_IN, spot.pos), walkSpeed(w, fast), true))) return; // 走到一半就要離開了（打烊）
   if (tok !== live.token) return; // 走到一半換了一天（開發者跳天數）
   settle(w, spot);
@@ -2780,7 +2898,7 @@ async function leavePerson(w) {
   setPose(w, w === 'kevin' ? 'walk' : w === 'grandpa' || w === 'yuan' ? 'stand' : poses[w]); // 予安站起來走（Canvas 版站著與坐著是同一張）
   const tok = live.token;
   const out = await walkPath(p, route(p.position, DOOR_IN), walkSpeed(w), true);
-  if (out && tok === live.token) { p.visible = false; if (w !== 'grandpa') audio.play('bell'); }
+  if (out && tok === live.token) { p.visible = false; swingDoor(1000); if (w !== 'grandpa') audio.play('bell'); }
 }
 function removeGuestCup(w) {
   const c = live.cups.get(w);
@@ -4275,6 +4393,8 @@ function loop() {
   updateYuanChair();
   flipCat();
   updateOcclusion(dt);
+  updateDoor(dt);
+  frontStub.visible = !frontWall.visible; // 前牆收起來的時候（俯瞰）才有剖面
   // 龍眼睡覺時的呼吸
   if (!catBusy) cat.userData.squash = 1 + Math.sin(performance.now() / 900) * 0.03;
   // 予安偶爾低頭打字
@@ -4526,6 +4646,9 @@ if (DEV) {
     get departureDue() { return F.departureDue(save, today()); },
     get enamelOnTable() { return cups.some((c) => c.userData.enamel); },
     say(text, ms = 6000) { say(text, ms); }, // 美術評分修正 c：讓德叔說一句，測試泡泡的位置
+    get door() { return { open: Math.round(doorMotion.open * 100) / 100, visible: frontWall.visible && door.visible, stub: frontStub.visible }; },
+    // 承峰 11/3 回饋：坐著時直接轉頭到某個角度（截圖用；和手指拖曳一樣受座位的轉頭範圍限制）
+    look(yaw = 0, pitch = 0) { if (state.mode !== 'seat') return false; focusP = null; lookTok++; cam.yaw = THREE.MathUtils.clamp(yaw, ...yawRange()); cam.pitch = THREE.MathUtils.clamp(pitch, -0.35, 0.35); return true; },
     // 美術評分修正 c：鏡頭停好了（沒有在移動、轉向，推近也到了），全流程截圖等這個再拍
     get camStill() {
       const want = state.mode === 'overview' ? 50 : state.closeup ? closeView().fov : state.focus ? focusFov : seatFov();

@@ -1230,6 +1230,21 @@ export function blob() {
   return c;
 }
 
+// 門口的腳踏墊（承峰 11/3 試玩回饋，D178）：還沒有手繪圖，程式畫一張椰纖墊：深色滾邊、纖維的細紋
+export function doorMat() {
+  const { c, g } = canvas(0.8, 0.5);
+  g.fillStyle = '#4a3324';
+  g.fillRect(0, 0, 0.8, 0.5);
+  g.fillStyle = '#9a7448';
+  g.fillRect(0.04, 0.04, 0.72, 0.42);
+  const r = rng(11);
+  for (let i = 0; i < 900; i++) {
+    g.fillStyle = r() < 0.5 ? 'rgba(70,45,25,0.25)' : 'rgba(210,175,120,0.25)';
+    g.fillRect(0.04 + r() * 0.71, 0.04 + r() * 0.41, 0.004, 0.012);
+  }
+  return c;
+}
+
 // 溫度上升時溫度計後面的暖光（白色徑向漸層，顏色由材質決定）
 export function glow() {
   const c = document.createElement('canvas');
