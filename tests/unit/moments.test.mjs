@@ -81,7 +81,7 @@ test('擺飾的反應：一件一次，存檔記住；舊存檔已經擺著的�
   old.owned = [{ uid: 1, item: 'plant', placed: true, x: 0, z: 0 }, { uid: 2, item: 'radio', placed: false, x: 0, z: 0 }];
   const m = migrate(old, T0);
   assert.equal(m.version, SAVE_VERSION);
-  assert.equal(SAVE_VERSION, 6);
+  assert.ok(SAVE_VERSION >= 6); // 第 7 版（黑板菜單）見 menu.test.mjs
   assert.deepEqual(m.moments, { early: [], decor: ['plant'] });
   m.owned[1].placed = true;
   assert.deepEqual(MO.pendingDecor(m), ['radio']);
@@ -95,5 +95,5 @@ test('新的字：不催促、不報時間、全形標點；龍眼不離開窗�
     assert.doesNotMatch(t, /\.\.\.|[一-鿿][,?!]/);
     assert.doesNotMatch(t.replace(/……/g, ''), /…/);
   }
-  assert.ok(MO.BOARD_BEANS[0] === '阿里山 水洗', '黑板預設照舊是原本的字');
+  assert.equal(MO.BOARD_BEANS, undefined, '黑板上不再寫點不到的裝飾豆子（Q74 暫定，D188）');
 });

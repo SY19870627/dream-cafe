@@ -7,6 +7,7 @@
 // 純邏輯，不依賴 Three.js 或 DOM。
 import { hash01 } from './weather.js';
 import { temperature, pending } from './tasks.js';
+import * as M from './menu.js';
 
 export const WEEK2 = 8; // 「第 2 週」＝開店第 8 天起（Q7）
 export const WEEK3 = 15; // 「第 3 週」＝開店第 15 天起
@@ -25,13 +26,9 @@ export const REGULARS = {
 export const REGULAR_IDS = ['yuan', 'zhe', 'kevin'];
 export const KEVIN_HOUR = 17; // 凱文每天下午五點來
 
-// 菜單（Q1 暫定的菜單風格：在地食材）
-export const MENU = {
-  dongshan: { name: '東山的豆', kind: 'coffee', desc: '德叔的手沖。東山的豆，就是窗外那片山。' },
-  longan: { name: '窯烤龍眼乾', kind: 'food', desc: '阿哲的阿公窯烤的龍眼乾，配咖啡剛好。' },
-  'zhe-beans': { name: '阿哲的豆', kind: 'coffee', desc: '阿哲自己處理的豆子。名字寫大一點。' },
-};
-export const DEFAULT_MENU = ['dongshan'];
+// 菜單（Q1 暫定的菜單風格：在地食材）：品項、黑板與菜單本在 menu.js（D185）。MENU 留著給舊的呼叫端讀名字
+export const MENU = M.ITEMS;
+export const DEFAULT_MENU = M.START_ITEMS;
 
 // 讀得到的紙本：予安念的稿子、予安的書的扉頁（劇本原文）
 export const DOCS = {
@@ -80,7 +77,9 @@ export function waitHint({ approaching = false, nextMs = null, idleMs = 0, here 
 //   weather：天氣變化（颱風）；prop：吧台上多一樣東西
 //   needClosing：要老闆按了「打烊」、喝完最後一杯才演（予安念稿）；needSeat：要老闆坐著才演（凱文的問題）
 //   choice：畫面下方出現選項（key 存在存檔）；branch：依選項接不同台詞；ifFire：開場選了「單方面辭退」才演
-//   read：打開一張紙（予安的稿子、書的扉頁）；brewTaste：德叔在吧台試沖；menu：吧台黑板多一行
+//   read：打開一張紙（予安的稿子、書的扉頁）；brewTaste：德叔在吧台試沖；
+//   menu：阿哲的豆收進菜單本，德叔問老闆要不要寫上黑板（Q73 的暫定做法，D186）
+//   品項的解鎖不寫在里程碑上：menu.js 的 ITEMS[].from 記著哪個里程碑解鎖哪一樣
 const say = (who, text, name) => ({ do: 'say', who, text, ...(name ? { name } : {}) });
 const wait = (sec) => ({ do: 'wait', sec });
 
@@ -130,7 +129,7 @@ export const MILESTONES = [
       { do: 'pose', who: 'yuan', pose: 'type' }] },
 
   /* ---------- 陳柏哲（阿哲）：返鄉青農 ---------- */
-  { id: 'zhe1', who: 'zhe', n: 1, present: false, task: 'zhe-longan', menu: 'longan',
+  { id: 'zhe1', who: 'zhe', n: 1, present: false, task: 'zhe-longan',
     when: (c) => c.day >= 1,
     journal: ['隔壁龍眼園的阿哲拎了一袋龍眼乾來，放在吧台上。', // 【待定】
       '他說：「我阿公說新店開張要送東西。我是被逼來的。」'], // 劇本原文
@@ -168,7 +167,7 @@ export const MILESTONES = [
       say('zhe', '一半照阿公的古法日曬，一半是我的新方法。你們喝喝看。'), // 【待定】
       { do: 'brewTaste' }, { do: 'glance', who: 'deshu' },
       say('deshu', '兩種都好。你阿公的是以前，你的是以後。'), { do: 'laugh', who: ['zhe'] }] },
-  { id: 'zhe6', who: 'zhe', n: 6, present: false, task: 'zhe-beans', menu: 'zhe-beans',
+  { id: 'zhe6', who: 'zhe', n: 6, present: false, task: 'zhe-beans',
     when: (c) => c.temp >= 33 || c.day >= FALLBACK_DAY.zhe6,
     journal: ['菜單上多了一杯「阿哲的豆」。', // 劇本原文
       '阿哲看了很久，說：「你確定要寫我的名字？……好啦，寫大一點。」'],
@@ -285,8 +284,9 @@ export function scheduled(save, who, day) {
   return hash01(seedOf(save), day, info.salt) < info.rate;
 }
 
-// 里程碑發生：記進存檔，並處理解鎖（擺飾收進倉庫、菜單上架、颱風那天）
-export function complete(save, m, day) {
+// 里程碑發生：記進存檔，並處理解鎖（擺飾收進倉庫、品項收進菜單本、颱風那天）
+// 回傳 false＝已經發生過；不然回傳這次解鎖的品項 [{ id, boarded }]（陣列，可能是空的）
+export function complete(save, m, day, t = 0) {
   const r = R(save, m.who);
   if (r.milestones.includes(m.n)) return false;
   r.milestones.push(m.n);
@@ -294,9 +294,11 @@ export function complete(save, m, day) {
   r.lastMilestoneDay = day;
   if (m.present) save.story.lastPresentDay = day;
   if (m.gift && !save.owned.some((o) => o.item === m.gift)) save.owned.push({ uid: save.nextUid++, item: m.gift, placed: false, x: 0, z: 0 });
-  if (m.menu && !save.menu.includes(m.menu)) save.menu.push(m.menu);
+  const got = M.unlockFrom(save, m.id, day, t);
+  // 劇情裡熟客已經看過它寫上黑板（阿哲第一幕的龍眼乾、第六幕的阿哲的豆），之後不再補一次「第一次寫上黑板」的反應
+  for (const g of got) if (g.boarded) M.markNoticed(save, g.id, m.who);
   if (m.id === 'zhe3') save.story.typhoonDay = day;
-  return true;
+  return got;
 }
 
 // 老闆不在的日子：一天一天結算到 upto（含）。熟客來店次數照常累計；
@@ -316,8 +318,14 @@ export function settleThrough(save, upto) {
       const m = nextMilestone(save, who);
       if (!m || r.lastMilestoneDay === d || !isDue(save, m, d)) continue;
       if (!m.present) {
-        complete(save, m, d);
+        const got = complete(save, m, d);
         for (const line of m.journal) events.push({ day: d, line, kind: 'milestone', id: m.id });
+        // 收進菜單本的東西：德叔在日誌寫一句（之後老闆在店裡時就不再說）
+        for (const g of got) {
+          const line = M.tellLine(save, g.id);
+          M.markTold(save, g.id);
+          if (line) events.push({ day: d, line, kind: 'menu', id: g.id });
+        }
       } else if (!save.story.hinted.includes(m.id)) {
         save.story.hinted.push(m.id);
         events.push({ day: d, line: m.waiting, kind: 'waiting', id: m.id });

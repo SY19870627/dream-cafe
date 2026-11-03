@@ -76,7 +76,8 @@ test('第一次來：阿哲第 1 天、予安第 2 天、凱文第 3 天；之�
   S.arrive(s, 'zhe', 1);
   assert.equal(S.liveNext(s, 'zhe', 1).id, 'zhe1');
   S.complete(s, S.milestoneById('zhe1'), 1);
-  assert.deepEqual(s.menu, ['dongshan', 'longan'], '解鎖食材：窯烤龍眼乾');
+  assert.deepEqual(Object.keys(s.menu.items), ['dongshan', 'longan'], '解鎖食材：窯烤龍眼乾');
+  assert.deepEqual(s.menu.board, ['dongshan', 'longan'], '龍眼乾照原本的劇情直接寫上黑板');
   assert.equal(S.liveNext(s, 'zhe', 1), null, '一天一個里程碑');
   assert.ok(S.planToday(s, 2).some((p) => p.who === 'yuan'));
   assert.ok(!S.planToday(s, 2).some((p) => p.who === 'kevin'));
@@ -142,7 +143,8 @@ test('老闆每天都來：快轉天數走完三條線，每個里程碑都發�
     assert.ok(isDone(s, id), id);
   }
   assert.ok(s.owned.some((o) => o.item === 'napkin') && s.owned.some((o) => o.item === 'yuan-book'));
-  assert.deepEqual(s.menu, ['dongshan', 'longan', 'zhe-beans']);
+  assert.deepEqual(s.menu.board, ['dongshan', 'longan', 'zhe-beans'], '阿哲的豆照原本的劇情寫上黑板（測試裡沒有老闆選，等於自動寫上）');
+  assert.deepEqual(Object.keys(s.menu.items).sort(), ['black', 'cocoa', 'dongshan', 'iced', 'longan', 'zhe-beans'], '熟客劇情長出來的品項都收進菜單本');
   assert.ok(temperature(s) >= 30, `溫度 ${temperature(s)}°C`);
 });
 
@@ -194,7 +196,8 @@ test('存檔第 3 版：舊存檔不補算過去的日子，熟客從今天開�
     regulars: { yuan: { visits: 0, milestones: [] }, zhe: { visits: 0, milestones: [] }, kevin: { visits: 0, milestones: [] } }, flags: { seenOpening: true } };
   const s = migrate(old, T0 + 9 * DAY);
   assert.equal(s.version, S_VERSION);
-  assert.deepEqual(s.menu, ['dongshan']);
+  assert.deepEqual(s.menu.board, ['dongshan']);
+  assert.deepEqual(Object.keys(s.menu.items), ['dongshan']);
   assert.ok(S.REGULAR_IDS.every((w) => s.regulars[w].settled === 9 && s.regulars[w].on && s.regulars[w].visits === 0));
   assert.deepEqual(S.settleThrough(s, 9), [], '不會一次湧出一大疊');
   assert.ok(S.planToday(s, 10).length === 3, '今天三位都會來（第一次）');

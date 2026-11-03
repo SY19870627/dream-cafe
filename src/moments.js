@@ -50,8 +50,9 @@ export const IDLE_EVENTS = [
 const IDLE_BY_ID = new Map(IDLE_EVENTS.map((e) => [e.id, e]));
 export const idleById = (id) => IDLE_BY_ID.get(id) || null;
 
-// 黑板「今日手沖」的第二行：德叔換黑板時換成下一支（第一支「東山 日曬」不動；預設是原本的「阿里山 水洗」）
-export const BOARD_BEANS = ['阿里山 水洗', '東山 蜜處理', '古坑 日曬']; // 後兩支【待定】
+// 德叔換黑板（deshu-board）：黑板菜單（D185）以後，黑板上只寫老闆寫上去、真的點得到的東西（Q74 的暫定做法，D188）。
+// 原本輪流換成裝飾用的「阿里山 水洗」「東山 蜜處理」「古坑 日曬」（點不到）拿掉了；
+// 現在是把黑板上喝的東西換一杯到最上面（不改老闆寫了哪幾樣），黑板上只有一杯喝的時只是重寫一次、不說話（見 main.js）
 
 // 可以發生的小事件：c＝{ placed: Set, night, weather, keeper（凱文顧店，德叔不在）, deshuFree, catFree, recent: [最近幾件的 id] }
 export function idleCandidates(c) {
@@ -141,7 +142,6 @@ export function allMomentLines() {
   return [
     ...EARLY.map((e) => e.line[1]),
     ...IDLE_EVENTS.flatMap((e) => e.lines || []),
-    ...BOARD_BEANS,
     ...Object.values(DECOR_REACTIONS).flatMap((l) => l.map((r) => r.line)),
   ];
 }

@@ -4,13 +4,15 @@
 import { STARTER_ITEMS } from './catalog.js';
 import { daysOpen } from './clock.js';
 import { blankFarewell } from './farewell.js';
+import { blankMenu, migrateMenu } from './menu.js';
 
 export const SAVE_KEY = 'dream-cafe.save';
-export const SAVE_VERSION = 6; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
+export const SAVE_VERSION = 7; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
 // 3：階段 4 加入熟客故事線（來店次數、里程碑、結算到哪一天）、菜單、颱風那天
 // 4：階段 5 加入打烊（closing）、「今天的一杯」咖啡日記（diary）、龍眼（cat）
 // 5：階段 6 加入徵店長與告別（farewell）
 // 6：承峰 11/3 第二輪回饋加入店裡的小事（moments）：前三天的小段落演過哪些、哪些擺飾已經有過第一次擺出來的反應
+// 7：承峰 11/3「菜單做 A，存檔照 B 設計」：menu 從 id 陣列改成 { items 解鎖過的品項與來歷, board 黑板上寫的, night }（menu.js）
 
 const regular = () => ({ visits: 0, milestones: [], on: {}, settled: 0, lastVisit: 0, lastMilestoneDay: 0 });
 
@@ -36,7 +38,9 @@ export function defaultSave(now) {
     // typhoonDay 颱風夜是第幾天、answers 玩家在對話裡選的回答
     // rainFloorDay：最後一次保底雨天是第幾天（weather.js，階段 7）
     story: { lastPresentDay: 0, hinted: [], typhoonDay: 0, answers: {}, rainFloorDay: 0 },
-    menu: ['dongshan'], // 菜單上的東西（story.js 的 MENU）
+    // 黑板菜單（menu.js）：items 解鎖過的品項（哪天、從哪段劇情來、看過沒、第一次寫上黑板是哪天……），board 黑板上寫的（由上往下），
+    // night 選項 B 的下班後那一面（null＝同一面）
+    menu: blankMenu(now),
     flags: {}, // seenOpening、openingAct、metYuan、starterGiven、catOnChair、guestVisit、guestOffered（德叔哪一天問過要不要從門口進來）……
     // 打烊（afterhours.js）：哪一天打烊、喝了最後一杯沒、最後一杯的豆子、關掉的燈、按了「明天見」沒
     closing: { day: 0, lastCup: false, bean: '', lightsOff: [], done: false },
@@ -82,6 +86,12 @@ export function migrate(data, now) {
   if (!isObj(data)) return null;
   const v = Number(data.version) || 0;
   if (v > SAVE_VERSION) return null; // 比遊戲還新的存檔：不認得，不去動它
+  // 第 7 版以前 menu 是 id 陣列（菜單上的東西）：先換成新的格式，不然 fill() 會把它當成型別不對直接蓋掉
+  if (v < 7) {
+    const ms = {};
+    for (const w of ['yuan', 'zhe', 'kevin']) ms[w] = Array.isArray(data.regulars?.[w]?.milestones) ? data.regulars[w].milestones : [];
+    data.menu = migrateMenu(data.menu, ms, Number(data.createdAt) ? daysOpen(data.createdAt, now) : 1, now);
+  }
   const save = fill(data, defaultSave(now));
   // 第 1 版的存檔是開場做出來之前開的店：不再播開場，初始擺飾也已經送過了
   if (v < 2) { save.flags.seenOpening = true; save.flags.starterGiven = true; }
