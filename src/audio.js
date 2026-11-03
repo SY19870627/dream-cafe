@@ -274,6 +274,24 @@ export function createAudio({ AudioContextClass = globalThis.AudioContext || glo
           tone(tt, 85 + Math.random() * 10, 0.004, out, { gain: 0.018 * v, decay: 0.05 });
         }
         break;
+      case 'birds': // 窗外的鳥（店裡的小事，承峰 11/3 第二輪回饋）：遠遠的兩隻，各叫兩三聲，很小聲
+        for (let b = 0; b < 2; b++) {
+          const base = 3300 + Math.random() * 900, n = 2 + Math.floor(Math.random() * 2);
+          for (let i = 0; i < n; i++) {
+            const tt = t + b * (0.9 + Math.random() * 0.5) + i * (0.16 + Math.random() * 0.05);
+            const o = ctx.createOscillator(); o.type = 'sine';
+            o.frequency.setValueAtTime(base, tt);
+            o.frequency.exponentialRampToValueAtTime(base * 1.35, tt + 0.05);
+            o.frequency.exponentialRampToValueAtTime(base * 0.9, tt + 0.1);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0, tt);
+            g.gain.linearRampToValueAtTime(0.012, tt + 0.015);
+            g.gain.exponentialRampToValueAtTime(0.0005, tt + 0.11);
+            o.connect(g).connect(out);
+            o.start(tt); o.stop(tt + 0.13);
+          }
+        }
+        break;
       case 'door': // 推門：老木門低低的一聲
         noiseSrc(t, 0.5, out, { type: 'lowpass', freq: 380, gain: 0.08, attack: 0.08, release: 0.2 });
         break;

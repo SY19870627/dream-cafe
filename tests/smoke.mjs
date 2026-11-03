@@ -12,6 +12,7 @@
 // 試玩心得連結、常態店的按鈕寫「請凱文沖一杯」。從新存檔玩到結尾的全流程另見 tests/playthrough.mjs（npm run playthrough）。
 // 接正式美術：角色與龍眼的材質來自 assets/art；攔下 assets/art 的請求（斷線、404、解碼錯誤）時退回 Canvas 繪圖，照樣坐下、沖一杯、沒有 JS 錯誤。
 // 接正式美術第二批（art2a）：店內的材質、窗景、家具與小道具也來自 assets/art，全部失敗時一樣退回 Canvas 繪圖。
+// 承峰 11/3 第二輪回饋：店裡的小事（擺飾第一次擺出來的反應、第 1 天予安探頭、店內小事件、&idle=N）。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -763,6 +764,53 @@ try {
     await page.waitForFunction(() => window.__cafe.scene, null, { timeout: 30000 });
     const sh = await cafe('waitHint');
     check(sh.hint === '什麼都不用做，在這裡就好' && sh.breathe, '熟客場景的提示一字不改，提示列慢慢呼吸');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+
+  /* ---------- 承峰 11/3 第二輪回饋：店裡的小事（前三天的小段落、店內小事件、擺飾的反應） ---------- */
+  console.log('手機 390×844（店裡的小事）');
+  {
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=8&opening=0&weather=clear');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    // 擺飾第一次擺出來：德叔說一句（一件一次，存檔記住）
+    await page.click('#place');
+    await page.click('#p-store');
+    await page.click('.sheet-row:has-text("黑板立牌") button');
+    await page.click('#p-deselect');
+    await page.click('#p-done');
+    await page.waitForFunction(() => window.__cafe.moments.decor.includes('menu-board'), null, { timeout: 20000 });
+    await page.waitForFunction(() => window.__cafe.moments.lastSaid?.text.includes('不限時'), null, { timeout: 10000 });
+    check(true, '擺上黑板立牌：德叔有一句反應，存檔記住已經反應過');
+    // 第 1 天：阿哲來過、走了以後，予安在門口探頭看一眼，德叔說一句
+    await page.waitForFunction(() => window.__cafe.story.zhe.milestones.includes(1), null, { timeout: 60000 });
+    await page.waitForFunction(() => window.__cafe.moments.early.includes('d1-peek'), null, { timeout: 60000 });
+    check(!(await cafe('story')).yuan.milestones.length && (await cafe('story')).yuan.visits === 0, '予安探頭不算來店（隔天才是第一次來）');
+    await page.waitForFunction(() => window.__cafe.here.includes('yuan'), null, { timeout: 15000 });
+    await page.screenshot({ path: OUT + 'phone-moment-peek.png' });
+    await page.waitForFunction(() => window.__cafe.moments.lastSaid?.text.includes('窗邊那張桌子'), null, { timeout: 20000 });
+    check(!(await cafe('here')).includes('yuan'), '予安看了一眼就走了，德叔說「剛才那位小姐，在門口看了窗邊那張桌子很久。」');
+    // 店內小事件：直接演幾件，德叔回到吧台、龍眼還在窗台上
+    await page.waitForFunction(() => !window.__cafe.moments.busy, null, { timeout: 15000 });
+    for (const id of ['deshu-wipe', 'deshu-board', 'cat-stretch', 'cat-roll', 'window-bike']) {
+      check(await page.evaluate((i) => window.__cafe.idleEvent(i, false), id), `店內小事件 ${id}`);
+    }
+    const m = await cafe('moments');
+    check(m.deshuFree && (await cafe('catOnSill')) && m.board !== '阿里山 水洗', `德叔回到吧台、龍眼還在窗台上、黑板換了一支（${m.board}）`);
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+  {
+    // 開發者模式 &idle=N：安靜 N 秒就來一件店內小事件（平常 1～3 分鐘）
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=4&opening=0&regulars=0&weather=clear&idle=2');
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForFunction(() => window.__cafe.moments.log.some((x) => x.kind === 'idle'), null, { timeout: 20000 });
+    const first = (await page.evaluate(() => window.__cafe.moments.log)).find((x) => x.kind === 'idle');
+    check(true, `坐著沒事：店裡自己發生一件小事（${first.id}）`);
+    await page.waitForFunction(() => !window.__cafe.moments.busy, null, { timeout: 20000 });
+    await page.click('#brew');
+    await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 40000 });
+    check((await page.evaluate(() => window.__cafe.tasks)).includes('first-coffee'), '小事件之後照常可以請德叔沖一杯');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }

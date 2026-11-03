@@ -15,6 +15,7 @@ import { petCat, jumpsOnChair, PURR, CAT_LINES } from './cat.js';
 import * as H from './afterhours.js';
 import * as F from './farewell.js';
 import { createAudio, VOLUMES, VOLUME_NAMES } from './audio.js';
+import * as MO from './moments.js';
 
 const $ = (id) => document.getElementById(id);
 const lightsEl = $('lights'); // 打烊後每盞燈旁邊的「關燈／開燈」
@@ -202,9 +203,10 @@ const woodTopTex = A.tex(A.woodTop(), [1, 1]);
   base.position.set(ROOM.w / 2 - BACK_BASE.d / 2, BACK_BASE.h / 2, -1.6);
   scene.add(base);
 }
+let boardBean = 0; // 黑板第二支豆子是 BOARD_BEANS 的第幾支（德叔換黑板的小事件，D182；重新整理回到第一支）
 function drawBackBar(menu = save.menu) {
   backBar.material.map?.dispose();
-  backBar.material.map = A.tex(A.backBar(2.8, 1.8, menu));
+  backBar.material.map = A.tex(A.backBar(2.8, 1.8, menu, MO.BOARD_BEANS[boardBean]));
   backBar.material.needsUpdate = true;
 }
 
@@ -965,6 +967,9 @@ function updateSteam(dt) {
 // scene：正在演的熟客里程碑；choice：畫面下方的選項開著
 // 等客人（承峰 11/3 回饋，D179）：line＝提示列現在的等待句子、approach＝有人快走到門口、quietFrom＝上次有人走進來的時間
 const waiting = { line: '', approach: null, quietFrom: 0 };
+// 店裡的小事（承峰 11/3 第二輪回饋，moments.js）：busy＝正在演一件（這時不交信、不演熟客場景）；quietFrom＝店裡從什麼時候開始沒事；
+// gap＝這次要安靜多久才來一件小事件；recent＝最近兩件；log＝演過的（測試用）
+const moments = { busy: false, quietFrom: performance.now(), gap: 0, recent: [], log: [] };
 const state = { temp: temperature(save), satThisVisit: 0, weather: 'clear', devSpeed: DEV_SPEED, hold: false, night: false, mode: 'overview', seat: null, placing: false, selected: null,
   tutorial: null, letter: null, cinematic: false, scene: null, choice: false };
 
@@ -1528,6 +1533,7 @@ let catAtHome = false; // 睡在窗台上
 let catOnSeat = null; // 跳上了哪張椅子（座位 id）
 let catSeatUntil = 0;
 const catMood = { taps: [], awayUntil: 0 }; // 點太多次就走開（cat.js 的 petCat）
+let catTurn = 1; // 睡著、坐著的龍眼朝哪邊（1 原圖、-1 鏡像）：窗台上翻身時換邊
 // 接正式美術：走路的龍眼面向左，往畫面右邊走的時候鏡像（停下來就維持最後的方向，換成別張圖就轉回來）
 const catPrev = new THREE.Vector3();
 const camRight = new THREE.Vector3();
@@ -1535,7 +1541,7 @@ function flipCat() {
   const facing = cat.userData.art?.facing;
   const dx = cat.position.x - catPrev.x, dz = cat.position.z - catPrev.z;
   catPrev.copy(cat.position);
-  if (!facing) { cat.userData.flip = 1; return; }
+  if (!facing) { cat.userData.flip = catTurn; return; } // 坐著、睡著：照窗台上翻身之後的方向（店裡的小事，D182）
   if (dx * dx + dz * dz < 1e-8) return;
   camRight.setFromMatrixColumn(camera.matrixWorld, 0);
   const right = dx * camRight.x + dz * camRight.z > 0;
@@ -2749,7 +2755,7 @@ const modalWatch = new MutationObserver(syncModal);
 for (const el of [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map')]) modalWatch.observe(el, { attributes: true, attributeFilter: ['hidden'] });
 syncModal();
 function quiet() {
-  return save.flags.seenOpening && !state.tutorial && !state.letter && !state.cinematic && !state.scene && !state.choice && !brewing && !deshuReturning && !state.placing
+  return save.flags.seenOpening && !state.tutorial && !state.letter && !state.cinematic && !state.scene && !state.choice && !brewing && !deshuReturning && !state.placing && !moments.busy
     && !state.guest && (!state.closing || state.closing === 'after') && !overlayOpen() && !sayBusy && performance.now() > Math.max(readyAt, sayEnds + 1500 / DEV_SPEED);
 }
 const letterCtx = () => ({ daysOpen: today(), temp: temperature(save) });
@@ -3557,6 +3563,265 @@ function waitTick() {
   if (line !== waiting.line) { waiting.line = line; updateUI(); }
 }
 setInterval(waitTick, 500);
+
+/* ---------- 店裡的小事（承峰 11/3 第二輪回饋：方案 3、1、5；文字與規則在 moments.js） ---------- */
+// 店裡沒事的時候（沒有演出、沒有人說話、沒在沖咖啡、沒有人走進來），依序看：
+// 1. 擺飾第一次擺出來的反應（D183）：安靜 4 秒就演，一件一次（存檔 moments.decor）；
+// 2. 前三天的小段落（D181）：安靜 30 秒（遊戲時間）之後演，一段一次（存檔 moments.early）；
+// 3. 店內小事件（D182）：安靜 1～3 分鐘一件。
+// 演的時候 moments.busy，quiet() 為 false：熟客場景、交信、德叔的話都等它演完（每件最多十幾秒）
+// 開發者模式：店內小事件預設不自己發生（冒煙測試快轉時不會被隨機的小事打斷），&idle=N 改成安靜 N 秒（真實時間）就來一件；
+// &moments=0 連擺飾的反應、前三天的小段落也關掉。__cafe.idleEvent()／early()／decorReact() 可以直接演
+const MOMENTS_ON = !DEV || params.get('moments') !== '0';
+const IDLE_FIXED = DEV && Number(params.get('idle')) > 0 ? Number(params.get('idle')) * 1000 : 0;
+const IDLE_ON = MOMENTS_ON && (!DEV || IDLE_FIXED > 0);
+const idleGap = () => IDLE_FIXED || (MO.IDLE_GAP.min + Math.random() * (MO.IDLE_GAP.max - MO.IDLE_GAP.min)) / DEV_SPEED;
+moments.gap = idleGap();
+const deshuFree = () => !keeper() && !brewing && !deshuReturning && !wipeOn && deshu.userData.art === deshuCanvas.idle && deshu.position.distanceTo(HOME) < 0.05;
+const catFree = () => catAtHome && !catBusy && !catHeld() && !catOnSeat && cat.visible;
+function momentsFree() {
+  return quiet() && !state.closing && !state.arriving && !live.walking && !waiting.approach && !state.closeup && !sceneHidden() && !bubble.classList.contains('show');
+}
+const placedSet = () => new Set(save.owned.filter((o) => o.placed).map((o) => o.item));
+// 在店裡、沒在演場景的熟客
+const hereNow = () => (state.scene ? [] : S.REGULAR_IDS.filter((w) => PEOPLE[w].visible && live.arrived.has(w)));
+function earlyCtx() {
+  return { day: today(), here: S.REGULAR_IDS.filter((w) => PEOPLE[w].visible), seated: hereNow().filter((w) => live.at[w] === HOME_SPOT[w]),
+    expecting: [...live.expect.keys()], met: { yuan: S.hasMilestone(save, 'yuan', 1), zhe: S.hasMilestone(save, 'zhe', 1) } };
+}
+async function runMoment(kind, id, fn) {
+  moments.busy = true;
+  moments.log.push({ kind, id, at: Math.round(performance.now()) });
+  try { await fn(); } catch (e) { console.warn('店裡的小事', id, e); }
+  moments.busy = false;
+  moments.quietFrom = performance.now();
+  moments.gap = idleGap();
+  updateUI();
+}
+setInterval(() => {
+  if (moments.busy || !MOMENTS_ON) return;
+  const t = performance.now();
+  if (!momentsFree()) { moments.quietFrom = t; return; }
+  const quietMs = (t - moments.quietFrom) * DEV_SPEED;
+  if (quietMs > 4000) {
+    const item = MO.pendingDecor(save)[0];
+    if (item) { runMoment('decor', item, () => decorReact(item)); return; }
+  }
+  if (REGULARS_ON && live.day === today() && quietMs > MO.EARLY_QUIET_MS && !keeper()) {
+    const e = MO.earlyDue(earlyCtx(), save.moments.early);
+    if (e) { runMoment('early', e.id, () => earlyBeat(e)); return; }
+  }
+  if (IDLE_ON && t - moments.quietFrom > moments.gap) {
+    const e = MO.pickIdle({ placed: placedSet(), night: state.night, weather: state.weather, keeper: keeper(), deshuFree: deshuFree(), catFree: catFree(), recent: moments.recent }, Math.random());
+    if (!e) { moments.quietFrom = t; return; }
+    moments.recent = [e.id, ...moments.recent].slice(0, 2);
+    runMoment('idle', e.id, () => idleEvent(e, MO.idleLine(e, Math.random())));
+  }
+}, 1000);
+
+// 德叔換一個姿勢一會兒（擦杯子、彎腰寫黑板）；sway：紙片左右輕輕晃（擦的動作）。中途有別的動作換過圖就不換回來
+async function deshuBusy(pose, sec, sway = 0) {
+  const c = deshuCanvas[pose];
+  setPaper(deshu, c);
+  const m = deshu.userData.mesh;
+  await animate(sec, (k) => { m.rotation.z = sway * Math.sin(k * Math.PI * 6) * Math.sin(Math.PI * k); });
+  m.rotation.z = 0;
+  if (deshu.userData.art === c && !brewing) setPaper(deshu, deshuCanvas.idle);
+}
+// 德叔走到某處做一件事再走回吧台：走開的這段當作「德叔走回吧台……」（deshuReturning），這時按沖咖啡會等他回來
+async function deshuErrand(pos, fn) {
+  let done;
+  deshuReturning = new Promise((r) => { done = r; });
+  try {
+    await deshuGo(V2(THREE.MathUtils.clamp(pos.x + (pos.x < 0.45 ? 0.5 : -0.5), -2.6, 2.6), THREE.MathUtils.clamp(pos.z + 0.25, -3.6, 3.5)));
+    await fn();
+    await deshuGo(HOME);
+    deshu.userData.mesh.position.y = 0;
+  } finally { deshuReturning = null; done(); }
+}
+// 澆花：壺口落下幾滴水（小小的淡藍點，往下掉、淡掉）
+function waterDrops(pos) {
+  for (let i = 0; i < 7; i++) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: '#9fd0e6', transparent: true, opacity: 0.8, depthWrite: false }));
+    s.position.set(pos.x + (Math.random() - 0.5) * 0.18, 0.75 + Math.random() * 0.15, pos.z + 0.1);
+    s.scale.setScalar(0.035);
+    s.visible = false;
+    scene.add(s);
+    const vy = 0.5 + Math.random() * 0.3, delay = i * 0.18;
+    let t = 0;
+    waiters.push((dt) => {
+      t += dt * speedNow();
+      if (t < delay) return false;
+      s.visible = true;
+      s.position.y -= vy * dt * speedNow();
+      s.material.opacity = Math.max(0, 0.8 - (t - delay) * 1.4);
+      if (t - delay > 0.6) { scene.remove(s); s.material.dispose(); return true; }
+      return false;
+    });
+  }
+}
+// 窗台上的龍眼：伸懶腰（坐起來、拉長）、翻身（換邊）、尾巴晃（紙片輕輕擺）、坐起來看窗外。都不離開窗台（Q64）
+async function catMove(kind) {
+  catBusy = true;
+  const m = cat.userData.mesh;
+  try {
+    if (kind === 'stretch') {
+      setPaper(cat, catCanvas.sit);
+      await animate(1.6, (k) => { cat.userData.squash = 1 + Math.sin(Math.PI * k) * 0.12; });
+      cat.userData.squash = 1;
+      await wait(0.6);
+    } else if (kind === 'roll') {
+      await animate(0.5, (k) => { m.position.y = SILL.y + Math.sin(Math.PI * k) * 0.05; cat.userData.squash = 1 - Math.sin(Math.PI * k) * 0.15; });
+      catTurn = -catTurn;
+      cat.userData.squash = 1;
+    } else if (kind === 'tail') {
+      await animate(2.4, (k) => { m.rotation.z = Math.sin(k * Math.PI * 4) * 0.035; });
+    } else if (kind === 'look') {
+      setPaper(cat, catCanvas.sit);
+      await wait(6);
+    }
+  } finally {
+    m.rotation.z = 0;
+    if (catAtHome) { m.position.y = SILL.y; setPaper(cat, catCanvas.sleep); }
+    cat.userData.squash = 1;
+    catBusy = false;
+  }
+}
+// 窗外經過的影子（機車）：後面那扇窗前一團很淡的影子由左滑到右
+async function windowShadow(sec = 3.2) {
+  const w = windows[0];
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: '#2a2018', transparent: true, opacity: 0, depthWrite: false }));
+  s.scale.set(0.55, 0.4, 1);
+  scene.add(s);
+  await animate(sec, (k) => {
+    s.position.set(w.position.x - 0.75 + 1.5 * k, w.position.y - 0.3, w.position.z + 0.04);
+    s.material.opacity = Math.sin(Math.PI * k) * (state.night ? 0.08 : 0.16);
+  });
+  scene.remove(s); s.material.dispose();
+}
+const decorOf = (ids) => [...decorPapers.values()].find((d) => ids.includes(d.userData.item.id));
+
+// 店內小事件（D182）：line＝這次偶爾說的那一句（沒有就是不說話）
+async function idleEvent(e, line = '') {
+  const deshuSays = (ms = 3200) => { if (line) say(line, ms); };
+  switch (e.id) {
+    case 'deshu-wipe':
+      await deshuBusy('wipe', 4.5, 0.025);
+      deshuSays();
+      break;
+    case 'deshu-water': {
+      const p = decorOf(['plant', 'succulent']);
+      if (!p) break;
+      await deshuErrand(p.position, async () => {
+        setPaper(deshu, deshuCanvas.pour);
+        waterDrops(p.position);
+        await wait(2.2);
+        setPaper(deshu, deshuCanvas.idle);
+        deshuSays(2600);
+        await wait(1.2);
+      });
+      break;
+    }
+    case 'deshu-board':
+      setPaper(deshu, deshuCanvas.pour);
+      await wait(1.6);
+      boardBean = (boardBean + 1) % MO.BOARD_BEANS.length;
+      drawBackBar();
+      audio.play('click');
+      await wait(0.8);
+      if (deshu.userData.art === deshuCanvas.pour && !brewing) setPaper(deshu, deshuCanvas.idle);
+      deshuSays();
+      break;
+    case 'cat-stretch': await catMove('stretch'); deshuSays(); break;
+    case 'cat-roll': await catMove('roll'); break;
+    case 'cat-tail': await catMove('tail'); break;
+    case 'cat-look': await catMove('look'); break;
+    case 'window-bike':
+      audio.play('motorbike');
+      await windowShadow();
+      deshuSays();
+      break;
+    case 'window-birds':
+      audio.play('birds');
+      await wait(2.5);
+      break;
+    default: break;
+  }
+  if (line) await realWait(2600);
+}
+
+// 前三天的小段落（D181）
+async function earlyBeat(e) {
+  MO.markEarly(save, e.id);
+  persist();
+  const tok = live.token;
+  if (e.id === 'd1-peek') {
+    // 門外有腳步聲、門上的鈴輕輕晃（D179 的提示照常），一位小姐推門進來，站在門口看了窗邊那張桌子一會兒，沒坐就走了
+    waiting.approach = { until: performance.now() + 9000 / DEV_SPEED };
+    audio.play('steps');
+    ringDoorBell();
+    updateUI();
+    await realWait(4000);
+    if (tok !== live.token) return;
+    live.walking = (live.walking || 0) + 1;
+    try {
+      await enterPerson('yuan', { pos: V2(0.25, 2.55), cup: null }, 'stand', 'stand');
+      updateUI(); // 人進來了：「好像有人往這邊走來了……」換回平常的提示
+      if (tok !== live.token) return;
+      await wait(1.2);
+      await glance(yuan, 2.2);
+      await wait(1.5);
+      await leavePerson('yuan');
+    } finally { live.walking--; }
+    if (tok !== live.token) return;
+    await realWait(1500);
+  } else if (e.id === 'd2-refill') {
+    await serveTo('yuan', 'hot');
+    deshuReturning = deshuGo(HOME).then(() => { deshuReturning = null; });
+    await deshuReturning;
+  } else if (e.id === 'd3-passerby') {
+    audio.play('steps');
+    await realWait(2600);
+    ringDoorBell(0.12);
+    await realWait(2200);
+  }
+  if (tok !== live.token) return;
+  say(e.line[1], 4200, WHO[e.line[0]] || deshu);
+  await realWait(4600);
+}
+
+// 擺飾第一次擺出來的反應（D183）：熟客在店裡就由熟客說，不然德叔或龍眼
+async function decorReact(item) {
+  MO.markDecor(save, item);
+  persist();
+  const r = MO.decorReaction(item, hereNow(), keeper());
+  if (!r) return;
+  const p = decorOf([item]);
+  if (r.who === 'cat') {
+    if (catFree()) await catMove('look');
+    else await wait(1);
+    if (!keeper()) { say(r.line, 3800); await realWait(4200); }
+    return;
+  }
+  if (r.who === 'deshu') {
+    if (r.act === 'visit' && p && deshuFree()) {
+      await deshuErrand(p.position, async () => {
+        await glance(deshu, 0.8);
+        say(r.line, 3800);
+        await realWait(4000);
+      });
+      return;
+    }
+    say(r.line, 3800);
+    if (r.act === 'smile' && deshuCanvas.smile?.art && deshuFree()) await deshuBusy('smile', 2.6);
+    await realWait(4200);
+    return;
+  }
+  // 熟客：說一句，有的人輕輕跳一下
+  say(r.line, 4000, PEOPLE[r.who]);
+  if (r.act === 'laugh') await laugh(r.who);
+  await realWait(4400);
+}
 
 // 測試用：熟客這邊還有沒有事情要發生（正在演、還沒走進來、或有里程碑等著演）
 // withGuest：德叔準備邀請老闆當一次客人，也算還有事（測試快轉天數時不會跳過）
@@ -4729,6 +4994,12 @@ if (DEV) {
     get door() { return { open: Math.round(doorMotion.open * 100) / 100, visible: frontWall.visible && door.visible, stub: frontStub.visible }; },
     note(id = 'first-coffee') { const t = taskById(id); if (t) stageNote([t]); return !!t; },
     get waitHint() { return { line: waiting.line, approach: !!waiting.approach, next: nextArrivalMs(), hint: $('hint').hidden ? '' : $('hint').textContent, breathe: $('hint').classList.contains('breathe') }; },
+    // 承峰 11/3 第二輪回饋：店裡的小事（截圖用）。idleEvent('cat-stretch') 直接演一件店內小事件（line：要不要說那一句，預設說）；
+    // early('d1-peek') 直接演前三天的小段落；decorReact('plant') 直接演一件擺飾的反應（都會記進存檔）；moments 讀狀態
+    idleEvent(id, line = true) { const e = MO.idleById(id); if (!e || moments.busy) return Promise.resolve(false); return runMoment('idle', id, () => idleEvent(e, line ? MO.idleLine(e, 0) : '')).then(() => true); },
+    early(id) { const e = MO.EARLY.find((x) => x.id === id); if (!e || moments.busy) return Promise.resolve(false); return runMoment('early', id, () => earlyBeat(e)).then(() => true); },
+    decorReact(item) { if (moments.busy || !MO.DECOR_REACTIONS[item]) return Promise.resolve(false); return runMoment('decor', item, () => decorReact(item)).then(() => true); },
+    get moments() { return { busy: moments.busy, log: moments.log.map((x) => ({ ...x })), gap: Math.round(moments.gap), quietMs: Math.round(performance.now() - moments.quietFrom), free: momentsFree(), early: [...save.moments.early], decor: [...save.moments.decor], pending: MO.pendingDecor(save), board: MO.BOARD_BEANS[boardBean], catTurn, deshuFree: deshuFree(), catFree: catFree(), lastSaid: lastSaid && { ...lastSaid } }; },
     // 承峰 11/3 回饋：坐著時直接轉頭到某個角度（截圖用；和手指拖曳一樣受座位的轉頭範圍限制）
     look(yaw = 0, pitch = 0) { if (state.mode !== 'seat') return false; focusP = null; lookTok++; cam.yaw = THREE.MathUtils.clamp(yaw, ...yawRange()); cam.pitch = THREE.MathUtils.clamp(pitch, -0.35, 0.35); return true; },
     // 美術評分修正 c：鏡頭停好了（沒有在移動、轉向，推近也到了），全流程截圖等這個再拍

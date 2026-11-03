@@ -528,7 +528,8 @@ export function windowFrame() {
 // 美術評分修正 f：整段字收進黑板的下緣（德叔肩膀以下的高度）、中線往右移到 1.47、字小一點。
 // 量過：看德叔沖的近景，德叔的臉在黑板 y 1.36 左右，肩膀以下擋住 x 約 1.10～1.66；颱風夜德叔站在黑板前，
 // 手機約擋住 1.26～1.78、桌機約 1.29～1.62。原本「今日手沖」在臉的高度，兩個畫面都有一兩個字露在他的頭旁邊
-function menuText(g, menu) {
+// special：黑板第二支豆子（德叔換黑板的小事件，moments.js 的 BOARD_BEANS；沒有給就是原本的「阿里山 水洗」）
+function menuText(g, menu, special = '阿里山 水洗') {
   const cx = 1.47; // 字的中線（公尺）
   const line = (text, y, size, color = '#f2ead8', bold = '') => {
     g.fillStyle = color;
@@ -539,12 +540,12 @@ function menuText(g, menu) {
   if (menu.includes('zhe-beans')) {
     line('今日手沖', 1.47, 0.064);
     line('東山 日曬', 1.53, 0.05);
-    line('阿里山 水洗', 1.585, 0.05);
+    line(special, 1.585, 0.05);
     line('阿哲的豆', 1.643, 0.058, '#ffd27a', 'bold '); // 「好啦，寫大一點。」
   } else {
     line('今日手沖', 1.49, 0.07);
     line('東山 日曬', 1.565, 0.055);
-    line('阿里山 水洗', 1.635, 0.055);
+    line(special, 1.635, 0.055);
   }
 }
 // 程式在手繪圖上疊東西：複製一張同樣大小的 canvas，座標用公尺（原點是圖的左上角）
@@ -559,13 +560,13 @@ function overlay(a) {
   return { c, g };
 }
 
-// menu：菜單上的東西（阿哲的豆上架後，小黑板多一行）
-export function backBar(wm, hm, menu = []) {
+// menu：菜單上的東西（阿哲的豆上架後，小黑板多一行）；special：黑板第二支豆子（見 menuText()）
+export function backBar(wm, hm, menu = [], special = undefined) {
   // 手繪的層架：黑板（x 0.95～1.85、y 1.15～1.65 公尺）留空，菜單的字由程式寫
   const a = room('backbar');
   if (a) {
     const { c, g } = overlay(a);
-    menuText(g, menu);
+    menuText(g, menu, special);
     return c;
   }
   // 吧台後方牆上的層架與罐子
@@ -586,7 +587,7 @@ export function backBar(wm, hm, menu = []) {
   // 小黑板
   rr(g, wm / 2 - 0.45, 1.15, 0.9, 0.5, 0.03);
   g.fillStyle = '#2f3a33'; g.fill(); outline(g, 0.02);
-  menuText(g, menu);
+  menuText(g, menu, special);
   return c;
 }
 
