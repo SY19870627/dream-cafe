@@ -95,13 +95,13 @@ test('第二封信：離開東山的早上才交，劇本原文；讀過就不�
 });
 
 test('存檔第 5 版：舊存檔補上告別的預設值', () => {
-  assert.equal(SAVE_VERSION, 5);
+  assert.ok(SAVE_VERSION >= 5); // 第 6 版（店裡的小事）見 moments.test.mjs
   const old = JSON.parse(JSON.stringify(newSave()));
   old.version = 4;
   delete old.farewell;
   const s = migrate(old, T0 + DAY);
   assert.deepEqual(s.farewell, F.blankFarewell());
-  assert.equal(s.version, 5);
+  assert.equal(s.version, SAVE_VERSION);
 });
 
 test('離開東山之後，營業日誌由凱文寫（多出凱文的句子）；台詞裡沒有「不划算」「KPI」', () => {

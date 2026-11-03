@@ -6,10 +6,11 @@ import { daysOpen } from './clock.js';
 import { blankFarewell } from './farewell.js';
 
 export const SAVE_KEY = 'dream-cafe.save';
-export const SAVE_VERSION = 5; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
+export const SAVE_VERSION = 6; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
 // 3：階段 4 加入熟客故事線（來店次數、里程碑、結算到哪一天）、菜單、颱風那天
 // 4：階段 5 加入打烊（closing）、「今天的一杯」咖啡日記（diary）、龍眼（cat）
 // 5：階段 6 加入徵店長與告別（farewell）
+// 6：承峰 11/3 第二輪回饋加入店裡的小事（moments）：前三天的小段落演過哪些、哪些擺飾已經有過第一次擺出來的反應
 
 const regular = () => ({ visits: 0, milestones: [], on: {}, settled: 0, lastVisit: 0, lastMilestoneDay: 0 });
 
@@ -44,6 +45,8 @@ export function defaultSave(now) {
     cat: { tryId: '', tryDay: 0, seen: [], refused: false, chairs: 0 },
     // 徵店長與告別（farewell.js）：step 演完第幾段、on 每一段在第幾天、notice 貼出去的啟事、departed 離開東山了沒……
     farewell: blankFarewell(),
+    // 店裡的小事（moments.js）：early 演過的前三天小段落、decor 已經有過第一次擺出來的反應的擺飾（品項 id）
+    moments: { early: [], decor: [] },
     letters: [], // 讀過的老先生的信：[{ id, t, day }]
     journal: [], // 最近幾頁德叔的營業日誌（記事本可以重讀），見 journal.js
     player: { name: '', resignation: '' }, // 開場第一幕：辭呈署名（可留空）與選的結尾（之後凱文的里程碑會用到）
@@ -84,6 +87,8 @@ export function migrate(data, now) {
   if (v < 2) { save.flags.seenOpening = true; save.flags.starterGiven = true; }
   // 第 3 版以前沒有熟客故事線：過去的日子不補算，熟客從今天開始來（不會一次湧出一大疊里程碑）
   if (v < 3) for (const r of Object.values(save.regulars)) r.settled = Math.max(r.settled, daysOpen(save.createdAt, now) - 1);
+  // 第 6 版以前：已經擺在店裡的東西不再補一次「第一次擺出來」的反應（只對之後新擺出來的反應）
+  if (v < 6) for (const o of save.owned) if (o.placed && !save.moments.decor.includes(o.item)) save.moments.decor.push(o.item);
   save.version = SAVE_VERSION;
   save.nextUid = Math.max(save.nextUid, ...save.owned.map((o) => (Number(o.uid) || 0) + 1), 1);
   return save;
