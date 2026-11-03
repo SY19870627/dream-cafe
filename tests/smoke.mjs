@@ -13,6 +13,8 @@
 // 接正式美術：角色與龍眼的材質來自 assets/art；攔下 assets/art 的請求（斷線、404、解碼錯誤）時退回 Canvas 繪圖，照樣坐下、沖一杯、沒有 JS 錯誤。
 // 接正式美術第二批（art2a）：店內的材質、窗景、家具與小道具也來自 assets/art，全部失敗時一樣退回 Canvas 繪圖。
 // 承峰 11/3 第二輪回饋：店裡的小事（擺飾第一次擺出來的反應、第 1 天予安探頭、店內小事件、&idle=N）。
+// 黑板菜單（D185～D188）：菜單本（佈置模式的「菜單」、記事本）、寫上／擦掉／寫滿時換一行、最後一杯喝的擦不掉、德叔照黑板沖、
+// 德叔換黑板只換黑板上真的有的東西、重新整理後黑板還在、還沒解鎖的品項看不到。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -691,7 +693,8 @@ try {
     check((await cafe('fund')) === (await cafe('ledgerSum')), '基金與帳本一致');
     const owned = await cafe('owned');
     check(owned.includes('napkin') && owned.includes('yuan-book'), '寫滿字的紙巾、予安的書收進倉庫');
-    check(st.menu.includes('zhe-beans'), '菜單上架「阿哲的豆」');
+    check(st.menu.includes('zhe-beans') && st.board.includes('zhe-beans'), `阿哲第六幕：老闆選「寫上去」，阿哲的豆寫上黑板（${st.board.join('、')}）`);
+    check(['black', 'iced', 'cocoa'].every((id) => st.menu.includes(id)) && !st.board.includes('black'), '黑咖啡、冰美式、熱可可收進菜單本，沒有自己寫上黑板');
     check(journals.length > 0 && !journals.join('').match(/不划算|KPI/), '日誌裡沒有「不划算」之類的字眼');
     // 選豆子：菜單上有兩支豆子時，先選今天喝哪一支
     await page.waitForSelector('#brew', { state: 'visible', timeout: 10000 });
@@ -796,7 +799,9 @@ try {
       check(await page.evaluate((i) => window.__cafe.idleEvent(i, false), id), `店內小事件 ${id}`);
     }
     const m = await cafe('moments');
-    check(m.deshuFree && (await cafe('catOnSill')) && m.board !== '阿里山 水洗', `德叔回到吧台、龍眼還在窗台上、黑板換了一支（${m.board}）`);
+    const mn = await cafe('menu');
+    check(m.deshuFree && (await cafe('catOnSill')) && !m.board.includes('阿里山 水洗') && m.board.join() === mn.lines.join(),
+      `德叔回到吧台、龍眼還在窗台上、黑板只寫菜單上真的有的東西（${m.board.join('／')}）`);
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }
@@ -811,6 +816,91 @@ try {
     await page.click('#brew');
     await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 40000 });
     check((await page.evaluate(() => window.__cafe.tasks)).includes('first-coffee'), '小事件之後照常可以請德叔沖一杯');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+
+  /* ---------- 黑板菜單（D185～D188） ---------- */
+  console.log('手機 390×844（黑板菜單）');
+  {
+    // 新存檔：菜單本只有東山的豆，看不到還沒解鎖的品項
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=8&opening=0&regulars=0&weather=clear');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    await page.click('#place');
+    check(await page.isVisible('#p-menu'), '佈置模式下面有「菜單」');
+    await page.click('#p-menu');
+    let rows = await page.$$eval('#sheet-list .menu-row', (rs) => rs.map((r) => r.dataset.item));
+    check(JSON.stringify(rows) === '["dongshan"]' && !(await page.textContent('#sheet-list')).match(/黑咖啡|冰美式|熱可可|阿哲|龍眼/), `新存檔的菜單本只有東山的豆，沒有鎖住的格子（${rows}）`);
+    check(await page.isDisabled('.menu-row[data-item="dongshan"] button'), '黑板上只有一杯喝的：擦不掉');
+    await page.click('#sheet-close');
+    await page.click('#p-done');
+    await page.close();
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+  }
+  {
+    // 解鎖全部品項（&menu=all）：寫上、擦掉、寫滿時換一行，馬上寫在黑板上；德叔照黑板沖
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=8&opening=0&regulars=0&weather=clear&menu=all');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    const menu = () => cafe('menu');
+    await page.click('#place');
+    await page.click('#p-menu');
+    const rows = await page.$$eval('#sheet-list .menu-row', (rs) => rs.map((r) => r.dataset.item));
+    check(rows.length === 6 && rows[0] === 'dongshan', `菜單本：六樣（${rows.join('、')}）`);
+    check((await page.textContent('#sheet-title')) === '菜單本' && (await page.textContent('#sheet-list')).includes('新的'), '剛解鎖的品項標「新的」');
+    check((await smallTargets(page)).length === 0, '菜單本的按鈕都 ≥ 44px');
+    await page.screenshot({ path: OUT + 'phone-menu-book.png' });
+    await page.click('.menu-row[data-item="black"] button');
+    check((await menu()).board.join() === 'dongshan,black' && (await menu()).lines.join() === '東山 日曬,黑咖啡', '寫上黑板：馬上寫上去');
+    await page.click('.menu-row[data-item="cocoa"] button');
+    await page.click('.menu-row[data-item="iced"] button');
+    let mn = await menu();
+    check(mn.board.length === 4 && mn.head === '今日', `寫滿四行（${mn.lines.join('／')}，標題「${mn.head}」）`);
+    check((await page.textContent('.menu-row[data-item="longan"] button')) === '換掉一行', '寫滿了：其他品項的按鈕是「換掉一行」');
+    await page.click('.menu-row[data-item="longan"] button');
+    check((await page.textContent('#sheet-sub')).includes('黑板寫不下了，要擦掉哪一行？') && await page.isVisible('#menu-cancel'), '德叔問「黑板寫不下了，要擦掉哪一行？」，也可以先不寫');
+    await page.screenshot({ path: OUT + 'phone-menu-swap.png' });
+    await page.click('.menu-row[data-item="cocoa"] button');
+    mn = await menu();
+    check(mn.board.join() === 'dongshan,black,longan,iced', `換掉熱可可，龍眼乾寫在同一行（${mn.board.join('、')}）`);
+    await page.click('.menu-row[data-item="black"] button');
+    check(!(await menu()).board.includes('black'), '擦掉：馬上擦掉');
+    check((await cafe('fund')) === 0, '寫上、擦掉都不花錢');
+    await page.click('#sheet-close');
+    await page.click('#p-done');
+    // 德叔照黑板沖：黑板上有東山的豆、冰美式（點心龍眼乾附一小碟）
+    await page.click('.seat-label >> text=吧台座');
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: OUT + 'phone-menu-board.png' });
+    await page.click('#brew');
+    const opts = await page.$$eval('#choices button', (bs) => bs.map((b) => b.textContent));
+    check(JSON.stringify(opts) === '["東山的豆","冰美式"]', `請德叔沖一杯：從黑板上的選（${opts.join('、')}）`);
+    check((await page.textContent('#ask')).includes('今天想喝哪一支豆子？'), '都是咖啡：照舊問豆子');
+    await page.click('#choices button:has-text("冰美式")');
+    await page.waitForFunction(() => window.__cafe.closeup, null, { timeout: 8000 });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: OUT + 'phone-menu-brew.png' });
+    await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 40000 });
+    await page.waitForFunction(() => document.getElementById('bubble').textContent.includes('冰美式。冰塊最後才放'), null, { timeout: 8000 });
+    check(true, '冰美式沖好上桌，德叔說那一杯的話');
+    // 德叔換黑板：只換黑板上真的有的那幾樣的順序
+    await page.waitForFunction(() => !window.__cafe.moments.busy && !window.__cafe.brewing, null, { timeout: 15000 });
+    await page.waitForFunction(() => window.__cafe.moments.deshuFree, null, { timeout: 15000 });
+    const before = await menu();
+    await page.evaluate(() => window.__cafe.idleEvent('deshu-board', false));
+    const after = await menu();
+    check(after.drinks[0] === 'iced' && before.drinks[0] === 'dongshan' && [...after.lines].sort().join() === [...before.lines].sort().join(), `德叔換黑板：換一杯到最上面，黑板上的東西不變（${after.lines.join('／')}）`);
+    // 重新整理：黑板還在
+    await page.reload();
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(1500);
+    check((await menu()).board.join() === 'dongshan,longan,iced', '重新整理後黑板照舊');
+    // 記事本也打得開菜單本
+    await page.click('#menu-btn');
+    await page.click('#open-notebook');
+    check((await page.textContent('#nb-people')).includes('黑板上：東山的豆・窯烤龍眼乾・冰美式'), '記事本：黑板上寫什麼');
+    await page.click('#nb-menu');
+    check((await menu()).open, '記事本的「打開菜單本」');
+    await page.click('#sheet-close');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }

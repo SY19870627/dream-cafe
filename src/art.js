@@ -528,8 +528,10 @@ export function windowFrame() {
 // 美術評分修正 f：整段字收進黑板的下緣（德叔肩膀以下的高度）、中線往右移到 1.47、字小一點。
 // 量過：看德叔沖的近景，德叔的臉在黑板 y 1.36 左右，肩膀以下擋住 x 約 1.10～1.66；颱風夜德叔站在黑板前，
 // 手機約擋住 1.26～1.78、桌機約 1.29～1.62。原本「今日手沖」在臉的高度，兩個畫面都有一兩個字露在他的頭旁邊
-// special：黑板第二支豆子（德叔換黑板的小事件，moments.js 的 BOARD_BEANS；沒有給就是原本的「阿里山 水洗」）
-function menuText(g, menu, special = '阿里山 水洗') {
+// board：{ head 標題, lines: [{ text, big }] }（menu.js 的 boardHead()／boardLines()，黑板菜單 D185）：黑板上寫什麼由老闆決定，最多 4 行。
+// 行距與字級照原本的兩種排法（3 行、阿哲的豆上架後 4 行）往外推：行數越多字越小，整段的下緣固定在 1.65 公尺左右；
+// big（阿哲的豆）用金色粗體、字大一點（「好啦，寫大一點。」）
+function menuText(g, board = { head: '今日手沖', lines: [{ text: '東山 日曬' }] }) {
   const cx = 1.47; // 字的中線（公尺）
   const line = (text, y, size, color = '#f2ead8', bold = '') => {
     g.fillStyle = color;
@@ -537,15 +539,20 @@ function menuText(g, menu, special = '阿里山 水洗') {
     g.fillText(text, cx, y);
   };
   g.textAlign = 'center';
-  if (menu.includes('zhe-beans')) {
-    line('今日手沖', 1.47, 0.064);
-    line('東山 日曬', 1.53, 0.05);
-    line(special, 1.585, 0.05);
-    line('阿哲的豆', 1.643, 0.058, '#ffd27a', 'bold '); // 「好啦，寫大一點。」
-  } else {
-    line('今日手沖', 1.49, 0.07);
-    line('東山 日曬', 1.565, 0.055);
-    line(special, 1.635, 0.055);
+  const rows = board.lines.slice(0, 4);
+  const n = rows.length;
+  const dense = n >= 3;
+  // 4 行時再收一點（標題不要往上長到德叔的頭旁邊）
+  const step = n >= 4 ? 0.05 : dense ? 0.056 : 0.073; // 行距
+  const size = n >= 4 ? 0.046 : dense ? 0.05 : 0.055;
+  const headSize = n >= 4 ? 0.058 : dense ? 0.064 : 0.07;
+  const bottom = 1.643; // 最後一行的基線（原本「阿哲的豆」那一行）
+  let y = bottom - step * (Math.max(n, 1) - 1);
+  line(board.head, y - (n >= 4 ? 0.055 : dense ? 0.06 : 0.075), headSize);
+  for (const r of rows) {
+    if (r.big) line(r.text, y, size + 0.008, '#ffd27a', 'bold ');
+    else line(r.text, y, size);
+    y += step;
   }
 }
 // 程式在手繪圖上疊東西：複製一張同樣大小的 canvas，座標用公尺（原點是圖的左上角）
@@ -560,13 +567,13 @@ function overlay(a) {
   return { c, g };
 }
 
-// menu：菜單上的東西（阿哲的豆上架後，小黑板多一行）；special：黑板第二支豆子（見 menuText()）
-export function backBar(wm, hm, menu = [], special = undefined) {
+// board：黑板上寫的字（見 menuText()）
+export function backBar(wm, hm, board = undefined) {
   // 手繪的層架：黑板（x 0.95～1.85、y 1.15～1.65 公尺）留空，菜單的字由程式寫
   const a = room('backbar');
   if (a) {
     const { c, g } = overlay(a);
-    menuText(g, menu, special);
+    menuText(g, board);
     return c;
   }
   // 吧台後方牆上的層架與罐子
@@ -587,7 +594,7 @@ export function backBar(wm, hm, menu = [], special = undefined) {
   // 小黑板
   rr(g, wm / 2 - 0.45, 1.15, 0.9, 0.5, 0.03);
   g.fillStyle = '#2f3a33'; g.fill(); outline(g, 0.02);
-  menuText(g, menu, special);
+  menuText(g, board);
   return c;
 }
 

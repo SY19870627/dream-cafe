@@ -16,6 +16,7 @@ import * as H from './afterhours.js';
 import * as F from './farewell.js';
 import { createAudio, VOLUMES, VOLUME_NAMES } from './audio.js';
 import * as MO from './moments.js';
+import * as MN from './menu.js';
 
 const $ = (id) => document.getElementById(id);
 const lightsEl = $('lights'); // 打烊後每盞燈旁邊的「關燈／開燈」
@@ -78,6 +79,16 @@ const lastSeenAtLoad = save.lastSeen; // 離線營業日誌從這裡結算
 if (DEV && params.get('opening') === '0' && !save.flags.seenOpening) {
   save.flags.seenOpening = true;
   giveStarters(save);
+}
+// 測試與截圖用（黑板菜單，D185）：&menu=all 把所有品項收進菜單本（不寫上黑板）；&board=dongshan,black,cocoa 直接指定黑板上寫什麼（沒解鎖的一併解鎖）
+if (DEV && params.get('menu') === 'all') devUnlockMenu();
+if (DEV && params.get('board')) {
+  const ids = params.get('board').split(',').filter((id) => MN.ITEMS[id]);
+  for (const id of ids) MN.unlock(save, id, today(), now(), { board: false });
+  if (ids.some(MN.isDrink)) save.menu.board = ids.slice(0, MN.BOARD_MAX);
+}
+function devUnlockMenu() {
+  for (const id of MN.ITEM_IDS) if (MN.unlock(save, id, today(), now(), { board: false })) MN.markTold(save, id);
 }
 let resetting = false;
 function persist() {
@@ -186,9 +197,12 @@ function addWindow(x, y, z, ry) {
 addWindow(-1.7, 1.75, -ROOM.d / 2 + 0.02, 0);
 addWindow(-ROOM.w / 2 + 0.02, 1.7, -0.6, Math.PI / 2);
 
-// 吧台後方層架（小黑板寫著今日手沖；阿哲的豆上架後多一行）。
+// 德叔換黑板（店內小事件 deshu-board）時把黑板上喝的東西換一杯到最上面：第幾杯（不存檔，重新整理回到老闆寫的順序；D188）
+let boardShift = 0;
+function boardText() { return { head: MN.boardHead(save), lines: MN.boardLines(save, boardShift) }; }
+// 吧台後方層架（小黑板就是菜單：老闆寫上去的東西由程式寫在上面，menu.js，D185）。
 // 接正式美術第二批：手繪的層架下半是一座有抽屜的櫃子，底邊在離地 0.95 公尺：底下補一座靠牆的矮櫃（正面用吧台正面的材質）撐著
-const backBar = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.8), lambert(A.tex(A.backBar(2.8, 1.8, save.menu)), { transparent: true, alphaTest: 0.1 }));
+const backBar = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.8), lambert(A.tex(A.backBar(2.8, 1.8, boardText())), { transparent: true, alphaTest: 0.1 }));
 backBar.position.set(ROOM.w / 2 - 0.02, 1.85, -1.6);
 backBar.rotation.y = -Math.PI / 2;
 scene.add(backBar);
@@ -203,11 +217,11 @@ const woodTopTex = A.tex(A.woodTop(), [1, 1]);
   base.position.set(ROOM.w / 2 - BACK_BASE.d / 2, BACK_BASE.h / 2, -1.6);
   scene.add(base);
 }
-let boardBean = 0; // 黑板第二支豆子是 BOARD_BEANS 的第幾支（德叔換黑板的小事件，D182；重新整理回到第一支）
-function drawBackBar(menu = save.menu) {
+function drawBackBar() {
   backBar.material.map?.dispose();
-  backBar.material.map = A.tex(A.backBar(2.8, 1.8, menu, MO.BOARD_BEANS[boardBean]));
+  backBar.material.map = A.tex(A.backBar(2.8, 1.8, boardText()));
   backBar.material.needsUpdate = true;
+  counterBag.visible = MN.unlocked(save, 'longan');
 }
 
 // 牆上的老溫度計
@@ -629,7 +643,7 @@ const counterBag = paper(A.longanBag(), 1.95, -0.1, { y: TOP, shadow: false });
 // 窗邊座的桌上放一張手寫菜單的杯墊當焦點。兩張都只有手繪圖，沒有載到就不放
 if (A.artLoaded('kettleSet')) paper(A.kettleSet(), 2.2, -2.85, { y: TOP, shadow: false, clamp: 0.9, base: -Math.PI / 2 });
 if (A.coaster()) paper(A.coaster(), tA.x + 0.2, tA.z - 0.14, { y: tA.h + 0.02, shadow: false });
-counterBag.visible = save.menu.includes('longan');
+counterBag.visible = MN.unlocked(save, 'longan');
 // 老先生的信：德叔從吧台抽屜拿出來，放在吧台上
 const envelope = paper(A.envelope(), 1.8, -0.75, { y: TOP, shadow: false });
 envelope.userData.mesh.scale.setScalar(1.7); // 從俯瞰鏡頭也看得到
@@ -1268,8 +1282,9 @@ const closeView = () => (kitInArt() ? CLOSE_ART : CLOSE_KIT);
 const WALK = 0.85; // 德叔端杯的走速（公尺／秒）
 
 // 正常速度下吧台沖煮約 19 秒：六個動作都保留，只縮短停頓與注水
-// bean：菜單上的哪一支豆子（MENU 的 id）；窯烤龍眼乾上了菜單之後，杯子旁邊多一小碟
+// bean：黑板上的哪一杯（menu.js 的 ITEMS id）；黑板上寫著點心（窯烤龍眼乾）時，杯子旁邊多一小碟
 // opt.last：打烊後的最後一杯；opt.guest：客人模式點的那杯；opt.enamel：最後一晚，德叔用那個琺瑯杯沖（farewell.js 第 7 段）
+let brewIced = false; // 這一杯是冰的（冰美式）：沖的時候杯子不冒煙
 async function brew(seat, bean = 'dongshan', opt = {}) {
   if (brewing) return;
   brewing = true;
@@ -1278,15 +1293,17 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
     updateUI();
     await deshuReturning;
   }
-  const withLongan = save.menu.includes('longan') && !opt.enamel;
+  const withLongan = MN.withSnack(save) && !opt.enamel;
+  const iced = MN.ITEMS[bean]?.cup === 'iced' && !opt.enamel;
+  brewIced = iced;
   if (opt.enamel) {
     scene.remove(stationCup);
     stationCup = makeCup('enamel');
     stationCup.position.copy(CUP_SPOT);
     scene.add(stationCup);
-  } else if (withLongan) {
+  } else if (withLongan || iced) {
     scene.remove(stationCup);
-    stationCup = makeCup('hot', true, true);
+    stationCup = makeCup(iced ? 'iced' : 'hot', withLongan, true);
     stationCup.position.copy(CUP_SPOT);
     scene.add(stationCup);
   }
@@ -1332,11 +1349,13 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
     await animate(1.2, (k) => { cup.position.lerpVectors(from, seat.cup, ease(k)); cup.position.y += Math.sin(Math.PI * k) * 0.03; });
   }
   placeCup(cup, seat);
+  if (iced) cup.userData.age = 999; // 冰的不冒煙
+  const served = MN.ITEMS[bean]?.served;
   if (opt.enamel) { /* 最後一晚：德叔叫老闆名字的那句，由告別的場景說（farewell.js 第 7 段） */ }
   else if (opt.last) say(H.CLOSING.lastCup, 4500); // 劇本：打烊「最後一杯，是老闆的。」
-  else if (bean === 'zhe-beans') say('阿哲的豆。他說寫大一點，我就寫大一點。', 4500); // 【待定】
+  else if (served && (bean === 'zhe-beans' || (!keeper() && bean !== 'dongshan'))) say(served, 4500); // 黑板上的那一杯（menu.js 的 served）
   else if (withLongan && !save.flags.longanServed) { save.flags.longanServed = true; say('配阿哲阿公的龍眼乾。窯烤的。', 4500); } // 【待定】
-  else say(keeper() ? F.KEEPER.served : '東山的豆，就是窗外那片山。', 4500);
+  else say(keeper() ? F.KEEPER.served : MN.ITEMS.dongshan.served, 4500);
 
   // 收拾吧台，準備下一杯
   groundsBed.scale.y = 0.01;
@@ -1378,7 +1397,7 @@ async function brewWithKit(cupTop, dripTop, cupSteam, dripSteam) {
   setPaper(deshu, deshuCanvas.pour);
   await moveKettle(cupTop);
   stream.visible = true;
-  steamSources.add(cupSteam);
+  if (!brewIced) steamSources.add(cupSteam); // 冰美式的杯子不冒煙
   audio.start('pour');
   await animate(1.6, () => updateStream(cupTop.y));
   audio.stop('pour');
@@ -1449,7 +1468,7 @@ async function brewInArt(cupSteam) {
   setPaper(deshu, deshuCanvas.pour);
   // 1. 溫杯：熱水沖進杯子，冒出熱氣
   await lean(0.025, 0.9);
-  steamSources.add(cupSteam);
+  if (!brewIced) steamSources.add(cupSteam); // 冰美式的杯子不冒煙
   audio.start('pour');
   await wait(1.6);
   audio.stop('pour');
@@ -2059,6 +2078,7 @@ function updateUI() {
   show('op-skip-shop', !!tut);
   show('p-catalog', placing && !sel);
   show('p-store', placing && !sel);
+  show('p-menu', placing && !sel);
   show('p-putaway', placing && sel);
   show('p-deselect', placing && sel);
   show('p-revert', placing);
@@ -2167,6 +2187,7 @@ $('p-putaway').onclick = putAway;
 $('p-deselect').onclick = () => select(null);
 $('p-catalog').onclick = () => openSheet('catalog');
 $('p-store').onclick = () => openSheet('store');
+$('p-menu').onclick = () => openSheet('menu');
 
 // 型錄與倉庫：從畫面下方拉起的面板
 const sheet = $('sheet');
@@ -2196,10 +2217,85 @@ function row(item, note, btnText, onClick) {
 }
 
 let sheetKind = null;
+// 菜單本（黑板菜單，D185）：解鎖過的品項，每一樣一行：名字、一句來歷、「寫上黑板／擦掉」。寫上、擦掉都馬上生效、存檔、重寫黑板。
+// swapFor：黑板寫滿時，正在選要擦掉哪一行來換上這一樣
+let swapFor = null;
+function menuRow(id, note, btnText, onClick, disabled = false) {
+  const it = MN.ITEMS[id];
+  const r = document.createElement('div');
+  r.className = 'sheet-row menu-row';
+  r.dataset.item = id;
+  r.innerHTML = `<span class="chalk${it.big ? ' big' : ''}">${esc(MN.BOOK.kinds[it.kind])}</span><div class="info"><b>${esc(it.name)}</b><span>${esc(it.desc)}</span>${note ? `<small>${esc(note)}</small>` : ''}</div>`;
+  if (btnText) {
+    const b = document.createElement('button');
+    b.textContent = btnText;
+    b.disabled = disabled;
+    b.onclick = onClick;
+    r.appendChild(b);
+  }
+  return r;
+}
+function menuChanged() {
+  persist();
+  drawBackBar();
+  audio.play('click');
+  renderMenuBook();
+}
+function renderMenuBook() {
+  const list = $('sheet-list');
+  list.innerHTML = '';
+  const d = today();
+  const board = save.menu.board;
+  $('sheet-title').textContent = MN.BOOK.title;
+  $('sheet-sub').textContent = swapFor ? MN.BOOK.swap : MN.BOOK.sub + (MN.boardFull(save) ? MN.BOOK.full : '');
+  const h1 = document.createElement('h3');
+  h1.textContent = MN.BOOK.onBoard;
+  list.appendChild(h1);
+  for (const id of board) {
+    if (swapFor) {
+      const ok = !(MN.isDrink(id) && !MN.isDrink(swapFor) && board.filter(MN.isDrink).length <= 1);
+      list.appendChild(menuRow(id, ok ? '' : MN.BOOK.keepOne, MN.BOOK.eraseThis, () => { MN.replace(save, id, swapFor, d); swapFor = null; menuChanged(); }, !ok));
+    } else {
+      const ok = MN.canErase(save, id);
+      list.appendChild(menuRow(id, ok ? '' : MN.BOOK.keepOne, MN.BOOK.erase, () => { MN.erase(save, id); menuChanged(); }, !ok));
+    }
+  }
+  const rest = MN.bookItems(save).filter((id) => !board.includes(id));
+  if (swapFor) {
+    const b = document.createElement('button');
+    b.className = 'wide';
+    b.id = 'menu-cancel';
+    b.textContent = MN.BOOK.cancel;
+    b.onclick = () => { swapFor = null; renderMenuBook(); };
+    list.appendChild(b);
+  } else if (rest.length) {
+    const h2 = document.createElement('h3');
+    h2.textContent = MN.BOOK.inBook;
+    list.appendChild(h2);
+    for (const id of rest) {
+      const full = MN.boardFull(save);
+      list.appendChild(menuRow(id, save.menu.items[id].seen ? '' : MN.BOOK.isNew, full ? MN.BOOK.replace : MN.BOOK.write, () => {
+        if (MN.boardFull(save)) { swapFor = id; renderMenuBook(); return; }
+        MN.write(save, id, d);
+        menuChanged();
+      }));
+    }
+  }
+}
 function openSheet(kind) {
   sheetKind = kind;
   const list = $('sheet-list');
   list.innerHTML = '';
+  if (kind === 'menu') {
+    swapFor = null;
+    renderMenuBook();
+    MN.markSeen(save); // 「新的」只標這一次
+    persist();
+    sheet.hidden = false;
+    list.scrollTop = 0;
+    $('sheet-close').focus();
+    return;
+  }
   const bal = balance(save);
   if (kind === 'catalog') {
     $('sheet-title').textContent = '德叔的型錄';
@@ -2231,13 +2327,13 @@ $('sheet-close').onclick = closeSheet;
 sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
 
 $('stand').onclick = stand;
-// 菜單上有兩支以上的豆子（阿哲的豆上架後），先選今天喝哪一支
+// 德叔照黑板沖：黑板上喝的東西有兩樣以上時，先選今天喝哪一杯（只有一樣就不問；D185）
 $('brew').onclick = async () => {
   if (phase === 'brew') { toggleCloseup(); return; }
   if (brewing || !state.seat || state.choice) return;
-  const coffees = save.menu.filter((id) => S.MENU[id]?.kind === 'coffee');
-  let bean = 'dongshan';
-  if (coffees.length > 1) bean = coffees[await choose(coffees.map((id) => S.MENU[id].name), '今天想喝哪一支豆子？', keeper() ? '凱文' : '德叔')];
+  const drinks = MN.boardDrinks(save, boardShift);
+  let bean = drinks[0];
+  if (drinks.length > 1) bean = drinks[await choose(drinks.map((id) => MN.ITEMS[id].name), MN.askFor(drinks), keeper() ? '凱文' : '德叔')];
   if (!brewing && state.seat) brew(state.seat, bean);
 };
 
@@ -2359,8 +2455,13 @@ function openNotebook(open) {
   people.appendChild(h);
   const menu = document.createElement('p');
   menu.className = 'nb-person';
-  menu.textContent = save.menu.map((id) => S.MENU[id]?.name).filter(Boolean).join('・');
+  menu.textContent = MN.BOOK.boardLine + save.menu.board.map((id) => MN.ITEMS[id]?.name).filter(Boolean).join('・');
   people.appendChild(menu);
+  const book = document.createElement('button');
+  book.id = 'nb-menu';
+  book.textContent = MN.BOOK.open;
+  book.onclick = () => { openNotebook(false); openSheet('menu'); };
+  people.appendChild(book);
   const list = $('nb-list');
   list.innerHTML = '';
   for (const d of [...save.tasks].reverse()) {
@@ -3390,9 +3491,40 @@ async function playStep(s, tok) {
     case 'ifFire': return save.player.resignation === 'fire' ? playSteps(s.steps, tok) : undefined;
     case 'read': return new Promise((r) => openLetter(S.DOCS[s.doc], r));
     case 'brewTaste': return brewTaste();
-    case 'menu': drawBackBar([...save.menu, 'zhe-beans']); return realWait(800);
+    case 'menu': return zheBeansAsk();
     default: return undefined;
   }
+}
+
+// 阿哲第六幕（任務 #19，Q73 的暫定做法，D186）：阿哲的豆收進菜單本，德叔問老闆要不要寫上黑板；老闆可以說之後再說。
+// 任務照舊在這一幕演完時完成（不卡 37°C）；黑板寫滿了就問要擦掉哪一行，也可以先不寫
+async function zheBeansAsk() {
+  const d = today();
+  MN.unlock(save, 'zhe-beans', d, now(), { board: false });
+  MN.markTold(save, 'zhe-beans');
+  persist();
+  if (MN.onBoard(save, 'zhe-beans')) { drawBackBar(); return realWait(800); } // 中途重新整理、重演一次：已經寫上去了
+  const i = await choose(MN.ZHE6.options, MN.ZHE6.ask, '德叔');
+  let ok = false;
+  if (i === 0) {
+    ok = MN.write(save, 'zhe-beans', d);
+    if (!ok) {
+      const lines = [...save.menu.board];
+      const j = await choose([...lines.map((id) => MN.eraseOf(MN.ITEMS[id].name)), MN.BOOK.cancel], MN.BOOK.swap, '德叔');
+      if (j < lines.length) ok = MN.replace(save, lines[j], 'zhe-beans', d);
+    }
+  }
+  if (ok) {
+    MN.markNoticed(save, 'zhe-beans', 'zhe');
+    persist();
+    drawBackBar();
+    audio.play('click');
+    return realWait(900);
+  }
+  persist();
+  const ms = sayMs(MN.ZHE6.later);
+  say(MN.ZHE6.later, ms / DEV_SPEED, deshu);
+  return realWait(ms + 450);
 }
 
 // 演一個里程碑；演完才記進存檔（中途重新整理就從頭再演一次）
@@ -3409,8 +3541,8 @@ async function runScene(m) {
     if (tok !== live.token) return; // 跳天數等等讓場景作廢：不記進存檔
   }
   const d = today();
-  S.complete(save, m, d);
-  if (m.menu) { drawBackBar(); counterBag.visible = save.menu.includes('longan'); }
+  const got = S.complete(save, m, d, now());
+  if (got.length) drawBackBar();
   if (m.gift) glowFund(); // 熟客送的東西收進倉庫：佈置鈕輕輕亮一下
   if (m.id === 'zhe4') for (const w of ['zhe', 'grandpa']) live.leaveAt.set(w, performance.now() + 60000 / DEV_SPEED);
   if (m.id === 'zhe3') live.leaveAt.delete('zhe'); // 颱風夜，阿哲待在店裡
@@ -3607,6 +3739,13 @@ setInterval(() => {
     const item = MO.pendingDecor(save)[0];
     if (item) { runMoment('decor', item, () => decorReact(item)); return; }
   }
+  // 黑板菜單（D187）：收進菜單本的東西德叔提一句；熟客看到自己的東西寫上黑板（或被擦掉）說一句。都是一次
+  if (quietMs > 4000 && !keeper()) {
+    const t = MN.pendingTell(save)[0];
+    if (t) { runMoment('menu', t.id, () => menuTell(t)); return; }
+    const r = MN.boardReaction(save, hereNow(), (w, n) => S.hasMilestone(save, w, n));
+    if (r) { runMoment('board', `${r.item}:${r.who}:${r.kind}`, () => boardReact(r)); return; }
+  }
   if (REGULARS_ON && live.day === today() && quietMs > MO.EARLY_QUIET_MS && !keeper()) {
     const e = MO.earlyDue(earlyCtx(), save.moments.early);
     if (e) { runMoment('early', e.id, () => earlyBeat(e)); return; }
@@ -3725,7 +3864,9 @@ async function idleEvent(e, line = '') {
     case 'deshu-board':
       setPaper(deshu, deshuCanvas.pour);
       await wait(1.6);
-      boardBean = (boardBean + 1) % MO.BOARD_BEANS.length;
+      // 黑板上喝的東西換一杯到最上面（只寫老闆寫上去的東西，D188）；只有一杯時只是重寫一次、不說「今天換這支」
+      if (MN.boardDrinks(save).length > 1) boardShift++;
+      else line = '';
       drawBackBar();
       audio.play('click');
       await wait(0.8);
@@ -3788,6 +3929,22 @@ async function earlyBeat(e) {
   if (tok !== live.token) return;
   say(e.line[1], 4200, WHO[e.line[0]] || deshu);
   await realWait(4600);
+}
+
+// 收進菜單本的東西：德叔說一句（D187）
+async function menuTell(t) {
+  MN.markTold(save, t.id);
+  persist();
+  say(t.line, 4200, deshu);
+  await realWait(4600);
+}
+// 熟客看到黑板：自己的東西第一次寫上去、或平常點的東西被擦掉（D187）
+async function boardReact(r) {
+  MN.markReaction(save, r);
+  persist();
+  if (!PEOPLE[r.who]?.visible) return;
+  say(r.line, 4000, PEOPLE[r.who]);
+  await realWait(4400);
 }
 
 // 擺飾第一次擺出來的反應（D183）：熟客在店裡就由熟客說，不然德叔或龍眼
@@ -4047,7 +4204,8 @@ function devToFarewell() {
   exitClosing();
   const d = today();
   const typhoon = save.story.typhoonDay;
-  for (const m of S.MILESTONES) if (!S.hasMilestone(save, m.who, m.n)) S.complete(save, m, d);
+  // 收進菜單本的東西當作德叔提過了（直接跳到告別前，不要一進店就連說好幾句）
+  for (const m of S.MILESTONES) if (!S.hasMilestone(save, m.who, m.n)) for (const g of S.complete(save, m, d)) MN.markTold(save, g.id);
   if (!typhoon || typhoon === d) save.story.typhoonDay = Math.max(1, d - 4); // 颱風夜不要變成今天
   for (const w of S.REGULAR_IDS) { const r = save.regulars[w]; r.visits = Math.max(r.visits, 10); r.lastMilestoneDay = d - 1; r.settled = Math.max(r.settled, d - 1); }
   save.flags.guestVisit = true;
@@ -4060,7 +4218,6 @@ function devToFarewell() {
   persist();
   riseTemp(temperature(save));
   drawBackBar();
-  counterBag.visible = save.menu.includes('longan');
   refreshWeather();
   refreshDevTools();
   openAbout(false);
@@ -4068,6 +4225,7 @@ function devToFarewell() {
   startDay();
 }
 $('dev-fw').onclick = devToFarewell;
+$('dev-menu').onclick = () => { devUnlockMenu(); persist(); openAbout(false); openSheet('menu'); };
 
 /* ---------- 聲音與音樂（src/audio.js：WebAudio 即時合成，不用音檔；預設音量小，選單裡可以分別關掉） ---------- */
 // 音樂只在店裡（開場的辦公室沒有音樂，推門進店才開始）；打烊後換成更慢、更暗的版本；「明天見」之後安靜下來
@@ -4162,12 +4320,13 @@ function enterLastCup() {
   if (state.mode === 'seat' && state.seat) lastCup(state.seat);
   else say(H.CLOSING.sitDown, 4200);
 }
-// 最後一杯：菜單上有兩支豆子時先選；沖好端上桌時德叔說「最後一杯，是老闆的。」
+// 最後一杯：黑板上喝的東西有兩樣以上時先選；沖好端上桌時德叔說「最後一杯，是老闆的。」
 async function lastCup(seat) {
   if (state.closing !== 'lastcup' || brewing || state.choice) return;
-  const coffees = save.menu.filter((id) => S.MENU[id]?.kind === 'coffee');
-  let bean = 'dongshan';
-  if (coffees.length > 1) bean = coffees[await choose(coffees.map((id) => S.MENU[id].name), H.CLOSING.chooseBean, keeper() ? '凱文' : '德叔')];
+  const drinks = MN.boardDrinks(save, boardShift);
+  let bean = drinks[0];
+  const ask = drinks.every((id) => MN.ITEMS[id].kind === 'coffee') ? H.CLOSING.chooseBean : MN.ASK.lastDrink;
+  if (drinks.length > 1) bean = drinks[await choose(drinks.map((id) => MN.ITEMS[id].name), ask, keeper() ? '凱文' : '德叔')];
   if (state.closing !== 'lastcup' || brewing || state.seat !== seat) return;
   // 告別的最後一晚：德叔用那個琺瑯杯沖（劇本：第一次放在玩家面前）
   brew(seat, bean, { last: true, enamel: REGULARS_ON && !!F.segmentDue(save, today())?.lastNight });
@@ -4491,9 +4650,9 @@ async function guestOrder(seat) {
   await deshuGo(ORDER_SPOT[seat.id]);
   if (tok !== guestTok) return;
   lookToward(deshu);
-  const coffees = save.menu.filter((id) => S.MENU[id]?.kind === 'coffee');
+  const coffees = MN.boardDrinks(save, boardShift); // 客人模式也照黑板點
   say(H.GUEST.order, 0);
-  const i = await choose(coffees.map((id) => S.MENU[id].name));
+  const i = await choose(coffees.map((id) => MN.ITEMS[id].name));
   if (tok !== guestTok) return;
   say(H.GUEST.orderOk, 2500);
   await deshuGo(HOME);
@@ -4911,7 +5070,7 @@ if (DEV) {
     // 階段 4：熟客
     get story() {
       const r = (w) => ({ visits: save.regulars[w].visits, milestones: [...save.regulars[w].milestones], on: { ...save.regulars[w].on } });
-      return { yuan: r('yuan'), zhe: r('zhe'), kevin: r('kevin'), ...save.story, menu: [...save.menu] };
+      return { yuan: r('yuan'), zhe: r('zhe'), kevin: r('kevin'), ...save.story, menu: MN.bookItems(save), board: [...save.menu.board] };
     },
     get scene() { return state.scene?.id || null; },
     get storyBusy() { return storyBusy(); },
@@ -4999,7 +5158,21 @@ if (DEV) {
     idleEvent(id, line = true) { const e = MO.idleById(id); if (!e || moments.busy) return Promise.resolve(false); return runMoment('idle', id, () => idleEvent(e, line ? MO.idleLine(e, 0) : '')).then(() => true); },
     early(id) { const e = MO.EARLY.find((x) => x.id === id); if (!e || moments.busy) return Promise.resolve(false); return runMoment('early', id, () => earlyBeat(e)).then(() => true); },
     decorReact(item) { if (moments.busy || !MO.DECOR_REACTIONS[item]) return Promise.resolve(false); return runMoment('decor', item, () => decorReact(item)).then(() => true); },
-    get moments() { return { busy: moments.busy, log: moments.log.map((x) => ({ ...x })), gap: Math.round(moments.gap), quietMs: Math.round(performance.now() - moments.quietFrom), free: momentsFree(), early: [...save.moments.early], decor: [...save.moments.decor], pending: MO.pendingDecor(save), board: MO.BOARD_BEANS[boardBean], catTurn, deshuFree: deshuFree(), catFree: catFree(), lastSaid: lastSaid && { ...lastSaid } }; },
+    // 黑板菜單（D185）：menu 讀狀態；menuAll() 所有品項收進菜單本；menuBook() 打開菜單本；menuWrite／menuErase 寫上、擦掉黑板（和菜單本的按鈕一樣，會存檔）
+    // menuReact('black') 讓在店裡的那位熟客說那一句（on／off 看現在黑板上有沒有）
+    get menu() { return { book: MN.bookItems(save), board: [...save.menu.board], lines: MN.boardLines(save, boardShift).map((l) => l.text), head: MN.boardHead(save), drinks: MN.boardDrinks(save, boardShift), items: JSON.parse(JSON.stringify(save.menu.items)), open: !sheet.hidden && sheetKind === 'menu', swapFor }; },
+    menuAll() { devUnlockMenu(); persist(); if (!sheet.hidden && sheetKind === 'menu') renderMenuBook(); return MN.bookItems(save); },
+    menuBook() { openAbout(false); openNotebook(false); openSheet('menu'); return true; },
+    menuWrite(id) { const ok = MN.boardFull(save) ? false : MN.write(save, id, today()); if (ok) { persist(); drawBackBar(); if (!sheet.hidden && sheetKind === 'menu') renderMenuBook(); } return ok; },
+    menuErase(id) { const ok = MN.erase(save, id); if (ok) { persist(); drawBackBar(); if (!sheet.hidden && sheetKind === 'menu') renderMenuBook(); } return ok; },
+    menuReact(item) {
+      const r = MN.BOARD_REACT.find((x) => x.item === item);
+      if (!r || moments.busy || !PEOPLE[r.who]?.visible) return Promise.resolve(false);
+      const kind = MN.onBoard(save, item) ? 'on' : 'off';
+      if (!r[kind]) return Promise.resolve(false);
+      return runMoment('board', item, () => boardReact({ item, who: r.who, kind, line: r[kind] })).then(() => true);
+    },
+    get moments() { return { busy: moments.busy, log: moments.log.map((x) => ({ ...x })), gap: Math.round(moments.gap), quietMs: Math.round(performance.now() - moments.quietFrom), free: momentsFree(), early: [...save.moments.early], decor: [...save.moments.decor], pending: MO.pendingDecor(save), board: MN.boardLines(save, boardShift).map((l) => l.text), boardShift, catTurn, deshuFree: deshuFree(), catFree: catFree(), lastSaid: lastSaid && { ...lastSaid } }; },
     // 承峰 11/3 回饋：坐著時直接轉頭到某個角度（截圖用；和手指拖曳一樣受座位的轉頭範圍限制）
     look(yaw = 0, pitch = 0) { if (state.mode !== 'seat') return false; focusP = null; lookTok++; cam.yaw = THREE.MathUtils.clamp(yaw, ...yawRange()); cam.pitch = THREE.MathUtils.clamp(pitch, -0.35, 0.35); return true; },
     // 美術評分修正 c：鏡頭停好了（沒有在移動、轉向，推近也到了），全流程截圖等這個再拍

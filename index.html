@@ -154,6 +154,12 @@
   .sheet-row .info span { font-size: 12.5px; opacity: .78; }
   .sheet-row .info small { font-size: 12.5px; color: #7a4a2c; }
   .sheet-row button { flex: none; min-width: 72px; }
+  /* 菜單本（黑板菜單，D185）：左邊一小塊黑板寫品項的種類；擦不掉的那一行按鈕淡掉 */
+  .sheet-row .chalk { width: 56px; height: 56px; flex: none; border-radius: 10px; background: #2f3a33; color: #f2ead8; display: flex; align-items: center; justify-content: center; font-size: 13px; letter-spacing: .1em; }
+  .sheet-row .chalk.big { color: #ffd27a; font-weight: 700; }
+  .sheet-row button:disabled { opacity: .45; }
+  #sheet-list .wide { width: 100%; margin-top: 10px; }
+  #nb-menu { margin-top: 6px; font-size: 14px; padding: 8px 10px; background: #fff; border: 1px solid rgba(59,42,32,.35); box-shadow: none; }
   /* 泡泡：位置由 main.js 的 layoutOverlays() 決定（避開頂部介面與座位標籤）；收起來時淡出後整個不畫 */
   #bubble { position: absolute; left: 0; top: 0; max-width: 220px; background: #fffaf0; border: 2px solid var(--ink);
     border-radius: 14px; padding: 8px 12px; font-size: 14px; line-height: 1.4; pointer-events: none;
@@ -388,6 +394,7 @@
       <button id="brew" class="primary">請德叔沖一杯</button>
       <button id="p-catalog" hidden>型錄</button>
       <button id="p-store" hidden>倉庫</button>
+      <button id="p-menu" hidden>菜單</button><!-- 【待定】黑板菜單的菜單本（D185） -->
       <button id="p-putaway" hidden>收起來</button>
       <button id="p-deselect" hidden>放好了</button>
       <button id="p-revert" hidden>復原</button>
@@ -430,6 +437,7 @@
           <button id="dev-fund">基金 +5,000</button>
           <button id="dev-reset">重置存檔</button>
           <button id="dev-fw" class="span2">告別前（36.5°C）</button>
+          <button id="dev-menu" class="span2">解鎖全部品項（菜單本）</button>
         </div>
       </div>
       <button id="about-close" class="primary">回到店裡</button>
