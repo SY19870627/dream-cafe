@@ -48,17 +48,26 @@ export const TASKS = [
 const BY_ID = new Map(TASKS.map((t) => [t.id, t]));
 export const taskById = (id) => BY_ID.get(id);
 
-// 溫度＝20°C＋已完成任務的溫度（存檔只記完成了哪些任務，溫度永遠由此算出，不會對不上）
+// 找到熟客最愛的那杯（favorites.js 的第三段）：每位 +0.5°C，三位最多 +1.5°C（承峰 11/4 Q78：「找到最愛要加溫度」，D196）。
+// 只有第三段（最愛）加、前兩段不加；和 20 個任務加起來，溫度一樣停在 GOAL_TEMP（37°C）。
+// 任務本身的度數、合計 +17°C 都不動：沒有找最愛的玩家（含所有舊存檔）溫度和以前完全一樣；有找的玩家早一點到 37°C
+export const FAVORITE_TEMP = 0.5;
+const FAV_WHO = ['yuan', 'zhe', 'kevin'];
+export const favoriteWarmth = (save) => FAV_WHO.filter((w) => (save.favorites?.[w]?.stage || 0) >= 3).length * FAVORITE_TEMP;
+
+// 溫度＝20°C＋已完成任務的溫度＋找到的最愛，最多 37°C（存檔只記完成了哪些任務、找到了哪些最愛，溫度永遠由此算出，不會對不上）
 export function temperature(save) {
-  const t = save.tasks.reduce((s, d) => s + (BY_ID.get(d.id)?.temp || 0), BASE_TEMP);
-  return Math.round(t * 10) / 10;
+  const t = save.tasks.reduce((s, d) => s + (BY_ID.get(d.id)?.temp || 0), BASE_TEMP) + favoriteWarmth(save);
+  return Math.round(Math.min(GOAL_TEMP, t) * 10) / 10;
 }
 
 export const isDone = (save, id) => save.tasks.some((d) => d.id === id);
 
 // 完成任務時地點牌下方的小紙條（承峰 11/3 試玩回饋 4，D180）：任務名稱（和記事本的「溫度紀錄」同一個）＋店裡暖了多少。
 // 台詞照舊由德叔或客人說；紙條只是讓玩家知道「這一段完成了」，幾秒後自己淡出，不是任務清單
-export const stageNoteText = (t) => ({ title: t.name, sub: `店裡暖了一點 +${t.temp}°C` }); // 【待定】「店裡暖了一點」
+// rise：這個任務實際讓溫度升了多少（找到熟客的最愛以後，最後幾個任務可能碰到 37°C 的上限，D196）
+export const stageNoteText = (t, rise = t.temp) => ({ title: t.name, sub: rise > 0 ? `店裡暖了一點 +${rise}°C` : STAGE_NOTE_FULL }); // 【待定】「店裡暖了一點」
+export const STAGE_NOTE_FULL = '店裡已經暖暖的了'; // 【待定】任務完成時溫度已經是 37°C（找到最愛的玩家才會碰到）
 
 // 找出條件已達成、但還沒完成的任務
 export function pending(save, ctx) {

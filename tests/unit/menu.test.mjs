@@ -12,7 +12,7 @@ const newSave = () => { const s = defaultSave(T0); giveStarters(s); s.flags.seen
 
 test('新存檔：菜單本只有東山的豆，黑板上寫著東山的豆；還沒解鎖的品項看不到', () => {
   const s = newSave();
-  assert.equal(SAVE_VERSION, 7);
+  assert.ok(SAVE_VERSION >= 7); // 第 8 版（熟客最愛的咖啡）見 favorites.test.mjs
   assert.deepEqual(MN.bookItems(s), ['dongshan']);
   assert.deepEqual(s.menu.board, ['dongshan']);
   assert.equal(s.menu.night, null);

@@ -5,14 +5,16 @@ import { STARTER_ITEMS } from './catalog.js';
 import { daysOpen } from './clock.js';
 import { blankFarewell } from './farewell.js';
 import { blankMenu, migrateMenu } from './menu.js';
+import { blankFavorites, lastBeanOf } from './favorites.js';
 
 export const SAVE_KEY = 'dream-cafe.save';
-export const SAVE_VERSION = 7; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
+export const SAVE_VERSION = 8; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
 // 3：階段 4 加入熟客故事線（來店次數、里程碑、結算到哪一天）、菜單、颱風那天
 // 4：階段 5 加入打烊（closing）、「今天的一杯」咖啡日記（diary）、龍眼（cat）
 // 5：階段 6 加入徵店長與告別（farewell）
 // 6：承峰 11/3 第二輪回饋加入店裡的小事（moments）：前三天的小段落演過哪些、哪些擺飾已經有過第一次擺出來的反應
 // 7：承峰 11/3「菜單做 A，存檔照 B 設計」：menu 從 id 陣列改成 { items 解鎖過的品項與來歷, board 黑板上寫的, night }（menu.js）
+// 8：承峰 11/4「做每人三段的版本」：熟客最愛的咖啡（favorites）與相簿（photos），stats.lastBean 老闆最近一次喝的那杯（favorites.js）
 
 const regular = () => ({ visits: 0, milestones: [], on: {}, settled: 0, lastVisit: 0, lastMilestoneDay: 0 });
 
@@ -26,7 +28,8 @@ export function defaultSave(now) {
     owned: [], // [{ uid, item, placed, x, z }]：擁有的擺飾；placed=false 表示收在倉庫
     nextUid: 1,
     seatsSat: [], // 坐過的座位
-    stats: { cups: 0, rainyWindowCups: 0 },
+    // lastBean：老闆最近一次喝的那杯（請德叔沖一杯、最後一杯、客人模式；凱文第三段的答案，第 8 版）
+    stats: { cups: 0, rainyWindowCups: 0, lastBean: '' },
     // 熟客（story.js）：visits 來店次數、milestones 已發生的里程碑、on 每個里程碑發生在開店第幾天、
     // settled 來店結算到第幾天、lastVisit 最後一次來是第幾天、lastMilestoneDay 最後一個里程碑是第幾天
     regulars: {
@@ -51,6 +54,10 @@ export function defaultSave(now) {
     farewell: blankFarewell(),
     // 店裡的小事（moments.js）：early 演過的前三天小段落、decor 已經有過第一次擺出來的反應的擺飾（品項 id）
     moments: { early: [], decor: [] },
+    // 熟客最愛的咖啡（favorites.js，第 8 版）：stage 找到第幾段了（0～3）、misses 這一段端錯幾次（德叔更靠近的那句）、
+    // servedDay 哪一天收過老闆請的那杯（一天一杯）、told 德叔說過第幾段的線索
+    favorites: blankFavorites(),
+    photos: [], // 相簿：[{ id: 'yuan-1', day, t, item 端過去的那杯, snack 附了龍眼乾沒 }]，照拿到的順序
     letters: [], // 讀過的老先生的信：[{ id, t, day }]
     journal: [], // 最近幾頁德叔的營業日誌（記事本可以重讀），見 journal.js
     player: { name: '', resignation: '' }, // 開場第一幕：辭呈署名（可留空）與選的結尾（之後凱文的里程碑會用到）
@@ -99,6 +106,9 @@ export function migrate(data, now) {
   if (v < 3) for (const r of Object.values(save.regulars)) r.settled = Math.max(r.settled, daysOpen(save.createdAt, now) - 1);
   // 第 6 版以前：已經擺在店裡的東西不再補一次「第一次擺出來」的反應（只對之後新擺出來的反應）
   if (v < 6) for (const o of save.owned) if (o.placed && !save.moments.decor.includes(o.item)) save.moments.decor.push(o.item);
+  // 第 8 版以前沒有熟客最愛的咖啡：每位熟客都從第一段開始找（不自動送照片、溫度不變），已經開放的段落線索照順序出現；
+  // 老闆最近一次喝的那杯，從咖啡日記最後一篇、最後一杯補（都沒有就是空的，用的時候當作東山的豆）
+  if (v < 8 && !save.stats.lastBean) { const b = lastBeanOf(save); save.stats.lastBean = b === 'dongshan' && !save.diary.length && !save.closing.bean ? '' : b; }
   save.version = SAVE_VERSION;
   save.nextUid = Math.max(save.nextUid, ...save.owned.map((o) => (Number(o.uid) || 0) + 1), 1);
   return save;
