@@ -13,6 +13,7 @@
 // 接正式美術：角色與龍眼的材質來自 assets/art；攔下 assets/art 的請求（斷線、404、解碼錯誤）時退回 Canvas 繪圖，照樣坐下、沖一杯、沒有 JS 錯誤。
 // 接正式美術第二批（art2a）：店內的材質、窗景、家具與小道具也來自 assets/art，全部失敗時一樣退回 Canvas 繪圖。
 // 承峰 11/3 第二輪回饋：店裡的小事（擺飾第一次擺出來的反應、第 1 天予安探頭、店內小事件、&idle=N）。
+// 點黑板打開菜單本（D191）：角落沙發、吧台座、看德叔沖點黑板打開菜單本，點到黑板前面的德叔照舊搭話，拖曳、選項、佈置時不開；
 // 黑板菜單（D185～D188）：菜單本（佈置模式的「菜單」、記事本）、寫上／擦掉／寫滿時換一行、最後一杯喝的擦不掉、德叔照黑板沖、
 // 德叔換黑板只換黑板上真的有的東西、重新整理後黑板還在、還沒解鎖的品項看不到。
 import { chromium } from 'playwright';
@@ -928,6 +929,118 @@ try {
     await page.click('#sheet-close');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
+  }
+
+  /* ---------- 點黑板打開菜單本（D191） ---------- */
+  console.log('手機 390×844（點黑板打開菜單本）');
+  {
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=8&opening=0&regulars=0&weather=clear&board=dongshan,zhe-beans,cocoa,longan');
+    const isOpen = () => page.evaluate(() => window.__cafe.menu.open);
+    const close = async () => { await page.click('#sheet-close'); await page.waitForTimeout(200); };
+    const sit = async (name) => {
+      await page.click(`.seat-label >> text=${name}`);
+      await page.waitForFunction(() => window.__cafe.camStill, null, { timeout: 8000 });
+      await page.waitForTimeout(400);
+    };
+    // 坐角落沙發，點黑板：打開和「佈置」→「菜單」同一本菜單本
+    await sit('角落沙發');
+    let bv = await page.evaluate(() => window.__cafe.boardView());
+    check(!!bv.tap && bv.tap.ok, `角落沙發：boardView() 給得出點得到黑板的一點（${JSON.stringify(bv.tap)}，中心 ${JSON.stringify(bv.center)}）`);
+    await page.mouse.click(bv.tap.pageX, bv.tap.pageY);
+    await page.waitForTimeout(200);
+    check(await isOpen() && (await page.textContent('#sheet-title')) === '菜單本', '角落沙發：點黑板打開菜單本');
+    await page.screenshot({ path: OUT + 'phone-board-tap-sofa.png' });
+    // 菜單本開著時再點畫面（點到的是面板的背景），不會又開一次，也不會搭話
+    await close();
+    check(!(await isOpen()), '關上菜單本');
+    // 拖曳環顧：拖過去又拖回原處、拖到別的地方，放開時都不開
+    await page.mouse.move(bv.tap.pageX, bv.tap.pageY);
+    await page.mouse.down();
+    await page.mouse.move(bv.tap.pageX - 60, bv.tap.pageY, { steps: 6 });
+    await page.mouse.move(bv.tap.pageX, bv.tap.pageY, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    check(!(await isOpen()), '從黑板拖出去又拖回黑板上放開：不開菜單本');
+    await page.evaluate(() => window.__cafe.look(0));
+    await page.waitForTimeout(600);
+    bv = await page.evaluate(() => window.__cafe.boardView());
+    await page.mouse.move(bv.tap.pageX + 80, bv.tap.pageY);
+    await page.mouse.down();
+    await page.mouse.move(bv.tap.pageX, bv.tap.pageY, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+    check(!(await isOpen()), '拖曳環顧停在黑板上放開：不開菜單本');
+    await page.evaluate(() => window.__cafe.look(0));
+    await page.click('#stand');
+    await page.waitForTimeout(1500);
+    // 坐吧台座：德叔站在黑板左半前面，點到德叔照舊搭話；點黑板右邊打開菜單本
+    await sit('吧台座');
+    const spot = await page.evaluate(() => {
+      const W = document.getElementById('app').clientWidth, H = document.getElementById('app').clientHeight;
+      for (let y = 40; y < H * 0.7; y += 8) for (let x = 8; x < W; x += 8) {
+        const t = window.__cafe.tapWhat(x, y);
+        if (t.first === '德叔' && t.behind) return { x, y };
+      }
+      return null;
+    });
+    check(!!spot, `吧台座：找得到德叔站在黑板前面的一點（${JSON.stringify(spot)}）`);
+    if (spot) {
+      const box = await page.$eval('#app', (el) => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top }; });
+      const said0 = await page.evaluate(() => window.__cafe.moments.lastSaid);
+      await page.mouse.click(box.x + spot.x, box.y + spot.y);
+      await page.waitForTimeout(300);
+      const said = await page.evaluate(() => window.__cafe.moments.lastSaid);
+      check(!(await isOpen()) && said?.name === '德叔' && said.at !== said0?.at, `點到黑板前面的德叔：照舊搭話、不開菜單本（${said?.name}：${said?.text}）`);
+    }
+    bv = await page.evaluate(() => window.__cafe.boardView());
+    await page.mouse.click(bv.tap.pageX, bv.tap.pageY);
+    await page.waitForTimeout(200);
+    check(await isOpen(), '吧台座：點黑板打開菜單本');
+    await close();
+    // 選項出現時（請德叔沖一杯）點黑板：不開
+    await page.click('#brew');
+    await page.waitForTimeout(300);
+    check(await page.evaluate(() => window.__cafe.tapWhat(0, 0).ok) === false, '選項出現時：點黑板不會開（tapWhat().ok 為 false）');
+    await page.mouse.click(bv.tap.pageX, bv.tap.pageY);
+    await page.waitForTimeout(200);
+    check(!(await isOpen()), '選項出現時點黑板：不開菜單本');
+    await page.click('#choices button:has-text("東山的豆")');
+    await page.waitForFunction(() => window.__cafe.closeup, null, { timeout: 8000 });
+    await page.waitForFunction(() => window.__cafe.camStill, null, { timeout: 8000 });
+    bv = await page.evaluate(() => window.__cafe.boardView());
+    await page.mouse.click(bv.tap.pageX, bv.tap.pageY);
+    await page.waitForTimeout(200);
+    check(await isOpen(), '看德叔沖的近景：點黑板打開菜單本（沖煮照舊）');
+    await close();
+    await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 40000 });
+    await page.click('#stand');
+    await page.waitForTimeout(1500);
+    // 佈置模式：點黑板不開（點擊是用來選、搬擺飾的）
+    await page.click('#place');
+    await page.waitForTimeout(800);
+    check((await page.evaluate(() => window.__cafe.tapWhat(0, 0).ok)) === false, '佈置模式：點黑板不會開');
+    await page.click('#p-done');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+  {
+    // 觸控（手機：isMobile、hasTouch、deviceScaleFactor 2）：坐角落沙發，用手指點黑板
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    await page.goto(url + '?dev=1&speed=8&opening=0&regulars=0&weather=clear&board=dongshan,zhe-beans,cocoa,longan');
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(1800);
+    await page.tap('.seat-label >> text=角落沙發');
+    await page.waitForFunction(() => window.__cafe.camStill, null, { timeout: 8000 });
+    await page.waitForTimeout(400);
+    const bv = await page.evaluate(() => window.__cafe.boardView());
+    await page.touchscreen.tap(bv.tap.pageX, bv.tap.pageY);
+    await page.waitForTimeout(300);
+    check(await page.evaluate(() => window.__cafe.menu.open), `觸控：坐角落沙發用手指點黑板（${bv.tap.pageX}, ${bv.tap.pageY}）打開菜單本`);
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await ctx.close();
   }
 
   /* ---------- 階段 4：雨天坐窗邊、颱風夜的畫面 ---------- */

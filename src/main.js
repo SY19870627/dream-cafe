@@ -2586,13 +2586,14 @@ function setHold(on) {
 }
 const yawRange = () => [-1.2, 1.2]; // 坐著時左右轉頭的範圍（弧度）
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  down = { x: e.clientX, y: e.clientY, t: performance.now(), yaw: cam.yaw, pitch: cam.pitch, held: brewing };
+  down = { x: e.clientX, y: e.clientY, t: performance.now(), yaw: cam.yaw, pitch: cam.pitch, held: brewing, far: 0 };
   setHold(true);
 });
 for (const ev of ['pointerup', 'pointercancel', 'blur']) window.addEventListener(ev, () => setHold(false));
 renderer.domElement.addEventListener('pointermove', (e) => {
-  if (!down) return;
+  if (!down) { hoverBoard(e); return; }
   const dx = e.clientX - down.x, dy = e.clientY - down.y;
+  down.far = Math.max(down.far, Math.hypot(dx, dy)); // 拖過去又拖回原處，也不算點黑板
   if (state.mode === 'seat') {
     cam.yaw = THREE.MathUtils.clamp(down.yaw + dx * 0.004, ...yawRange());
     cam.pitch = THREE.MathUtils.clamp(down.pitch - dy * 0.003, -0.35, 0.35);
@@ -2604,12 +2605,13 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (!down) return;
   const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
   const longHold = down.held && performance.now() - down.t > 400; // 按住加速後放開，不算點擊
+  const tap = down.far <= 10 && performance.now() - down.t < 700; // 點黑板只算乾脆的一下
   down = null;
   if (moved > 10 || longHold) return;
   const rect = renderer.domElement.getBoundingClientRect();
   ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  if (!state.placing) { talkTo(ray); return; }
+  if (!state.placing) { if (!(tap && tapBoard(ray))) talkTo(ray); return; }
   if (state.mode !== 'overview') return;
   const decor = [...decorPapers.values()];
   const hit = ray.intersectObjects(decor.map((d) => d.userData.mesh))[0];
@@ -2676,6 +2678,74 @@ function talkTo(r) {
   else if (who === deshu && state.closing) line = H.CLOSING.deshuTalk[Math.floor(Math.random() * H.CLOSING.deshuTalk.length)]; // 打烊後，他在擦杯子
   else { const l = LINES.get(who); line = l[Math.floor(Math.random() * l.length)]; }
   say(line, 3500, who);
+}
+
+/* ---------- 點黑板打開菜單本（承峰 11/3：「做點黑板打開菜單本」，D191） ---------- */
+// 坐角落沙發時黑板的字讀不清楚（約 5.7 公尺遠），點黑板就打開和「佈置」→「菜單」同一本菜單本
+// 射線碰到的東西是不是實心的：紙片看碰到那一點透不透明（透明的地方不算），淡出的家具、沒有圖的半透明光暈也不算
+const solidUv = new THREE.Vector2();
+function solidAt(h, glow = true) {
+  const m = h.object.material;
+  if (Array.isArray(m) || (!m.transparent && !(m.alphaTest > 0))) return true;
+  if (m.opacity < 0.35 || !m.visible) return false;
+  const img = m.map?.image;
+  if (!img || !h.uv) return glow;
+  m.map.transformUv(solidUv.copy(h.uv));
+  const x = Math.min(img.width - 1, Math.floor(solidUv.x * img.width)), y = Math.min(img.height - 1, Math.floor(solidUv.y * img.height));
+  const a = img.data ? img.data[(y * img.width + x) * 4 + 3] : img.getContext?.('2d', { willReadFrequently: true }).getImageData(x, y, 1, 1).data[3] ?? 255;
+  return a > Math.max(40, (m.alphaTest || 0) * 255);
+}
+// 射線最先碰到的實心東西是黑板（層架圖上 A.BOARD 那一塊）時，回傳距離；被吧台、擺飾、人物擋住就是 null
+function boardDist(r) {
+  const objs = []; scene.traverseVisible((o) => { if (o.isMesh) objs.push(o); });
+  const hit = r.intersectObjects(objs, false).find((h) => h.object === boardFace || solidAt(h, false));
+  if (!hit || (hit.object !== backBar && hit.object !== boardFace)) return null;
+  const u = hit.point.z - (BACK_Z - 1.4), v = backBar.position.y + 0.9 - hit.point.y; // 換回層架圖上的公尺
+  const B = A.BOARD;
+  return u >= B.x0 && u <= B.x1 && v >= B.y0 && v <= B.y1 ? hit.distance : null;
+}
+// 什麼時候點黑板會打開：和點人物搭話一樣，演出（開場、讀信後的鏡頭、熟客劇情、選項、客人模式、有人推門進來）時不開；
+// 另外開場在店裡的段落、店裡的小事正在演、打烊後的離店與關燈、佈置中、已經有面板開著時也不開
+const boardOpenable = () => !state.cinematic && !state.tutorial && !state.scene && !state.choice && !state.guest && !state.arriving
+  && !state.placing && !moments.busy && (!state.closing || state.closing === 'after') && !overlayOpen();
+// 點到誰就算誰：德叔、熟客、龍眼站在黑板前面時，點到他們（紙片的範圍）照舊搭話
+function tapBoard(r) {
+  if (!boardOpenable()) return false;
+  const d = boardDist(r);
+  if (d === null) return false;
+  const people = [deshu, yuan, zhe, kevin, cat].filter((p) => p.visible);
+  const person = r.intersectObjects(people.map((p) => p.userData.mesh))[0];
+  if (person && person.distance < d) return false;
+  // 手指點的時候，放開之後瀏覽器還會補一個 click，落在剛打開的菜單本背景上（點背景會關上）：吃掉這一個
+  const eat = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+  window.addEventListener('click', eat, { capture: true, once: true });
+  setTimeout(() => window.removeEventListener('click', eat, true), 500);
+  openSheet('menu');
+  return true;
+}
+// 用滑鼠時，游標移到黑板上變成手指（手機沒有游標，不另外提示）
+let hoverAt = 0;
+function hoverBoard(e) {
+  if (e.pointerType !== 'mouse' || performance.now() - hoverAt < 120) return;
+  hoverAt = performance.now();
+  const rect = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  renderer.domElement.style.cursor = boardOpenable() && boardDist(ray) !== null ? 'pointer' : '';
+}
+
+// 測試用（__cafe.boardView()）：畫面上的這幾點裡，離 (cx, cy) 最近、點下去會算點到黑板的一點
+function tapPoint(pts, cx, cy) {
+  const r = new THREE.Raycaster(), n = new THREE.Vector2(), W = app.clientWidth, H = app.clientHeight;
+  const people = [deshu, yuan, zhe, kevin, cat].filter((p) => p.visible).map((p) => p.userData.mesh);
+  for (const q of [...pts].sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy))) {
+    r.setFromCamera(n.set((q.x / W) * 2 - 1, 1 - (q.y / H) * 2), camera);
+    const d = boardDist(r), person = r.intersectObjects(people)[0];
+    if (d === null || (person && person.distance < d)) continue;
+    const o = app.getBoundingClientRect(); // pageX／pageY：整個頁面上的座標（桌機的 #app 在中間），page.mouse.click／page.touchscreen.tap 直接用
+    return { x: Math.round(q.x), y: Math.round(q.y), pageX: Math.round(q.x + o.left), pageY: Math.round(q.y + o.top), ok: boardOpenable() };
+  }
+  return null;
 }
 
 /* ---------- 開場：推門進店（第三幕後半）與第一杯（第四幕） ---------- */
@@ -5191,26 +5261,30 @@ if (DEV) {
     look(yaw = 0, pitch = 0) { if (state.mode !== 'seat') return false; focusP = null; lookTok++; cam.yaw = THREE.MathUtils.clamp(yaw, ...yawRange()); cam.pitch = THREE.MathUtils.clamp(pitch, -0.35, 0.35); return true; },
     // 黑板字修正（D189）：黑板上的字在畫面上的樣子。在字的範圍內打 12×6 條射線，第一個碰到的不是黑板就算被擋住
     // （紙片看碰到那一點透不透明，透明的地方不算）；inView／visible 是幾 % 的點在畫面裡／看得到，blockedBy 是誰擋住幾個點，
-    // charPx 是最小那一行字在畫面上幾像素高（CSS 像素），box 是整段字在畫面上的範圍
+    // charPx 是最小那一行字在畫面上幾像素高（CSS 像素），box 是整段字在畫面上的範圍。
+    // 點黑板（D191）：center 是 box 的中心；tap 是沒被擋住、離中心最近、而且照點擊的判斷真的會算點到黑板的一點
+    // （{ x, y, pageX, pageY, ok }：x／y 相對 #app 的 CSS 像素，pageX／pageY 是整個頁面的座標），點這裡會打開菜單本（ok 為 false 代表現在點了不會開，例如正在演出）
+    // 點黑板（D191）：在畫面上 (x, y)（相對 #app 的 CSS 像素）點一下會怎樣：first 是 'board'（打開菜單本）或點到的人（德叔、龍眼…）或 null；
+    // behind 是這一點後面是不是黑板（不管有沒有被擋住）；ok 是現在點黑板會不會開（演出中、面板開著時不開）
+    tapWhat(x, y) {
+      const r = new THREE.Raycaster(), n = new THREE.Vector2(x / app.clientWidth * 2 - 1, 1 - (y / app.clientHeight) * 2);
+      r.setFromCamera(n, camera);
+      const d = boardDist(r), people = [deshu, yuan, zhe, kevin, cat].filter((p) => p.visible);
+      const person = r.intersectObjects(people.map((p) => p.userData.mesh))[0];
+      const bb = r.intersectObject(backBar, false)[0];
+      const u = bb && bb.point.z - (BACK_Z - 1.4), v = bb && backBar.position.y + 0.9 - bb.point.y, B = A.BOARD;
+      const first = d !== null && !(person && person.distance < d) ? 'board' : person ? NAMES.get(people.find((p) => p.userData.mesh === person.object)) : null;
+      return { first, behind: !!bb && u >= B.x0 && u <= B.x1 && v >= B.y0 && v <= B.y1, ok: boardOpenable() };
+    },
     boardView() {
       const L = A.boardLayout(boardText()), b = L.box, W = app.clientWidth, H = app.clientHeight;
       const objs = []; scene.traverseVisible((o) => { if (o.isMesh && o !== backBar && o !== boardFace) objs.push(o); });
-      const ray = new THREE.Raycaster(), p = new THREE.Vector3(), n = new THREE.Vector3(), dir = new THREE.Vector3(), uv = new THREE.Vector2();
-      const solid = (h) => {
-        const m = h.object.material;
-        if (Array.isArray(m) || (!m.transparent && !(m.alphaTest > 0))) return true;
-        if (m.opacity < 0.35 || !m.visible) return false;
-        const img = m.map?.image;
-        if (!img || !h.uv) return true;
-        m.map.transformUv(uv.copy(h.uv));
-        const x = Math.min(img.width - 1, Math.floor(uv.x * img.width)), y = Math.min(img.height - 1, Math.floor(uv.y * img.height));
-        const a = img.data ? img.data[(y * img.width + x) * 4 + 3] : img.getContext?.('2d', { willReadFrequently: true }).getImageData(x, y, 1, 1).data[3] ?? 255;
-        return a > Math.max(40, (m.alphaTest || 0) * 255);
-      };
+      const ray = new THREE.Raycaster(), p = new THREE.Vector3(), n = new THREE.Vector3(), dir = new THREE.Vector3();
+      const solid = (h) => solidAt(h);
       const who = (o) => (o.parent === deshu ? 'deshu' : NAMES.get(o.parent) || o.parent?.userData?.name || o.userData?.name || o.name || o.geometry?.type || 'mesh');
       const scr = (u, v) => { n.copy(onBackBar(u, v, p)).project(camera); return { x: ((n.x + 1) / 2) * W, y: ((1 - n.y) / 2) * H, z: n.z }; };
       let all = 0, inView = 0, seen = 0, sx0 = Infinity, sx1 = -Infinity, sy0 = Infinity, sy1 = -Infinity;
-      const blockedBy = {};
+      const blockedBy = {}, open = [];
       for (let j = 0; j < 6; j++) for (let i = 0; i < 12; i++) {
         const u = b.x0 + ((b.x1 - b.x0) * (i + 0.5)) / 12, v = b.y0 + ((b.y1 - b.y0) * (j + 0.5)) / 6;
         const q = scr(u, v);
@@ -5221,7 +5295,7 @@ if (DEV) {
         dir.copy(p).sub(camera.position);
         ray.set(camera.position, dir.clone().normalize()); ray.far = dir.length() - 0.01;
         const hit = ray.intersectObjects(objs, false).find(solid);
-        if (!hit) seen++; else { const k = who(hit.object); blockedBy[k] = (blockedBy[k] || 0) + 1; }
+        if (!hit) { seen++; open.push(q); } else { const k = who(hit.object); blockedBy[k] = (blockedBy[k] || 0) + 1; }
       }
       const r = L.rows.reduce((m, x) => (x.size < m.size ? x : m)), cx = (b.x0 + b.x1) / 2;
       const top = scr(cx, A.BOARD_TEXT.y0 + r.y - r.size), base = scr(cx, A.BOARD_TEXT.y0 + r.y);
@@ -5229,6 +5303,7 @@ if (DEV) {
         inView: Math.round((inView / all) * 100), visible: Math.round((seen / all) * 100), blockedBy,
         charPx: Math.round(Math.hypot(base.x - top.x, base.y - top.y) * 10) / 10,
         box: { x0: Math.round(sx0), x1: Math.round(sx1), y0: Math.round(sy0), y1: Math.round(sy1) }, lines: L.rows.length - 1,
+        center: { x: Math.round((sx0 + sx1) / 2), y: Math.round((sy0 + sy1) / 2) }, tap: tapPoint(open, (sx0 + sx1) / 2, (sy0 + sy1) / 2),
       };
     },
     // 美術評分修正 c：鏡頭停好了（沒有在移動、轉向，推近也到了），全流程截圖等這個再拍

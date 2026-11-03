@@ -534,6 +534,8 @@ export function windowFrame() {
 // - 字大一點：4 行時一般的字 0.058 公尺（原本 0.046），行數越少越大；最寬的一行放不下時整段一起縮小
 // board：{ head 標題, lines: [{ text, big }] }（menu.js 的 boardHead()／boardLines()）：黑板上寫什麼由老闆決定，最多 4 行。
 // big（阿哲的豆）用金色粗體、字大一點（「好啦，寫大一點。」）
+// BOARD 是整塊黑板（點黑板打開菜單本用，D191），BOARD_TEXT 是寫字的那一塊
+export const BOARD = { x0: 0.95, x1: 1.85, y0: 1.15, y1: 1.65 };
 export const BOARD_TEXT = { x0: 1.31, x1: 1.83, y0: 1.17, y1: 1.635 };
 const BOARD_PPM = 1000;
 const CHALK = '#f2ead8', CHALK_GOLD = '#ffd27a';
