@@ -9,7 +9,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const FILES = readdirSync(ROOT + 'src').filter((f) => f.endsWith('.js')).sort();
 const TITLE = {
   'afterhours.js': '打烊後、咖啡日記、一次客人模式', 'art.js': '美術裡的字', 'cat.js': '龍眼', 'catalog.js': '德叔的型錄',
-  'farewell.js': '徵店長與告別、離開東山、常態店', 'journal.js': '德叔的營業日誌', 'letters.js': '辭呈、律師信、老先生的信',
+  'farewell.js': '徵店長與告別、離開東山、常態店', 'favorites.js': '熟客最愛的咖啡、相簿', 'journal.js': '德叔的營業日誌', 'letters.js': '辭呈、律師信、老先生的信',
   'main.js': '店裡的演出與介面', 'menu.js': '黑板菜單（品項、菜單本、阿哲第六幕、熟客看到黑板）', 'moments.js': '店裡的小事（前三天、店內小事件、擺飾的反應）', 'opening.js': '開場第一～三幕', 'story.js': '三位熟客', 'tasks.js': '溫度任務完成時的一句話', 'weather.js': '天氣',
 };
 const han = /[一-鿿]/;
