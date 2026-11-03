@@ -523,37 +523,70 @@ export function windowFrame() {
   return c;
 }
 
-// 菜單黑板的字（公尺；黑板在 x 0.95～1.85）
-// 美術評分修正 e：整段字往下移到黑板的下半（原本「今日手沖」在黑板上緣，德叔站在吧台後時正好在他的頭旁邊）
-// 美術評分修正 f：整段字收進黑板的下緣（德叔肩膀以下的高度）、中線往右移到 1.47、字小一點。
-// 量過：看德叔沖的近景，德叔的臉在黑板 y 1.36 左右，肩膀以下擋住 x 約 1.10～1.66；颱風夜德叔站在黑板前，
-// 手機約擋住 1.26～1.78、桌機約 1.29～1.62。原本「今日手沖」在臉的高度，兩個畫面都有一兩個字露在他的頭旁邊
-// board：{ head 標題, lines: [{ text, big }] }（menu.js 的 boardHead()／boardLines()，黑板菜單 D185）：黑板上寫什麼由老闆決定，最多 4 行。
-// 行距與字級照原本的兩種排法（3 行、阿哲的豆上架後 4 行）往外推：行數越多字越小，整段的下緣固定在 1.65 公尺左右；
+// 菜單黑板的字（D185；黑板在層架圖的 x 0.95～1.85、y 1.15～1.65 公尺）
+// 美術評分修正 e、f 把字一路往下、往右收、縮小，避開德叔的頭；黑板變成真的菜單、寫到 4 行以後，
+// 手機直向坐吧台座時字幾乎全被德叔的右肩擋住，字又小（承峰 11/3：「黑板字上線前修好」，D189）。
+// 黑板字修正：
+// - 字只寫在黑板右邊這一塊（BOARD_TEXT）：main.js 把層架往店門口那一側挪（BACK_SHIFT），吧台座的鏡頭跟著往右看一點，
+//   德叔站在黑板左半前面，右邊這一塊從吧台座、角落沙發看過去都不會被他擋住（量法見 main.js 的 __cafe.boardView()）
+// - 字不再畫進層架那張圖（手機縮成 1024 寬，每公尺只有約 366 像素，字一放大就糊），
+//   另外畫成一張每公尺 BOARD_PPM 像素的透明字面，貼在黑板前面（main.js 的 boardFace）
+// - 字大一點：4 行時一般的字 0.058 公尺（原本 0.046），行數越少越大；最寬的一行放不下時整段一起縮小
+// board：{ head 標題, lines: [{ text, big }] }（menu.js 的 boardHead()／boardLines()）：黑板上寫什麼由老闆決定，最多 4 行。
 // big（阿哲的豆）用金色粗體、字大一點（「好啦，寫大一點。」）
-function menuText(g, board = { head: '今日手沖', lines: [{ text: '東山 日曬' }] }) {
-  const cx = 1.47; // 字的中線（公尺）
-  const line = (text, y, size, color = '#f2ead8', bold = '') => {
-    g.fillStyle = color;
-    g.font = `${bold}${size}px "PingFang TC","Noto Sans TC",sans-serif`;
-    g.fillText(text, cx, y);
-  };
-  g.textAlign = 'center';
-  const rows = board.lines.slice(0, 4);
-  const n = rows.length;
-  const dense = n >= 3;
-  // 4 行時再收一點（標題不要往上長到德叔的頭旁邊）
-  const step = n >= 4 ? 0.05 : dense ? 0.056 : 0.073; // 行距
-  const size = n >= 4 ? 0.046 : dense ? 0.05 : 0.055;
-  const headSize = n >= 4 ? 0.058 : dense ? 0.064 : 0.07;
-  const bottom = 1.643; // 最後一行的基線（原本「阿哲的豆」那一行）
-  let y = bottom - step * (Math.max(n, 1) - 1);
-  line(board.head, y - (n >= 4 ? 0.055 : dense ? 0.06 : 0.075), headSize);
+export const BOARD_TEXT = { x0: 1.31, x1: 1.83, y0: 1.17, y1: 1.635 };
+const BOARD_PPM = 1000;
+const CHALK = '#f2ead8', CHALK_GOLD = '#ffd27a';
+const boardFont = (r, px) => `${r.bold ? 'bold ' : ''}${px}px "PingFang TC","Noto Sans TC",sans-serif`;
+let measureG = null;
+// 黑板字的版面：rows 每一行的字、中線 x、基線 y、字級（公尺，原點是 BOARD_TEXT 的左上角）；
+// box 是整段字實際佔的範圍（層架圖的公尺），main.js 用來量畫面上有沒有被擋住
+export function boardLayout(board = { head: '今日手沖', lines: [{ text: '東山 日曬' }] }) {
+  const W = BOARD_TEXT.x1 - BOARD_TEXT.x0, H = BOARD_TEXT.y1 - BOARD_TEXT.y0;
+  const lines = board.lines.slice(0, 4);
+  const size = [0.072, 0.068, 0.064, 0.058][Math.max(lines.length, 1) - 1];
+  const rows = [
+    { text: board.head, size: size + 0.006, color: CHALK, bold: true, head: true },
+    ...lines.map((l) => (l.big ? { text: l.text, size: size + 0.008, color: CHALK_GOLD, bold: true } : { text: l.text, size, color: CHALK, bold: false })),
+  ];
+  measureG ??= document.createElement('canvas').getContext('2d');
+  const width = (r) => { measureG.font = boardFont(r, 100); return (measureG.measureText(r.text).width / 100) * r.size; };
+  const lead = 1.32, gap = 0.022; // 行高是字級的 1.32 倍；標題下面多空一點，畫一條粉筆線
+  const tall = rows.reduce((t, r) => t + r.size * lead, 0) + gap;
+  const k = Math.min(1, (W - 0.03) / Math.max(...rows.map(width)), (H - 0.01) / tall);
+  let y = (H - tall * k) / 2;
   for (const r of rows) {
-    if (r.big) line(r.text, y, size + 0.008, '#ffd27a', 'bold ');
-    else line(r.text, y, size);
-    y += step;
+    r.size *= k;
+    r.w = width(r);
+    r.x = W / 2;
+    r.y = y + r.size * 1.06; // 基線（中文字身大約在基線上 0.9 個字級）
+    y += r.size * lead + (r.head ? gap * k : 0);
   }
+  const top = rows[0].y - rows[0].size * 0.92, bottom = rows.at(-1).y + rows.at(-1).size * 0.14;
+  const half = Math.max(...rows.map((r) => r.w)) / 2;
+  return {
+    rows, under: rows[0].y + rows[0].size * 0.32,
+    box: { x0: BOARD_TEXT.x0 + W / 2 - half, x1: BOARD_TEXT.x0 + W / 2 + half, y0: BOARD_TEXT.y0 + top, y1: BOARD_TEXT.y0 + bottom },
+  };
+}
+// 黑板的字面：BOARD_TEXT 那麼大的透明圖（c.ppm），貼在黑板前面
+export function boardText(board) {
+  const W = BOARD_TEXT.x1 - BOARD_TEXT.x0, H = BOARD_TEXT.y1 - BOARD_TEXT.y0;
+  const { c, g } = canvas(W, H, BOARD_PPM);
+  g.setTransform(1, 0, 0, 1, 0, 0); // 用像素畫，字的大小才量得準
+  const L = boardLayout(board);
+  g.textAlign = 'center';
+  for (const r of L.rows) {
+    g.fillStyle = r.color;
+    g.font = boardFont(r, r.size * BOARD_PPM);
+    g.fillText(r.text, r.x * BOARD_PPM, r.y * BOARD_PPM);
+  }
+  // 標題下面一條短短的粉筆線
+  const u = Math.min(L.rows[0].w * 0.7, W * 0.5) / 2;
+  g.strokeStyle = 'rgba(242,234,216,0.55)';
+  g.lineWidth = 0.004 * BOARD_PPM; g.lineCap = 'round';
+  g.beginPath(); g.moveTo((W / 2 - u) * BOARD_PPM, L.under * BOARD_PPM); g.lineTo((W / 2 + u) * BOARD_PPM, L.under * BOARD_PPM); g.stroke();
+  return c;
 }
 // 程式在手繪圖上疊東西：複製一張同樣大小的 canvas，座標用公尺（原點是圖的左上角）
 function overlay(a) {
@@ -567,15 +600,11 @@ function overlay(a) {
   return { c, g };
 }
 
-// board：黑板上寫的字（見 menuText()）
-export function backBar(wm, hm, board = undefined) {
+// 黑板上的字另外畫（boardText()），貼在黑板前面
+export function backBar(wm, hm) {
   // 手繪的層架：黑板（x 0.95～1.85、y 1.15～1.65 公尺）留空，菜單的字由程式寫
   const a = room('backbar');
-  if (a) {
-    const { c, g } = overlay(a);
-    menuText(g, board);
-    return c;
-  }
+  if (a) return a;
   // 吧台後方牆上的層架與罐子
   const { c, g } = canvas(wm, hm);
   const r = rng(5);
@@ -594,7 +623,6 @@ export function backBar(wm, hm, board = undefined) {
   // 小黑板
   rr(g, wm / 2 - 0.45, 1.15, 0.9, 0.5, 0.03);
   g.fillStyle = '#2f3a33'; g.fill(); outline(g, 0.02);
-  menuText(g, board);
   return c;
 }
 

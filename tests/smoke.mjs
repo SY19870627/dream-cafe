@@ -894,6 +894,31 @@ try {
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(1500);
     check((await menu()).board.join() === 'dongshan,longan,iced', '重新整理後黑板照舊');
+    // 黑板字修正（D189）：黑板寫滿 4 行，手機直向坐吧台座（正面）、看德叔沖、角落沙發，黑板上的字整段在畫面裡、不被德叔或其他東西擋住
+    check(await page.evaluate(() => window.__cafe.menuWrite('black')), '黑板寫滿 4 行');
+    await page.click('.seat-label >> text=吧台座');
+    await page.waitForFunction(() => window.__cafe.camStill, null, { timeout: 8000 });
+    await page.waitForTimeout(400);
+    let bv = await page.evaluate(() => window.__cafe.boardView());
+    check(bv.lines === 4 && bv.inView === 100 && bv.visible >= 97 && bv.charPx >= 13, `坐吧台座：黑板 4 行字都看得到（在畫面裡 ${bv.inView}%、沒被擋住 ${bv.visible}%、字高 ${bv.charPx}px、擋住的 ${JSON.stringify(bv.blockedBy)}）`);
+    await page.screenshot({ path: OUT + 'phone-menu-board4.png' });
+    await page.click('#brew');
+    await page.click('#choices button:has-text("東山的豆")');
+    await page.waitForFunction(() => window.__cafe.closeup, null, { timeout: 8000 });
+    await page.waitForFunction(() => window.__cafe.camStill, null, { timeout: 8000 });
+    bv = await page.evaluate(() => window.__cafe.boardView());
+    check(bv.inView >= 97 && bv.visible >= 95 && bv.charPx >= 16, `看德叔沖：黑板的字在德叔旁邊（在畫面裡 ${bv.inView}%、沒被擋住 ${bv.visible}%、字高 ${bv.charPx}px）`);
+    await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 40000 });
+    await page.click('#stand');
+    await page.waitForTimeout(1500);
+    await page.click('.seat-label >> text=角落沙發');
+    await page.waitForFunction(() => window.__cafe.camStill, null, { timeout: 8000 });
+    await page.waitForTimeout(400);
+    bv = await page.evaluate(() => window.__cafe.boardView());
+    check(bv.inView === 100 && bv.visible >= 97, `坐角落沙發：黑板的字不被德叔或吧台上的東西擋住（沒被擋住 ${bv.visible}%、字高 ${bv.charPx}px）`);
+    await page.click('#stand');
+    await page.waitForTimeout(1500);
+    check(await page.evaluate(() => window.__cafe.menuErase('black')), '擦掉黑咖啡，回到 3 行');
     // 記事本也打得開菜單本
     await page.click('#menu-btn');
     await page.click('#open-notebook');

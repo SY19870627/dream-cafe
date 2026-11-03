@@ -202,10 +202,23 @@ let boardShift = 0;
 function boardText() { return { head: MN.boardHead(save), lines: MN.boardLines(save, boardShift) }; }
 // 吧台後方層架（小黑板就是菜單：老闆寫上去的東西由程式寫在上面，menu.js，D185）。
 // 接正式美術第二批：手繪的層架下半是一座有抽屜的櫃子，底邊在離地 0.95 公尺：底下補一座靠牆的矮櫃（正面用吧台正面的材質）撐著
-const backBar = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.8), lambert(A.tex(A.backBar(2.8, 1.8, boardText())), { transparent: true, alphaTest: 0.1 }));
-backBar.position.set(ROOM.w / 2 - 0.02, 1.85, -1.6);
+// 黑板字修正（D189）：層架往店門口那一側（+z）挪 BACK_SHIFT，德叔（HOME z −1.6）改站在黑板左半前面，
+// 字寫在黑板右邊（art.js 的 BOARD_TEXT），從吧台座、角落沙發看過去都在德叔右邊、不被他擋住
+const BACK_SHIFT = 0.22;
+const BACK_Z = -1.6 + BACK_SHIFT;
+const backBar = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.8), lambert(A.tex(A.backBar(2.8, 1.8)), { transparent: true, alphaTest: 0.1 }));
+backBar.position.set(ROOM.w / 2 - 0.02, 1.85, BACK_Z);
 backBar.rotation.y = -Math.PI / 2;
 scene.add(backBar);
+// 黑板的字面（art.js 的 boardText()：比層架那張圖細很多，字放大也不糊），貼在黑板前面一點點
+const BOARD_W = A.BOARD_TEXT.x1 - A.BOARD_TEXT.x0, BOARD_H = A.BOARD_TEXT.y1 - A.BOARD_TEXT.y0;
+// 層架圖上的一點（公尺，原點是圖的左上角）在店裡的位置
+const onBackBar = (u, v, out = new THREE.Vector3()) => out.set(backBar.position.x - 0.006, backBar.position.y + 0.9 - v, BACK_Z - 1.4 + u);
+const boardFace = new THREE.Mesh(new THREE.PlaneGeometry(BOARD_W, BOARD_H), lambert(A.tex(A.boardText(boardText())), { transparent: true, alphaTest: 0.02, depthWrite: false }));
+onBackBar((A.BOARD_TEXT.x0 + A.BOARD_TEXT.x1) / 2, (A.BOARD_TEXT.y0 + A.BOARD_TEXT.y1) / 2, boardFace.position);
+boardFace.rotation.y = -Math.PI / 2;
+boardFace.renderOrder = 1;
+scene.add(boardFace);
 const BACK_BASE = { d: 0.2, h: 0.95 };
 const counterFrontTex = A.tex(A.counterFront(), [1, 1]);
 const woodTopTex = A.tex(A.woodTop(), [1, 1]);
@@ -214,13 +227,13 @@ const woodTopTex = A.tex(A.woodTop(), [1, 1]);
   const top = lambert(texRepeat(woodTopTex, BACK_BASE.d, 2.8));
   const side = lambert(texRepeat(counterFrontTex, BACK_BASE.d / 1.7, BACK_BASE.h));
   const base = new THREE.Mesh(new THREE.BoxGeometry(BACK_BASE.d, BACK_BASE.h, 2.8), [side, front, top, top, side, side]);
-  base.position.set(ROOM.w / 2 - BACK_BASE.d / 2, BACK_BASE.h / 2, -1.6);
+  base.position.set(ROOM.w / 2 - BACK_BASE.d / 2, BACK_BASE.h / 2, BACK_Z);
   scene.add(base);
 }
 function drawBackBar() {
-  backBar.material.map?.dispose();
-  backBar.material.map = A.tex(A.backBar(2.8, 1.8, boardText()));
-  backBar.material.needsUpdate = true;
+  boardFace.material.map?.dispose();
+  boardFace.material.map = A.tex(A.boardText(boardText()));
+  boardFace.material.needsUpdate = true;
   counterBag.visible = MN.unlocked(save, 'longan');
 }
 
@@ -637,8 +650,8 @@ const PEOPLE = { deshu, yuan, zhe, kevin, grandpa };
 for (const p of [yuan, zhe, kevin, grandpa]) p.visible = false;
 const showYuan = () => { if (!REGULARS_ON) yuan.visible = today() >= 2; };
 showYuan();
-// 吧台上的那袋龍眼乾（阿哲第一次來時放的）
-const counterBag = paper(A.longanBag(), 1.95, -0.1, { y: TOP, shadow: false });
+// 吧台上的那袋龍眼乾（阿哲第一次來時放的）。黑板字修正（D189）：從 z −0.1 往吧台尾端挪到 0.1，從角落沙發看才不會疊在黑板最後一行字上
+const counterBag = paper(A.longanBag(), 1.95, 0.1, { y: TOP, shadow: false });
 // 接正式美術第二批：吧台裡側最裡面放一組手繪的手沖器具（德叔沖煮用的是前面那組立體的，這組是擺著的）；
 // 窗邊座的桌上放一張手寫菜單的杯墊當焦點。兩張都只有手繪圖，沒有載到就不放
 if (A.artLoaded('kettleSet')) paper(A.kettleSet(), 2.2, -2.85, { y: TOP, shadow: false, clamp: 0.9, base: -Math.PI / 2 });
@@ -1277,7 +1290,8 @@ const cups = [];
 const CLOSE_KIT = { pos: new THREE.Vector3(-0.1, 1.55, -1.7), look: new THREE.Vector3(2.6, 1.41, -1.68), fov: 52 };
 // 美術評分修正 d：德叔的沖煮圖自己拿著手沖壺與濾杯，吧台上沒有立體器具：鏡頭拉高往下看、推近一點，
 // 吧台正面只剩畫面最下面一條（直立畫面約 11%），德叔的臉在上方約 1/3，吧台上的杯子在他右手邊
-const CLOSE_ART = { pos: new THREE.Vector3(0.3, 1.75, -1.55), look: new THREE.Vector3(2.6, 1.24, -1.55), fov: 42 };
+// 黑板字修正（D189）：往店門口那一側（+z）挪 0.06，黑板右邊的字整段留在畫面裡（原本最後一個字貼著畫面右緣）
+const CLOSE_ART = { pos: new THREE.Vector3(0.3, 1.75, -1.49), look: new THREE.Vector3(2.6, 1.24, -1.49), fov: 42 };
 const closeView = () => (kitInArt() ? CLOSE_ART : CLOSE_KIT);
 const WALK = 0.85; // 德叔端杯的走速（公尺／秒）
 
@@ -5175,6 +5189,48 @@ if (DEV) {
     get moments() { return { busy: moments.busy, log: moments.log.map((x) => ({ ...x })), gap: Math.round(moments.gap), quietMs: Math.round(performance.now() - moments.quietFrom), free: momentsFree(), early: [...save.moments.early], decor: [...save.moments.decor], pending: MO.pendingDecor(save), board: MN.boardLines(save, boardShift).map((l) => l.text), boardShift, catTurn, deshuFree: deshuFree(), catFree: catFree(), lastSaid: lastSaid && { ...lastSaid } }; },
     // 承峰 11/3 回饋：坐著時直接轉頭到某個角度（截圖用；和手指拖曳一樣受座位的轉頭範圍限制）
     look(yaw = 0, pitch = 0) { if (state.mode !== 'seat') return false; focusP = null; lookTok++; cam.yaw = THREE.MathUtils.clamp(yaw, ...yawRange()); cam.pitch = THREE.MathUtils.clamp(pitch, -0.35, 0.35); return true; },
+    // 黑板字修正（D189）：黑板上的字在畫面上的樣子。在字的範圍內打 12×6 條射線，第一個碰到的不是黑板就算被擋住
+    // （紙片看碰到那一點透不透明，透明的地方不算）；inView／visible 是幾 % 的點在畫面裡／看得到，blockedBy 是誰擋住幾個點，
+    // charPx 是最小那一行字在畫面上幾像素高（CSS 像素），box 是整段字在畫面上的範圍
+    boardView() {
+      const L = A.boardLayout(boardText()), b = L.box, W = app.clientWidth, H = app.clientHeight;
+      const objs = []; scene.traverseVisible((o) => { if (o.isMesh && o !== backBar && o !== boardFace) objs.push(o); });
+      const ray = new THREE.Raycaster(), p = new THREE.Vector3(), n = new THREE.Vector3(), dir = new THREE.Vector3(), uv = new THREE.Vector2();
+      const solid = (h) => {
+        const m = h.object.material;
+        if (Array.isArray(m) || (!m.transparent && !(m.alphaTest > 0))) return true;
+        if (m.opacity < 0.35 || !m.visible) return false;
+        const img = m.map?.image;
+        if (!img || !h.uv) return true;
+        m.map.transformUv(uv.copy(h.uv));
+        const x = Math.min(img.width - 1, Math.floor(uv.x * img.width)), y = Math.min(img.height - 1, Math.floor(uv.y * img.height));
+        const a = img.data ? img.data[(y * img.width + x) * 4 + 3] : img.getContext?.('2d', { willReadFrequently: true }).getImageData(x, y, 1, 1).data[3] ?? 255;
+        return a > Math.max(40, (m.alphaTest || 0) * 255);
+      };
+      const who = (o) => (o.parent === deshu ? 'deshu' : NAMES.get(o.parent) || o.parent?.userData?.name || o.userData?.name || o.name || o.geometry?.type || 'mesh');
+      const scr = (u, v) => { n.copy(onBackBar(u, v, p)).project(camera); return { x: ((n.x + 1) / 2) * W, y: ((1 - n.y) / 2) * H, z: n.z }; };
+      let all = 0, inView = 0, seen = 0, sx0 = Infinity, sx1 = -Infinity, sy0 = Infinity, sy1 = -Infinity;
+      const blockedBy = {};
+      for (let j = 0; j < 6; j++) for (let i = 0; i < 12; i++) {
+        const u = b.x0 + ((b.x1 - b.x0) * (i + 0.5)) / 12, v = b.y0 + ((b.y1 - b.y0) * (j + 0.5)) / 6;
+        const q = scr(u, v);
+        all++;
+        sx0 = Math.min(sx0, q.x); sx1 = Math.max(sx1, q.x); sy0 = Math.min(sy0, q.y); sy1 = Math.max(sy1, q.y);
+        if (q.z >= 1 || q.x < 0 || q.x > W || q.y < 0 || q.y > H) continue;
+        inView++;
+        dir.copy(p).sub(camera.position);
+        ray.set(camera.position, dir.clone().normalize()); ray.far = dir.length() - 0.01;
+        const hit = ray.intersectObjects(objs, false).find(solid);
+        if (!hit) seen++; else { const k = who(hit.object); blockedBy[k] = (blockedBy[k] || 0) + 1; }
+      }
+      const r = L.rows.reduce((m, x) => (x.size < m.size ? x : m)), cx = (b.x0 + b.x1) / 2;
+      const top = scr(cx, A.BOARD_TEXT.y0 + r.y - r.size), base = scr(cx, A.BOARD_TEXT.y0 + r.y);
+      return {
+        inView: Math.round((inView / all) * 100), visible: Math.round((seen / all) * 100), blockedBy,
+        charPx: Math.round(Math.hypot(base.x - top.x, base.y - top.y) * 10) / 10,
+        box: { x0: Math.round(sx0), x1: Math.round(sx1), y0: Math.round(sy0), y1: Math.round(sy1) }, lines: L.rows.length - 1,
+      };
+    },
     // 美術評分修正 c：鏡頭停好了（沒有在移動、轉向，推近也到了），全流程截圖等這個再拍
     get camStill() {
       const want = state.mode === 'overview' ? 50 : state.closeup ? closeView().fov : state.focus ? focusFov : seatFov();
