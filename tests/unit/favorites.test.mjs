@@ -27,7 +27,7 @@ function finish(s, who, start = 10) {
 
 test('存檔第 8 版：新存檔有 favorites（三位都從第 0 段開始）、photos 空的、stats.lastBean', () => {
   const s = newSave();
-  assert.equal(SAVE_VERSION, 8);
+  assert.ok(SAVE_VERSION >= 8); // 第 9 版（試咖啡）見 tasting.test.mjs
   for (const w of FV.FAV_IDS) assert.deepEqual(s.favorites[w], { stage: 0, misses: 0, servedDay: 0, told: 0 });
   assert.deepEqual(s.photos, []);
   assert.equal(s.stats.lastBean, '');
@@ -223,7 +223,7 @@ test('存檔 7 → 8 升級：補上 favorites、photos，熟客從第一段開�
   old.version = 7;
   delete old.favorites; delete old.photos; delete old.stats.lastBean;
   const s = migrate(JSON.parse(JSON.stringify(old)), T0);
-  assert.equal(s.version, 8);
+  assert.equal(s.version, SAVE_VERSION);
   for (const w of FV.FAV_IDS) assert.deepEqual(s.favorites[w], { stage: 0, misses: 0, servedDay: 0, told: 0 }, '不自動送照片');
   assert.deepEqual(s.photos, []);
   assert.equal(s.stats.lastBean, 'cocoa');

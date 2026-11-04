@@ -62,7 +62,7 @@ test('聲音：沒有 WebAudio 的環境，所有動作都是空動作、不丟�
 });
 
 // 文字校對：把原始碼裡含中文的字串（不含註解）挑出來檢查
-const SRC = ['afterhours', 'cat', 'catalog', 'farewell', 'journal', 'letters', 'main', 'menu', 'moments', 'opening', 'story', 'tasks', 'weather']
+const SRC = ['afterhours', 'cat', 'catalog', 'farewell', 'journal', 'letters', 'main', 'menu', 'moments', 'opening', 'story', 'tasks', 'tasting', 'weather']
   .map((f) => new URL(`../../src/${f}.js`, import.meta.url));
 function strings(file) {
   const src = readFileSync(file, 'utf8').split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).map((l) => l.replace(/\s\/\/ .*$/, '')).join('\n');

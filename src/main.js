@@ -18,6 +18,7 @@ import { createAudio, VOLUMES, VOLUME_NAMES } from './audio.js';
 import * as MO from './moments.js';
 import * as MN from './menu.js';
 import * as FV from './favorites.js';
+import * as TS from './tasting.js';
 
 const $ = (id) => document.getElementById(id);
 const lightsEl = $('lights'); // 打烊後每盞燈旁邊的「關燈／開燈」
@@ -88,8 +89,9 @@ if (DEV && params.get('board')) {
   for (const id of ids) MN.unlock(save, id, today(), now(), { board: false });
   if (ids.some(MN.isDrink)) save.menu.board = ids.slice(0, MN.BOARD_MAX);
 }
+// 試咖啡的品項（from 是 trial:<配方>）不算：它們要在測試紀錄上定案才收進菜單本（D206）
 function devUnlockMenu() {
-  for (const id of MN.ITEM_IDS) if (MN.unlock(save, id, today(), now(), { board: false })) MN.markTold(save, id);
+  for (const id of MN.ITEM_IDS) if (!/^trial:/.test(MN.ITEMS[id].from) && MN.unlock(save, id, today(), now(), { board: false })) MN.markTold(save, id);
 }
 let resetting = false;
 function persist() {
@@ -1303,6 +1305,7 @@ const WALK = 0.85; // 德叔端杯的走速（公尺／秒）
 // 正常速度下吧台沖煮約 19 秒：六個動作都保留，只縮短停頓與注水
 // bean：黑板上的哪一杯（menu.js 的 ITEMS id）；黑板上寫著點心（窯烤龍眼乾）時，杯子旁邊多一小碟
 // opt.last：打烊後的最後一杯；opt.guest：客人模式點的那杯；opt.enamel：最後一晚，德叔用那個琺瑯杯沖（farewell.js 第 7 段）
+// opt.trial：試咖啡（D206，tasting.js 的配方 id）：德叔試做的那杯，端上桌以後自動寫一張測試紀錄；不算杯數、不算「老闆最近一次喝的那杯」、不看任務
 let brewIced = false; // 這一杯是冰的（冰美式）：沖的時候杯子不冒煙
 async function brew(seat, bean = 'dongshan', opt = {}) {
   if (brewing) return;
@@ -1313,7 +1316,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
     updateUI();
     await deshuReturning;
   }
-  const withLongan = MN.withSnack(save) && !opt.enamel;
+  const withLongan = (MN.withSnack(save) || !!MN.ITEMS[bean]?.dish) && !opt.enamel; // 龍眼窯特調（dish）自己就附一小碟
   const iced = MN.ITEMS[bean]?.cup === 'iced' && !opt.enamel;
   brewIced = iced;
   if (opt.enamel) {
@@ -1328,7 +1331,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
     scene.add(stationCup);
   }
   phase = 'brew';
-  say(keeper() ? F.KEEPER.brewStart : '好，等我一下。', 2500);
+  say(keeper() ? F.KEEPER.brewStart : opt.trial ? TS.TASTE.start : '好，等我一下。', 2500);
   state.closeup = true;
   cam.yaw = 0; cam.pitch = 0; focusP = null; // 視線回到正前方：下一句話要重新轉向說話的人
   moveCamera(closeView().pos, closeView().look, 1.2);
@@ -1373,6 +1376,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   const served = MN.ITEMS[bean]?.served;
   if (opt.enamel) { /* 最後一晚：德叔叫老闆名字的那句，由告別的場景說（farewell.js 第 7 段） */ }
   else if (opt.last) say(H.CLOSING.lastCup, 4500); // 劇本：打烊「最後一杯，是老闆的。」
+  else if (opt.trial) say(TS.RECIPES[opt.trial].served, 4500); // 試咖啡：德叔說這一杯
   else if (served && (bean === 'zhe-beans' || (!keeper() && bean !== 'dongshan'))) say(served, 4500); // 黑板上的那一杯（menu.js 的 served）
   else if (withLongan && !save.flags.longanServed) { save.flags.longanServed = true; say('配阿哲阿公的龍眼乾。窯烤的。', 4500); } // 【待定】
   else say(keeper() ? F.KEEPER.served : MN.ITEMS.dongshan.served, 4500);
@@ -1389,13 +1393,20 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   phase = null;
   state.hold = false;
   updateUI();
-  save.stats.cups++;
-  save.stats.lastBean = bean; // 老闆最近一次喝的那杯（凱文第三段「老闆的那杯」，favorites.js）
-  if (state.weather !== 'clear' && seat.id === 'window') save.stats.rainyWindowCups++; // 雨天（颱風夜也算）坐窗邊喝一杯
-  persist();
+  if (opt.trial) {
+    // 試咖啡：程式自動寫一張測試紀錄（老闆不用打字）；不進杯數、任務、熟客最愛
+    TS.addRecord(save, opt.trial, today(), now(), state.closing ? 'after' : state.night ? 'night' : 'day');
+    persist();
+    realWait(5200).then(() => { if (!brewing && !state.scene && !state.choice) say(TS.TASTE.written, 4600, deshu); });
+  } else {
+    save.stats.cups++;
+    save.stats.lastBean = bean; // 老闆最近一次喝的那杯（凱文第三段「老闆的那杯」，favorites.js）
+    if (state.weather !== 'clear' && seat.id === 'window') save.stats.rainyWindowCups++; // 雨天（颱風夜也算）坐窗邊喝一杯
+    persist();
+  }
   // 開場第四幕：溫度要等德叔說完「店是空的……」才上升（劇本第 4、5 步的順序），交給 tutorialAfterCup()
   const inTutorial = state.tutorial === 'brew';
-  const firstCup = !inTutorial && checkTasks({ delay: 4800 }).includes('first-coffee');
+  const firstCup = !inTutorial && !opt.trial && checkTasks({ delay: 4800 }).includes('first-coffee');
   if (inTutorial) tutorialAfterCup(true);
   if (opt.last) afterLastCup(bean);
   if (opt.guest) guestListen(seat);
@@ -2091,6 +2102,7 @@ function updateUI() {
   show('place', over && !placing && free);
   show('night', !placing && free && !cl);
   show('close-shop', over && !placing && free && !cl && !!save.flags.seenOpening && !F.departureDue(save, today()));
+  markRow();
   show('diary-btn', after && !placing && free);
   show('goodnight', after && !placing && free);
   show('choices', choosing);
@@ -2276,7 +2288,16 @@ function renderMenuBook() {
   for (const id of board) {
     if (swapFor) {
       const ok = !(MN.isDrink(id) && !MN.isDrink(swapFor) && board.filter(MN.isDrink).length <= 1);
-      list.appendChild(menuRow(id, ok ? '' : MN.BOOK.keepOne, MN.BOOK.eraseThis, () => { MN.replace(save, id, swapFor, d); swapFor = null; menuChanged(); }, !ok));
+      list.appendChild(menuRow(id, ok ? '' : MN.BOOK.keepOne, MN.BOOK.eraseThis, () => {
+        if (swapSettle) { // 從測試紀錄定案（D207）：換好就闔上菜單本，抬頭看黑板
+          const rid = swapSettle, item = swapFor;
+          swapSettle = 0; swapFor = null;
+          if (TS.settle(save, rid, d, now(), id) !== 'done') { renderMenuBook(); return; }
+          persist(); closeSheet(); afterSettle(item);
+          return;
+        }
+        MN.replace(save, id, swapFor, d); swapFor = null; menuChanged();
+      }, !ok));
     } else {
       const ok = MN.canErase(save, id);
       list.appendChild(menuRow(id, ok ? '' : MN.BOOK.keepOne, MN.BOOK.erase, () => { MN.erase(save, id); menuChanged(); }, !ok));
@@ -2288,7 +2309,7 @@ function renderMenuBook() {
     b.className = 'wide';
     b.id = 'menu-cancel';
     b.textContent = MN.BOOK.cancel;
-    b.onclick = () => { swapFor = null; renderMenuBook(); };
+    b.onclick = () => { swapFor = null; cancelSwapSettle(); renderMenuBook(); };
     list.appendChild(b);
   } else if (rest.length) {
     const h2 = document.createElement('h3');
@@ -2351,7 +2372,7 @@ function openSheet(kind) {
   list.scrollTop = 0;
   $('sheet-close').focus();
 }
-function closeSheet() { sheet.hidden = true; sheetKind = null; }
+function closeSheet() { cancelSwapSettle(); swapFor = null; sheet.hidden = true; sheetKind = null; }
 $('sheet-close').onclick = closeSheet;
 sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); });
 
@@ -2493,6 +2514,7 @@ function openNotebook(open) {
   book.textContent = MN.BOOK.open;
   book.onclick = () => { openNotebook(false); openSheet('menu'); };
   people.appendChild(book);
+  renderRecords(people);
   const list = $('nb-list');
   list.innerHTML = '';
   for (const d of [...save.tasks].reverse()) {
@@ -2505,6 +2527,68 @@ function openNotebook(open) {
   // 【待定】記事本還是空的時候的一句話
   $('nb-empty').hidden = save.tasks.length > 0;
   $('nb-close').focus();
+}
+// 記事本「測試紀錄」（試咖啡，D206、D207）：新的在上面；每一張是程式寫的幾行字（UI 文字，D202），「喜歡」「定案」兩顆
+function renderRecords(box) {
+  const recs = TS.recordsNewest(save);
+  if (!recs.length) return;
+  const h = document.createElement('h3');
+  h.textContent = TS.TASTE.section;
+  box.appendChild(h);
+  for (const rec of recs) {
+    const L = TS.recordLines(rec);
+    const el = document.createElement('div');
+    el.className = 'nb-record';
+    el.dataset.record = rec.id;
+    el.innerHTML = `<small>${esc(L.head)}</small><b>${esc(L.name)}</b><span>${esc(L.bean)}</span><span>${esc(L.brew)}</span><span>${esc(L.flavor)}</span><span class="line">${esc(L.line)}</span>`
+      + (L.settled ? `<span class="done">${esc(L.settled)}</span>` : '');
+    if (!rec.settled) {
+      const acts = document.createElement('div');
+      acts.className = 'acts';
+      const like = document.createElement('button');
+      like.className = 'rec-like';
+      like.textContent = rec.liked ? TS.TASTE.liked : TS.TASTE.like;
+      like.setAttribute('aria-pressed', String(rec.liked));
+      like.onclick = () => { TS.toggleLike(save, rec.id); persist(); like.textContent = rec.liked ? TS.TASTE.liked : TS.TASTE.like; like.setAttribute('aria-pressed', String(rec.liked)); };
+      const ok = document.createElement('button');
+      ok.className = 'rec-settle primary';
+      ok.textContent = TS.TASTE.settle;
+      ok.onclick = () => settleRecord(rec.id);
+      acts.append(like, ok);
+      el.appendChild(acts);
+    }
+    box.appendChild(el);
+  }
+}
+// 定案：收進菜單本並寫上黑板（每日菜單就是黑板）；黑板寫滿時打開菜單本，走現有的「換一行」
+let swapSettle = 0; // 正在為哪一張紀錄選要換掉的那一行
+function settleRecord(rid) {
+  const rec = TS.recordById(save, rid);
+  if (!rec) return;
+  const item = rec.cups[0].item;
+  const res = TS.settle(save, rid, today(), now());
+  if (!res) return;
+  persist();
+  openNotebook(false);
+  if (res === 'full') {
+    openSheet('menu');
+    swapFor = item;
+    swapSettle = rid;
+    renderMenuBook();
+    return;
+  }
+  afterSettle(item);
+}
+function afterSettle(item) {
+  drawBackBar();
+  audio.play('click');
+  updateUI();
+  if (!keeper()) say(TS.TASTE.settled(MN.ITEMS[item].name), 3800, deshu);
+}
+function cancelSwapSettle() {
+  if (!swapSettle) return;
+  if (TS.cancelSettle(save, swapSettle)) persist();
+  swapSettle = 0;
 }
 $('open-notebook').onclick = () => openNotebook(true);
 $('nb-close').onclick = () => openNotebook(false);
@@ -2703,6 +2787,7 @@ function talkTo(r) {
   const w = PEOPLE_IDS.find((k) => PEOPLE[k] === who);
   if (w && favOfferable(w)) offerFavorite(w);
   else if (who === deshu && keeperFavOfferable()) offerKeeperDrink();
+  else if (who === deshu && trialAgainable()) offerTrialAgain(); // 試咖啡：請德叔再試一杯（D206）
 }
 
 /* ---------- 點黑板打開菜單本（承峰 11/3：「做點黑板打開菜單本」，D191） ---------- */
@@ -3859,6 +3944,11 @@ setInterval(() => {
     // 熟客最愛的咖啡：這一段開放、那位熟客在店裡時，德叔在吧台說一次那一段的線索
     const c = REGULARS_ON && live.day === today() ? FV.pendingClue(save, hereNow()) : null;
     if (c) { runMoment('clue', `${c.who}-${c.n}`, () => favClue(c)); return; }
+    // 試咖啡（D206、D207）：劇情配方開放了，老闆坐著、德叔在吧台閒著時提一次；還沒定案的測試紀錄，隔天提一次（一張最多一次）
+    const off = deshuFree() && trialOfferable() ? TS.pendingOffer(save) : null;
+    if (off) { runMoment('trial', off, () => offerTrial(off)); return; }
+    const rec = TS.pendingHint(save, today());
+    if (rec) { runMoment('record', String(rec.id), () => recordHint(rec)); return; }
   }
   if (REGULARS_ON && live.day === today() && quietMs > MO.EARLY_QUIET_MS && !keeper()) {
     const e = MO.earlyDue(earlyCtx(), save.moments.early);
@@ -4067,6 +4157,41 @@ async function boardReact(r) {
   if (!PEOPLE[r.who]?.visible) return;
   say(r.line, 4000, PEOPLE[r.who]);
   await realWait(4400);
+}
+
+// 試咖啡（承峰 11/5：「先做試咖啡」，D206；文字與規則在 tasting.js）：老闆坐著、德叔在吧台，沒有劇情、選項、演出時
+function trialOfferable() {
+  return !keeper() && state.mode === 'seat' && !!state.seat && !brewing && !deshuReturning && !state.choice && !state.scene && !state.favorite
+    && !state.guest && !state.closing && !state.cinematic && !state.tutorial && !state.arriving && !state.placing && !state.letter && !overlayOpen()
+    && deshu.visible && deshu.position.distanceTo(HOME) < 0.05;
+}
+function brewTrial(id) {
+  if (!trialOfferable() || !TS.recipeOpen(save, id)) return false;
+  brew(state.seat, TS.RECIPES[id].item, { trial: id }); // 不等它沖完：店裡的小事的佇列先放開
+  return true;
+}
+// 德叔第一次提（店裡的小事的佇列）：「喝喝看」就試做一杯；「下次吧」放最下面，之後坐著點德叔隨時可以請他試
+async function offerTrial(id) {
+  TS.markOffered(save, id, today());
+  persist();
+  say(TS.RECIPES[id].offer, 5200, deshu);
+  const i = await choose([TS.TASTE.yes, TS.TASTE.no]);
+  if (i === 0 && brewTrial(id)) return;
+  if (i !== 0) { say(TS.TASTE.later, 3400, deshu); await realWait(3600); }
+}
+// 坐著點德叔：提過的配方可以請他再試一杯（每一杯都是新的一張紀錄）
+const trialAgainable = () => trialOfferable() && !moments.busy && TS.againRecipes(save).length > 0;
+async function offerTrialAgain() {
+  const list = TS.againRecipes(save);
+  const j = await choose([...list.map((id) => TS.TASTE.again(TS.recipeName(id))), TS.TASTE.just]);
+  if (j < list.length) brewTrial(list[j]);
+}
+// 還沒定案的紀錄：德叔提一次（黑板沿用昨天，有新紀錄時提一次；不催）
+async function recordHint(rec) {
+  TS.markHinted(save, today());
+  persist();
+  say(TS.TASTE.hint(MN.ITEMS[rec.cups[0].item].name), 4800, deshu);
+  await realWait(5200);
 }
 
 // 擺飾第一次擺出來的反應（D183）：熟客在店裡就由熟客說，不然德叔或龍眼
@@ -4756,9 +4881,23 @@ let closeTok = 0;
 const lightOn = (id) => !id || !state.closing || !save.closing.lightsOff.includes(id);
 const canClose = () => save.flags.seenOpening && !state.closing && !state.tutorial && !state.scene && !state.letter && !state.cinematic
   && !state.choice && !state.guest && !brewing && !deshuReturning && !state.placing && !state.arriving && !F.departureDue(save, today());
+// 誤按打烊（承峰 11/5：「誤按打烊照建議修：德叔先問一次加連點保護」，D205）：
+// 1. 連點保護：底部按鈕列換了內容（佈置按「確定」、坐著按「站起來」、選項收起來……）之後 ROW_GUARD_MS 內不接受打烊（含觸控連點）；
+// 2. 按下去德叔先問一次（choose()），「再坐一會兒」放最下面：連點的第二下落在選項列最下面那一格，也不會打烊。
+// 不動存檔、熟客排程、照片、溫度：選「再坐一會兒」什麼都沒發生
+const ROW_GUARD_MS = 500;
+let rowSig = '', rowAt = 0;
+function markRow() {
+  const sig = [...document.querySelectorAll('.bottom .row > button')].filter((b) => !b.hidden).map((b) => b.id).join(',') + (state.choice ? '|choice' : '');
+  if (sig !== rowSig) { rowSig = sig; rowAt = performance.now(); }
+}
+const rowSettled = () => performance.now() - rowAt >= ROW_GUARD_MS;
 
 async function startClosingMode() {
-  if (!canClose()) return;
+  if (!canClose() || !rowSettled()) return;
+  const pick = await choose(H.CLOSING.confirm, H.CLOSING.confirmAsk, keeper() ? '凱文' : '德叔');
+  if (pick !== 0) { say(H.CLOSING.confirmStay, 2400); return; }
+  if (!canClose()) return; // 問的時候有人推門進來、劇情開始……：這次不打烊
   const tok = ++closeTok;
   const d = today();
   H.startClosing(save, d);
@@ -5801,6 +5940,29 @@ if (DEV) {
         album: { open: !sheet.hidden && sheetKind === 'album', slots: document.querySelectorAll('#sheet-list .album-slot').length, empty: document.querySelectorAll('#sheet-list .album-slot.empty').length } };
     },
     favSetup(who, n = 1, opt = {}) { return devFavSetup(who, n, opt); },
+    // 試咖啡（D206）：tasting 讀狀態（配方、紀錄、現在能不能提／再試、德叔要提哪一張紀錄）；tastingSetup('kiln') 讓開放那個配方的里程碑發生（不演）、
+    // 今天熟客不來；tastingOffer('kiln') 直接演德叔第一次提（Promise）；tastingBrew('kiln') 不經過選項直接試做；recordHint() 直接演德叔提一次紀錄；
+    // recordSettle(id) 等於在記事本按「定案」；jumpDays(n) 等於「≡」選單的跳天數
+    get tasting() {
+      const h = TS.pendingHint(save, today());
+      return { trials: JSON.parse(JSON.stringify(save.tasting.trials)), records: JSON.parse(JSON.stringify(save.tasting.records)), open: TS.openRecipes(save),
+        pendingOffer: TS.pendingOffer(save), offerable: trialOfferable(), againable: trialAgainable(), hint: h ? h.id : 0, swapSettle,
+        rowGuard: ROW_GUARD_MS, rowAge: Math.round(performance.now() - rowAt) };
+    },
+    tastingSetup(id = 'kiln') {
+      const r = TS.RECIPES[id];
+      if (!r) return null;
+      const d = today();
+      for (const m of S.MILESTONES.filter((x) => x.who === r.after.who && x.n <= r.after.n)) if (!S.hasMilestone(save, m.who, m.n)) for (const g of S.complete(save, m, d, now())) MN.markTold(save, g.id);
+      if (live.day === d) { live.expect.clear(); for (const o of S.REGULAR_IDS) if (live.arrived.has(o)) { PEOPLE[o].visible = false; live.arrived.delete(o); } }
+      persist(); drawBackBar(); updateUI();
+      return TS.openRecipes(save);
+    },
+    tastingOffer(id = 'kiln') { if (moments.busy || !trialOfferable()) return Promise.resolve(false); return runMoment('trial', id, () => offerTrial(id)).then(() => true); },
+    tastingBrew(id = 'kiln') { return brewTrial(id); },
+    recordHint() { const r = TS.pendingHint(save, today()); if (!r || moments.busy) return Promise.resolve(false); return runMoment('record', String(r.id), () => recordHint(r)).then(() => true); },
+    recordSettle(rid) { settleRecord(rid); return JSON.parse(JSON.stringify(TS.recordById(save, rid))); },
+    jumpDays(n = 1) { jumpDays(n); return today(); },
     favOffer(who) { if (!favOfferable(who)) return false; say(regularLine(who), 3500, PEOPLE[who]); offerFavorite(who); return true; },
     favServe(who, drink) {
       const ok = who === 'kevin' && keeper() ? keeperFavOfferable() : favOfferable(who);

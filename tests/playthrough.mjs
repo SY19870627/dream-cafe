@@ -178,7 +178,11 @@ async function play([W, H]) {
         if (!close || s.keeper) return 'idle';
         // 今天的事都發生完了：站起來、打烊、坐窗邊喝最後一杯
         if (await vis('#stand')) { await page.click('#stand'); await page.waitForTimeout(400); continue; }
-        if (await vis('#close-shop')) { await page.click('#close-shop'); await page.waitForTimeout(300); continue; }
+        if (await vis('#close-shop')) { // 誤按打烊（D205）：等連點保護過去，德叔問一次，選「打烊」
+          await page.waitForTimeout(600); await page.click('#close-shop');
+          await page.waitForSelector('#choices button', { timeout: 5000 }); await page.click('#choices button >> nth=0');
+          await page.waitForTimeout(300); continue;
+        }
       }
       await page.waitForTimeout(150);
     }

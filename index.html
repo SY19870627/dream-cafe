@@ -327,6 +327,16 @@
   #nb-people h3 { margin: 12px 0 4px; font-size: 13px; opacity: .7; }
   .nb-person { margin: 0 0 6px; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; }
   .nb-person span { font-size: 13px; opacity: .8; }
+  /* 試咖啡的測試紀錄（D206）：德叔的筆記，一次一張；字是 UI 文字（D202），「喜歡」「定案」≥ 44px */
+  .nb-record { margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.55); border: 1px dashed rgba(59,42,32,.35);
+    font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; }
+  .nb-record small { font-size: 12px; opacity: .7; }
+  .nb-record span { font-size: 13px; opacity: .85; }
+  .nb-record .line { font-style: normal; opacity: 1; }
+  .nb-record .done { color: #6b4a1f; font-weight: 600; opacity: 1; }
+  .nb-record .acts { display: flex; gap: 8px; margin-top: 6px; }
+  .nb-record .acts button { flex: 1 1 0; font-size: 14px; padding: 8px 10px; background: #fff; border: 1px solid rgba(59,42,32,.35); box-shadow: none; }
+  .nb-record .acts button.primary { background: #3b2a20; color: #f6efe2; border-color: #3b2a20; }
   /* ---------- 階段 5：打烊後、咖啡日記、客人模式 ---------- */
   #lights { position: absolute; inset: 0; overflow: clip; pointer-events: none; }
   /* 開燈／關燈：和底部按鈕一樣大（48px 高、圓角 14px），左右也和按鈕列一樣留 12px */
@@ -393,7 +403,7 @@
     .title b { font-size: 14px; line-height: 18px; }
     #stage-note { font-size: 14px; line-height: 19px; max-width: 300px; }
     #stage-note b { font-size: 15px; line-height: 21px; }
-    #about .sub, #about dt, #about .links a span, .overlay .sub, #nb-list small, #nb-list span, #nb-people h3, .nb-person span,
+    #about .sub, #about dt, #about .links a span, .overlay .sub, #nb-list small, #nb-list span, #nb-people h3, .nb-person span, .nb-record span,
     #sheet .sub, #sheet-list h3, .sheet-row .info span, .sheet-row .info small, .jr-day, .cl-date, #dy-count, #map-list span { font-size: 14px; }
     #map-list span { white-space: normal; overflow: visible; } /* 14px 放不下一行：說明在右欄裡折行，不要被刪節號吃掉 */
   }

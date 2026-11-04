@@ -39,6 +39,13 @@ export const ITEMS = {
     desc: '阿哲自己處理的豆子。名字寫大一點。',
     served: '阿哲的豆。他說寫大一點，我就寫大一點。', // 【待定】（原本就有的句子）
     got: '阿哲的豆，我記進菜單本了。黑板寫滿了，老闆想換一行再換。' }, // 【待定】
+  // 試咖啡（D206、D207，tasting.js）：德叔試做、老闆在測試紀錄上「定案」才收進菜單本並寫上黑板；from 是 trial:<配方>。dish：端上桌時附一小碟龍眼乾
+  kiln: { name: '龍眼窯特調', chalk: '龍眼窯特調', kind: 'coffee', cup: 'hot', dish: true, from: 'trial:kiln', who: 'yuan', station: 'dongshan', // 【待定】
+    desc: '東山的豆配窯烤龍眼乾。予安小姐說過，龍眼窯的煙是甜的。', // 【待定】
+    served: '龍眼窯特調。龍眼乾放在旁邊。' }, // 【待定】
+  'zhe-new': { name: '阿哲的新法', chalk: '阿哲的新法', kind: 'coffee', cup: 'hot', from: 'trial:zhe-new', who: 'zhe', station: 'dongshan', // 【待定】
+    desc: '阿哲自己的新方法處理的那一包，單獨沖。比較亮。', // 【待定】
+    served: '阿哲的新法。比較亮，像早上。' }, // 【待定】
 };
 export const ITEM_IDS = Object.keys(ITEMS);
 export const START_ITEMS = ['dongshan'];

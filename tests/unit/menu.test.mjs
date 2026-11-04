@@ -89,8 +89,8 @@ test('品項靠劇情解鎖：龍眼乾（阿哲第一幕，直接寫上黑板�
   assert.deepEqual(MN.pendingTell(s).map((x) => x.id), ['longan', 'black', 'iced'], '德叔之後安靜時各提一次');
   MN.markTold(s, 'longan');
   assert.deepEqual(MN.pendingTell(s).map((x) => x.id), ['black', 'iced']);
-  // 品項的解鎖只寫在 menu.js（ITEMS[].from），每一個 from 都是真的里程碑
-  for (const id of MN.ITEM_IDS) { const f = MN.ITEMS[id].from; assert.ok(f === 'start' || S.milestoneById(f), `${id} 的 ${f}`); }
+  // 品項的解鎖只寫在 menu.js（ITEMS[].from），每一個 from 都是真的里程碑，或試咖啡的配方（trial:<配方>，tasting.js）
+  for (const id of MN.ITEM_IDS) { const f = MN.ITEMS[id].from; assert.ok(f === 'start' || S.milestoneById(f) || /^trial:/.test(f), `${id} 的 ${f}`); }
 });
 
 test('任務 #19（Q73 暫定）：阿哲第六幕照舊完成任務；老闆不在時黑板寫得下就寫上去，寫滿了收進菜單本、日誌寫一句', () => {
