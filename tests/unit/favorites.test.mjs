@@ -339,10 +339,10 @@ test('圖上不寫字，改由角色台詞說出來（D202）：原本規格裡�
     assert.notEqual(p.said, p.caption, `${p.id} 和照片說明不一樣`);
     assert.ok(FV.allFavoriteLines().includes(p.said), `${p.id} 在校稿清單裡`);
   }
-  // 新寫的句子標【待定】；「煙是甜的」是清單原本的字，不標
+  // 阿哲那句作者已確認（D203），「煙是甜的」是清單原本的字，都不標【待定】
   const { readFile } = await import('node:fs/promises');
   const lines = (await readFile(new URL('../../src/favorites.js', import.meta.url), 'utf8')).split(String.fromCharCode(10));
-  assert.ok(lines.find((l) => l.includes(`said: '${said['zhe-3']}'`)).includes('【待定】'), '阿哲那句標了【待定】');
+  assert.ok(!lines.find((l) => l.includes(`said: '${said['zhe-3']}'`)).includes('【待定】'), '阿哲那句已定案（D203）');
   assert.ok(!lines.find((l) => l.includes("said: '煙是甜的。'")).includes('【待定】'), '「煙是甜的」是原本的字');
 });
 
