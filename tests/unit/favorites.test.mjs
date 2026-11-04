@@ -307,6 +307,20 @@ test('吧台請凱文喝一杯：凱文顧店時的線索（段落開放才有�
   assert.equal(FV.KEEPER_FAV.offer, '請凱文喝一杯');
 });
 
+test('凱文出來坐旁邊喝（承峰 11/4：「出來坐旁邊喝」，D200）：坐下與喝完回吧台的兩句有登記、標了【待定】', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const src = await readFile(new URL('../../src/favorites.js', import.meta.url), 'utf8');
+  for (const k of ['sit', 'back']) {
+    const t = FV.KEEPER_FAV[k];
+    assert.equal(typeof t, 'string');
+    assert.ok(t.length > 0 && t.length <= 40, `${k} 一句話，不要太長`);
+    assert.ok(FV.allFavoriteLines().includes(t), `${k} 在校稿清單裡`);
+    const line = src.split(String.fromCharCode(10)).find((l) => l.includes(`  ${k}: '`));
+    assert.ok(line && line.includes('【待定】'), `${k} 標了【待定】`);
+  }
+  assert.ok(!/替自己沖、放在/.test(src), 'D199「放在自己面前」的說法已經換掉');
+});
+
 test('照片佔位圖的字（承峰 11/4：「照片待畫」改成「回憶等待觸發」，D198）', () => {
   assert.equal(FV.PHOTO_PLACEHOLDER, '回憶等待觸發');
 });

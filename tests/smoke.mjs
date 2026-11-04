@@ -1192,14 +1192,61 @@ try {
     await page.tap('#choices button >> text=東山的豆');
     await page.waitForTimeout(300);
     check((await fav()).busy === 'kevin' && !(await page.isVisible('#brew')), '凱文替自己沖的時候：下面的按鈕收起來');
+    // 凱文出來坐旁邊喝（承峰 11/4：「出來坐旁邊喝」，D200）：端著杯子走出吧台 → 坐到老闆旁邊的高腳椅 → 說話 → 喝完回吧台
+    await page.waitForFunction(() => window.__cafe.fav.keeperPhase === 'walkOut' && window.__cafe.fav.keeperPos.x < 1.6, null, { timeout: 40000 });
+    const out = await fav();
+    check(out.keeperCup && out.keeperPos.x < 1.6 && !out.keeperHome, `凱文端著杯子走出吧台（${out.keeperPos.x}, ${out.keeperPos.z}）`);
+    await page.waitForFunction(() => window.__cafe.fav.keeperSeated, null, { timeout: 40000 });
+    const side = await fav();
+    check(Math.abs(side.keeperPos.x - 1.3) < 0.05 && Math.abs(side.keeperPos.z + 2.1) < 0.05 && !side.sideStool && side.keeperCup && side.busy === 'kevin',
+      `坐在老闆旁邊的高腳椅（${side.keeperPos.x}, ${side.keeperPos.z}），店裡那張高腳椅收起來（圖裡畫了），杯子在面前`);
+    await page.waitForTimeout(900);
+    const on = await page.evaluate(() => window.__cafe.personOnScreen('deshu'));
+    check(on && on.x > 20 && on.x < 370 && on.y > 60 && on.y < 800, `鏡頭轉過去：坐在旁邊的凱文在畫面裡（${on && Math.round(on.x)}, ${on && Math.round(on.y)}）`);
     await page.waitForFunction(() => window.__cafe.fav.log.length === 1, null, { timeout: 40000 });
     const miss = (await fav()).log[0];
-    check(miss.keeper && miss.right === false && miss.hint === '' && (await fav()).keeperCup, `端錯：凱文照喝（${miss.line}），杯子放在他面前的吧台上`);
+    check(miss.keeper && miss.right === false && miss.hint === '' && (await fav()).keeperSeated, `端錯：凱文坐在旁邊照喝（${miss.line}）`);
     await page.waitForFunction(() => !window.__cafe.fav.busy, null, { timeout: 30000 });
     check(!(await fav()).keeperOfferable, '一天一杯：今天請過了就不再出現');
+    check((await fav()).keeperSeated && (await page.isVisible('#stand')), '說完以後：凱文還坐著喝，老闆可以站起來');
+    await page.waitForFunction(() => window.__cafe.fav.keeperPhase === 'walkBack', null, { timeout: 30000 });
+    check((await fav()).keeperCup && (await fav()).sideStool, '喝完：站起來端著空杯走回去，高腳椅放回店裡');
+    await page.waitForFunction(() => window.__cafe.fav.keeperHome, null, { timeout: 30000 });
+    check(!(await fav()).keeperCup && (await page.evaluate(() => window.__cafe.deshuHome)), '回到吧台裡他的位子，杯子收走');
     await page.waitForTimeout(400);
     await tapKevin();
     check(!(await choices()).includes('請凱文喝一杯'), '再點凱文：只搭話');
+    // 坐在旁邊時老闆站起來：凱文收杯回吧台（D200）
+    await page.evaluate(() => window.__cafe.keeperSetup(2));
+    page.evaluate(() => window.__cafe.favServe('kevin', 'black'));
+    await page.waitForFunction(() => window.__cafe.fav.keeperSeated && !window.__cafe.fav.busy, null, { timeout: 60000 });
+    await page.tap('#stand');
+    await page.waitForTimeout(300);
+    check((await page.evaluate(() => window.__cafe.mode)) === 'overview' && (await fav()).keeperPhase === 'walkBack', '坐在旁邊時老闆站起來：凱文馬上收杯走回吧台');
+    await page.waitForFunction(() => window.__cafe.fav.keeperHome, null, { timeout: 30000 });
+    check((await fav()).sideStool && !(await fav()).keeperCup, '站起來之後：凱文回到吧台、高腳椅放回去');
+    // 坐在旁邊時按「請凱文沖一杯」：先回吧台再沖（不衝突）
+    await page.evaluate(() => window.__cafe.keeperSetup(2));
+    page.evaluate(() => window.__cafe.favServe('kevin', 'black'));
+    await page.waitForFunction(() => window.__cafe.fav.keeperSeated && !window.__cafe.fav.busy, null, { timeout: 60000 });
+    await page.tap('#brew');
+    await page.waitForSelector('#choices button');
+    await page.tap('#choices button >> text=黑咖啡');
+    await page.waitForFunction(() => window.__cafe.brewing && window.__cafe.phase === 'wait', null, { timeout: 5000 }).catch(() => {});
+    const waitPhase = await page.evaluate(() => [window.__cafe.brewing, window.__cafe.phase, window.__cafe.fav.keeperPhase]);
+    check(waitPhase[0] && waitPhase[1] === 'wait' && waitPhase[2] === 'walkBack', `坐在旁邊時請凱文沖一杯：他先走回吧台（${waitPhase.join('／')}）`);
+    await page.waitForFunction(() => window.__cafe.phase === 'brew', null, { timeout: 30000 });
+    check((await fav()).keeperHome, '回到吧台才開始沖');
+    await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 60000 });
+    // 凱文還坐在旁邊時重設（和換一天同一條路 stopStory()）：直接回到吧台
+    await page.evaluate(() => window.__cafe.keeperSetup(3));
+    await page.waitForFunction(() => window.__cafe.fav.keeperOfferable, null, { timeout: 30000 }); // 沖完那杯之後凱文還在「走回吧台」的狀態
+    page.evaluate(() => window.__cafe.favServe('kevin', 'iced'));
+    await page.waitForFunction(() => window.__cafe.fav.keeperSeated, null, { timeout: 60000 });
+    await page.evaluate(() => window.__cafe.keeperSetup(2));
+    await page.waitForTimeout(300);
+    check((await fav()).keeperHome && (await fav()).sideStool && !(await fav()).keeperCup, '重設（keeperSetup 和換一天都走 stopStory）：凱文直接回到吧台');
+    await page.waitForFunction(() => !window.__cafe.fav.busy, null, { timeout: 60000 });
     // 同一段端錯第二次：凱文自己說（轉述德叔）
     await page.evaluate(() => window.__cafe.keeperSetup(1, { misses: 1 }));
     const r2 = await page.evaluate(() => window.__cafe.favServe('kevin', 'black'));
@@ -1214,10 +1261,11 @@ try {
     await page.screenshot({ path: OUT + 'phone-keeper-photo.png' });
     const rr = await right;
     check(rr?.right && rr.photo === 'kevin-1' && (await fav()).favorites.kevin.stage === 1, '凱文第一段找到了，收進相簿');
-    // 最愛（第三段，老闆最近一次喝的那杯；這個存檔還沒喝過：東山的豆）：溫度 +0.5°C
+    // 最愛（第三段，老闆最近一次喝的那杯）：溫度 +0.5°C
     await page.evaluate(() => window.__cafe.keeperSetup(3));
     const t0 = (await fav()).temp;
-    const fr = await page.evaluate(() => window.__cafe.favServe('kevin', 'dongshan'));
+    // 前面「坐在旁邊時請凱文沖一杯」老闆喝了黑咖啡：第三段的答案是老闆最近一次喝的那杯（stats.lastBean）
+    const fr = await page.evaluate(() => window.__cafe.favServe('kevin', window.__cafe.fav.lastBean || 'dongshan'));
     await page.waitForTimeout(2600);
     check(fr?.right && fr.favorite && (await fav()).temp === Math.min(37, Math.round((t0 + 0.5) * 10) / 10), `凱文顧店後找到最愛：溫度 ${t0} → ${(await fav()).temp}°C`);
     // 只有吧台座：站起來（俯瞰）、坐窗邊座都不出現

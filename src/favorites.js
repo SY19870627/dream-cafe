@@ -113,13 +113,17 @@ export const FAV_TEXT = {
 };
 
 // 吧台請凱文喝一杯（承峰 11/4：「坐吧台時可以請凱文喝一杯」，D199）：離開東山之後凱文在吧台後面顧店，不再是客人。
-// 老闆坐吧台座時點凱文，下方多一個「請凱文喝一杯」；凱文照黑板替自己沖一杯、放在吧台上，老闆請客（誰沖、怎麼端，待承峰確認）。
+// 老闆坐吧台座時點凱文，下方多一個「請凱文喝一杯」；凱文照黑板替自己沖一杯，老闆請客。
+// 承峰 11/4：「出來坐旁邊喝」（D200，取代 D199 的「放在自己面前的吧台上」）：凱文沖好端著杯子走出吧台，坐到老闆旁邊的高腳椅喝（sit），
+// 喝完說一句（back）再走回吧台。
 // 段落、開放條件、正確答案、端對與端錯的話都和上面的 STAGES.kevin／MISS.kevin 一樣；德叔已經不在店裡，
 // 線索與錯兩次的提示改由凱文自己說（他轉述德叔以前說過的話）。clue／hint 照段落排（第 1～3 段），第三段的 hint 要寫出那一杯的名字
 export const KEEPER_FAV = {
   offer: '請凱文喝一杯', // 【待定】坐吧台座點凱文後下方的選項
   ask: '老闆要請我喝哪一杯？', // 【待定】選飲料時上面那一行（凱文問）
   start: '老闆請客？……那我替自己沖一杯。德叔說，不要急。', // 【待定】凱文開始沖
+  sit: '以前我坐外面，德叔在裡面。……今天換回來，坐一下。', // 【待定】凱文端著杯子坐到老闆旁邊的高腳椅（D200）
+  back: '喝完了。我回吧台，老闆慢慢坐。', // 【待定】坐著喝完、站起來回吧台之前（D200）
   clue: [
     ['以前每天下午五點，我都點同一杯。現在換我沖給別人，自己反而沒喝了。'], // 【待定】第一段
     ['站在吧台裡面，剛好看得到窗外那片山。……那片山，喝得到嗎？'], // 【待定】第二段
@@ -244,7 +248,7 @@ export function allFavoriteLines() {
   const out = [];
   for (const who of FAV_IDS) for (const s of STAGES[who]) out.push(...s.talk, s.deshu, s.ok, s.caption, typeof s.hint === 'function' ? s.hint('東山的豆') : s.hint);
   out.push(...Object.values(MISS).flat(), FAVORITE_LINE.yuan, FAVORITE_LINE.zhe, FAVORITE_LINE.kevin('東山的豆'));
-  out.push(KEEPER_FAV.offer, KEEPER_FAV.ask, KEEPER_FAV.start, ...KEEPER_FAV.clue.flat(), ...KEEPER_FAV.hint.map((h) => (typeof h === 'function' ? h('東山的豆') : h)));
+  out.push(KEEPER_FAV.offer, KEEPER_FAV.ask, KEEPER_FAV.start, KEEPER_FAV.sit, KEEPER_FAV.back, ...KEEPER_FAV.clue.flat(), ...KEEPER_FAV.hint.map((h) => (typeof h === 'function' ? h('東山的豆') : h)));
   out.push(FAV_TEXT.offer('德叔', '予安'), FAV_TEXT.just, FAV_TEXT.ask('予安'), FAV_TEXT.cancel, FAV_TEXT.start, FAV_TEXT.firstPhoto, FAV_TEXT.album, FAV_TEXT.albumSub, FAV_TEXT.day(3), FAV_TEXT.close);
   return out;
 }

@@ -1289,6 +1289,7 @@ const steamSources = new Set();
 let brewing = false;
 let phase = null;
 let deshuReturning = null; // 德叔端完杯子走回吧台，是獨立的背景動作
+let keeperOut = null; // 凱文出來坐在老闆旁邊喝（D200）：{ phase: 'walkOut'|'sit'|'walkBack', cup, until, done }
 const cups = [];
 // 看德叔沖：正對吧台，磨豆機、濾杯、杯子排成一列在畫面中間，德叔的臉在上方約 1/3（美術評分修正 a：原本斜看，直立畫面只看得到吧台一角）
 const CLOSE_KIT = { pos: new THREE.Vector3(-0.1, 1.55, -1.7), look: new THREE.Vector3(2.6, 1.41, -1.68), fov: 52 };
@@ -1306,6 +1307,7 @@ let brewIced = false; // 這一杯是冰的（冰美式）：沖的時候杯子�
 async function brew(seat, bean = 'dongshan', opt = {}) {
   if (brewing) return;
   brewing = true;
+  if (keeperOut) keeperHome(); // 凱文坐在老闆旁邊喝（D200）：先回吧台再沖
   if (deshuReturning) {
     phase = 'wait';
     updateUI();
@@ -2041,7 +2043,7 @@ function sit(seat) {
 
 function stand() {
   const seat = state.seat;
-  clearKeeperCup(); // 吧台請凱文喝的那杯：老闆離開吧台座就收走
+  keeperHome(); // 凱文坐在旁邊喝（D200）：老闆站起來，他就收杯回吧台
   focusP = null; lookTok++;
   const satSec = ((performance.now() - (state.satAt || performance.now())) / 1000) * DEV_SPEED;
   state.closeup = false;
@@ -2644,6 +2646,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
 NAMES.set(deshu, '德叔').set(yuan, '予安').set(cat, '龍眼').set(zhe, '阿哲').set(kevin, '凱文').set(grandpa, '阿公');
 const WHO = { 德叔: deshu, 予安: yuan, 龍眼: cat, 阿哲: zhe, 凱文: kevin }; // tasks.js 台詞裡的說話者
 const HEAD = new Map([[deshu, 2.0], [cat, 0.5]]);
+const DESHU_HEAD = HEAD.get(deshu); // 凱文坐到老闆旁邊時（D200）先拿掉、回吧台再放回來
 // 泡泡的高度：紙片的頭頂（姿勢不同，高度不同）
 // 美術評分修正 a：圖的上面常有留白（例如坐著的予安），改用圖裡第一列有畫東西的高度，泡泡與對話鏡頭才對得準頭
 const inkCache = new WeakMap();
@@ -3664,6 +3667,7 @@ async function runScene(m) {
 // 新的一天（進店、跳天數、過了午夜）：決定今天誰會來
 function stopStory() {
   live.token++;
+  keeperHome(true); // 凱文坐在老闆旁邊喝的那杯（D200）：換一天、重設時直接回到吧台
   state.scene = null;
   if (state.choice) { state.choice = false; $('choices').innerHTML = ''; }
   for (const w of PEOPLE_IDS) {
@@ -4144,22 +4148,127 @@ async function offerKeeperDrink() {
   if (j >= drinks.length || !keeperFavOfferable()) return false;
   return serveFavorite('kevin', drinks[j]);
 }
-// 凱文替自己沖的那杯：放在他面前的吧台上（老闆那杯 SEATS 吧台座的 cup 旁邊、靠凱文那一側）；站起來或下一杯時收走
-const KEEPER_CUP = new THREE.Vector3(2.0, TOP, -1.62);
-let keeperCup = null;
-function clearKeeperCup() { if (keeperCup) { scene.remove(keeperCup); keeperCup = null; } }
-async function keeperOwnCup(kind, dish) {
-  clearKeeperCup();
-  await deshuGo(HOME);
+// 凱文出來坐旁邊喝（承峰 11/4：「出來坐旁邊喝」，D200，取代 D199「放在自己面前的吧台上」）：
+// 凱文在吧台沖好，端著杯子從吧台的出口走出來，繞到老闆背後（不從老闆和吧台之間擠過去），坐到老闆旁邊那張高腳椅（stoolMid），
+// 杯子放在他面前的吧台上；說完端對／端錯的話、照片淡回之後，再坐著喝一會兒（KEEPER_SIT_MS），喝完端著空杯走回吧台裡他的位子。
+// 吧台後面的紙片（deshu）就是凱文：走路用顧店的圖（kevinBar），坐下換成他當客人時坐高腳椅的圖（char_kevin_barstool，高腳椅畫在圖裡，
+// 店裡那張 stoolMid 先收起來）；沒有「繫圍裙端杯走路」「繫圍裙坐高腳椅喝」的圖，先用現有的頂著（D192：一張圖加程式動態，不生成圖）。
+// 他離開吧台的整段當作 deshuReturning（德叔走回吧台的那個狀態）：請凱文沖一杯會先叫他回吧台再沖、熟客劇情／店裡的小事／客人模式的邀請／
+// 打烊後擦杯子都等他回去；老闆站起來（換座位、打烊、佈置都要先站起來）、換一天、劇情開始，他就收杯回吧台
+const KEEPER_SIDE = { pos: V2(1.3, -2.1), cup: new THREE.Vector3(1.72, TOP, -2.1), stool: stoolMid }; // 老闆旁邊那張高腳椅（OPPOSITE.bar 同一張）
+const KEEPER_OUT = [V2(2.6, 0.6), V2(1.3, 0.8), V2(0.25, 0.2), V2(0.25, -2.1)]; // 吧台出口 → 老闆背後的走道（離鏡頭 0.5 公尺） → 高腳椅左邊
+const KEEPER_HOLD = new THREE.Vector3(0.2, 1.12, 0.15); // 端著走的時候杯子在他身上的哪裡（高過吧台檯面，走出吧台時看得到）
+const KEEPER_SIT_MS = 20000; // 照片淡回之後再坐著喝多久（真實時間，跟開發者倍率）
+const keeperCup = () => keeperOut?.cup || null;
+// 鏡頭跟著凱文轉（只在吧台座）：lookToward() 只看一個定點，走路時要每一格重算
+function followKeeper(max = 1.8) {
+  if (state.mode !== 'seat' || !state.seat) return;
+  const s = state.seat, b = s.look.clone().sub(s.eye), base = Math.atan2(b.x, b.z);
+  const my = ++lookTok;
+  focusP = null;
+  realWaiters.push((dt) => {
+    if (my !== lookTok || state.mode !== 'seat' || !keeperOut || keeperOut.phase !== 'walkOut') return true;
+    if (tween) return false;
+    const t = deshu.position.clone().sub(s.eye);
+    const yaw = THREE.MathUtils.clamp(wrapAngle(Math.atan2(t.x, t.z) - base), -max, max);
+    const k = Math.min(1, dt * 3);
+    cam.yaw += (yaw - cam.yaw) * k;
+    cam.pitch += (0 - cam.pitch) * k;
+    return false;
+  });
+}
+// 凱文端著杯子走出來、坐下、把杯子放在面前（演的時候 state.favorite 還是 'kevin'）。中途被叫回去（keeperBack）就停下來
+async function keeperWalkOut(kind, dish) {
+  keeperHome(true);
   const cup = makeCup(kind, dish);
   if (cup.userData.liquid && kind !== 'iced') cup.userData.liquid.visible = true;
-  setPaper(deshu, deshuCanvas.serve || deshuCanvas.pour);
-  cup.position.copy(KEEPER_CUP).add(new THREE.Vector3(0.18, 0.06, 0));
-  scene.add(cup);
-  await animate(0.7, (k) => { cup.position.lerpVectors(KEEPER_CUP.clone().add(new THREE.Vector3(0.18, 0.06, 0)), KEEPER_CUP, ease(k)); });
+  let done;
+  const ko = keeperOut = { phase: 'walkOut', cup, until: 0, done: null };
+  ko.done = new Promise((r) => { done = r; });
+  ko.resolve = done;
+  deshuReturning = ko.done; // 他回到吧台之前，請凱文沖一杯、熟客劇情、店裡的小事都等（brew()、quiet()）
+  setPaper(deshu, deshuCanvas.pour);
+  await wait(0.5);
   setPaper(deshu, deshuCanvas.idle);
+  deshu.attach(cup);
+  cup.position.copy(KEEPER_HOLD);
+  cup.rotation.set(0, 0, 0);
+  if (state.mode === 'seat' && state.seat?.id === 'bar') followKeeper();
+  for (let i = 0; i < KEEPER_OUT.length; i++) {
+    if (i === 2 && state.mode === 'seat' && state.seat?.id === 'bar') lookToward({ position: KEEPER_SIDE.pos.clone().setY(1.2) }, 1.45); // 走到老闆背後：先轉去高腳椅那邊等他
+    if (!(await walk(deshu, KEEPER_OUT[i], WALK, true)) || keeperOut !== ko || ko.phase !== 'walkOut') return false;
+  }
+  if (!(await walk(deshu, KEEPER_SIDE.pos, WALK, true)) || keeperOut !== ko || ko.phase !== 'walkOut') return false;
+  deshu.userData.mesh.position.y = 0;
+  // 坐上高腳椅：換成坐著的圖（高腳椅畫在圖裡），店裡那張先收起來
+  KEEPER_SIDE.stool.visible = false;
+  setArt(deshu, A.kevin('sit', 'stool'));
+  HEAD.delete(deshu); // 泡泡與鏡頭照坐著的圖量頭在哪裡（站在吧台後面固定 2.0 公尺）
+  scene.attach(cup);
+  const from = cup.position.clone();
+  await animate(0.7, (k) => { cup.position.lerpVectors(from, KEEPER_SIDE.cup, ease(k)); cup.position.y += Math.sin(Math.PI * k) * 0.05; });
+  if (keeperOut !== ko) return false;
   if (kind === 'iced') cup.userData.age = 999; // 冰的不冒煙
-  keeperCup = cup;
+  ko.phase = 'sit';
+  return true;
+}
+// 喝完（或被叫回去）：站起來、端著杯子走回吧台裡他的位子。instant：換一天、重設時直接回到吧台（不演）
+function keeperHome(instant = false) {
+  const ko = keeperOut;
+  if (!ko) return Promise.resolve();
+  if (instant) {
+    keeperOut = null;
+    ko.cup.parent?.remove(ko.cup);
+    KEEPER_SIDE.stool.visible = true;
+    deshu.userData.walkId = ++walkSeq; // 走到一半的那段停下來
+    setArt(deshu, deshuCanvas.idle);
+    HEAD.set(deshu, DESHU_HEAD);
+    deshu.position.copy(HOME);
+    deshu.userData.mesh.position.y = 0;
+    if (deshuReturning === ko.done) deshuReturning = null;
+    ko.resolve();
+    return Promise.resolve();
+  }
+  if (ko.phase === 'walkBack') return ko.done;
+  const seated = ko.phase === 'sit';
+  ko.phase = 'walkBack';
+  (async () => {
+    if (seated) {
+      if (ko.cup.userData.liquid) ko.cup.userData.liquid.visible = false; // 喝完了
+      ko.cup.userData.age = 999;
+      setArt(deshu, deshuCanvas.idle);
+      HEAD.set(deshu, DESHU_HEAD);
+      KEEPER_SIDE.stool.visible = true;
+      await wait(0.3);
+    }
+    if (keeperOut !== ko) return;
+    deshu.attach(ko.cup);
+    ko.cup.position.copy(KEEPER_HOLD);
+    ko.cup.rotation.set(0, 0, 0);
+    const back = [KEEPER_SIDE.pos, ...KEEPER_OUT.slice().reverse(), HOME];
+    const near = back.reduce((bi, p, i) => (p.distanceTo(deshu.position) < back[bi].distanceTo(deshu.position) ? i : bi), 0); // 走出來走到一半：從最近的那一點折回去
+    for (const pt of back.slice(near)) if (!(await walk(deshu, pt, WALK, true)) || keeperOut !== ko) return;
+    deshu.userData.mesh.position.y = 0;
+    ko.cup.parent?.remove(ko.cup);
+    keeperOut = null;
+    if (deshuReturning === ko.done) deshuReturning = null;
+    ko.resolve();
+    updateUI();
+    refreshDevTools();
+  })();
+  return ko.done;
+}
+// 坐著喝的這段：時間到、老闆離開吧台座、劇情／客人模式／打烊開始，就收杯回吧台
+function keeperSitWatch(ko) {
+  ko.until = performance.now() + KEEPER_SIT_MS / DEV_SPEED;
+  realWaiters.push(() => {
+    if (keeperOut !== ko || ko.phase !== 'sit') return true;
+    const away = state.mode !== 'seat' || state.seat?.id !== 'bar' || state.scene || state.guest || state.closing || state.cinematic || state.placing || state.letter;
+    if (!away && (performance.now() < ko.until || state.choice || state.favorite)) return false;
+    if (!away) { say(FV.KEEPER_FAV.back, sayMs(FV.KEEPER_FAV.back) / DEV_SPEED, deshu); } // 喝完說一句再回去
+    keeperHome();
+    return true;
+  });
 }
 // 德叔在吧台沖給熟客的那杯：和沖給老闆的同一套小動作（磨豆、注水），短一點；沖完由 serveTo() 端過去
 async function brewForRegular() {
@@ -4188,15 +4297,26 @@ async function serveFavorite(w, drink) {
   state.favorite = w;
   bubble.classList.remove('show');
   updateUI();
-  const self = w === 'kevin' && keeper(); // 吧台請凱文喝一杯：凱文替自己沖（D199）
+  const self = w === 'kevin' && keeper(); // 吧台請凱文喝一杯：凱文替自己沖（D199），端出來坐在老闆旁邊喝（D200）
   const p = self ? deshu : PEOPLE[w], d = today(), snack = MN.withSnack(save);
   let r = null;
   try {
     const start = self ? FV.KEEPER_FAV.start : keeper() ? F.KEEPER.brewStart : FV.FAV_TEXT.start, ms0 = sayMs(start);
     say(start, ms0 / DEV_SPEED, deshu);
     await brewForRegular();
-    if (self) await keeperOwnCup(MN.ITEMS[drink]?.cup || 'hot', snack);
-    else {
+    if (self) {
+      const sat = await keeperWalkOut(MN.ITEMS[drink]?.cup || 'hot', snack);
+      if (sat) {
+        await realWait(300);
+        if (state.mode === 'seat') lookToward(deshu, 2.3);
+        const t = FV.KEEPER_FAV.sit, m1 = sayMs(t);
+        say(t, m1 / DEV_SPEED, deshu);
+        await realWait(m1 + 300);
+        // 喝一口：杯子從吧台上拿起來一下再放回去（坐著的圖沒有拿杯子的手，先用杯子的動作帶）
+        const cup = keeperCup();
+        if (cup && keeperOut?.phase === 'sit') await animate(1.1, (k) => { cup.position.y = KEEPER_SIDE.cup.y + Math.sin(Math.PI * k) * 0.12; cup.position.x = KEEPER_SIDE.cup.x - Math.sin(Math.PI * k) * 0.2; });
+      }
+    } else {
       await serveTo(w, MN.ITEMS[drink]?.cup || 'hot', snack);
       deshuReturning = deshuGo(HOME).finally(() => { deshuReturning = null; });
     }
@@ -4227,6 +4347,8 @@ async function serveFavorite(w, drink) {
     state.favorite = null;
     moments.quietFrom = performance.now();
     readyAt = performance.now() + 3000 / DEV_SPEED;
+    if (self && keeperOut?.phase === 'sit') keeperSitWatch(keeperOut); // 說完、照片淡回：再坐著喝一會兒才回吧台
+    else if (self && keeperOut) keeperHome();
     updateUI();
     refreshDevTools();
   }
@@ -4467,6 +4589,7 @@ async function departScene() {
 }
 // 常態店：吧台後面換成凱文（沖煮、端杯、打烊後擦杯子的演出都照用德叔的那一套）
 function becomeKeeper() {
+  keeperHome(true);
   for (const k of DESHU_POSES) deshuCanvas[k] = A.kevinBar(k);
   for (const k of ['a', 'b']) { wipeTex[k]?.dispose(); wipeTex[k] = null; }
   setArt(deshu, deshuCanvas.idle);
@@ -5659,7 +5782,7 @@ if (DEV) {
     get fav() {
       const img = $('photo-img');
       return { favorites: JSON.parse(JSON.stringify(save.favorites)), photos: save.photos.map((x) => ({ ...x })), busy: state.favorite,
-        offerable: Object.fromEntries(S.REGULAR_IDS.map((w) => [w, favOfferable(w)])), keeperOfferable: keeperFavOfferable(), keeperCup: !!keeperCup, log: favLog.map((x) => ({ ...x })),
+        offerable: Object.fromEntries(S.REGULAR_IDS.map((w) => [w, favOfferable(w)])), keeperOfferable: keeperFavOfferable(), keeperCup: !!keeperCup(), keeperPhase: keeperOut?.phase || null, keeperSeated: keeperOut?.phase === 'sit', keeperHome: !keeperOut && deshu.position.distanceTo(HOME) < 0.05, keeperPos: { x: +deshu.position.x.toFixed(2), z: +deshu.position.z.toFixed(2) }, sideStool: stoolMid.visible, log: favLog.map((x) => ({ ...x })),
         placeholderText: FV.PHOTO_PLACEHOLDER,
         photoOpen: !photoEl.hidden, photoShow: photoEl.classList.contains('show'), photoFile: photoEl.hidden ? null : img.dataset.file,
         placeholder: !photoEl.hidden && img.src.startsWith('data:'), lastBean: save.stats.lastBean, temp: temperature(save),
