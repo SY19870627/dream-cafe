@@ -186,6 +186,13 @@
   #photo figcaption { padding: 10px 6px 14px; text-align: center; font-size: 15px; line-height: 1.5; color: #4a3a2c; }
   #photo figcaption small { display: block; font-size: 12px; opacity: .65; }
   #photo-close { min-height: 44px; min-width: 120px; }
+  /* 圖上不寫字，改由角色台詞說出來（D202）：照片下方熟客說的那一句，和泡泡同一個樣子（名字在上面一行）；照片淡入一下子之後才淡入，相簿裡重看也重播 */
+  #photo-say { margin: 0; max-width: min(100%, 360px); background: #fffaf0; border: 2px solid var(--ink); border-radius: 14px; padding: 8px 14px;
+    font-size: 15px; line-height: 1.45; color: var(--ink); text-align: center; }
+  #photo-say b { display: block; font-size: 12px; opacity: .7; }
+  #app.art-bubble #photo-say { border-image: var(--art-bubble) 48 fill / 16px stretch; background: none; }
+  #photo.show #photo-say { animation: photo-say .7s ease 1.3s both; }
+  @keyframes photo-say { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   /* 泡泡：位置由 main.js 的 layoutOverlays() 決定（避開頂部介面與座位標籤）；收起來時淡出後整個不畫 */
   #bubble { position: absolute; left: 0; top: 0; max-width: 220px; background: #fffaf0; border: 2px solid var(--ink);
     border-radius: 14px; padding: 8px 12px; font-size: 14px; line-height: 1.4; pointer-events: none;
@@ -378,6 +385,8 @@
     #bubble { font-size: 18px; max-width: 280px; }
     #ask { font-size: 17px; }
     #bubble b, #ask b { font-size: 15px; }
+    #photo-say { font-size: 18px; }
+    #photo-say b { font-size: 15px; }
     #labels .seat-label span { font-size: 17px; padding: 8px 14px; }
     .hint, #speed { font-size: 14px; }
     .title { font-size: 14px; line-height: 17px; }
@@ -548,6 +557,7 @@
   <!-- 熟客最愛的咖啡：端對時淡入的照片（回憶畫面）、相簿裡點縮圖看的大圖 -->
   <div id="photo" hidden role="dialog" aria-modal="true" aria-label="照片">
     <figure class="photo-frame"><div class="photo-img"><img id="photo-img" alt=""><i class="photo-light"></i></div><figcaption id="photo-cap"></figcaption></figure>
+    <p id="photo-say" hidden aria-live="polite"></p>
     <button id="photo-close" hidden>闔上</button>
   </div>
   <!-- 開場：第一幕到第三幕（新存檔才會出現），由 src/opening.js 建立 -->

@@ -4357,7 +4357,7 @@ async function serveFavorite(w, drink) {
 
 // 照片：真的圖（assets/art/photo_<人>_<段>.webp）有就用，沒有就是程式畫的佔位圖
 async function photoSrc(ph) { return (await A.photoUrl(ph.file)) || A.photoPlaceholder(ph.file, ph.caption, FV.PHOTO_PLACEHOLDER); }
-const photoEl = $('photo');
+const photoEl = $('photo'), photoSay = $('photo-say');
 let photoDone = null, photoTimer = 0;
 const PHOTO_HOLD_MS = 7000; // 淡入以後停多久（真實時間，不跟開發者倍率）
 // auto：端對時那一刻（幾秒後自己淡回店裡，點一下也可以）；不然是相簿裡點縮圖（點「闔上」或照片外面回相簿）
@@ -4369,6 +4369,11 @@ async function showPhoto(id, { auto = false } = {}) {
   $('photo-img').src = await photoSrc(ph);
   $('photo-img').dataset.file = ph.file;
   $('photo-cap').innerHTML = `${esc(ph.caption)}${got ? `<small>${esc(FV.FAV_TEXT.day(got.day))}</small>` : ''}`;
+  // 圖上不寫字，改由角色台詞說出來（承峰 11/4，D202）：照片淡入一下子之後，那位熟客說原本寫在照片裡的那一句（照片下方說話那一行，
+  // 和泡泡同一個樣子、標名字）；相簿裡重看也一樣（重新淡入）。沒有這一句的照片不顯示
+  photoSay.hidden = !ph.said;
+  photoSay.innerHTML = ph.said ? `<b>${esc(favName(ph.who))}</b>${esc(ph.said)}` : '';
+  photoSay.dataset.who = ph.said ? ph.who : '';
   $('photo-close').hidden = auto;
   photoEl.classList.remove('show');
   photoEl.dataset.mode = auto ? 'auto' : 'album';
@@ -5779,13 +5784,18 @@ if (DEV) {
     //   （opt.misses：這一段已經端錯幾次；opt.alone 預設 true：今天別的熟客不來，截圖時不會有人走進來演里程碑；opt.photos 預設 true）；
     // favOffer('yuan') 等於點她搭話（說一句，下方出現「請德叔端一杯給予安」）；favServe('yuan', 'black') 不經過選項直接端那一杯（Promise，回傳結果）；
     // photo('yuan-3') 直接淡入那一張照片（和端對時一樣，Promise 等它淡出）；album() 打開相簿
+    // 照片下方熟客說的那一句（D202）：fav.photoSay（{ who, name, text, shown }，沒有這一句是 null），截圖等 fav.photoSay?.shown
     get fav() {
       const img = $('photo-img');
       return { favorites: JSON.parse(JSON.stringify(save.favorites)), photos: save.photos.map((x) => ({ ...x })), busy: state.favorite,
         offerable: Object.fromEntries(S.REGULAR_IDS.map((w) => [w, favOfferable(w)])), keeperOfferable: keeperFavOfferable(), keeperCup: !!keeperCup(), keeperPhase: keeperOut?.phase || null, keeperSeated: keeperOut?.phase === 'sit', keeperHome: !keeperOut && deshu.position.distanceTo(HOME) < 0.05, keeperPos: { x: +deshu.position.x.toFixed(2), z: +deshu.position.z.toFixed(2) }, sideStool: stoolMid.visible, log: favLog.map((x) => ({ ...x })),
         placeholderText: FV.PHOTO_PLACEHOLDER,
         photoOpen: !photoEl.hidden, photoShow: photoEl.classList.contains('show'), photoFile: photoEl.hidden ? null : img.dataset.file,
-        placeholder: !photoEl.hidden && img.src.startsWith('data:'), lastBean: save.stats.lastBean, temp: temperature(save),
+        placeholder: !photoEl.hidden && img.src.startsWith('data:'),
+        // 照片下方熟客說的那一句（D202）：shown＝照片淡入了、那一行也淡入完了（截圖等這個）
+        photoSay: photoEl.hidden || photoSay.hidden ? null : { who: photoSay.dataset.who, name: photoSay.querySelector('b')?.textContent || '', text: photoSay.textContent.slice((photoSay.querySelector('b')?.textContent || '').length),
+          shown: photoEl.classList.contains('show') && +getComputedStyle(photoEl).opacity > 0.99 && +getComputedStyle(photoSay).opacity > 0.99 },
+        lastBean: save.stats.lastBean, temp: temperature(save),
         album: { open: !sheet.hidden && sheetKind === 'album', slots: document.querySelectorAll('#sheet-list .album-slot').length, empty: document.querySelectorAll('#sheet-list .album-slot.empty').length } };
     },
     favSetup(who, n = 1, opt = {}) { return devFavSetup(who, n, opt); },

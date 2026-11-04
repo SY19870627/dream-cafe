@@ -324,3 +324,35 @@ test('凱文出來坐旁邊喝（承峰 11/4：「出來坐旁邊喝」，D200�
 test('照片佔位圖的字（承峰 11/4：「照片待畫」改成「回憶等待觸發」，D198）', () => {
   assert.equal(FV.PHOTO_PLACEHOLDER, '回憶等待觸發');
 });
+
+// 承峰 11/4：「圖上不寫字，改由角色台詞說出來」（D202）
+test('圖上不寫字，改由角色台詞說出來（D202）：原本規格裡有字的照片（予安 3、阿哲 3）有熟客說的那一句，其他照片沒有', async () => {
+  const said = Object.fromEntries(FV.PHOTOS.map((p) => [p.id, p.said]));
+  assert.equal(said['yuan-3'], '煙是甜的。', '予安第三段：原本稿紙上的「煙是甜的」照用');
+  assert.match(said['zhe-3'], /阿哲的豆/, '阿哲第三段：原本黑板上的「阿哲的豆」改由他說出來');
+  for (const id of ['yuan-1', 'yuan-2', 'zhe-1', 'zhe-2', 'kevin-1', 'kevin-2', 'kevin-3']) assert.equal(said[id], '', `${id} 沒有這一句`);
+  // 照片下方原本的說明不變
+  assert.equal(FV.photoById('yuan-3').caption, '阿公的窯熄了，煙還在這裡。');
+  assert.equal(FV.photoById('zhe-3').caption, '寫大一點，是對的。');
+  for (const p of FV.PHOTOS.filter((x) => x.said)) {
+    assert.ok(p.said.length <= 24, `${p.id} 一句話，放得進 7 秒的淡入停留`);
+    assert.notEqual(p.said, p.caption, `${p.id} 和照片說明不一樣`);
+    assert.ok(FV.allFavoriteLines().includes(p.said), `${p.id} 在校稿清單裡`);
+  }
+  // 新寫的句子標【待定】；「煙是甜的」是清單原本的字，不標
+  const { readFile } = await import('node:fs/promises');
+  const lines = (await readFile(new URL('../../src/favorites.js', import.meta.url), 'utf8')).split(String.fromCharCode(10));
+  assert.ok(lines.find((l) => l.includes(`said: '${said['zhe-3']}'`)).includes('【待定】'), '阿哲那句標了【待定】');
+  assert.ok(!lines.find((l) => l.includes("said: '煙是甜的。'")).includes('【待定】'), '「煙是甜的」是原本的字');
+});
+
+test('相簿重看（D202）：拿到的那一格帶著同一句；還沒拿到的空格沒有', () => {
+  const s = newSave();
+  finish(s, 'yuan');
+  const y = FV.album(s).find((p) => p.who === 'yuan');
+  assert.deepEqual(y.slots.map((x) => x.said), ['', '', '煙是甜的。']);
+  const t = newSave();
+  reach(t, 'zhe', 6);
+  const z = FV.album(t).find((p) => p.who === 'zhe');
+  assert.ok(z.slots.every((x) => !x.got && x.said === ''), '空格不寫字');
+});

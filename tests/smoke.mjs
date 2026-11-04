@@ -1153,6 +1153,45 @@ try {
     await page.waitForTimeout(1800);
     const after = await fav();
     check(after.photos.length === 4 && after.favorites.kevin.stage === 3 && after.favorites.yuan.stage === 1, '重新整理：相簿與段落存在存檔裡');
+    // 圖上不寫字，改由角色台詞說出來（承峰 11/4，D202）：予安第三段淡入時她說「煙是甜的。」；相簿重看顯示同一句；沒字的照片不說
+    check(!!(await page.evaluate(() => window.__cafe.favSetup('yuan', 3))), '予安走到第三段（最愛）');
+    const y3 = page.evaluate(() => window.__cafe.favServe('yuan', 'black'));
+    await page.waitForFunction(() => window.__cafe.fav.photoShow, null, { timeout: 40000 });
+    const sayT0 = Date.now();
+    check((await fav()).photoFile === 'photo_yuan_3', '端對：淡入予安第三段的照片');
+    await page.waitForFunction(() => window.__cafe.fav.photoSay?.shown, null, { timeout: 6000 });
+    const ps = (await fav()).photoSay, sayAt = Date.now() - sayT0;
+    check(ps.who === 'yuan' && ps.name === '予安' && ps.text === '煙是甜的。', `照片淡入時予安說「${ps.text}」（${ps.name}）`);
+    check(sayAt < 3500, `那一句在 7 秒的停留裡早早出現（淡入後約 ${sayAt} ms）`);
+    check((await page.textContent('#photo-cap')).startsWith('阿公的窯熄了，煙還在這裡。'), '照片下方原本的說明不變');
+    await page.screenshot({ path: OUT + 'phone-fav-photo-say.png' });
+    const y3r = await y3;
+    check(y3r?.right && y3r.favorite && (await fav()).photoSay === null, '照片淡回店裡：那一句跟著收起來');
+    await page.evaluate(() => window.__cafe.album());
+    await page.waitForTimeout(600);
+    await page.tap('.album-row[data-who="yuan"] .album-slot >> nth=2');
+    await page.waitForFunction(() => window.__cafe.fav.photoSay?.shown, null, { timeout: 6000 });
+    const ap = await fav();
+    check(ap.photoFile === 'photo_yuan_3' && ap.photoSay.text === '煙是甜的。' && ap.photoSay.name === '予安' && await page.isVisible('#photo-close'), '相簿重看予安第三段：顯示同一句、標明是予安說的');
+    await page.screenshot({ path: OUT + 'phone-fav-album-say.png' });
+    await page.tap('#photo-close');
+    await page.waitForTimeout(1500);
+    await page.tap('.album-row[data-who="yuan"] .album-slot >> nth=0');
+    await page.waitForFunction(() => window.__cafe.fav.photoShow, null, { timeout: 6000 });
+    await page.waitForTimeout(2600);
+    check((await fav()).photoFile === 'photo_yuan_1' && (await fav()).photoSay === null && !(await page.isVisible('#photo-say')), '相簿重看予安第一段（原本沒字）：沒有這一句');
+    await page.tap('#photo-close');
+    await page.waitForTimeout(1500);
+    await page.tap('#sheet-close');
+    for (const [id, re] of [['zhe-3', /阿哲的豆/], ['kevin-2', null]]) {
+      await page.evaluate((id) => { window.__cafe.photo(id); }, id);
+      await page.waitForFunction(() => window.__cafe.fav.photoShow, null, { timeout: 6000 });
+      await page.waitForTimeout(2600);
+      const q = (await fav()).photoSay;
+      check(re ? q?.shown && q.name === '阿哲' && re.test(q.text) : q === null, re ? `阿哲第三段淡入時阿哲說「${q?.text}」` : `${id}（原本沒字）淡入時不說`);
+      await page.click('#photo');
+      await page.waitForFunction(() => !window.__cafe.fav.photoOpen, null, { timeout: 6000 });
+    }
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await ctx.close();
   }

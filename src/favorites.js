@@ -15,6 +15,8 @@ export const STAGE_COUNT = 3;
 // 每一段：after＝那位熟客第幾個里程碑發生之後開放；want(c)＝端對了沒（c = { drink 端過去的那杯, snack 附了一小碟龍眼乾, last 老闆最近一次喝的那杯 }）
 //   talk：這一段開放時，點熟客搭話偶爾說的線索（現有的句子照抄、不改）；deshu：開放後德叔在吧台說一次的線索
 //   ok：端對時熟客那一句；caption：照片下面的一句說明；hint：同一段端錯兩次以後，德叔更靠近的那句
+//   said：照片淡入時熟客說的那一句（承峰 11/4：「圖上不寫字，改由角色台詞說出來」，D202）：原本要寫在照片裡的字改由他說出來，
+//     相簿裡重看那張照片也顯示同一句；只有原本規格裡有字的照片才有（予安第三段、阿哲第三段），其他段沒有這一句
 //   scene：給畫師的照片內容（不是玩家看得到的字，見 docs/照片美術清單.md）
 // 凱文第三段的答案是「老闆最近一次喝的那杯」，hint 是函式（要寫出那一杯的名字）
 export const STAGES = {
@@ -38,6 +40,7 @@ export const STAGES = {
       deshu: '她說的煙，我想，是配著喝的。', // 【待定】
       ok: '……就是這個味道。阿公的窯，還在這裡。', // 【待定】
       caption: '阿公的窯熄了，煙還在這裡。', // 【待定】
+      said: '煙是甜的。', // 原本要寫在照片稿紙上的字（照片美術清單，D202 改成她說出來）
       hint: '窯烤的龍眼乾，配她的黑咖啡。黑板上兩樣都寫著，我就一起端過去。' }, // 【待定】
   ],
   zhe: [
@@ -58,6 +61,7 @@ export const STAGES = {
       deshu: '阿哲的豆，他自己還沒在店裡喝過。', // 【待定】
       ok: '……寫大一點是對的。', // 【待定】
       caption: '寫大一點，是對的。', // 【待定】
+      said: '阿哲的豆。……黑板上，是我的名字。', // 【待定】照片淡入時阿哲說（原本是照片裡黑板上的「阿哲的豆」，D202）
       hint: '名字寫得最大的那一支，請他喝喝看吧。' }, // 【待定】
   ],
   kevin: [
@@ -148,7 +152,8 @@ export function keeperHintOf(save) {
 export const PHOTO_PLACEHOLDER = '回憶等待觸發';
 
 // 照片：一段一張（D192：只用一張圖加程式動態）。file 是 assets/art/ 裡的檔名（不含 .webp），還沒有圖時用程式畫的佔位圖
-export const PHOTOS = FAV_IDS.flatMap((who) => STAGES[who].map((s) => ({ id: `${who}-${s.n}`, who, n: s.n, file: `photo_${who}_${s.n}`, caption: s.caption, favorite: !!s.favorite })));
+// 圖裡不放任何文字（D202）；said 是照片淡入時那位熟客說的一句（沒有就是空字串），相簿裡重看也一樣
+export const PHOTOS = FAV_IDS.flatMap((who) => STAGES[who].map((s) => ({ id: `${who}-${s.n}`, who, n: s.n, file: `photo_${who}_${s.n}`, caption: s.caption, said: s.said || '', favorite: !!s.favorite })));
 export const photoById = (id) => PHOTOS.find((p) => p.id === id) || null;
 
 export const blankFavorite = () => ({ stage: 0, misses: 0, servedDay: 0, told: 0 });
@@ -226,14 +231,14 @@ export function markClue(save, who, n) { const f = favOf(save, who); if (f) f.to
 export const favoritesFound = (save) => FAV_IDS.filter((w) => (favOf(save, w)?.stage || 0) >= STAGE_COUNT).length;
 
 // 相簿：每位見過的熟客一頁，三格（拿到的照片＋還沒拿到的空格，Q77）；三段都找到的那一頁最後寫他的最愛
-// 回傳 [{ who, slots: [{ id, n, file, got: { day, t, item } | null, caption（拿到才有） }], favorite: '' }]
+// 回傳 [{ who, slots: [{ id, n, file, got: { day, t, item } | null, caption、said（拿到才有） }], favorite: '' }]
 export function album(save) {
   const out = [];
   for (const who of FAV_IDS) {
     if (!hasMilestone(save, who, 1)) continue; // 還沒見過的熟客不列（不劇透名字）
     const slots = STAGES[who].map((s) => {
       const id = `${who}-${s.n}`, got = (save.photos || []).find((p) => p.id === id) || null;
-      return { id, n: s.n, file: `photo_${who}_${s.n}`, got, caption: got ? s.caption : '' };
+      return { id, n: s.n, file: `photo_${who}_${s.n}`, got, caption: got ? s.caption : '', said: got ? s.said || '' : '' };
     });
     const fav = (favOf(save, who)?.stage || 0) >= STAGE_COUNT;
     const last = slots[STAGE_COUNT - 1].got;
@@ -246,7 +251,7 @@ export function album(save) {
 // 測試與校稿用：這個檔案裡所有玩家看得到的字
 export function allFavoriteLines() {
   const out = [];
-  for (const who of FAV_IDS) for (const s of STAGES[who]) out.push(...s.talk, s.deshu, s.ok, s.caption, typeof s.hint === 'function' ? s.hint('東山的豆') : s.hint);
+  for (const who of FAV_IDS) for (const s of STAGES[who]) out.push(...s.talk, s.deshu, s.ok, s.caption, ...(s.said ? [s.said] : []), typeof s.hint === 'function' ? s.hint('東山的豆') : s.hint);
   out.push(...Object.values(MISS).flat(), FAVORITE_LINE.yuan, FAVORITE_LINE.zhe, FAVORITE_LINE.kevin('東山的豆'));
   out.push(KEEPER_FAV.offer, KEEPER_FAV.ask, KEEPER_FAV.start, KEEPER_FAV.sit, KEEPER_FAV.back, ...KEEPER_FAV.clue.flat(), ...KEEPER_FAV.hint.map((h) => (typeof h === 'function' ? h('東山的豆') : h)));
   out.push(FAV_TEXT.offer('德叔', '予安'), FAV_TEXT.just, FAV_TEXT.ask('予安'), FAV_TEXT.cancel, FAV_TEXT.start, FAV_TEXT.firstPhoto, FAV_TEXT.album, FAV_TEXT.albumSub, FAV_TEXT.day(3), FAV_TEXT.close);
