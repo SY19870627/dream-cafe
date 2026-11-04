@@ -2041,6 +2041,7 @@ function sit(seat) {
 
 function stand() {
   const seat = state.seat;
+  clearKeeperCup(); // 吧台請凱文喝的那杯：老闆離開吧台座就收走
   focusP = null; lookTok++;
   const satSec = ((performance.now() - (state.satAt || performance.now())) / 1000) * DEV_SPEED;
   state.closeup = false;
@@ -2691,12 +2692,14 @@ function talkTo(r) {
   let line;
   if (who === yuan && !save.flags.metYuan) { line = '……啊，你好。我叫予安，常坐在這裡寫稿。'; save.flags.metYuan = true; persist(); }
   else if (who === yuan || who === zhe || who === kevin) line = regularLine(who === yuan ? 'yuan' : who === zhe ? 'zhe' : 'kevin');
+  else if (who === deshu && keeper() && keeperFavOfferable()) line = keeperLine(); // 坐吧台座、凱文那一段開放：偶爾說那一段的線索（D199）
   else if (who === deshu && keeper()) { const l = state.closing ? F.KEEPER.closingTalk : F.KEEPER.talk; line = l[Math.floor(Math.random() * l.length)]; } // 離開東山之後，吧台後面是凱文
   else if (who === deshu && state.closing) line = H.CLOSING.deshuTalk[Math.floor(Math.random() * H.CLOSING.deshuTalk.length)]; // 打烊後，他在擦杯子
   else { const l = LINES.get(who); line = l[Math.floor(Math.random() * l.length)]; }
   say(line, 3500, who);
   const w = PEOPLE_IDS.find((k) => PEOPLE[k] === who);
   if (w && favOfferable(w)) offerFavorite(w);
+  else if (who === deshu && keeperFavOfferable()) offerKeeperDrink();
 }
 
 /* ---------- 點黑板打開菜單本（承峰 11/3：「做點黑板打開菜單本」，D191） ---------- */
@@ -4120,6 +4123,44 @@ async function offerFavorite(w) {
   if (j >= drinks.length || !favOfferable(w)) return false;
   return serveFavorite(w, drinks[j]);
 }
+// 吧台請凱文喝一杯（承峰 11/4：「坐吧台時可以請凱文喝一杯」，D199）：離開東山之後凱文在吧台後面顧店（吧台後面的紙片 deshu 換成凱文的圖）。
+// 只有老闆坐在吧台座時，點凱文搭話後下方多一個「請凱文喝一杯」；其他座位、俯瞰、站著時點凱文照舊只搭話。
+// 段落與答案照 favorites.js 的凱文三段；凱文照黑板替自己沖一杯、放在他面前的吧台上，老闆請客（誰沖、怎麼端：待承峰確認）
+function keeperFavOfferable() {
+  return REGULARS_ON && keeper() && state.mode === 'seat' && state.seat?.id === 'bar' && FV.canServe(save, 'kevin', today()) && live.day === today() && deshu.visible
+    && !state.favorite && !state.scene && !state.choice && !state.guest && !state.closing && !state.cinematic && !state.tutorial && !state.arriving && !state.placing
+    && !state.letter && !brewing && !deshuReturning && !moments.busy && !overlayOpen() && deshu.position.distanceTo(HOME) < 0.05;
+}
+function keeperLine() {
+  const clue = FV.keeperClueLines(save);
+  const pool = clue.length && Math.random() < 0.5 ? clue : F.KEEPER.talk;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+async function offerKeeperDrink() {
+  const i = await choose([FV.KEEPER_FAV.offer, FV.FAV_TEXT.just]);
+  if (i !== 0 || !keeperFavOfferable()) return false;
+  const drinks = MN.boardDrinks(save, boardShift);
+  const j = await choose([...drinks.map((id) => MN.ITEMS[id].name), FV.FAV_TEXT.cancel], FV.KEEPER_FAV.ask, F.KEEPER.name);
+  if (j >= drinks.length || !keeperFavOfferable()) return false;
+  return serveFavorite('kevin', drinks[j]);
+}
+// 凱文替自己沖的那杯：放在他面前的吧台上（老闆那杯 SEATS 吧台座的 cup 旁邊、靠凱文那一側）；站起來或下一杯時收走
+const KEEPER_CUP = new THREE.Vector3(2.0, TOP, -1.62);
+let keeperCup = null;
+function clearKeeperCup() { if (keeperCup) { scene.remove(keeperCup); keeperCup = null; } }
+async function keeperOwnCup(kind, dish) {
+  clearKeeperCup();
+  await deshuGo(HOME);
+  const cup = makeCup(kind, dish);
+  if (cup.userData.liquid && kind !== 'iced') cup.userData.liquid.visible = true;
+  setPaper(deshu, deshuCanvas.serve || deshuCanvas.pour);
+  cup.position.copy(KEEPER_CUP).add(new THREE.Vector3(0.18, 0.06, 0));
+  scene.add(cup);
+  await animate(0.7, (k) => { cup.position.lerpVectors(KEEPER_CUP.clone().add(new THREE.Vector3(0.18, 0.06, 0)), KEEPER_CUP, ease(k)); });
+  setPaper(deshu, deshuCanvas.idle);
+  if (kind === 'iced') cup.userData.age = 999; // 冰的不冒煙
+  keeperCup = cup;
+}
 // 德叔在吧台沖給熟客的那杯：和沖給老闆的同一套小動作（磨豆、注水），短一點；沖完由 serveTo() 端過去
 async function brewForRegular() {
   if (deshuReturning) await deshuReturning;
@@ -4147,18 +4188,22 @@ async function serveFavorite(w, drink) {
   state.favorite = w;
   bubble.classList.remove('show');
   updateUI();
-  const p = PEOPLE[w], d = today(), snack = MN.withSnack(save);
+  const self = w === 'kevin' && keeper(); // 吧台請凱文喝一杯：凱文替自己沖（D199）
+  const p = self ? deshu : PEOPLE[w], d = today(), snack = MN.withSnack(save);
   let r = null;
   try {
-    const start = keeper() ? F.KEEPER.brewStart : FV.FAV_TEXT.start, ms0 = sayMs(start);
+    const start = self ? FV.KEEPER_FAV.start : keeper() ? F.KEEPER.brewStart : FV.FAV_TEXT.start, ms0 = sayMs(start);
     say(start, ms0 / DEV_SPEED, deshu);
     await brewForRegular();
-    await serveTo(w, MN.ITEMS[drink]?.cup || 'hot', snack);
-    deshuReturning = deshuGo(HOME).finally(() => { deshuReturning = null; });
-    r = FV.serve(save, w, drink, d, now(), snack);
+    if (self) await keeperOwnCup(MN.ITEMS[drink]?.cup || 'hot', snack);
+    else {
+      await serveTo(w, MN.ITEMS[drink]?.cup || 'hot', snack);
+      deshuReturning = deshuGo(HOME).finally(() => { deshuReturning = null; });
+    }
+    r = FV.serve(save, w, drink, d, now(), snack, self);
     persist();
     if (!r) return null;
-    favLog.push({ ...r, drink, day: d });
+    favLog.push({ ...r, drink, day: d, keeper: self });
     if (state.mode === 'seat') lookToward(p, 2.3);
     await realWait(700);
     const ms = sayMs(r.line);
@@ -4189,7 +4234,7 @@ async function serveFavorite(w, drink) {
 }
 
 // 照片：真的圖（assets/art/photo_<人>_<段>.webp）有就用，沒有就是程式畫的佔位圖
-async function photoSrc(ph) { return (await A.photoUrl(ph.file)) || A.photoPlaceholder(ph.file, ph.caption); }
+async function photoSrc(ph) { return (await A.photoUrl(ph.file)) || A.photoPlaceholder(ph.file, ph.caption, FV.PHOTO_PLACEHOLDER); }
 const photoEl = $('photo');
 let photoDone = null, photoTimer = 0;
 const PHOTO_HOLD_MS = 7000; // 淡入以後停多久（真實時間，不跟開發者倍率）
@@ -5294,6 +5339,7 @@ if (!save.flags.seenOpening) {
 
 // 開發者模式（截圖用）：讓某位熟客走到第 n 段開放、人在店裡（__cafe.favSetup()、網址 &fav=yuan:3）
 function devFavSetup(who, n = 1, { misses = 0, alone = true, photos = true } = {}) {
+  if (who === 'kevin' && keeper()) return devKeeperSetup(n, { misses, photos, sit: false }); // 凱文顧店以後：他在吧台後面，不是客人
   const st = FV.STAGES[who]?.[n - 1];
   if (!st || !REGULARS_ON || state.scene) return null;
   if (live.day !== today()) startDay();
@@ -5313,6 +5359,42 @@ function devFavSetup(who, n = 1, { misses = 0, alone = true, photos = true } = {
   updateUI();
   refreshDevTools();
   return JSON.parse(JSON.stringify(f));
+}
+// 開發者模式（截圖用）：直接到「離開東山之後、凱文在吧台顧店、凱文停在第 n 段」，並坐在吧台座（__cafe.keeperSetup()、網址 &keeper=N）
+// 三條熟客線與告別七段當作都走完（溫度照舊由任務算）；今天予安、阿哲不來；sit 預設 true（坐上吧台座）
+function devKeeperSetup(n = 1, { misses = 0, photos = true, sit: toBar = true } = {}) {
+  const st = FV.STAGES.kevin[n - 1];
+  if (!st || !REGULARS_ON || state.scene) return null;
+  stopStory();
+  stopGuest();
+  exitClosing();
+  const d = today();
+  for (const m of S.MILESTONES) if (!S.hasMilestone(save, m.who, m.n)) for (const g of S.complete(save, m, d, now())) MN.markTold(save, g.id);
+  const fw = F.fw(save);
+  Object.assign(fw, { step: 7, notice: fw.notice || 'cat', departed: true, mapSeen: true, keeperGreeted: true });
+  for (let k = 1; k <= 7; k++) fw.on[k] = fw.on[k] || Math.max(1, d - 1);
+  fw.departedAt = fw.departedAt || now();
+  for (const l of LETTERS) markRead(save, l.id, now(), d); // 兩封信當作讀過（不要一進店就拿出信來）
+  save.flags.guestVisit = true; // 客人模式當作來過（不要一進店就邀請老闆當一次客人）
+  const f = save.favorites.kevin;
+  Object.assign(f, { stage: n - 1, misses, servedDay: 0, told: n });
+  if (photos) for (let k = 1; k < n; k++) if (!save.photos.some((x) => x.id === `kevin-${k}`)) save.photos.push({ id: `kevin-${k}`, day: d, t: now(), item: 'dongshan', snack: false });
+  becomeKeeper();
+  if (live.day !== today()) startDay();
+  live.expect.clear();
+  for (const o of S.REGULAR_IDS) if (live.arrived.has(o)) { PEOPLE[o].visible = false; live.arrived.delete(o); }
+  persist();
+  drawBackBar();
+  if (toBar && state.seat?.id !== 'bar') { if (state.seat) stand(); sit(SEATS.find((x) => x.id === 'bar')); }
+  updateUI();
+  refreshDevTools();
+  return JSON.parse(JSON.stringify(f));
+}
+if (DEV && params.get('keeper')) {
+  const t0 = performance.now();
+  const tick = setInterval(() => {
+    if ((live.day === today() && !state.arriving && !state.tutorial) || performance.now() - t0 > 15000) { clearInterval(tick); devKeeperSetup(Number(params.get('keeper')) || 1); }
+  }, 200);
 }
 if (DEV && params.get('fav')) {
   const [who, n] = params.get('fav').split(':');
@@ -5577,14 +5659,23 @@ if (DEV) {
     get fav() {
       const img = $('photo-img');
       return { favorites: JSON.parse(JSON.stringify(save.favorites)), photos: save.photos.map((x) => ({ ...x })), busy: state.favorite,
-        offerable: Object.fromEntries(S.REGULAR_IDS.map((w) => [w, favOfferable(w)])), log: favLog.map((x) => ({ ...x })),
+        offerable: Object.fromEntries(S.REGULAR_IDS.map((w) => [w, favOfferable(w)])), keeperOfferable: keeperFavOfferable(), keeperCup: !!keeperCup, log: favLog.map((x) => ({ ...x })),
+        placeholderText: FV.PHOTO_PLACEHOLDER,
         photoOpen: !photoEl.hidden, photoShow: photoEl.classList.contains('show'), photoFile: photoEl.hidden ? null : img.dataset.file,
         placeholder: !photoEl.hidden && img.src.startsWith('data:'), lastBean: save.stats.lastBean, temp: temperature(save),
         album: { open: !sheet.hidden && sheetKind === 'album', slots: document.querySelectorAll('#sheet-list .album-slot').length, empty: document.querySelectorAll('#sheet-list .album-slot.empty').length } };
     },
     favSetup(who, n = 1, opt = {}) { return devFavSetup(who, n, opt); },
     favOffer(who) { if (!favOfferable(who)) return false; say(regularLine(who), 3500, PEOPLE[who]); offerFavorite(who); return true; },
-    favServe(who, drink) { if (!favOfferable(who) || !MN.onBoard(save, drink)) return Promise.resolve(null); return serveFavorite(who, drink); },
+    favServe(who, drink) {
+      const ok = who === 'kevin' && keeper() ? keeperFavOfferable() : favOfferable(who);
+      if (!ok || !MN.onBoard(save, drink)) return Promise.resolve(null);
+      return serveFavorite(who, drink);
+    },
+    // 吧台請凱文喝一杯（D199）：keeperSetup(2) 直接到凱文顧店、凱文停在第 2 段、坐吧台座（opt 同 favSetup，sit 預設 true）；
+    // keeperOffer() 等於坐吧台座點凱文（說一句，下方出現「請凱文喝一杯」）；fav.keeperOfferable 讀現在可不可以請
+    keeperSetup(n = 1, opt = {}) { return devKeeperSetup(n, opt); },
+    keeperOffer() { if (!keeperFavOfferable()) return false; say(keeperLine(), 3500, deshu); offerKeeperDrink(); return true; },
     photo(id = 'yuan-1') { if (!FV.photoById(id)) return Promise.resolve(false); return showPhoto(id, { auto: true }).then(() => true); },
     album() { openAbout(false); openNotebook(false); openSheet('album'); return true; },
     // 階段 7：聲音與效能

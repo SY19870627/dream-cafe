@@ -1101,6 +1101,7 @@ try {
     await page.waitForFunction(() => window.__cafe.fav.photoShow, null, { timeout: 40000 });
     const ph = await fav();
     check(ph.photoFile === 'photo_yuan_1' && ph.placeholder, '端對：畫面淡入予安第一段的照片（還沒畫：程式畫的佔位圖）');
+    check(ph.placeholderText === '回憶等待觸發', '佔位圖上的字是「回憶等待觸發」（承峰 11/4，D198）');
     check(await page.evaluate(() => document.getElementById('app').classList.contains('modal')), '照片開著時，場景上的按鈕、泡泡收起來');
     await page.waitForTimeout(2200);
     await page.screenshot({ path: OUT + 'phone-fav-photo.png' });
@@ -1152,6 +1153,85 @@ try {
     await page.waitForTimeout(1800);
     const after = await fav();
     check(after.photos.length === 4 && after.favorites.kevin.stage === 3 && after.favorites.yuan.stage === 1, '重新整理：相簿與段落存在存檔裡');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await ctx.close();
+  }
+
+  /* ---------- 吧台請凱文喝一杯（承峰 11/4：「坐吧台時可以請凱文喝一杯」，D199） ---------- */
+  console.log('手機 390×844（吧台請凱文喝一杯）');
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    page.on('console', (m) => { if (m.type() === 'error' && !/\/assets\/art\/photo_/.test(m.location().url || '')) errors.push(`console: ${m.text()}`); });
+    await page.goto(url + '?dev=1&speed=8&opening=0&weather=clear&moments=0&board=dongshan,black,iced,longan');
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(2200);
+    const fav = () => page.evaluate(() => window.__cafe.fav);
+    const choices = () => page.$$eval('#choices button', (b) => b.map((x) => x.textContent));
+    const tapKevin = async () => { const p = await page.evaluate(() => window.__cafe.personOnScreen('deshu')); await page.touchscreen.tap(p.x, p.y); await page.waitForTimeout(500); };
+    check(!!(await page.evaluate(() => window.__cafe.keeperSetup(1))), '開發者：直接到凱文顧店、凱文停在第一段、坐吧台座');
+    await page.waitForTimeout(2000);
+    check((await page.evaluate(() => window.__cafe.keeper)) && (await page.evaluate(() => window.__cafe.barName)) === '凱文' && (await page.evaluate(() => window.__cafe.mode)) === 'seat', '常態店、吧台後面是凱文、老闆坐著');
+    check((await fav()).keeperOfferable, '坐吧台座：可以請凱文喝一杯');
+    await tapKevin();
+    check(JSON.stringify(await choices()) === JSON.stringify(['請凱文喝一杯', '只是聊聊']), `點凱文：下方多一個「請凱文喝一杯」（${(await choices()).join('、')}）`);
+    await page.screenshot({ path: OUT + 'phone-keeper-offer.png' });
+    await page.tap('#choices button >> text=只是聊聊');
+    await page.waitForTimeout(300);
+    check((await choices()).length === 0 && (await fav()).log.length === 0, '「只是聊聊」：照舊只搭話');
+    await page.waitForTimeout(400);
+    await tapKevin();
+    await page.tap('#choices button >> text=請凱文喝一杯');
+    await page.waitForTimeout(400);
+    const drinks = await choices();
+    check(JSON.stringify(drinks) === JSON.stringify(['東山的豆', '黑咖啡', '冰美式', '再想想']), `從黑板上喝的東西選（${drinks.join('、')}）`);
+    check(/要請我喝哪一杯/.test(await page.textContent('#ask')), '選項上面凱文問「老闆要請我喝哪一杯？」');
+    await page.screenshot({ path: OUT + 'phone-keeper-drinks.png' });
+    await page.tap('#choices button >> text=東山的豆');
+    await page.waitForTimeout(300);
+    check((await fav()).busy === 'kevin' && !(await page.isVisible('#brew')), '凱文替自己沖的時候：下面的按鈕收起來');
+    await page.waitForFunction(() => window.__cafe.fav.log.length === 1, null, { timeout: 40000 });
+    const miss = (await fav()).log[0];
+    check(miss.keeper && miss.right === false && miss.hint === '' && (await fav()).keeperCup, `端錯：凱文照喝（${miss.line}），杯子放在他面前的吧台上`);
+    await page.waitForFunction(() => !window.__cafe.fav.busy, null, { timeout: 30000 });
+    check(!(await fav()).keeperOfferable, '一天一杯：今天請過了就不再出現');
+    await page.waitForTimeout(400);
+    await tapKevin();
+    check(!(await choices()).includes('請凱文喝一杯'), '再點凱文：只搭話');
+    // 同一段端錯第二次：凱文自己說（轉述德叔）
+    await page.evaluate(() => window.__cafe.keeperSetup(1, { misses: 1 }));
+    const r2 = await page.evaluate(() => window.__cafe.favServe('kevin', 'black'));
+    check(r2 && !r2.right && /冰塊最後才放/.test(r2.hint) && /德叔/.test(r2.hint), `同一段端錯第二次：凱文「${r2?.hint}」`);
+    // 端對：淡入照片（佔位圖）
+    await page.evaluate(() => window.__cafe.keeperSetup(1));
+    const right = page.evaluate(() => window.__cafe.favServe('kevin', 'iced'));
+    await page.waitForFunction(() => window.__cafe.fav.photoShow, null, { timeout: 40000 });
+    const ph = await fav();
+    check(ph.photoFile === 'photo_kevin_1' && ph.placeholder && ph.placeholderText === '回憶等待觸發', '端對：淡入凱文第一段的照片（佔位圖「回憶等待觸發」）');
+    await page.waitForTimeout(2200);
+    await page.screenshot({ path: OUT + 'phone-keeper-photo.png' });
+    const rr = await right;
+    check(rr?.right && rr.photo === 'kevin-1' && (await fav()).favorites.kevin.stage === 1, '凱文第一段找到了，收進相簿');
+    // 最愛（第三段，老闆最近一次喝的那杯；這個存檔還沒喝過：東山的豆）：溫度 +0.5°C
+    await page.evaluate(() => window.__cafe.keeperSetup(3));
+    const t0 = (await fav()).temp;
+    const fr = await page.evaluate(() => window.__cafe.favServe('kevin', 'dongshan'));
+    await page.waitForTimeout(2600);
+    check(fr?.right && fr.favorite && (await fav()).temp === Math.min(37, Math.round((t0 + 0.5) * 10) / 10), `凱文顧店後找到最愛：溫度 ${t0} → ${(await fav()).temp}°C`);
+    // 只有吧台座：站起來（俯瞰）、坐窗邊座都不出現
+    await page.evaluate(() => window.__cafe.keeperSetup(2));
+    check((await fav()).keeperOfferable, '第二段開放、坐吧台座');
+    await page.tap('#stand');
+    await page.waitForTimeout(1600);
+    check(!(await fav()).keeperOfferable && !(await fav()).keeperCup, '站起來：不出現，吧台上凱文的杯子收走');
+    await tapKevin();
+    check(!(await choices()).includes('請凱文喝一杯'), '俯瞰時點凱文：照舊只搭話');
+    await page.waitForTimeout(3600);
+    await page.tap('.seat-label >> text=窗邊座');
+    await page.waitForTimeout(1600);
+    check((await page.evaluate(() => window.__cafe.mode)) === 'seat' && !(await fav()).keeperOfferable, '坐窗邊座：不出現');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await ctx.close();
   }

@@ -1967,10 +1967,10 @@ export function photoUrl(file) {
   }
   return photoCache.get(file);
 }
-// 照片還沒畫之前的佔位圖（程式畫的，不是美術）：暖色的底、虛線框，正中間寫「照片待畫」與檔名，下面一行是這張照片的說明。
+// 照片還沒畫之前的佔位圖（程式畫的，不是美術）：暖色的底、虛線框，正中間寫「回憶等待觸發」（承峰 11/4，D198；main.js 傳 favorites.js 的 PHOTO_PLACEHOLDER）與檔名，下面一行是這張照片的說明。
 // 一看就知道是暫代的；同一張只畫一次
 const placeholderCache = new Map();
-export function photoPlaceholder(file, caption = '') {
+export function photoPlaceholder(file, caption = '', label = '回憶等待觸發') {
   if (placeholderCache.has(file)) return placeholderCache.get(file);
   const W = 1024, H = 768;
   const c = document.createElement('canvas');
@@ -1987,7 +1987,7 @@ export function photoPlaceholder(file, caption = '') {
   g.setLineDash([]);
   g.fillStyle = '#fff3dd'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = 'bold 76px "PingFang TC","Noto Sans TC",sans-serif';
-  g.fillText('照片待畫', W / 2, H / 2 - 70); // 佔位圖的字（不是正式文字）
+  g.fillText(label, W / 2, H / 2 - 70); // 佔位圖的字（承峰 11/4 定的，D198）
   g.font = '44px ui-monospace,Consolas,monospace';
   g.fillText(`${file}.webp`, W / 2, H / 2 + 20);
   if (caption) {

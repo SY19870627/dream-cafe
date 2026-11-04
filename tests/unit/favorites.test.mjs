@@ -247,3 +247,66 @@ test('文字：沒有成就、完成度、收集、催促的字眼；每段都�
   }
   for (const w of FV.FAV_IDS) for (const st of FV.STAGES[w]) assert.ok(st.talk.length && st.deshu && st.ok && st.caption && st.hint, `${w} ${st.n}`);
 });
+
+// 承峰 11/4：「坐吧台時可以請凱文喝一杯」（D199）。離開東山之後凱文在吧台後面顧店，他沒找完的段落照同樣的規則完成
+const departed = (s, day = 30) => { for (const w of FV.FAV_IDS) reach(s, w, 6, day - 10); Object.assign(s.farewell, { step: 7, departed: true, mapSeen: true }); };
+
+test('吧台請凱文喝一杯：凱文顧店以後，他停在哪一段就從哪一段接著找；開放條件、順序、答案和原本一樣', () => {
+  const s = newSave();
+  departed(s);
+  assert.ok(F.departed(s));
+  assert.equal(FV.current(s, 'kevin').n, 1, '凱文還沒找過：從第一段開始');
+  assert.equal(FV.isOpen(s, 'kevin'), true, '凱文的里程碑都發生過了：段落開放');
+  const r1 = FV.serve(s, 'kevin', 'iced', 30, 0, false, true);
+  assert.ok(r1.right && r1.photo === 'kevin-1' && r1.line === FV.STAGES.kevin[0].ok, '第一段：冰美式');
+  assert.ok(FV.serve(s, 'kevin', 'dongshan', 31, 0, false, true).right, '第二段：東山的豆');
+  s.stats.lastBean = 'black'; // 凱文沖給老闆的那杯也記在 lastBean（main.js 的 brew()）
+  assert.equal(FV.isRight(s, 'kevin', 'dongshan'), false);
+  const t0 = temperature(s);
+  const r3 = FV.serve(s, 'kevin', 'black', 32, 0, false, true);
+  assert.ok(r3.right && r3.favorite, '第三段：老闆最近一次喝的那杯（最愛）');
+  assert.equal(temperature(s), Math.min(GOAL_TEMP, t0 + FAVORITE_TEMP), '最愛 +0.5°C（上限 37°C）');
+  assert.equal(FV.current(s, 'kevin'), null, '三段都找到了');
+  assert.equal(FV.canServe(s, 'kevin', 33), false, '找完以後不再出現');
+  assert.deepEqual(s.photos.map((p) => p.id), ['kevin-1', 'kevin-2', 'kevin-3']);
+});
+
+test('吧台請凱文喝一杯：一天一杯；錯兩次以後的提示由凱文自己說（轉述德叔）；最愛加溫度到 37°C 為止', () => {
+  const s = newSave();
+  departed(s);
+  assert.ok(FV.serve(s, 'kevin', 'black', 30, 0, false, true));
+  assert.equal(FV.serve(s, 'kevin', 'iced', 30, 0, false, true), null, '同一天第二杯不收');
+  const r = FV.serve(s, 'kevin', 'black', 31, 0, false, true);
+  assert.equal(r.right, false);
+  assert.equal(r.hint, FV.KEEPER_FAV.hint[0], '錯兩次：凱文自己的那句');
+  assert.notEqual(r.hint, FV.STAGES.kevin[0].hint, '不是德叔的那句（德叔不在店裡）');
+  assert.ok(FV.MISS.kevin.includes(r.line), '端錯的話和原本一樣');
+  assert.ok(FV.serve(s, 'kevin', 'iced', 32, 0, false, true).right);
+  assert.equal(s.favorites.kevin.misses, 0);
+  // 第三段的提示寫出老闆上一杯的名字
+  FV.serve(s, 'kevin', 'dongshan', 33, 0, false, true);
+  s.stats.lastBean = 'cocoa';
+  FV.serve(s, 'kevin', 'black', 34, 0, false, true);
+  assert.match(FV.serve(s, 'kevin', 'black', 35, 0, false, true).hint, /熱可可/);
+  // 任務都完成（37°C）時找到最愛：溫度不超過 37°C
+  s.tasks = TASKS.map((t) => ({ id: t.id, t: 0, day: 30 }));
+  assert.ok(FV.serve(s, 'kevin', 'cocoa', 36, 0, false, true).favorite);
+  assert.equal(temperature(s), GOAL_TEMP);
+});
+
+test('吧台請凱文喝一杯：凱文顧店時的線索（段落開放才有、照段落）；文字都標了，沒有不該出現的字', () => {
+  const s = newSave();
+  assert.deepEqual(FV.keeperClueLines(s), []);
+  departed(s);
+  assert.deepEqual(FV.keeperClueLines(s), FV.KEEPER_FAV.clue[0]);
+  FV.serve(s, 'kevin', 'iced', 30, 0, false, true);
+  assert.deepEqual(FV.keeperClueLines(s), FV.KEEPER_FAV.clue[1]);
+  assert.equal(FV.KEEPER_FAV.clue.length, FV.STAGE_COUNT);
+  assert.equal(FV.KEEPER_FAV.hint.length, FV.STAGE_COUNT);
+  assert.ok(FV.allFavoriteLines().includes(FV.KEEPER_FAV.offer));
+  assert.equal(FV.KEEPER_FAV.offer, '請凱文喝一杯');
+});
+
+test('照片佔位圖的字（承峰 11/4：「照片待畫」改成「回憶等待觸發」，D198）', () => {
+  assert.equal(FV.PHOTO_PLACEHOLDER, '回憶等待觸發');
+});

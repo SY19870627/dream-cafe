@@ -112,6 +112,37 @@ export const FAV_TEXT = {
   close: '闔上', // 【待定】大圖下面
 };
 
+// 吧台請凱文喝一杯（承峰 11/4：「坐吧台時可以請凱文喝一杯」，D199）：離開東山之後凱文在吧台後面顧店，不再是客人。
+// 老闆坐吧台座時點凱文，下方多一個「請凱文喝一杯」；凱文照黑板替自己沖一杯、放在吧台上，老闆請客（誰沖、怎麼端，待承峰確認）。
+// 段落、開放條件、正確答案、端對與端錯的話都和上面的 STAGES.kevin／MISS.kevin 一樣；德叔已經不在店裡，
+// 線索與錯兩次的提示改由凱文自己說（他轉述德叔以前說過的話）。clue／hint 照段落排（第 1～3 段），第三段的 hint 要寫出那一杯的名字
+export const KEEPER_FAV = {
+  offer: '請凱文喝一杯', // 【待定】坐吧台座點凱文後下方的選項
+  ask: '老闆要請我喝哪一杯？', // 【待定】選飲料時上面那一行（凱文問）
+  start: '老闆請客？……那我替自己沖一杯。德叔說，不要急。', // 【待定】凱文開始沖
+  clue: [
+    ['以前每天下午五點，我都點同一杯。現在換我沖給別人，自己反而沒喝了。'], // 【待定】第一段
+    ['站在吧台裡面，剛好看得到窗外那片山。……那片山，喝得到嗎？'], // 【待定】第二段
+    ['老闆平常都喝哪一支？德叔不肯替老闆回答，我只好自己記。'], // 【待定】第三段
+  ],
+  hint: [
+    '德叔以前替我沖的那杯，冰塊最後才放。……我自己沖，反而忘了。', // 【待定】第一段，錯兩次以後
+    '德叔說過，店裡最早的那一支，就是窗外那片山。', // 【待定】第二段
+    (name) => `老闆上一杯喝的，是${name}。我是說，我想喝一樣的。`, // 【待定】第三段
+  ],
+};
+// 凱文顧店時，坐吧台座點他偶爾說的線索（他那一段開放時；沒有開放是空陣列）
+export const keeperClueLines = (save) => (isOpen(save, 'kevin') ? KEEPER_FAV.clue[current(save, 'kevin').n - 1] : []);
+export function keeperHintOf(save) {
+  const s = current(save, 'kevin');
+  if (!s) return '';
+  const h = KEEPER_FAV.hint[s.n - 1];
+  return typeof h === 'function' ? h(nameOf(lastBeanOf(save))) : h;
+}
+
+// 照片還沒畫時，程式畫的佔位圖上的字（承峰 11/4：「照片待畫」改成「回憶等待觸發」，D198）
+export const PHOTO_PLACEHOLDER = '回憶等待觸發';
+
 // 照片：一段一張（D192：只用一張圖加程式動態）。file 是 assets/art/ 裡的檔名（不含 .webp），還沒有圖時用程式畫的佔位圖
 export const PHOTOS = FAV_IDS.flatMap((who) => STAGES[who].map((s) => ({ id: `${who}-${s.n}`, who, n: s.n, file: `photo_${who}_${s.n}`, caption: s.caption, favorite: !!s.favorite })));
 export const photoById = (id) => PHOTOS.find((p) => p.id === id) || null;
@@ -157,7 +188,8 @@ export function isRight(save, who, drink, snack = M.withSnack(save)) {
 
 // 端一杯給熟客：記進存檔，回傳演出要用的東西；今天不能端（沒開放、今天已經收過）回傳 null
 // { right, who, n, line 熟客那句, photo 照片 id（端對）, first 第一張照片, favorite 找到最愛（第三段）, hint 德叔更靠近的那句（端錯兩次以後） }
-export function serve(save, who, drink, day, t = 0, snack = M.withSnack(save)) {
+// keeper：凱文顧店時請他喝的那杯（錯兩次以後的提示改成凱文自己說的那句，KEEPER_FAV.hint）
+export function serve(save, who, drink, day, t = 0, snack = M.withSnack(save), keeper = false) {
   if (!canServe(save, who, day) || !M.isDrink(drink)) return null;
   const f = favOf(save, who), s = current(save, who);
   f.servedDay = day;
@@ -170,7 +202,7 @@ export function serve(save, who, drink, day, t = 0, snack = M.withSnack(save)) {
   }
   f.misses++;
   const pool = MISS[who];
-  return { right: false, who, n: s.n, line: pool[(f.misses - 1) % pool.length], photo: null, first: false, favorite: false, hint: f.misses >= 2 ? hintOf(save, who) : '' };
+  return { right: false, who, n: s.n, line: pool[(f.misses - 1) % pool.length], photo: null, first: false, favorite: false, hint: f.misses >= 2 ? (keeper && who === 'kevin' ? keeperHintOf(save) : hintOf(save, who)) : '' };
 }
 
 // 點熟客搭話的線索：這一段開放時，回傳那一段的句子（呼叫端決定多常用；沒有開放是空陣列）
@@ -212,6 +244,7 @@ export function allFavoriteLines() {
   const out = [];
   for (const who of FAV_IDS) for (const s of STAGES[who]) out.push(...s.talk, s.deshu, s.ok, s.caption, typeof s.hint === 'function' ? s.hint('東山的豆') : s.hint);
   out.push(...Object.values(MISS).flat(), FAVORITE_LINE.yuan, FAVORITE_LINE.zhe, FAVORITE_LINE.kevin('東山的豆'));
+  out.push(KEEPER_FAV.offer, KEEPER_FAV.ask, KEEPER_FAV.start, ...KEEPER_FAV.clue.flat(), ...KEEPER_FAV.hint.map((h) => (typeof h === 'function' ? h('東山的豆') : h)));
   out.push(FAV_TEXT.offer('德叔', '予安'), FAV_TEXT.just, FAV_TEXT.ask('予安'), FAV_TEXT.cancel, FAV_TEXT.start, FAV_TEXT.firstPhoto, FAV_TEXT.album, FAV_TEXT.albumSub, FAV_TEXT.day(3), FAV_TEXT.close);
   return out;
 }
