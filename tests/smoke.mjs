@@ -1048,7 +1048,7 @@ try {
   /* ---------- 熟客最愛的咖啡、相簿（承峰 11/4 Q75～Q78，favorites.js） ---------- */
   console.log('手機 390×844（熟客最愛的咖啡、相簿）');
   {
-    // 觸控的手機（isMobile、hasTouch、deviceScaleFactor 2）。照片還沒畫：assets/art/photo_*.webp 是 404，
+    // 觸控的手機（isMobile、hasTouch、deviceScaleFactor 2）。照片只接了予安一二三段與阿哲第三段（D204），其他還沒畫：assets/art/photo_*.webp 是 404，
     // 瀏覽器會記一筆「Failed to load resource」（網路層的訊息，不是 JS 錯誤），只放過照片的那幾筆
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     const page = await ctx.newPage();
@@ -1095,12 +1095,13 @@ try {
     await page.evaluate(() => window.__cafe.favSetup('yuan', 1, { misses: 1 }));
     const r2 = await page.evaluate(() => window.__cafe.favServe('yuan', 'iced'));
     check(r2 && !r2.right && /黑的/.test(r2.hint), `同一段端錯第二次：德叔「${r2?.hint}」`);
-    // 端對：淡入照片（佔位圖）
+    // 端對：淡入照片（予安第一段已經是真圖，D204）
     await page.evaluate(() => window.__cafe.favSetup('yuan', 1));
     const right = page.evaluate(() => window.__cafe.favServe('yuan', 'black'));
     await page.waitForFunction(() => window.__cafe.fav.photoShow, null, { timeout: 40000 });
     const ph = await fav();
-    check(ph.photoFile === 'photo_yuan_1' && ph.placeholder, '端對：畫面淡入予安第一段的照片（還沒畫：程式畫的佔位圖）');
+    await page.waitForFunction(() => window.__cafe.fav.real, null, { timeout: 6000 }).catch(() => {});
+    check((await fav()).photoFile === 'photo_yuan_1' && (await fav()).real && !(await fav()).placeholder, '端對：畫面淡入予安第一段的照片（真圖，D204）');
     check(ph.placeholderText === '回憶等待觸發', '佔位圖上的字是「回憶等待觸發」（承峰 11/4，D198）');
     check(await page.evaluate(() => document.getElementById('app').classList.contains('modal')), '照片開著時，場景上的按鈕、泡泡收起來');
     await page.waitForTimeout(2200);
@@ -1129,6 +1130,9 @@ try {
     check(al.open && al.slots === 9 && al.empty === 5, `相簿：三位熟客九格，拿到 4 張、空格 ${al.empty} 格`);
     check(await page.$$eval('.album-slot.empty', (els) => els.every((e) => !e.textContent.trim() && e.tagName !== 'BUTTON')), '空格不寫字、不能點');
     check(/^凱文：老闆的那杯（東山的豆）。$/.test(await page.textContent('.album-fav')), '三段都找到的那一頁：最後一句寫他的最愛');
+    await page.waitForFunction(() => [...document.querySelectorAll('.album-slot:not(.empty) img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 6000 }).catch(() => {});
+    const thumbs = await page.$$eval('.album-slot:not(.empty)', (els) => els.map((e) => [e.dataset.id, e.querySelector('img').src.slice(0, 5)]));
+    check(thumbs.every(([id, src]) => (/^yuan-[12]$/.test(id) ? src === 'blob:' : src === 'data:')), `相簿縮圖：予安一二段是真圖，凱文還沒畫是佔位圖（${thumbs.map((t) => t.join(' ')).join('、')}）`);
     await page.screenshot({ path: OUT + 'phone-fav-album.png' });
     check((await smallTargets(page)).length === 0, `相簿的按鈕 ≥ 44px ${JSON.stringify(await smallTargets(page))}`);
     await page.tap('.album-slot:not(.empty) >> nth=0');
@@ -1158,7 +1162,7 @@ try {
     const y3 = page.evaluate(() => window.__cafe.favServe('yuan', 'black'));
     await page.waitForFunction(() => window.__cafe.fav.photoShow, null, { timeout: 40000 });
     const sayT0 = Date.now();
-    check((await fav()).photoFile === 'photo_yuan_3', '端對：淡入予安第三段的照片');
+    check((await fav()).photoFile === 'photo_yuan_3' && !(await fav()).placeholder, '端對：淡入予安第三段的照片（真圖，D204）');
     await page.waitForFunction(() => window.__cafe.fav.photoSay?.shown, null, { timeout: 6000 });
     const ps = (await fav()).photoSay, sayAt = Date.now() - sayT0;
     check(ps.who === 'yuan' && ps.name === '予安' && ps.text === '煙是甜的。', `照片淡入時予安說「${ps.text}」（${ps.name}）`);
@@ -1188,6 +1192,7 @@ try {
       await page.waitForFunction(() => window.__cafe.fav.photoShow, null, { timeout: 6000 });
       await page.waitForTimeout(2600);
       const q = (await fav()).photoSay;
+      check(re ? (await fav()).real : (await fav()).placeholder, re ? '阿哲第三段是真圖（D204）' : `${id} 還沒畫：仍是佔位圖「回憶等待觸發」`);
       check(re ? q?.shown && q.name === '阿哲' && re.test(q.text) : q === null, re ? `阿哲第三段淡入時阿哲說「${q?.text}」` : `${id}（原本沒字）淡入時不說`);
       await page.click('#photo');
       await page.waitForFunction(() => !window.__cafe.fav.photoOpen, null, { timeout: 6000 });

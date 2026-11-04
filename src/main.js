@@ -5792,6 +5792,8 @@ if (DEV) {
         placeholderText: FV.PHOTO_PLACEHOLDER,
         photoOpen: !photoEl.hidden, photoShow: photoEl.classList.contains('show'), photoFile: photoEl.hidden ? null : img.dataset.file,
         placeholder: !photoEl.hidden && img.src.startsWith('data:'),
+        // 真的照片（assets/art/photo_*.webp 有檔：blob: 的 object URL、解得開；D204 先接予安一二三段與阿哲第三段）
+        real: !photoEl.hidden && img.src.startsWith('blob:') && img.complete && img.naturalWidth > 0,
         // 照片下方熟客說的那一句（D202）：shown＝照片淡入了、那一行也淡入完了（截圖等這個）
         photoSay: photoEl.hidden || photoSay.hidden ? null : { who: photoSay.dataset.who, name: photoSay.querySelector('b')?.textContent || '', text: photoSay.textContent.slice((photoSay.querySelector('b')?.textContent || '').length),
           shown: photoEl.classList.contains('show') && +getComputedStyle(photoEl).opacity > 0.99 && +getComputedStyle(photoSay).opacity > 0.99 },
