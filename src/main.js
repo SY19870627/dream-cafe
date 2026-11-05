@@ -19,6 +19,7 @@ import * as MO from './moments.js';
 import * as MN from './menu.js';
 import * as FV from './favorites.js';
 import * as TS from './tasting.js';
+import { createNav } from './pathfind.js';
 
 const $ = (id) => document.getElementById(id);
 // 瀏覽器（手機尤其）可能拿到快取的舊 index.html、配上新的 main.js：少了試咖啡的 #tune 面板時，
@@ -955,6 +956,7 @@ function renderDecor() {
   decorPapers.clear();
   lampLights.length = 0;
   for (const e of entries()) if (e.placed) decorPapers.set(e, decorPaper(e));
+  navDirty = true; // 擺飾是走路的碰撞物：換了就重建（navBlockers()）
   applyLamps();
   applySound(); // 擺了黑膠唱機，音樂多一點唱針的沙沙聲
   buildLightLabels();
@@ -966,6 +968,7 @@ function moveDecor(e, x, z) {
   e.x = o.x; e.z = o.z;
   const p = decorPapers.get(e);
   if (p) { p.position.set(o.x, 0, o.z); p.userData.base = o.base; p.userData.clamp = o.clamp; }
+  navDirty = true;
 }
 
 // 落地燈：晚上亮（打烊後老闆關掉的燈不亮）。燈只有前兩盞真的打光，避免手機上光源太多
@@ -1219,61 +1222,61 @@ function animate(sec, fn) {
 }
 const ease = (k) => 0.5 - Math.cos(Math.PI * k) / 2;
 
-// 走路時繞開店裡的擺飾（階段 7）：擺飾當成圓形的障礙，往前看到擋路的就往旁邊偏；
-// 目的地或出發點本身就在某件擺飾旁邊（例如德叔走到唱機旁、龍眼去睡書櫃）時，那一件不算；
-// 走了比直走久很多還沒到（繞不出去），就直接走過去，不會卡住
-function obstacles(from, to) {
+// 走路的碰撞與循路（承峰 11/6：「把桌子與擺設都加上碰撞，走路的時候自動循路，避免有穿越問題」）：
+// 取代原本「前後距離遠就先走到 x＝0.45 的走道」（route()）加擺飾圓形障礙的局部閃避。
+// 擋路的東西（blocker）在 navBlockers()：牆、吧台（含裡面那座矮櫃）、三張桌子是硬的；椅子、高腳椅、沙發、門口的徵才啟事、
+// 擺在店裡的擺飾是 soft（起點或終點就在它上面時那一趟不算，例如坐上椅子、走到唱機旁、龍眼跳上書櫃）。
+// src/pathfind.js 在 0.1 公尺的網格上用 A* 找路並拉直；擺飾換了位置（renderDecor()／moveDecor()）就重建。
+// 找不到路時走到最近走得到的地方（console 記一筆），不直接穿過去
+const nav = createNav({ bounds: { x0: -ROOM.w / 2, x1: ROOM.w / 2, z0: -ROOM.d / 2, z1: ROOM.d / 2 }, cell: 0.1, radius: 0.12 });
+let navDirty = true;
+let navLast = null; // 最後一條路徑（開發者模式 __cafe.nav 讀）
+function decorRadius(d) { return THREE.MathUtils.clamp(d.userData.mesh.geometry.parameters.width * 0.28, 0.15, 0.5); }
+function navBlockers() {
   const out = [];
-  for (const d of decorPapers.values()) {
-    const w = d.userData.mesh.geometry.parameters.width;
-    const r = THREE.MathUtils.clamp(w * 0.28, 0.15, 0.5);
-    const o = { x: d.position.x, z: d.position.z, r };
-    if (Math.hypot(to.x - o.x, to.z - o.z) < r + 0.3 || Math.hypot(from.x - o.x, from.z - o.z) < r + 0.1) continue;
-    out.push(o);
-  }
+  // 吧台：檯面比櫃身寬一點（0.8 × 3.5），人走不進檯面底下
+  out.push({ id: 'counter', x0: counterTop.position.x - 0.4, x1: counterTop.position.x + 0.4, z0: counterTop.position.z - 1.75, z1: counterTop.position.z + 1.75 });
+  // 吧台最裡面（檯面盡頭到後牆）不是通道：吧台只有店門口那一側的出口（D200 凱文也從那裡出來），這一段當成封起來；
+  // soft：後牆可以靠牆擺東西（WALL_SPOTS 的 x 2.2），走到那件擺飾時這一段才不算
+  out.push({ id: 'barBackEnd', x0: counterTop.position.x - 0.4, x1: ROOM.w / 2, z0: -ROOM.d / 2, z1: counterTop.position.z - 1.75, soft: true });
+  out.push({ id: 'backBase', x0: ROOM.w / 2 - BACK_BASE.d, x1: ROOM.w / 2, z0: BACK_Z - 1.4, z1: BACK_Z + 1.4 }); // 吧台裡靠牆的矮櫃
+  for (const [id, t, r] of [['tableWindow', tA, 0.38], ['tableSofa', tC, 0.42], ['tableYuan', tY, 0.34]]) out.push({ id, x: t.x, z: t.z, r });
+  out.push({ id: 'chairWindow', x: SEATS[0].prop.position.x, z: SEATS[0].prop.position.z, r: 0.22, soft: true });
+  out.push({ id: 'sofa', x: SEATS[2].prop.position.x, z: SEATS[2].prop.position.z, r: 0.6, soft: true });
+  out.push({ id: 'yuanChair', x: yuanChair.position.x, z: yuanChair.position.z, r: 0.2, soft: true });
+  for (const [id, s] of [['stoolBar', SEATS[1].prop], ['stoolMid', stoolMid], ['stoolFar', stoolFar]]) out.push({ id, x: s.position.x, z: s.position.z, r: 0.17, soft: true });
+  if (noticeSign.visible) out.push({ id: 'notice', x: noticeSign.position.x, z: noticeSign.position.z, r: 0.2, soft: true });
+  for (const d of decorPapers.values()) out.push({ id: 'decor:' + d.userData.item.id, x: d.position.x, z: d.position.z, r: decorRadius(d), soft: true });
   return out;
 }
-const AHEAD = 1.1; // 往前看多遠（公尺）
+function navPath(from, to) {
+  if (navDirty || (noticeSign.visible !== nav.blockers.some((b) => b.id === 'notice'))) { nav.setBlockers(navBlockers()); navDirty = false; }
+  const res = nav.findPath(from, to);
+  navLast = { from: { x: from.x, z: from.z }, to: { x: to.x, z: to.z }, ...res };
+  if (!res.ok) console.warn('[nav] 走不到', res.reason, { from: [from.x.toFixed(2), from.z.toFixed(2)], to: [to.x.toFixed(2), to.z.toFixed(2)] });
+  return res.pts;
+}
 // own＝熟客走進來、換位子、走出去：同一個人同時只走一段，新的一段開始時舊的那段馬上結束、回傳 false
 // （例如熟客走進來走到一半就打烊，原本走進來和走出去兩段同時推著他，往兩個方向互相抵消，人就停在店中間；
-// 美術評分修正 b 的冒煙測試碰到）。德叔與龍眼照舊
+// 美術評分修正 b 的冒煙測試碰到）。德叔與龍眼照舊。
+// 走的是 navPath() 找出來的路（幾個轉折點），每一段直走
 let walkSeq = 0;
 function walk(p, to, speed = 0.7, own = false) {
-  const obs = obstacles(p.position, to);
-  let budget = (Math.hypot(to.x - p.position.x, to.z - p.position.z) / speed) * 2 + 3; // 遊戲時間（秒）
+  const pts = navPath(p.position, to);
   const id = own ? (p.userData.walkId = ++walkSeq) : null;
+  let i = 0;
   return new Promise((r) => {
     waiters.push((dt) => {
       if (own && p.userData.walkId !== id) { r(false); return true; } // 被新的一段取代了
-      const d = new THREE.Vector3(to.x - p.position.x, 0, to.z - p.position.z);
-      const step = speed * dt * speedNow();
-      const dist = d.length();
-      if (dist <= step) { p.position.x = to.x; p.position.z = to.z; r(true); return true; }
-      budget -= dt * speedNow();
-      d.divideScalar(dist);
-      if (obs.length && budget > 0) {
-        const px = -d.z, pz = d.x; // 往左的垂直方向
-        let sx = 0, sz = 0;
-        for (const o of obs) {
-          const rx = o.x - p.position.x, rz = o.z - p.position.z;
-          const along = rx * d.x + rz * d.z;
-          if (along < -o.r || along > Math.min(dist, AHEAD) + o.r) continue;
-          const lat = rx * px + rz * pz; // 障礙在左邊為正
-          const clear = o.r + 0.18;
-          if (Math.abs(lat) >= clear) continue;
-          const side = lat >= 0 ? -1 : 1;
-          const k = ((clear - Math.abs(lat)) / clear) * (1 - Math.max(0, along) / (AHEAD + o.r)) * 2.2;
-          sx += px * side * k; sz += pz * side * k;
-        }
-        d.x += sx; d.z += sz;
-        d.normalize();
+      let step = speed * dt * speedNow();
+      while (i < pts.length) {
+        const pt = pts[i];
+        const dx = pt.x - p.position.x, dz = pt.z - p.position.z, dist = Math.hypot(dx, dz);
+        if (dist <= step) { p.position.x = pt.x; p.position.z = pt.z; step -= dist; i++; continue; }
+        p.position.x += (dx / dist) * step; p.position.z += (dz / dist) * step;
+        break;
       }
-      d.multiplyScalar(step);
-      p.position.add(d);
-      if (budget > 0) for (const o of obs) { // 還是撞進去了：推回邊緣
-        const ox = p.position.x - o.x, oz = p.position.z - o.z, od = Math.hypot(ox, oz);
-        if (od < o.r && od > 1e-4) { p.position.x = o.x + (ox / od) * o.r; p.position.z = o.z + (oz / od) * o.r; }
-      }
+      if (i >= pts.length) { r(true); return true; }
       p.userData.mesh.position.y = Math.abs(Math.sin(performance.now() / 160)) * 0.03; // 走路時輕微起伏
       return false;
     });
@@ -1372,7 +1375,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   state.closeup = false;
   if (atSeat()) { cam.yaw = 0; cam.pitch = 0; focusP = null; moveCamera(seat.eye, seat.look); refocusSpeaker(); }
   updateUI();
-  // 端杯走 deshuGo／route() 走道（x=0.45），不再斜切穿過桌子
+  // 端杯走 deshuGo()：循路繞開桌椅與吧台（pathfind.js）
   if (seat.serve) {
     say(keeper() ? F.KEEPER.serveWalk : '好了，我端過去。', 2500);
     deshu.attach(cup);
@@ -3239,14 +3242,6 @@ function spotFor(w, at) {
   return HOME_SPOT[w] || SPOT.bar;
 }
 
-// 走路：前後距離遠的話，先走到中間的走道（吧台與窗邊桌之間），不穿過桌子
-// 門檻 >= 1.0（原本 >1.2）：沙發端杯 |Δz|=1.2 也會走走道
-function route(from, to) {
-  const pts = [];
-  if (Math.abs(to.z - from.z) >= 1.0) pts.push(V2(0.45, from.z), V2(0.45, to.z));
-  pts.push(to.clone());
-  return pts;
-}
 // 走完回傳 true；中途被新的一段取代就停下來、回傳 false
 async function walkPath(p, pts, speed, own = false) {
   for (const pt of pts) if (!(await walk(p, pt, speed, own))) return false;
@@ -3274,7 +3269,7 @@ async function enterPerson(w, spot, walkPose, thenPose, fast) {
   if (!(w === 'grandpa' && PEOPLE.zhe.visible && PEOPLE.zhe.position.distanceTo(DOOR_IN) < 1)) audio.play('bell'); // 有人推門進來（阿公跟在阿哲後面，鈴只響一次）
   swingDoor(w === 'grandpa' ? 3200 : 1600); // 阿公走得慢：門開久一點
   waiting.approach = null; waiting.quietFrom = performance.now();
-  if (!(await walkPath(p, route(DOOR_IN, spot.pos), walkSpeed(w, fast), true))) return; // 走到一半就要離開了（打烊）
+  if (!(await walkPath(p, [spot.pos], walkSpeed(w, fast), true))) return; // 走到一半就要離開了（打烊）
   if (tok !== live.token) return; // 走到一半換了一天（開發者跳天數）
   settle(w, spot);
   setPose(w, thenPose || defaultPose(w));
@@ -3284,7 +3279,7 @@ async function movePerson(w, spot, walkPose, thenPose) {
   if (live.at[w]?.stool) live.at[w].stool.visible = true;
   const tok = live.token;
   if (walkPose) setPose(w, walkPose);
-  if (!(await walkPath(p, route(p.position, spot.pos), walkSpeed(w), true))) return;
+  if (!(await walkPath(p, [spot.pos], walkSpeed(w), true))) return;
   if (tok !== live.token) return;
   settle(w, spot);
   setPose(w, thenPose || defaultPose(w));
@@ -3298,7 +3293,7 @@ async function leavePerson(w) {
   removeGuestCup(w);
   setPose(w, w === 'kevin' ? 'walk' : w === 'grandpa' || w === 'yuan' ? 'stand' : poses[w]); // 予安站起來走（Canvas 版站著與坐著是同一張）
   const tok = live.token;
-  const out = await walkPath(p, route(p.position, DOOR_IN), walkSpeed(w), true);
+  const out = await walkPath(p, [DOOR_IN], walkSpeed(w), true);
   if (out && tok === live.token) { p.visible = false; swingDoor(1000); if (w !== 'grandpa') audio.play('bell'); }
 }
 function removeGuestCup(w) {
@@ -3338,16 +3333,11 @@ async function deshuMoment(pose, ms) {
   return true;
 }
 
-// 德叔走過去：要去吧台裡面或外面時，從吧台的出口繞
+// 德叔走過去：吧台是碰撞物（navBlockers()），要去吧台裡面或外面時循路自己會從吧台的出口繞
 const behindBar = (v) => v.x > 1.7 && v.z < 0.5;
 async function deshuGo(target) {
   while (live.deshuWalk) await live.deshuWalk; // 上一段還沒走完（場景裡「不等德叔走回去」的那一步）
-  const pts = [];
-  const from = deshu.position.clone();
-  if (behindBar(from) && !behindBar(target)) pts.push(V2(2.6, 0.6), V2(1.3, 0.8));
-  if (!behindBar(from) && behindBar(target)) pts.push(...route(from, V2(1.3, 0.8)), V2(2.6, 0.6));
-  pts.push(...route(pts.length ? pts[pts.length - 1] : from, target));
-  await walkPath(deshu, pts, WALK);
+  await walkPath(deshu, [target], WALK);
 }
 // 站在某人旁邊的位置（吧台前的人，德叔從吧台裡面）
 function nearSpot(w) {
@@ -5857,6 +5847,17 @@ if (DEV && params.get('fav')) {
 // 開發者模式：給冒煙測試讀狀態用（一般玩家不會有這個物件）
 if (DEV) {
   window.__cafe = {
+    // 走路的碰撞與循路（pathfind.js）：blockers、最後一條路徑；path(from, to) 試算一條路（不走）
+    get nav() {
+      if (navDirty) { nav.setBlockers(navBlockers()); navDirty = false; }
+      return {
+        blockers: nav.blockers.map((b) => ({ ...b })), last: navLast && JSON.parse(JSON.stringify(navLast)),
+        path: (from, to) => nav.findPath(from, to), hardAt: (x, z) => nav.hardAt(x, z)?.id || null,
+        hits: (a, b) => nav.segmentHits(a, b, true)?.id || null,
+        spots: { home: HOME, door: DOOR_IN, ...Object.fromEntries(SEATS.filter((s) => s.serve).map((s) => [s.id + 'Serve', s.serve])), ...Object.fromEntries(Object.entries(SPOT).map(([k, v]) => [k, v.pos])), ...Object.fromEntries(Object.entries(OPPOSITE).map(([k, v]) => ['opp' + k, v.pos])), ...Object.fromEntries(Object.entries(ORDER_SPOT).map(([k, v]) => ['order' + k, v])) },
+        get deshu() { return { x: deshu.position.x, z: deshu.position.z }; },
+      };
+    },
     get temp() { return state.temp; },
     get shownTemp() { return shownTemp; },
     get brewing() { return brewing; },

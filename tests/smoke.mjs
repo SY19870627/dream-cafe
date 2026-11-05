@@ -20,6 +20,7 @@
 // 德叔換黑板只換黑板上真的有的東西、重新整理後黑板還在、還沒解鎖的品項看不到。
 // 誤按打烊（承峰 11/5，D205）：按打烊德叔先問一次（再坐一會兒在最下面）、按鈕列換了 0.5 秒內連點不打烊（觸控）。
 // 試咖啡（承峰 11/5，D206、D207）：德叔提一次、試做、測試紀錄、定案上黑板（寫滿時換一行）、隔天德叔提一次只一次、第 8 版舊存檔遷移。
+// 碰撞與循路（承峰 11/6）：桌子、吧台、椅子、擺飾都是碰撞物；各位子之間的路不穿過硬的東西；德叔端杯到窗邊座的一路上不在桌子或吧台裡。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -2047,6 +2048,61 @@ try {
     check(v && t.records.length === 0 && JSON.stringify((await cafe('menu')).board) === JSON.stringify(boardOld), `第 8 版遷移：紀錄空、黑板照舊`);
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await ctx.close();
+  }
+  {
+    // 碰撞與循路（承峰 11/6）：桌子、吧台、椅子、擺飾都是碰撞物，走路自動循路，不穿過去
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=6&opening=0&regulars=0&weather=clear&moments=0');
+    const nav = await page.evaluate(() => { const n = window.__cafe.nav; return { ids: n.blockers.map((b) => b.id), spots: n.spots }; });
+    for (const id of ['counter', 'backBase', 'tableWindow', 'tableSofa', 'tableYuan', 'chairWindow', 'sofa', 'stoolBar', 'stoolMid', 'stoolFar']) check(nav.ids.includes(id), `碰撞物有 ${id}`);
+    // 從倉庫擺出盆栽：擺飾也是碰撞物，移過去碰撞物跟著移
+    const plantAt = () => page.evaluate(() => window.__cafe.nav.blockers.find((b) => b.id === 'decor:plant') || null);
+    await page.click('#place');
+    await page.click('#p-store');
+    await page.click('.sheet-row:has-text("盆栽") button');
+    const p0 = await plantAt();
+    check(!!p0, `擺出來的盆栽是碰撞物 ${JSON.stringify(p0)}`);
+    const box = await page.locator('#app canvas').boundingBox();
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.62);
+    const p1 = await plantAt();
+    check(p0 && p1 && Math.hypot(p1.x - p0.x, p1.z - p0.z) > 0.2, `移動盆栽，碰撞物跟著移 ${JSON.stringify(p1)}`);
+    await page.click('#p-done');
+    await page.waitForTimeout(600);
+    const bad = await page.evaluate(() => {
+      const n = window.__cafe.nav, out = [];
+      const names = Object.keys(n.spots);
+      for (const a of names) for (const b of names) {
+        if (a === b) continue;
+        const from = n.spots[a], to = n.spots[b];
+        const r = n.path(from, to);
+        const all = [from, ...r.pts];
+        for (let i = 1; i < all.length; i++) { const hit = n.hits(all[i - 1], all[i]); if (hit) out.push(`${a}→${b} 穿過 ${hit}`); }
+        if (!r.ok) out.push(`${a}→${b} 走不到（${r.reason}）`);
+      }
+      return out;
+    });
+    check(bad.length === 0, `各位子之間的路都不穿過桌子、吧台 ${bad.slice(0, 6).join(' | ')}`);
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForTimeout(1600);
+    await page.click('#brew');
+    // 德叔端杯走過去再走回吧台：每 40ms 量一次他站的地方
+    const inside = await page.evaluate(async () => {
+      const n = window.__cafe.nav, hits = new Set();
+      let far = 0;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 30000) {
+        const d = n.deshu, h = n.hardAt(d.x, d.z);
+        if (h) hits.add(h);
+        far = Math.max(far, Math.hypot(d.x - 2.6, d.z + 1.6));
+        if (far > 1 && !window.__cafe.brewing && Math.hypot(d.x - 2.6, d.z + 1.6) < 0.05) break;
+        await new Promise((r) => setTimeout(r, 40));
+      }
+      return { hits: [...hits], far: +far.toFixed(2) };
+    });
+    check(inside.far > 2 && inside.hits.length === 0, `德叔端杯到窗邊座再回吧台，一路不在桌子或吧台裡 ${JSON.stringify(inside)}`);
+    const last = await page.evaluate(() => window.__cafe.nav.last);
+    check(last && last.ok, `最後一條路走得到 ${JSON.stringify(last?.reason)}`);
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
   }
   {
     // 黑板寫滿 + 吧台座 tastingBrew(autoLog)
