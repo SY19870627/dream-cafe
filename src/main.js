@@ -444,7 +444,7 @@ const SEATS = [
     id: 'window', name: '窗邊座',
     // 美術評分修正 c：往後、往右退一點，推近（fov），窗景是主體，桌子只在左下角露一角（原本占左下約 1/3）
     eye: new THREE.Vector3(-1.55, 1.25, 0.6), look: new THREE.Vector3(-2.0, 0.85, -3.6), fov: 60,
-    cup: new THREE.Vector3(-1.9, tA.h + 0.02, -0.62), serve: new THREE.Vector3(-1.55, 0, -0.9), table: tA,
+    cup: new THREE.Vector3(-1.9, tA.h + 0.02, -0.62), serve: new THREE.Vector3(-1.15, 0, -0.9), table: tA, // 端杯點往走道（x=0.45）拉 0.4m，少貼桌
     prop: paper(A.chair(), -1.9, 0.15, { name: 'chair' }),
   },
   {
@@ -457,7 +457,7 @@ const SEATS = [
     id: 'sofa', name: '角落沙發',
     // 美術評分修正 c：退到沙發的左後角、坐低一點，轉向吧台：德叔與吧台是主體，桌子在下面變扁、上面一點暖光
     eye: new THREE.Vector3(-2.75, 0.95, 3.72), look: new THREE.Vector3(2.2, 0.8, -1.5), fov: 62,
-    cup: new THREE.Vector3(-1.35, tC.h + 0.02, 2.3), serve: new THREE.Vector3(-0.8, 0, 2.0), table: tC,
+    cup: new THREE.Vector3(-1.35, tC.h + 0.02, 2.3), serve: new THREE.Vector3(-0.4, 0, 2.0), table: tC, // 端杯點往走道拉 0.4m
     prop: paper(A.sofa(), -2.1, 3.3, { base: Math.PI * 0.85, clamp: 0.7, name: 'sofa', overClamp: true }),
   },
 ];
@@ -1354,14 +1354,14 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   state.closeup = false;
   if (atSeat()) { cam.yaw = 0; cam.pitch = 0; focusP = null; moveCamera(seat.eye, seat.look); refocusSpeaker(); }
   updateUI();
-  const path = [new THREE.Vector3(2.6, 0, 0.6), new THREE.Vector3(1.3, 0, 0.8), seat.serve];
+  // 端杯走 deshuGo／route() 走道（x=0.45），不再斜切穿過桌子
   if (seat.serve) {
     say(keeper() ? F.KEEPER.serveWalk : '好了，我端過去。', 2500);
     deshu.attach(cup);
     cup.position.set(0.32, 0.98, 0.12);
     cup.rotation.set(0, 0, 0);
     const carried = carryCup(cup);
-    for (const pt of path) await walk(deshu, pt, WALK);
+    await deshuGo(seat.serve);
     deshu.userData.mesh.position.y = 0;
     putDownCup(cup, carried);
     scene.attach(cup);
@@ -1416,7 +1416,7 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
     await wait(firstCup ? 2.6 : 1.8);
     if (firstCup) await glance(deshu); // 劇本：「德叔看了一眼溫度計，沒說話。」
     if (seat.serve) {
-      for (const pt of [path[1], path[0], HOME]) await walk(deshu, pt, WALK);
+      await deshuGo(HOME);
       deshu.userData.mesh.position.y = 0;
     }
     deshuReturning = null;
@@ -2125,7 +2125,7 @@ function updateUI() {
     : state.closeup ? '回座位' : `看${bar}沖`;
   $('day').textContent = `開店第 ${today()} 天`;
   // 打烊後沒有任何提示（企劃：沒有任何任務）；沖煮中的「按住畫面」與佈置的操作說明照常
-  const hint = choosing ? '' // 選項的問句在選項上面那一行（#ask）
+  const hint = choosing ? (live.trialOfferHint || '') // 選項的問句在 #ask；試咖啡第一次 offer 時底部多一行教學提示
     : film ? S.sceneHint(state.scene) // 熟客的場景沒有按鈕時的提示（颱風夜也顯示）
     : letter ? '德叔把一封信放在吧台上' // 【待定】
     : tut === 'sit' || g === 'sit' ? '點一張椅子坐下'
@@ -2139,7 +2139,7 @@ function updateUI() {
   $('hint').textContent = hint;
   $('hint').hidden = !hint;
   // 熟客場景的提示與等待的句子：提示列慢慢呼吸，看得出畫面沒有停住（承峰 11/3 回饋，D179）
-  $('hint').classList.toggle('breathe', !!hint && (hint === S.SCENE_HINT || Object.values(S.WAIT_HINT).includes(hint)));
+  $('hint').classList.toggle('breathe', !!hint && (hint === S.SCENE_HINT || hint === TS.TASTE.offerHint || Object.values(S.WAIT_HINT).includes(hint)));
   refreshAsk(choosing);
   if (measureUi()) fitOverview(); // 「略過開場」出現或收起：俯瞰鏡頭跟著可用的高度重算
   endFocus();
@@ -2531,10 +2531,16 @@ function openNotebook(open) {
 // 記事本「測試紀錄」（試咖啡，D206、D207）：新的在上面；每一張是程式寫的幾行字（UI 文字，D202），「喜歡」「定案」兩顆
 function renderRecords(box) {
   const recs = TS.recordsNewest(save);
-  if (!recs.length) return;
+  // 配方開放過、德叔引導過、或已有紀錄：顯示「測試紀錄」段（空的也顯示教學句）
+  const show = recs.length > 0 || TS.openRecipes(save).length > 0 || Object.keys(save.tasting?.trials || {}).length > 0 || !!save.tasting?.guided;
+  if (!show) return;
   const h = document.createElement('h3');
   h.textContent = TS.TASTE.section;
   box.appendChild(h);
+  const help = document.createElement('p');
+  help.className = 'nb-help';
+  help.textContent = TS.TASTE.recordsHelp;
+  box.appendChild(help);
   for (const rec of recs) {
     const L = TS.recordLines(rec);
     const el = document.createElement('div');
@@ -3140,7 +3146,7 @@ const OPPOSITE = {
 const CORNERS = [V2(-2.45, -3.3), V2(-1.3, -3.45), V2(0.75, -3.45), V2(2.35, 3.1), V2(-0.55, 3.35), V2(0.75, 3.4)];
 const HOME_SPOT = { yuan: SPOT.yuan, kevin: SPOT.kevin, zhe: SPOT.bar };
 
-const live = { day: 0, token: 0, expect: new Map(), arrived: new Set(), leaveAt: new Map(), at: {}, answers: {}, cups: new Map(), seatHinted: false, walking: 0, planned: {}, held: new Set(), fwHinted: 0 };
+const live = { day: 0, token: 0, expect: new Map(), arrived: new Set(), leaveAt: new Map(), at: {}, answers: {}, cups: new Map(), seatHinted: false, walking: 0, planned: {}, held: new Set(), fwHinted: 0, trialOfferHint: '' };
 seatOf = (w) => (live.at[w]?.stool ? 'stool' : 'chair');
 const ABORT = Symbol('abort');
 const PEOPLE_IDS = ['yuan', 'zhe', 'kevin', 'grandpa'];
@@ -3182,9 +3188,10 @@ function spotFor(w, at) {
 }
 
 // 走路：前後距離遠的話，先走到中間的走道（吧台與窗邊桌之間），不穿過桌子
+// 門檻 >= 1.0（原本 >1.2）：沙發端杯 |Δz|=1.2 也會走走道
 function route(from, to) {
   const pts = [];
-  if (Math.abs(to.z - from.z) > 1.2) pts.push(V2(0.45, from.z), V2(0.45, to.z));
+  if (Math.abs(to.z - from.z) >= 1.0) pts.push(V2(0.45, from.z), V2(0.45, to.z));
   pts.push(to.clone());
   return pts;
 }
@@ -3761,7 +3768,7 @@ function stopStory() {
   }
   for (const s of [stoolFar, stoolMid]) s.visible = true;
   live.expect.clear(); live.arrived.clear(); live.leaveAt.clear();
-  live.at = {}; live.planned = {}; live.answers = {}; live.seatHinted = false; live.closeHinted = false; live.deshuWalk = null; live.fwHinted = 0; live.held = new Set();
+  live.at = {}; live.planned = {}; live.answers = {}; live.seatHinted = false; live.closeHinted = false; live.deshuWalk = null; live.fwHinted = 0; live.held = new Set(); live.trialOfferHint = '';
   live.day = 0;
   catHoldUntil = 0;
 }
@@ -3944,6 +3951,11 @@ setInterval(() => {
     // 熟客最愛的咖啡：這一段開放、那位熟客在店裡時，德叔在吧台說一次那一段的線索
     const c = REGULARS_ON && live.day === today() ? FV.pendingClue(save, hereNow()) : null;
     if (c) { runMoment('clue', `${c.who}-${c.n}`, () => favClue(c)); return; }
+    // 試咖啡教學：配方開放了、老闆還站著 → 德叔請他坐下（一次）
+    const pendGuide = TS.pendingOffer(save);
+    if (pendGuide && !save.tasting?.guided && state.mode === 'overview' && deshuFree() && !state.placing) {
+      runMoment('trial-guide', pendGuide, () => tasteGuide()); return;
+    }
     // 試咖啡（D206、D207）：劇情配方開放了，老闆坐著、德叔在吧台閒著時提一次；還沒定案的測試紀錄，隔天提一次（一張最多一次）
     const off = deshuFree() && trialOfferable() ? TS.pendingOffer(save) : null;
     if (off) { runMoment('trial', off, () => offerTrial(off)); return; }
@@ -4171,11 +4183,23 @@ function brewTrial(id) {
   return true;
 }
 // 德叔第一次提（店裡的小事的佇列）：「喝喝看」就試做一杯；「下次吧」放最下面，之後坐著點德叔隨時可以請他試
+async function tasteGuide() {
+  TS.markGuided(save);
+  persist();
+  say(TS.TASTE.guide, 4800, deshu);
+  await realWait(5200);
+}
 async function offerTrial(id) {
   TS.markOffered(save, id, today());
-  persist();
+  const firstHint = !save.tasting.offerHint;
+  if (firstHint) { TS.markOfferHint(save); persist(); }
+  else persist();
+  live.trialOfferHint = firstHint ? TS.TASTE.offerHint : '';
+  updateUI();
   say(TS.RECIPES[id].offer, 5200, deshu);
   const i = await choose([TS.TASTE.yes, TS.TASTE.no]);
+  live.trialOfferHint = '';
+  updateUI();
   if (i === 0 && brewTrial(id)) return;
   if (i !== 0) { say(TS.TASTE.later, 3400, deshu); await realWait(3600); }
 }
@@ -5947,6 +5971,7 @@ if (DEV) {
       const h = TS.pendingHint(save, today());
       return { trials: JSON.parse(JSON.stringify(save.tasting.trials)), records: JSON.parse(JSON.stringify(save.tasting.records)), open: TS.openRecipes(save),
         pendingOffer: TS.pendingOffer(save), offerable: trialOfferable(), againable: trialAgainable(), hint: h ? h.id : 0, swapSettle,
+        guided: !!save.tasting.guided, offerHint: !!save.tasting.offerHint,
         rowGuard: ROW_GUARD_MS, rowAge: Math.round(performance.now() - rowAt) };
     },
     tastingSetup(id = 'kiln') {

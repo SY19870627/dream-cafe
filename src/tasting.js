@@ -37,7 +37,10 @@ export const RECIPE_IDS = Object.keys(RECIPES);
 export const TASTE = {
   yes: '喝喝看', // 【待定】
   no: '下次吧', // 【待定】安全的放最下面
-  later: '好。想喝的時候，跟我說一聲。', // 【待定】選「下次吧」
+  later: '好。想喝的時候，點我一聲就好。', // 【待定】選「下次吧」（試咖啡教學）
+  guide: '老闆，坐下來。我想試一杯新的，跟你說一聲。', // 【待定】配方剛開放、老闆還站著時德叔提一次
+  offerHint: '坐著等德叔提；或之後點德叔，請他再試。', // 【待定】第一次出現選項時底部提示
+  recordsHelp: '德叔試做的杯子會記在這裡。老闆決定要不要寫上黑板。', // 【待定】記事本測試紀錄空狀態／第一張旁
   again: (name) => `請德叔再試一杯「${name}」`, // 【待定】坐著點德叔
   just: '只是聊聊', // 【待定】
   start: '好，我試試看。', // 【待定】
@@ -59,16 +62,22 @@ export const TASTE = {
   flavorWord: ['', '一點', '有', '很明顯'], // 【待定】
 };
 
-// 存檔 save.tasting（第 9 版）：
+// 存檔 save.tasting（第 9 版；教學旗標 guided／offerHint 是附加欄位，舊存檔讀進來補預設，不升版）：
 //   trials：{ [配方 id]: { offered 德叔第一次提是第幾天（0＝還沒提）, tried 第一次試做是第幾天 } }
 //   records：測試紀錄 [{ id, day, t, part: 'day' | 'night' | 'after', src: 'trial', recipe,
 //            cups: [{ item, base, level, brew, dish, flavor: { acid, sweet, bitter }, line }], liked 老闆標了喜歡, settled 第幾天定案（0＝還沒）, told 德叔提過了 }]
 //   nextId：下一張紀錄的編號
-export const blankTasting = () => ({ trials: {}, records: [], nextId: 1 });
+//   guided：德叔說過「坐下來……試一杯新的」引導（一次）；offerHint：第一次 offer 底部提示已顯示
+export const blankTasting = () => ({ trials: {}, records: [], nextId: 1, guided: false, offerHint: false });
 const T = (save) => {
   if (!save.tasting || typeof save.tasting !== 'object') save.tasting = blankTasting();
-  return save.tasting;
+  const ts = save.tasting;
+  if (typeof ts.guided !== 'boolean') ts.guided = false;
+  if (typeof ts.offerHint !== 'boolean') ts.offerHint = false;
+  return ts;
 };
+export const markGuided = (save) => { T(save).guided = true; };
+export const markOfferHint = (save) => { T(save).offerHint = true; };
 
 // 這個配方開放了沒（里程碑發生過）
 export const recipeOpen = (save, id) => !!RECIPES[id] && hasMilestone(save, RECIPES[id].after.who, RECIPES[id].after.n);

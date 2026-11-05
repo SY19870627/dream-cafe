@@ -14,7 +14,7 @@ const reach = (s, who, n) => { for (let i = 1; i <= n; i++) if (!s.regulars[who]
 test('存檔第 9 版：新存檔有 tasting（紀錄是空的）', () => {
   assert.equal(SAVE_VERSION, 9);
   const s = newSave();
-  assert.deepEqual(s.tasting, { trials: {}, records: [], nextId: 1 });
+  assert.deepEqual(s.tasting, { trials: {}, records: [], nextId: 1, guided: false, offerHint: false });
 });
 
 test('第 8 版的舊存檔升上來：紀錄是空的，黑板、菜單本、熟客最愛、照片、溫度照舊', () => {
@@ -28,7 +28,7 @@ test('第 8 版的舊存檔升上來：紀錄是空的，黑板、菜單本、�
   const before = JSON.parse(JSON.stringify(old));
   const s = migrate(JSON.parse(JSON.stringify(old)), T0);
   assert.equal(s.version, 9);
-  assert.deepEqual(s.tasting, { trials: {}, records: [], nextId: 1 });
+  assert.deepEqual(s.tasting, { trials: {}, records: [], nextId: 1, guided: false, offerHint: false });
   assert.deepEqual(s.menu, before.menu);
   assert.deepEqual(s.favorites, before.favorites);
   assert.deepEqual(s.photos, before.photos);
@@ -171,4 +171,24 @@ test('文字：試咖啡的字都有，沒有分數、評分、催促的詞', ()
     assert.ok(t.length > 0);
     assert.ok(!/分數|評分|星等|失敗|趕快|今天還沒/.test(t), t);
   }
+});
+
+test('試咖啡教學旗標與台詞：引導、底部提示、下次吧、紀錄說明', () => {
+  const s = newSave();
+  assert.equal(s.tasting.guided, false);
+  assert.equal(s.tasting.offerHint, false);
+  assert.match(TS.TASTE.guide, /坐下來/);
+  assert.match(TS.TASTE.offerHint, /點德叔/);
+  assert.match(TS.TASTE.later, /點我一聲/);
+  assert.match(TS.TASTE.recordsHelp, /寫上黑板/);
+  TS.markGuided(s);
+  TS.markOfferHint(s);
+  assert.equal(s.tasting.guided, true);
+  assert.equal(s.tasting.offerHint, true);
+  // 舊存檔缺欄位：讀進來補上
+  delete s.tasting.guided; delete s.tasting.offerHint;
+  reach(s, 'yuan', 3);
+  assert.equal(TS.pendingOffer(s), 'kiln'); // pendingOffer → T() 補欄位
+  assert.equal(s.tasting.guided, false);
+  assert.equal(s.tasting.offerHint, false);
 });
