@@ -3,10 +3,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNav } from '../../src/pathfind.js';
 
-// 和 main.js 的 navBlockers() 同一份配置（吧台檯面 0.8 × 3.5、裡面靠牆的矮櫃、三張圓桌、椅子與高腳椅）
+// 和 main.js 的 navBlockers() 同一份配置（吧台檯面 0.8 × 3.5、裡面靠牆的矮櫃、三張圓桌、椅子與高腳椅）。
+// 中島吧台（D213）：檯面最裡端（z −3.25）到後牆（z −4）的空隙可以走，吧台兩端都能進出
 const CAFE = [
   { id: 'counter', x0: 1.6, x1: 2.4, z0: -3.25, z1: 0.25 },
-  { id: 'barBackEnd', x0: 1.6, x1: 3.0, z0: -4, z1: -3.25, soft: true },
   { id: 'backBase', x0: 2.8, x1: 3.0, z0: -2.78, z1: 0.02 },
   { id: 'tableWindow', x: -2.2, z: -0.6, r: 0.38 },
   { id: 'tableSofa', x: -1.45, z: 2.4, r: 0.42 },
@@ -57,18 +57,42 @@ test('直線會穿過窗邊桌時，循路繞開；走到的終點就是目的�
   assert.ok(r.pts.length >= 2, '要有轉折');
 });
 
-test('德叔從吧台裡出來端杯：從吧台出口繞，不穿吧台、不穿桌子', () => {
+test('德叔從吧台裡出來端杯：從吧台兩端挑一端繞出去，不穿吧台、不穿桌子；窗邊座、沙發座走店門口那一端', () => {
   const nav = makeNav();
-  for (const serve of [P(-1.15, -0.9), P(-0.4, 2.0), P(-0.95, -1.35), P(-0.55, 1.8)]) {
+  for (const serve of [P(-1.55, -0.9), P(-0.8, 2.0), P(-0.95, -1.35), P(-0.55, 1.8)]) {
     const r = nav.findPath(HOME, serve);
     assert.ok(r.ok, JSON.stringify(serve));
+    assert.deepEqual(r.pts.at(-1), serve);
     assertClear(nav, HOME, r.pts, { soft: ALL_SOFT });
-    // 一定經過吧台的出口（檯面盡頭 z 0.25 之外）
-    assert.ok(r.pts.some((p) => p.z > 0.25), '從吧台出口出去');
+    // 窗邊座、沙發座比較近的是店門口那一端（檯面盡頭 z 0.25 之外）
+    assert.ok(r.pts.some((p) => p.z > 0.25), '從店門口那一端出去');
     const back = nav.findPath(serve, HOME);
     assert.ok(back.ok);
     assertClear(nav, serve, back.pts, { soft: ALL_SOFT });
   }
+});
+
+test('中島吧台：最裡端到後牆的空隙走得過去，兩端都能進出；吧台和矮櫃之間走得通，不穿檯面', () => {
+  const nav = makeNav();
+  // 空隙本身是空的（後牆到檯面盡頭 0.75 公尺）
+  for (const x of [1.7, 2.0, 2.3, 2.6]) assert.equal(nav.hardAt(x, -3.6), null, `x ${x} 在空隙裡`);
+  // 吧台裡最裡面 → 店的最裡面（例如凱文那張高腳椅）：走空隙，不繞到店門口那一端
+  const inner = P(2.6, -3.0), out = P(1.3, -3.4);
+  const r = nav.findPath(inner, out);
+  assert.ok(r.ok);
+  assertClear(nav, inner, r.pts, { soft: ALL_SOFT, ignore: ['stoolFar'] });
+  assert.ok(r.pts.every((p) => p.z < 0.25), '不從店門口那一端繞');
+  assert.ok(r.pts.some((p) => p.z < -3.25), '從最裡端的空隙出去');
+  const back = nav.findPath(out, inner);
+  assert.ok(back.ok && back.pts.every((p) => p.z < 0.25));
+  assertClear(nav, out, back.pts, { soft: ALL_SOFT, ignore: ['stoolFar'] });
+  // 吧台和矮櫃之間（x 2.4～2.8）從頭走到尾
+  const run = nav.findPath(P(2.6, -3.6), P(2.6, 0.5));
+  assert.ok(run.ok);
+  assertClear(nav, P(2.6, -3.6), run.pts, { soft: ALL_SOFT });
+  assert.ok(run.pts.every((p) => p.x > 2.4 - 0.001), '沿著吧台裡面走，不穿檯面');
+  // 檯面兩側之間的直線一定穿過吧台
+  assert.equal(nav.segmentHits(P(1.4, -1.5), P(2.6, -1.5), true)?.id, 'counter');
 });
 
 test('客人從門口走到各個位子、再走出去，都不穿桌子與吧台', () => {
@@ -89,14 +113,20 @@ test('客人從門口走到各個位子、再走出去，都不穿桌子與吧�
   }
 });
 
-test('吧台裡外：德叔走到吧台前的人對面（吧台裡）也從出口繞進去', () => {
+test('吧台裡外：德叔走到吧台前的人對面（吧台裡）時，挑近的一端繞進去，不穿吧台', () => {
   const nav = makeNav();
-  const from = P(-1.15, -0.9), to = P(2.5, -2.9);
+  // 窗邊座 → 吧台裡最裡面：走最裡端的空隙
+  const from = P(-1.55, -0.9), to = P(2.5, -2.9);
   const r = nav.findPath(from, to);
   assert.ok(r.ok);
   assert.deepEqual(r.pts.at(-1), to);
   assertClear(nav, from, r.pts, { soft: ALL_SOFT });
-  assert.ok(r.pts.some((p) => p.z > 0.25));
+  assert.ok(r.pts.some((p) => p.z < -3.25), '從最裡端的空隙進去');
+  // 門口 → 吧台裡靠店門口那一頭：走店門口那一端
+  const r2 = nav.findPath(DOOR_IN, P(2.5, -0.2));
+  assert.ok(r2.ok);
+  assertClear(nav, DOOR_IN, r2.pts, { soft: ALL_SOFT });
+  assert.ok(r2.pts.every((p) => p.z > -3.25));
 });
 
 test('擺飾是碰撞物：擋在路上就繞開；終點就在擺飾旁（soft）可以走到', () => {

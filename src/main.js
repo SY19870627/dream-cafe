@@ -463,7 +463,7 @@ const SEATS = [
     id: 'window', name: '窗邊座',
     // 美術評分修正 c：往後、往右退一點，推近（fov），窗景是主體，桌子只在左下角露一角（原本占左下約 1/3）
     eye: new THREE.Vector3(-1.55, 1.25, 0.6), look: new THREE.Vector3(-2.0, 0.85, -3.6), fov: 60,
-    cup: new THREE.Vector3(-1.9, tA.h + 0.02, -0.62), serve: new THREE.Vector3(-1.15, 0, -0.9), table: tA, // 端杯點往走道（x=0.45）拉 0.4m，少貼桌
+    cup: new THREE.Vector3(-1.9, tA.h + 0.02, -0.62), serve: new THREE.Vector3(-1.55, 0, -0.9), table: tA, // 端杯點回到原位（D213：循路自己繞開桌椅）
     prop: paper(A.chair(), -1.9, 0.15, { name: 'chair' }),
   },
   {
@@ -476,7 +476,7 @@ const SEATS = [
     id: 'sofa', name: '角落沙發',
     // 美術評分修正 c：退到沙發的左後角、坐低一點，轉向吧台：德叔與吧台是主體，桌子在下面變扁、上面一點暖光
     eye: new THREE.Vector3(-2.75, 0.95, 3.72), look: new THREE.Vector3(2.2, 0.8, -1.5), fov: 62,
-    cup: new THREE.Vector3(-1.35, tC.h + 0.02, 2.3), serve: new THREE.Vector3(-0.4, 0, 2.0), table: tC, // 端杯點往走道拉 0.4m
+    cup: new THREE.Vector3(-1.35, tC.h + 0.02, 2.3), serve: new THREE.Vector3(-0.8, 0, 2.0), table: tC, // 端杯點回到原位（D213）
     prop: paper(A.sofa(), -2.1, 3.3, { base: Math.PI * 0.85, clamp: 0.7, name: 'sofa', overClamp: true }),
   },
 ];
@@ -1236,9 +1236,8 @@ function navBlockers() {
   const out = [];
   // 吧台：檯面比櫃身寬一點（0.8 × 3.5），人走不進檯面底下
   out.push({ id: 'counter', x0: counterTop.position.x - 0.4, x1: counterTop.position.x + 0.4, z0: counterTop.position.z - 1.75, z1: counterTop.position.z + 1.75 });
-  // 吧台最裡面（檯面盡頭到後牆）不是通道：吧台只有店門口那一側的出口（D200 凱文也從那裡出來），這一段當成封起來；
-  // soft：後牆可以靠牆擺東西（WALL_SPOTS 的 x 2.2），走到那件擺飾時這一段才不算
-  out.push({ id: 'barBackEnd', x0: counterTop.position.x - 0.4, x1: ROOM.w / 2, z0: -ROOM.d / 2, z1: counterTop.position.z - 1.75, soft: true });
+  // 中島吧台（承峰 11/6：「哪個縫隙開放吧，因為圖看起來是中島壩臺」，D213）：檯面最裡端到後牆（z −4～−3.25）留 0.75 公尺的空隙可以走，
+  // 吧台兩端都能進出；吧台和裡面的矮櫃之間（x 2.4～2.8）是德叔站的通道
   out.push({ id: 'backBase', x0: ROOM.w / 2 - BACK_BASE.d, x1: ROOM.w / 2, z0: BACK_Z - 1.4, z1: BACK_Z + 1.4 }); // 吧台裡靠牆的矮櫃
   for (const [id, t, r] of [['tableWindow', tA, 0.38], ['tableSofa', tC, 0.42], ['tableYuan', tY, 0.34]]) out.push({ id, x: t.x, z: t.z, r });
   out.push({ id: 'chairWindow', x: SEATS[0].prop.position.x, z: SEATS[0].prop.position.z, r: 0.22, soft: true });
@@ -3333,7 +3332,7 @@ async function deshuMoment(pose, ms) {
   return true;
 }
 
-// 德叔走過去：吧台是碰撞物（navBlockers()），要去吧台裡面或外面時循路自己會從吧台的出口繞
+// 德叔走過去：吧台是碰撞物（navBlockers()），要去吧台裡面或外面時循路自己從吧台兩端（店門口那一端或最裡端的空隙）挑近的繞
 const behindBar = (v) => v.x > 1.7 && v.z < 0.5;
 async function deshuGo(target) {
   while (live.deshuWalk) await live.deshuWalk; // 上一段還沒走完（場景裡「不等德叔走回去」的那一步）
@@ -5856,6 +5855,7 @@ if (DEV) {
         hits: (a, b) => nav.segmentHits(a, b, true)?.id || null,
         spots: { home: HOME, door: DOOR_IN, ...Object.fromEntries(SEATS.filter((s) => s.serve).map((s) => [s.id + 'Serve', s.serve])), ...Object.fromEntries(Object.entries(SPOT).map(([k, v]) => [k, v.pos])), ...Object.fromEntries(Object.entries(OPPOSITE).map(([k, v]) => ['opp' + k, v.pos])), ...Object.fromEntries(Object.entries(ORDER_SPOT).map(([k, v]) => ['order' + k, v])) },
         get deshu() { return { x: deshu.position.x, z: deshu.position.z }; },
+        deshuTo: (x, z) => deshuGo(V2(x, z)).then(() => ({ x: deshu.position.x, z: deshu.position.z })), // 德叔照循路走過去（截圖確認走道）
       };
     },
     get temp() { return state.temp; },

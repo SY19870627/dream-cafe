@@ -2054,6 +2054,10 @@ try {
     const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=6&opening=0&regulars=0&weather=clear&moments=0');
     const nav = await page.evaluate(() => { const n = window.__cafe.nav; return { ids: n.blockers.map((b) => b.id), spots: n.spots }; });
     for (const id of ['counter', 'backBase', 'tableWindow', 'tableSofa', 'tableYuan', 'chairWindow', 'sofa', 'stoolBar', 'stoolMid', 'stoolFar']) check(nav.ids.includes(id), `碰撞物有 ${id}`);
+    // 中島吧台（D213）：檯面最裡端到後牆的空隙沒有封起來；吧台裡最裡面走到凱文那張高腳椅走這個空隙，不穿檯面
+    check(!nav.ids.includes('barBackEnd'), '吧台最裡端沒有封起來');
+    const gap = await page.evaluate(() => { const n = window.__cafe.nav, from = { x: 2.6, z: -3.0 }, r = n.path(from, { x: 1.3, z: -3.4 }); const all = [from, ...r.pts]; const hits = []; for (let i = 1; i < all.length; i++) { const h = n.hits(all[i - 1], all[i]); if (h) hits.push(h); } return { ok: r.ok, hits, minZ: Math.min(...r.pts.map((p) => p.z)), maxZ: Math.max(...r.pts.map((p) => p.z)) }; });
+    check(gap.ok && gap.hits.length === 0 && gap.minZ < -3.25 && gap.maxZ < 0.25, `吧台最裡端的空隙走得過去、不穿檯面 ${JSON.stringify(gap)}`);
     // 從倉庫擺出盆栽：擺飾也是碰撞物，移過去碰撞物跟著移
     const plantAt = () => page.evaluate(() => window.__cafe.nav.blockers.find((b) => b.id === 'decor:plant') || null);
     await page.click('#place');
