@@ -21,6 +21,24 @@ import * as FV from './favorites.js';
 import * as TS from './tasting.js';
 
 const $ = (id) => document.getElementById(id);
+// 瀏覽器（手機尤其）可能拿到快取的舊 index.html、配上新的 main.js：少了試咖啡的 #tune 面板時，
+// 頂層的 MutationObserver.observe(null) 會丟錯，整個場景停在空白。缺了就由程式補上面板與樣式。
+if (!$('tune')) {
+  const st = document.createElement('style');
+  st.textContent = `#tune .card{max-height:calc(100% - 24px)}#tune-list{overflow-y:auto;flex:1 1 auto;min-height:0;touch-action:pan-y;margin:4px 0 10px}
+.tune-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(59,42,32,.12)}.tune-row b{flex:0 0 4.5em;font-size:14px}
+.tune-row .val{flex:1 1 auto;font-size:14px;text-align:center}.tune-row button{flex:none;min-width:44px;min-height:44px;padding:0 10px;font-size:18px}
+.tune-items{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}.tune-items button{text-align:left;font-size:14px;padding:10px 12px;background:#fff;border:1px solid rgba(59,42,32,.35);box-shadow:none}
+.tune-items button[aria-pressed="true"]{background:#3b2a20;color:#f6efe2;border-color:#3b2a20}.tune-actions{display:flex;flex-direction:column;gap:8px}`;
+  document.head.appendChild(st);
+  const el = document.createElement('div');
+  el.id = 'tune'; el.className = 'overlay'; el.hidden = true;
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'tune-title');
+  el.innerHTML = '<div class="card"><h2 id="tune-title">今天這杯怎麼沖</h2><p class="sub" id="tune-sub">慢慢調。沒有錯的沖法。</p><div id="tune-list"></div>'
+    + '<div class="tune-actions"><button id="tune-brew" class="primary">請德叔依這組沖</button><button id="tune-cancel">下次再調</button></div></div>';
+  const nb = $('notebook');
+  if (nb) nb.before(el); else document.body.appendChild(el);
+}
 const lightsEl = $('lights'); // 打烊後每盞燈旁邊的「關燈／開燈」
 
 /* ---------- art2b：開場、介面的手繪圖（CSS 變數）、介面圖示、啟動畫面 ---------- */
