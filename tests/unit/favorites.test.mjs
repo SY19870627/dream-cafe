@@ -27,7 +27,7 @@ function finish(s, who, start = 10) {
 
 test('存檔第 8 版：新存檔有 favorites（三位都從第 0 段開始）、photos 空的、stats.lastBean', () => {
   const s = newSave();
-  assert.ok(SAVE_VERSION >= 8); // 第 9 版（試咖啡）見 tasting.test.mjs
+  assert.ok(SAVE_VERSION >= 8); // 第 10 版（試咖啡參數微調）見 tasting.test.mjs
   for (const w of FV.FAV_IDS) assert.deepEqual(s.favorites[w], { stage: 0, misses: 0, servedDay: 0, told: 0 });
   assert.deepEqual(s.photos, []);
   assert.equal(s.stats.lastBean, '');

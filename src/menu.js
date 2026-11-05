@@ -107,7 +107,7 @@ export const BOARD_REACT = [
 //   board：黑板上的品項，由上往下（最多 BOARD_MAX 行）
 //   night：選項 B 的「下班後那一面」黑板；null＝和白天同一面（A 不使用）
 export const blankItem = (from = 'start', day = 1, t = 0, station = 'dongshan') =>
-  ({ day, t, from, station, seen: false, told: false, boardedDay: 0, noticed: [], missed: [] });
+  ({ day, t, from, station, seen: false, told: false, boardedDay: 0, noticed: [], missed: [], brewProfile: null });
 export function blankMenu(t = 0) {
   const items = {};
   for (const id of START_ITEMS) items[id] = { ...blankItem('start', 1, t), seen: true, told: true, boardedDay: 1 };
@@ -239,4 +239,17 @@ export function allMenuLines() {
     eraseOf('東山的豆'),
     ...BOARD_REACT.flatMap((r) => [r.on, r.off].filter(Boolean)),
   ];
+}
+
+// 菜單本小字：定案後的店內沖法（黑板不寫參數）
+export function brewProfileNote(save, id) {
+  const p = save.menu?.items?.[id]?.brewProfile;
+  if (!p) return '';
+  const bits = [];
+  if (p.ratio) bits.push(p.ratio);
+  if (p.temp) bits.push(`${p.temp}°C`);
+  else if (ITEMS[id]?.cup === 'iced') bits.push('冰');
+  if (p.grind) bits.push(({ coarse: '粗', 'med-coarse': '中粗', med: '中', 'med-fine': '中細', fine: '細' })[p.grind] || p.grind);
+  if (p.technique) bits.push(({ 'one-pour': '一刀流', pulse: '分段', center: '繞圈', 'bloom-long': '悶蒸長', 'ice-pour': '冰手沖', 'ice-chill': '冰鎮' })[p.technique] || p.technique);
+  return bits.length ? `店內沖法 ${bits.join('・')}` : '';
 }

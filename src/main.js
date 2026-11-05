@@ -1376,7 +1376,8 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   const served = MN.ITEMS[bean]?.served;
   if (opt.enamel) { /* 最後一晚：德叔叫老闆名字的那句，由告別的場景說（farewell.js 第 7 段） */ }
   else if (opt.last) say(H.CLOSING.lastCup, 4500); // 劇本：打烊「最後一杯，是老闆的。」
-  else if (opt.trial) say(TS.RECIPES[opt.trial].served, 4500); // 試咖啡：德叔說這一杯
+  else if (opt.tune) say(TS.lineFromParams(opt.tune.params, opt.tune.item, opt.tune.recipe), 4500); // 試調：依參數的口感句
+  else if (opt.trial && TS.RECIPES[opt.trial]) say(TS.RECIPES[opt.trial].served, 4500); // 舊路徑
   else if (served && (bean === 'zhe-beans' || (!keeper() && bean !== 'dongshan'))) say(served, 4500); // 黑板上的那一杯（menu.js 的 served）
   else if (withLongan && !save.flags.longanServed) { save.flags.longanServed = true; say('配阿哲阿公的龍眼乾。窯烤的。', 4500); } // 【待定】
   else say(keeper() ? F.KEEPER.served : MN.ITEMS.dongshan.served, 4500);
@@ -1393,11 +1394,18 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   phase = null;
   state.hold = false;
   updateUI();
-  if (opt.trial) {
-    // 試咖啡：程式自動寫一張測試紀錄（老闆不用打字）；不進杯數、任務、熟客最愛
-    TS.addRecord(save, opt.trial, today(), now(), state.closing ? 'after' : state.night ? 'night' : 'day');
-    persist();
-    realWait(5200).then(() => { if (!brewing && !state.scene && !state.choice) say(TS.TASTE.written, 4600, deshu); });
+  if (opt.tune || opt.trial) {
+    // 試調：不算杯數／任務／熟客最愛；登錄與定案拆兩步（承峰）
+    const part = state.closing ? 'after' : state.night ? 'night' : 'day';
+    const tune = opt.tune || (opt.trial && TS.RECIPES[opt.trial] ? { item: TS.RECIPES[opt.trial].item, recipe: opt.trial, params: TS.defaultParamsFor(TS.RECIPES[opt.trial].item, opt.trial) } : null);
+    if (tune && opt.autoLog) {
+      TS.addTuneRecord(save, { ...tune, day: today(), t: now(), part });
+      persist();
+      realWait(5200).then(() => { if (!brewing && !state.scene && !state.choice) say(TS.TASTE.written, 4600, deshu); });
+    } else if (tune) {
+      // 口感句說完再出登錄選項（4500 與 served 同長度）；倍率下縮短
+      realWait(5000).then(() => { if (!brewing && !state.scene && !state.choice && !state.favorite) afterTuneServe(tune); });
+    }
   } else {
     save.stats.cups++;
     save.stats.lastBean = bean; // 老闆最近一次喝的那杯（凱文第三段「老闆的那杯」，favorites.js）
@@ -2293,14 +2301,15 @@ function renderMenuBook() {
           const rid = swapSettle, item = swapFor;
           swapSettle = 0; swapFor = null;
           if (TS.settle(save, rid, d, now(), id) !== 'done') { renderMenuBook(); return; }
-          persist(); closeSheet(); afterSettle(item);
+          persist(); closeSheet(); afterSettle(item, { wasBoard: false, wasUnlocked: false });
           return;
         }
         MN.replace(save, id, swapFor, d); swapFor = null; menuChanged();
       }, !ok));
     } else {
       const ok = MN.canErase(save, id);
-      list.appendChild(menuRow(id, ok ? '' : MN.BOOK.keepOne, MN.BOOK.erase, () => { MN.erase(save, id); menuChanged(); }, !ok));
+      const note = [ok ? '' : MN.BOOK.keepOne, MN.brewProfileNote(save, id)].filter(Boolean).join('・');
+      list.appendChild(menuRow(id, note, MN.BOOK.erase, () => { MN.erase(save, id); menuChanged(); }, !ok));
     }
   }
   const rest = MN.bookItems(save).filter((id) => !board.includes(id));
@@ -2317,7 +2326,8 @@ function renderMenuBook() {
     list.appendChild(h2);
     for (const id of rest) {
       const full = MN.boardFull(save);
-      list.appendChild(menuRow(id, save.menu.items[id].seen ? '' : MN.BOOK.isNew, full ? MN.BOOK.replace : MN.BOOK.write, () => {
+      const note = [save.menu.items[id].seen ? '' : MN.BOOK.isNew, MN.brewProfileNote(save, id)].filter(Boolean).join('・');
+      list.appendChild(menuRow(id, note, full ? MN.BOOK.replace : MN.BOOK.write, () => {
         if (MN.boardFull(save)) { swapFor = id; renderMenuBook(); return; }
         MN.write(save, id, d);
         menuChanged();
@@ -2450,6 +2460,7 @@ window.addEventListener('keydown', (e) => {
   else if (!$('diary').hidden) closeDiary();
   else if (!$('letter').hidden) closeLetter();
   else if (!$('journal').hidden) closeJournal();
+  else if (!$('tune').hidden) openTune(false);
   else if (!notebook.hidden) openNotebook(false);
   else if (!sheet.hidden) closeSheet();
   else if (!about.hidden) openAbout(false);
@@ -2566,12 +2577,31 @@ function renderRecords(box) {
     box.appendChild(el);
   }
 }
+
+// 沖完：登錄／再調／先不登錄（定案在記事本另一步）
+async function afterTuneServe(tune) {
+  if (state.choice || brewing || state.scene || !tune) return;
+  const name = MN.ITEMS[tune.item]?.name || '';
+  const opts = [TS.TASTE.logTo(name), TS.TASTE.retune, TS.TASTE.skipLog];
+  // choose() 會設 state.choice 並 updateUI 顯示 #choices
+  const i = await choose(opts, TS.TASTE.sub, keeper() ? '' : '德叔');
+  if (i === 0) {
+    const part = state.closing ? 'after' : state.night ? 'night' : 'day';
+    TS.addTuneRecord(save, { item: tune.item, recipe: tune.recipe, params: tune.params, day: today(), t: now(), part });
+    persist();
+    say(TS.TASTE.written, 4600, deshu);
+  } else if (i === 1) {
+    if (trialOfferable() || state.seat?.id === 'bar') openTune(true, tune);
+  }
+}
 // 定案：收進菜單本並寫上黑板（每日菜單就是黑板）；黑板寫滿時打開菜單本，走現有的「換一行」
 let swapSettle = 0; // 正在為哪一張紀錄選要換掉的那一行
 function settleRecord(rid) {
   const rec = TS.recordById(save, rid);
   if (!rec) return;
-  const item = rec.cups[0].item;
+  const item = TS.recordItem(rec);
+  const wasBoard = MN.onBoard(save, item);
+  const wasUnlocked = MN.unlocked(save, item);
   const res = TS.settle(save, rid, today(), now());
   if (!res) return;
   persist();
@@ -2583,13 +2613,17 @@ function settleRecord(rid) {
     renderMenuBook();
     return;
   }
-  afterSettle(item);
+  afterSettle(item, { wasBoard, wasUnlocked, res });
 }
-function afterSettle(item) {
+function afterSettle(item, meta = {}) {
   drawBackBar();
   audio.play('click');
   updateUI();
-  if (!keeper()) say(TS.TASTE.settled(MN.ITEMS[item].name), 3800, deshu);
+  if (keeper()) return;
+  const name = MN.ITEMS[item].name;
+  if (meta.wasBoard) say(TS.TASTE.settledSame(name), 3800, deshu);
+  else if (meta.wasUnlocked) say(TS.TASTE.settled(name), 3800, deshu);
+  else say(TS.TASTE.settledBoard(name), 3800, deshu);
 }
 function cancelSwapSettle() {
   if (!swapSettle) return;
@@ -3048,12 +3082,12 @@ letterEl.addEventListener('click', (e) => { if (e.target === letterEl) closeLett
 
 // 交信要等店裡安靜下來：開場結束、沒在沖咖啡、沒在佈置、沒有打開的面板、德叔沒在說話
 let readyAt = Infinity;
-const overlayOpen = () => [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map'), $('photo')].some((el) => !el.hidden);
+const overlayOpen = () => [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map'), $('photo'), $('tune')].some((el) => !el.hidden);
 // 彈窗打開時，場景上的標籤、提示、泡泡、按鈕列都收起來（index.html 的 #app.modal；美術評分修正 b）。
 // 任何彈窗的 hidden 一變就馬上切換，不等下一格
 const syncModal = () => app.classList.toggle('modal', overlayOpen());
 const modalWatch = new MutationObserver(syncModal);
-for (const el of [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map'), $('photo')]) modalWatch.observe(el, { attributes: true, attributeFilter: ['hidden'] });
+for (const el of [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map'), $('photo'), $('tune')]) modalWatch.observe(el, { attributes: true, attributeFilter: ['hidden'] });
 syncModal();
 function quiet() {
   return save.flags.seenOpening && !state.tutorial && !state.letter && !state.cinematic && !state.scene && !state.choice && !brewing && !deshuReturning && !state.placing && !moments.busy && !state.favorite
@@ -4173,16 +4207,125 @@ async function boardReact(r) {
 
 // 試咖啡（承峰 11/5：「先做試咖啡」，D206；文字與規則在 tasting.js）：老闆坐著、德叔在吧台，沒有劇情、選項、演出時
 function trialOfferable() {
-  return !keeper() && state.mode === 'seat' && !!state.seat && !brewing && !deshuReturning && !state.choice && !state.scene && !state.favorite
+  // 承峰：只在吧台座可以試（參數微調）
+  return !keeper() && state.mode === 'seat' && state.seat?.id === 'bar' && !brewing && !deshuReturning && !state.choice && !state.scene && !state.favorite
     && !state.guest && !state.closing && !state.cinematic && !state.tutorial && !state.arriving && !state.placing && !state.letter && !overlayOpen()
     && deshu.visible && deshu.position.distanceTo(HOME) < 0.05;
 }
-function brewTrial(id) {
-  if (!trialOfferable() || !TS.recipeOpen(save, id)) return false;
-  brew(state.seat, TS.RECIPES[id].item, { trial: id }); // 不等它沖完：店裡的小事的佇列先放開
+// 微調面板狀態（參數微調 → 沖 → 登錄；定案另在記事本）
+let tuneState = { item: 'dongshan', recipe: null, params: { ...TS.DEFAULT_PARAMS } };
+function openTune(open, opt = {}) {
+  const el = $('tune');
+  if (!open) { el.hidden = true; live.trialOfferHint = ''; syncModal(); updateUI(); return; }
+  openAbout(false); openNotebook(false);
+  const items = TS.tuneItems(save);
+  let item = opt.item || save.stats.lastBean || 'dongshan';
+  let recipe = opt.recipe || null;
+  if (opt.recipe && TS.RECIPES[opt.recipe]) { recipe = opt.recipe; item = TS.RECIPES[recipe].item; }
+  if (!items.some((x) => x.id === item)) item = items[0]?.id || 'dongshan';
+  const params = TS.normalizeParams(opt.params || TS.defaultParamsFor(item, recipe), item);
+  tuneState = { item, recipe, params };
+  $('tune-title').textContent = TS.TASTE.title;
+  $('tune-sub').textContent = TS.TASTE.sub;
+  renderTune();
+  el.hidden = false;
+  syncModal();
+  const firstHint = !save.tasting.offerHint;
+  if (firstHint) { TS.markOfferHint(save); persist(); }
+  live.trialOfferHint = firstHint ? TS.TASTE.offerHint : '';
+  updateUI();
+  $('tune-brew').focus();
+}
+function renderTune() {
+  const box = $('tune-list');
+  box.innerHTML = '';
+  const items = TS.tuneItems(save);
+  const pick = document.createElement('div');
+  pick.className = 'tune-items';
+  const lab = document.createElement('p');
+  lab.className = 'nb-help';
+  lab.textContent = TS.TASTE.pickItem;
+  box.appendChild(lab);
+  for (const it of items) {
+    const b = document.createElement('button');
+    const name = MN.ITEMS[it.id]?.name || it.id;
+    b.textContent = it.draft ? `${name}${TS.TASTE.draft}` : name;
+    b.setAttribute('aria-pressed', String(it.id === tuneState.item));
+    b.onclick = () => {
+      tuneState.item = it.id;
+      tuneState.recipe = it.recipe || (TS.RECIPES[it.id] ? it.id : null);
+      tuneState.params = TS.normalizeParams(tuneState.params, it.id);
+      // 換成冰／熱時技法檔位跟著換
+      if (TS.isIceItem(it.id) && !TS.TECH_ICE.includes(tuneState.params.technique)) tuneState.params.technique = 'ice-pour';
+      if (!TS.isIceItem(it.id) && TS.TECH_ICE.includes(tuneState.params.technique)) tuneState.params.technique = 'pulse';
+      if (TS.isIceItem(it.id)) tuneState.params.temp = 0;
+      else if (!tuneState.params.temp) tuneState.params.temp = TS.DEFAULT_PARAMS.temp;
+      renderTune();
+    };
+    pick.appendChild(b);
+  }
+  box.appendChild(pick);
+  const keys = ['ratio', 'temp', 'grind', 'technique'];
+  for (const key of keys) {
+    if (key === 'temp' && TS.isIceItem(tuneState.item)) {
+      const row = document.createElement('div');
+      row.className = 'tune-row';
+      row.innerHTML = `<b>${esc(TS.TASTE.param.temp)}</b><span class="val">${esc(TS.TASTE.tempIce)}</span>`;
+      box.appendChild(row);
+      continue;
+    }
+    const opts = key === 'ratio' ? TS.RATIOS
+      : key === 'temp' ? TS.TEMPS
+      : key === 'grind' ? TS.GRINDS
+      : TS.techniquesFor(tuneState.item);
+    const row = document.createElement('div');
+    row.className = 'tune-row';
+    const cur = tuneState.params[key];
+    const i = Math.max(0, opts.indexOf(cur));
+    const val = document.createElement('span');
+    val.className = 'val';
+    val.textContent = TS.labelParam(key, opts[i], tuneState.item);
+    const minus = document.createElement('button');
+    minus.textContent = '−';
+    minus.setAttribute('aria-label', '少一點');
+    minus.disabled = i <= 0;
+    minus.onclick = () => { if (i > 0) { tuneState.params[key] = opts[i - 1]; renderTune(); } };
+    const plus = document.createElement('button');
+    plus.textContent = '＋';
+    plus.setAttribute('aria-label', '多一點');
+    plus.disabled = i >= opts.length - 1;
+    plus.onclick = () => { if (i < opts.length - 1) { tuneState.params[key] = opts[i + 1]; renderTune(); } };
+    const b = document.createElement('b');
+    b.textContent = TS.TASTE.param[key];
+    row.append(b, minus, val, plus);
+    box.appendChild(row);
+  }
+}
+function confirmTuneBrew() {
+  if (!trialOfferable() && state.seat?.id === 'bar' && !brewing) { /* 面板開著時 overlayOpen 為真，試一次放寬 */ }
+  const seat = state.seat;
+  if (!seat || seat.id !== 'bar' || brewing || keeper()) return;
+  const { item, recipe, params } = tuneState;
+  const p = TS.normalizeParams(params, item);
+  openTune(false);
+  brew(seat, item, { trial: recipe || true, tune: { item, recipe, params: p } });
+}
+$('tune-brew').onclick = () => confirmTuneBrew();
+$('tune-cancel').onclick = () => {
+  openTune(false);
+  if (!keeper()) say(TS.TASTE.later, 3400, deshu);
+};
+$('tune').addEventListener('click', (e) => { if (e.target === $('tune')) openTune(false); });
+
+function brewTrial(id, opt = {}) {
+  // 開發／冒煙：不開面板，直接用配方預設參數沖；autoLog 自動登錄（略過沖完選項）
+  if ((!trialOfferable() && !opt.force) || !TS.recipeOpen(save, id)) return false;
+  if (!state.seat || state.seat.id !== 'bar') return false;
+  const r = TS.RECIPES[id];
+  const params = TS.normalizeParams(opt.params || TS.defaultParamsFor(r.item, id), r.item);
+  brew(state.seat, r.item, { trial: id, tune: { item: r.item, recipe: id, params }, autoLog: !!opt.autoLog });
   return true;
 }
-// 德叔第一次提（店裡的小事的佇列）：「喝喝看」就試做一杯；「下次吧」放最下面，之後坐著點德叔隨時可以請他試
 async function tasteGuide() {
   TS.markGuided(save);
   persist();
@@ -4191,30 +4334,28 @@ async function tasteGuide() {
 }
 async function offerTrial(id) {
   TS.markOffered(save, id, today());
-  const firstHint = !save.tasting.offerHint;
-  if (firstHint) { TS.markOfferHint(save); persist(); }
-  else persist();
-  live.trialOfferHint = firstHint ? TS.TASTE.offerHint : '';
-  updateUI();
+  persist();
   say(TS.RECIPES[id].offer, 5200, deshu);
   const i = await choose([TS.TASTE.yes, TS.TASTE.no]);
-  live.trialOfferHint = '';
-  updateUI();
-  if (i === 0 && brewTrial(id)) return;
-  if (i !== 0) { say(TS.TASTE.later, 3400, deshu); await realWait(3600); }
+  if (i === 0) {
+    if (!trialOfferable()) return;
+    openTune(true, { recipe: id });
+    return;
+  }
+  say(TS.TASTE.later, 3400, deshu);
+  await realWait(3600);
 }
-// 坐著點德叔：提過的配方可以請他再試一杯（每一杯都是新的一張紀錄）
-const trialAgainable = () => trialOfferable() && !moments.busy && TS.againRecipes(save).length > 0;
+// 吧台座點德叔：一起試一杯 → 開微調面板
+const trialAgainable = () => trialOfferable() && !moments.busy && (!!save.tasting?.guided || TS.againRecipes(save).length > 0 || TS.openRecipes(save).length > 0);
 async function offerTrialAgain() {
-  const list = TS.againRecipes(save);
-  const j = await choose([...list.map((id) => TS.TASTE.again(TS.recipeName(id))), TS.TASTE.just]);
-  if (j < list.length) brewTrial(list[j]);
+  const j = await choose([TS.TASTE.together, TS.TASTE.just]);
+  if (j === 0) openTune(true, {});
 }
-// 還沒定案的紀錄：德叔提一次（黑板沿用昨天，有新紀錄時提一次；不催）
 async function recordHint(rec) {
   TS.markHinted(save, today());
   persist();
-  say(TS.TASTE.hint(MN.ITEMS[rec.cups[0].item].name), 4800, deshu);
+  const name = MN.ITEMS[TS.recordItem(rec)]?.name || '';
+  say(TS.TASTE.hint(name), 4800, deshu);
   await realWait(5200);
 }
 
@@ -5704,6 +5845,7 @@ if (DEV) {
     get phase() { return phase; },
     get speed() { return speedNow(); },
     get mode() { return state.mode; },
+    get seat() { return state.seat?.id || null; },
     get overDeg() { return OVER.deg; },
     // 美術評分修正 b：德叔的材質（每公尺像素、mipmap、三線性過濾）
     get artInfo() { const m = deshu.userData.mesh.material.map; return { ppm: A.ppmOf(m.image), mip: m.generateMipmaps, trilinear: m.minFilter === THREE.LinearMipmapLinearFilter, srgb: m.colorSpace === THREE.SRGBColorSpace }; },
@@ -5971,7 +6113,7 @@ if (DEV) {
       const h = TS.pendingHint(save, today());
       return { trials: JSON.parse(JSON.stringify(save.tasting.trials)), records: JSON.parse(JSON.stringify(save.tasting.records)), open: TS.openRecipes(save),
         pendingOffer: TS.pendingOffer(save), offerable: trialOfferable(), againable: trialAgainable(), hint: h ? h.id : 0, swapSettle,
-        guided: !!save.tasting.guided, offerHint: !!save.tasting.offerHint,
+        guided: !!save.tasting.guided, offerHint: !!save.tasting.offerHint, barOnly: true,
         rowGuard: ROW_GUARD_MS, rowAge: Math.round(performance.now() - rowAt) };
     },
     tastingSetup(id = 'kiln') {
@@ -5984,9 +6126,14 @@ if (DEV) {
       return TS.openRecipes(save);
     },
     tastingOffer(id = 'kiln') { if (moments.busy || !trialOfferable()) return Promise.resolve(false); return runMoment('trial', id, () => offerTrial(id)).then(() => true); },
-    tastingBrew(id = 'kiln') { return brewTrial(id); },
+    tastingBrew(id = 'kiln', opt = {}) { return brewTrial(id, { autoLog: true, ...opt }); },
+    tastingTune(opt = {}) { if (!trialOfferable() && state.seat?.id !== 'bar') return false; openTune(true, opt); return true; },
+    tastingConfirm() { confirmTuneBrew(); return true; },
+    get tuneOpen() { return !$('tune').hidden; },
+    get tuneState() { return JSON.parse(JSON.stringify(tuneState)); },
     recordHint() { const r = TS.pendingHint(save, today()); if (!r || moments.busy) return Promise.resolve(false); return runMoment('record', String(r.id), () => recordHint(r)).then(() => true); },
     recordSettle(rid) { settleRecord(rid); return JSON.parse(JSON.stringify(TS.recordById(save, rid))); },
+    recordLog(tune) { return TS.addTuneRecord(save, { ...tune, day: today(), t: now(), part: state.closing ? 'after' : state.night ? 'night' : 'day' }); },
     jumpDays(n = 1) { jumpDays(n); return today(); },
     favOffer(who) { if (!favOfferable(who)) return false; say(regularLine(who), 3500, PEOPLE[who]); offerFavorite(who); return true; },
     favServe(who, drink) {

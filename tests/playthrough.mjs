@@ -152,9 +152,24 @@ async function play([W, H]) {
         await shot(`scene-${s.scene}`);
       }
       if (s.map) { await page.waitForTimeout(1200); await shot('coffee-map'); return 'map'; }
+      if (await vis('#tune')) { // 試咖啡微調面板：全流程不進，按「下次再調」
+        await page.click('#tune-cancel');
+        await page.waitForTimeout(400);
+        continue;
+      }
       if (await vis('#choices')) {
         await shot(`choice-${s.scene || s.guest || s.closing || 'brew'}`);
-        await page.click('#choices button >> nth=0');
+        // 試咖啡：選「下次再調／先不登錄／只是聊聊」；其餘劇情／打烊仍選第一項
+        const nth = await page.$$eval('#choices button', (bs) => {
+          // 只跳過試咖啡進微調（一起調／登錄）；熟客「只是聊聊」不要誤傷（最愛咖啡任務）
+          const texts = bs.map((b) => b.textContent || '');
+          if (texts.some((x) => /一起調|一起試|登錄到|再調一版/.test(x))) {
+            const i = texts.findIndex((x) => /下次再調|先不登錄|只是聊聊/.test(x));
+            return i >= 0 ? i : texts.length - 1;
+          }
+          return 0;
+        });
+        await page.click(`#choices button >> nth=${nth}`);
         continue;
       }
       if (await vis('#letter')) { await shot(`letter-${(await page.textContent('#lt-title')).trim()}`); await page.click('#lt-close'); continue; }
@@ -199,8 +214,20 @@ async function play([W, H]) {
         // 今天的事都發生完了：站起來、打烊、坐窗邊喝最後一杯
         if (await vis('#stand')) { await page.click('#stand'); await page.waitForTimeout(400); continue; }
         if (await vis('#close-shop')) { // 誤按打烊（D205）：等連點保護過去，德叔問一次，選「打烊」
-          await page.waitForTimeout(600); await page.click('#close-shop');
-          await page.waitForSelector('#choices button', { timeout: 5000 }); await page.click('#choices button >> nth=0');
+          // 試咖啡微調／提一次可能剛佔住 choose：點了沒問出來就再等一輪，不要整段 playthrough 炸掉
+          await page.waitForTimeout(700);
+          await page.click('#close-shop');
+          let appeared = await page.waitForSelector('#choices button', { timeout: 6000 }).catch(() => null);
+          if (!appeared) {
+            await page.waitForTimeout(900);
+            if (await vis('#choices')) appeared = true;
+            else if (await vis('#close-shop')) {
+              await page.click('#close-shop');
+              appeared = await page.waitForSelector('#choices button', { timeout: 8000 }).catch(() => null);
+            }
+          }
+          if (!appeared) continue;
+          await page.click('#choices button >> nth=0');
           await page.waitForTimeout(300); continue;
         }
       }
@@ -217,9 +244,22 @@ async function play([W, H]) {
       for (const seat of ['吧台座', '角落沙發', '窗邊座']) {
         await page.click(`.seat-label >> text=${seat}`);
         await page.waitForTimeout(1300);
+        // 吧台座可能被德叔拉去試咖啡：選「下次再調／只是聊聊」，微調面板按取消
+        if (await vis('#tune')) { await page.click('#tune-cancel'); await page.waitForTimeout(300); }
+        if (await vis('#choices')) {
+          const nth = await page.$$eval('#choices button', (bs) => {
+            const texts = bs.map((b) => b.textContent || '');
+            if (texts.some((x) => /一起調|一起試|登錄到|再調一版/.test(x))) {
+              const i = texts.findIndex((x) => /下次再調|先不登錄|只是聊聊/.test(x));
+              return i >= 0 ? i : texts.length - 1;
+            }
+            return texts.length - 1;
+          });
+          await page.click(`#choices button >> nth=${nth}`);
+          await page.waitForTimeout(400);
+        }
         await shot(`seat-${seat}`);
-        await page.click('#stand');
-        await page.waitForTimeout(900);
+        if (await vis('#stand')) { await page.click('#stand'); await page.waitForTimeout(900); }
       }
     }
     if (!tasks.includes('cat-chair') && catTried < 4) {

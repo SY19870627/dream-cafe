@@ -1909,8 +1909,8 @@ try {
     await ctx.close();
   }
 
-  /* ---------- 試咖啡（D206、D207）：德叔提一次、試做、測試紀錄、定案上黑板、隔天提一次、舊存檔遷移 ---------- */
-  console.log('手機 390×844 觸控（試咖啡：試做、測試紀錄、定案上黑板、德叔提一次、舊存檔遷移）');
+  /* ---------- 試咖啡 v2：參數微調 → 登錄 → 定案寫 brewProfile；只在吧台座；黑板不寫參數 ---------- */
+  console.log('手機 390×844 觸控（試咖啡 v2：微調、登錄、定案、吧台限定、舊存檔）');
   {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     const page = await ctx.newPage();
@@ -1923,11 +1923,27 @@ try {
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     const said = (text, timeout = 20000) => page.waitForFunction((x) => window.__cafe.moments.lastSaid?.text?.includes(x), text, { timeout });
     check((await cafe('tasting')).open.length === 0, '劇情還沒到：沒有配方');
-    check((await page.evaluate(() => window.__cafe.tastingSetup('kiln'))).includes('kiln'), '予安第三幕（龍眼窯）之後：龍眼窯特調開放');
+    check((await page.evaluate(() => window.__cafe.tastingSetup('kiln'))).includes('kiln'), '予安第三幕之後：龍眼窯特調開放');
     const bean0 = (await cafe('fav')).lastBean;
+
+    // 窗邊座不能試
+    await page.tap('.seat-label >> text=窗邊座');
+    await page.waitForFunction(() => window.__cafe.mode === 'seat', null, { timeout: 8000 });
+    await page.waitForTimeout(800);
+    for (let i = 0; i < 8; i++) {
+      if (await page.isVisible('#read-letter')) await page.tap('#read-letter');
+      else if (await page.isVisible('#lt-close')) await page.tap('#lt-close');
+      else if (await page.isVisible('#journal')) await page.click('#jr-close');
+      else break;
+      await page.waitForTimeout(300);
+    }
+    check(!(await cafe('tasting')).offerable, '窗邊座：不可試咖啡');
+    await page.tap('#stand');
+    await page.waitForFunction(() => window.__cafe.mode === 'overview', null, { timeout: 8000 });
+
     await page.tap('.seat-label >> text=吧台座');
-    // 坐著、店裡安靜：德叔自己提一次（予安第三幕的任務讓溫度上升，老先生的信可能先到：先讀信）
-    const offered = () => page.evaluate(() => [...document.querySelectorAll('#choices button')].some((b) => b.textContent === '喝喝看'));
+    await page.waitForFunction(() => window.__cafe.mode === 'seat' && window.__cafe.seat === 'bar', null, { timeout: 8000 });
+    const offered = () => page.evaluate(() => [...document.querySelectorAll('#choices button')].some((b) => b.textContent === '一起調'));
     for (let i = 0; i < 300 && !(await offered()); i++) {
       if (await page.isVisible('#read-letter')) await page.tap('#read-letter');
       else if (await page.isVisible('#lt-close')) await page.tap('#lt-close');
@@ -1935,49 +1951,57 @@ try {
       await page.waitForTimeout(300);
     }
     const opts = await page.$$eval('#choices button', (bs) => bs.map((b) => b.textContent));
-    check(opts.join('／') === '喝喝看／下次吧', `德叔問要不要喝喝看，「下次吧」在最下面（${opts.join('／')}）`);
-    check((await page.textContent('#ask')).includes('試一杯新的'), '問句是德叔提的那句');
+    check(opts.join('／') === '一起調／下次再調', `德叔問一起調，「下次再調」在最下面（${opts.join('／')}）`);
     await page.tap('#choices button >> nth=0');
+    await page.waitForSelector('#tune:not([hidden])', { timeout: 8000 });
+    check((await page.textContent('#tune-title')).includes('怎麼沖'), '打開微調面板');
+    await page.screenshot({ path: OUT + 'phone-tasting-tune.png' });
+    // 調一檔粉水比再沖
+    await page.locator('#tune-list .tune-row').first().locator('button').nth(1).click(); // ＋
+    await page.tap('#tune-brew');
     await page.waitForFunction(() => window.__cafe.brewing, null, { timeout: 8000 });
     await page.waitForFunction(() => window.__cafe.phase === 'serve', null, { timeout: 30000 });
     await page.screenshot({ path: OUT + 'phone-tasting-brew.png' });
     await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 30000 });
+    // 沖完：登錄選項（等 choosing，避免 hidden 競態）
+    await page.waitForFunction(() => window.__cafe.choosing && [...document.querySelectorAll('#choices button')].some((b) => /登錄/.test(b.textContent)), null, { timeout: 25000 });
+    await page.waitForTimeout(200);
+    const logOpts = await page.$$eval('#choices button', (bs) => bs.map((b) => b.textContent));
+    check(logOpts[0].includes('登錄到') && logOpts.includes('再調一版') && logOpts[logOpts.length - 1].includes('先不登錄'), `登錄與定案拆兩步（${logOpts.join('／')}）`);
+    await page.tap('#choices button >> nth=0');
     await page.waitForTimeout(700);
     await page.screenshot({ path: OUT + 'phone-tasting.png' });
     let t = await cafe('tasting');
     const rec = t.records[0];
-    check(t.records.length === 1 && rec.recipe === 'kiln' && rec.cups[0].item === 'kiln' && !rec.settled, '試做完自動一張測試紀錄（還沒定案）');
-    check((await cafe('fav')).lastBean === bean0, '試做那杯不算「老闆最近一次喝的那杯」（不碰熟客最愛）');
+    check(t.records.length === 1 && rec.item === 'kiln' && rec.params && !rec.settled, '登錄後一張測試紀錄（還沒定案）');
+    check(!!rec.params.ratio && !!rec.params.grind && !!rec.params.technique, '紀錄帶四項參數');
+    check((await cafe('fav')).lastBean === bean0, '試調那杯不算 lastBean');
     check(!(await cafe('menu')).book.includes('kiln'), '還沒定案：不在菜單本');
     await said('測試紀錄');
     check(true, '德叔說記在測試紀錄了');
-    // 記事本「測試紀錄」
     await page.tap('#menu-btn');
     await page.tap('#open-notebook');
     await page.waitForSelector('.nb-record');
     await page.locator('.nb-record').first().scrollIntoViewIfNeeded();
     const card = await page.$eval('.nb-record', (el) => el.innerText);
-    check(card.includes('龍眼窯特調') && card.includes('酸') && card.includes('甜') && card.includes('苦') && card.includes('開店第') && card.includes('德叔平常的烘焙') && card.includes('手沖'),
-      '紀錄有日期、豆子、烘焙度、沖法、酸甜苦、德叔一句');
-    check((await smallTargets(page)).length === 0, '紀錄的「喜歡」「定案」≥ 44px');
+    check(card.includes('龍眼窯特調') && card.includes('粉水') && card.includes('研磨') && card.includes('技法') && card.includes('酸'),
+      '紀錄有品項、參數、酸甜苦');
+    check((await smallTargets(page)).length === 0, '喜歡／定為沖法 ≥ 44px');
     await page.tap('.nb-record .rec-like');
-    check((await cafe('tasting')).records[0].liked, '按「喜歡」記下來');
+    check((await cafe('tasting')).records[0].liked, '按「喜歡」');
     await page.screenshot({ path: OUT + 'phone-records.png' });
     await page.tap('#nb-close');
-    // 隔天：黑板沿用昨天，德叔提一次
     const boardBefore = (await cafe('menu')).board;
     await page.evaluate(() => window.__cafe.jumpDays(1));
     await page.waitForTimeout(800);
     for (let i = 0; i < 6 && await page.isVisible('#journal'); i++) { await page.click('#jr-close'); await page.waitForTimeout(400); }
     check(JSON.stringify((await cafe('menu')).board) === JSON.stringify(boardBefore), '隔天黑板沿用昨天');
-    await said('紀錄還在記事本裡', 40000);
-    await page.waitForTimeout(300);
+    await said('還在記事本', 40000);
     await page.screenshot({ path: OUT + 'phone-deshu-hint.png' });
     await page.waitForTimeout(8000);
     const hints = (await cafe('moments')).log.filter((x) => x.kind === 'record').length;
     t = await cafe('tasting');
-    check(hints === 1 && t.records[0].told && !t.hint, `德叔提一次，只一次（${hints} 次）`);
-    // 定案：寫上黑板、收進菜單本
+    check(hints === 1 && t.records[0].told && !t.hint, `德叔提一次（${hints}）`);
     await page.tap('#menu-btn');
     await page.tap('#open-notebook');
     await page.waitForSelector('.nb-record .rec-settle');
@@ -1986,22 +2010,26 @@ try {
     await page.waitForTimeout(600);
     const m = await cafe('menu');
     t = await cafe('tasting');
-    check(m.book.includes('kiln') && m.board.includes('kiln') && m.lines.includes('龍眼窯特調') && t.records[0].settled > 0, '按「定案」：收進菜單本、寫上黑板');
-    check(await page.isHidden('#notebook'), '定案以後記事本闔上，抬頭看黑板');
+    check(m.book.includes('kiln') && m.board.includes('kiln') && m.lines.includes('龍眼窯特調') && t.records[0].settled > 0, '定案：菜單本＋黑板＋brewProfile');
+    check(!!(await page.evaluate(() => window.__cafe.menu)).book, '菜單本有品項');
+    const profile = await page.evaluate(() => {
+      const raw = JSON.parse(localStorage.getItem('dream-cafe.save'));
+      return raw.menu.items.kiln?.brewProfile || null;
+    });
+    check(!!profile?.ratio && !!profile?.grind, `brewProfile 已寫入（${JSON.stringify(profile)}）`);
+    // 黑板字只有品名、不含參數
+    check(!m.lines.some((l) => /1:|°C|粉水|研磨/.test(l)), `黑板不暗示參數（${m.lines.join('／')}）`);
+    check(await page.isHidden('#notebook'), '定案後記事本闔上');
     await said('寫上黑板了', 8000);
     await page.waitForTimeout(1200);
     await page.screenshot({ path: OUT + 'phone-board-final.png' });
-    // 德叔只照黑板沖：請德叔沖一杯的選項裡有龍眼窯特調
     await page.waitForFunction(() => !window.__cafe.brewing && !document.getElementById('brew').disabled && !document.getElementById('brew').hidden, null, { timeout: 30000 });
     await page.tap('#brew');
     await page.waitForSelector('#choices button');
     const brewOpts = await page.$$eval('#choices button', (bs) => bs.map((b) => b.textContent));
-    check(brewOpts.includes('龍眼窯特調'), `請德叔沖一杯：黑板上的龍眼窯特調點得到（${brewOpts.join('／')}）`);
+    check(brewOpts.includes('龍眼窯特調'), `請德叔沖一杯有龍眼窯（${brewOpts.join('／')}）`);
     await page.tap('#choices button >> nth=0');
-    await page.waitForTimeout(400);
-    // 舊存檔（第 8 版，沒有 tasting）遷移：紀錄是空的，黑板照舊
     await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 40000 });
-    // 離開頁面時遊戲會再存一次：改在重新載入、遊戲讀檔之前把存檔換成第 8 版
     await page.addInitScript(() => {
       if (sessionStorage.getItem('to-v8')) return;
       sessionStorage.setItem('to-v8', '1');
@@ -2016,12 +2044,12 @@ try {
     for (let i = 0; i < 6 && await page.isVisible('#journal'); i++) { await page.click('#jr-close'); await page.waitForTimeout(400); }
     t = await cafe('tasting');
     const v = await page.evaluate(() => sessionStorage.getItem('to-v8'));
-    check(v && t.records.length === 0 && JSON.stringify((await cafe('menu')).board) === JSON.stringify(boardOld), `第 8 版的舊存檔：測試紀錄是空的，黑板照舊（${(await cafe('menu')).board.join(',')}）`);
+    check(v && t.records.length === 0 && JSON.stringify((await cafe('menu')).board) === JSON.stringify(boardOld), `第 8 版遷移：紀錄空、黑板照舊`);
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await ctx.close();
   }
   {
-    // 黑板寫滿時定案：走菜單本的「換一行」；「先不寫」不收進菜單本
+    // 黑板寫滿 + 吧台座 tastingBrew(autoLog)
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     const page = await ctx.newPage();
     const errors = [];
@@ -2031,24 +2059,28 @@ try {
     await page.waitForTimeout(1800);
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     await page.evaluate(() => window.__cafe.tastingSetup('zhe-new'));
-    await page.tap('.seat-label >> text=窗邊座');
+    await page.tap('.seat-label >> text=吧台座');
     await page.waitForFunction(() => window.__cafe.tasting.offerable, null, { timeout: 15000 });
-    check(await page.evaluate(() => window.__cafe.tastingBrew('zhe-new')), '阿哲第五幕之後：試做阿哲的新法');
+    check(await page.evaluate(() => window.__cafe.tastingBrew('zhe-new')), '阿哲第五幕之後：試調阿哲的新法（autoLog）');
     await page.waitForFunction(() => window.__cafe.brewing, null, { timeout: 5000 });
     await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 40000 });
+    await page.waitForTimeout(600);
     const rid = (await cafe('tasting')).records[0].id;
+    check(!!(await cafe('tasting')).records[0].params, 'autoLog 帶參數');
     await page.evaluate((id) => window.__cafe.recordSettle(id), rid);
     let m = await cafe('menu');
-    check(m.open && m.swapFor === 'zhe-new', '黑板寫滿：打開菜單本選要換掉哪一行');
+    check(m.open && m.swapFor === 'zhe-new', '黑板寫滿：打開菜單本換一行');
     await page.tap('#menu-cancel');
     await page.tap('#sheet-close');
     m = await cafe('menu');
-    check(!m.book.includes('zhe-new') && !(await cafe('tasting')).records[0].settled, '「先不寫」：不收進菜單本、紀錄還沒定案');
+    check(!m.book.includes('zhe-new') && !(await cafe('tasting')).records[0].settled, '先不寫：不進菜單本');
     await page.evaluate((id) => window.__cafe.recordSettle(id), rid);
     await page.tap('.menu-row[data-item="iced"] button');
     await page.waitForTimeout(400);
     m = await cafe('menu');
-    check(JSON.stringify(m.board) === JSON.stringify(['dongshan', 'black', 'zhe-new', 'longan']) && !m.open && (await cafe('tasting')).records[0].settled > 0, `換掉冰美式：寫上黑板、定案（${m.board.join(',')}）`);
+    check(JSON.stringify(m.board) === JSON.stringify(['dongshan', 'black', 'zhe-new', 'longan']) && !m.open && (await cafe('tasting')).records[0].settled > 0, `換掉冰美式定案（${m.board.join(',')}）`);
+    const zp = await page.evaluate(() => JSON.parse(localStorage.getItem('dream-cafe.save')).menu.items['zhe-new']?.brewProfile);
+    check(!!zp?.technique, '定案寫入 zhe-new brewProfile');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await ctx.close();
   }
