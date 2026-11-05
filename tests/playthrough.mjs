@@ -42,11 +42,31 @@ async function play([W, H]) {
     shots.push(name);
     await page.screenshot({ path: `${OUT}${tag}-${String(++n).padStart(2, '0')}-${name}.png` });
     // 可點目標 ≥ 44px、按鈕與連結都在畫面裡
+    // 捲動區裡（例如記事本有了測試紀錄以後變長、型錄）超出畫面是正常的：改成捲到看得見時，要在畫面裡而且點得到；量完把捲動位置還原
     const r = await page.$$eval('button, a', (els, [w, h]) => els
       .filter((el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('[hidden]') === null; })
-      .map((el) => { const b = el.getBoundingClientRect(); return { t: el.textContent.trim().slice(0, 10), w: b.width, h: b.height, out: b.left < -1 || b.right > w + 1 || b.bottom > h + 1 || b.top < -1 }; })
+      .map((el) => {
+        const outside = (b) => b.left < -1 || b.right > w + 1 || b.bottom > h + 1 || b.top < -1;
+        let b = el.getBoundingClientRect();
+        let out = outside(b);
+        const t = el.textContent.trim().slice(0, 10);
+        if (out && t) {
+          const scrollers = [];
+          for (let p = el.parentElement; p; p = p.parentElement) {
+            const oy = getComputedStyle(p).overflowY;
+            if ((oy === 'auto' || oy === 'scroll') && p.scrollHeight > p.clientHeight) scrollers.push([p, p.scrollTop]);
+          }
+          if (scrollers.length) {
+            el.scrollIntoView({ block: 'nearest' });
+            b = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+            out = outside(b) || !hit || !(hit === el || el.contains(hit)) || getComputedStyle(el).pointerEvents === 'none';
+            for (const [p, top] of scrollers) p.scrollTop = top;
+          }
+        }
+        return { t, w: b.width, h: b.height, out };
+      })
       .filter((b) => b.w < 44 || b.h < 44 || (b.out && b.t)), [W, H]);
-    // 捲動區裡（例如選單、型錄）超出畫面是正常的：只記錄不在捲動區裡的
     if (r.length) bad.push(`${name}: ${JSON.stringify(r)}`);
   }
   // 美術評分修正 c：等淡入、展開這類動畫跑完再拍（律師信原本在整幕淡入到 0.2 的時候就拍了，截圖整片暗灰）
