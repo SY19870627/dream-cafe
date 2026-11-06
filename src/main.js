@@ -1246,10 +1246,17 @@ function navBlockers() {
   for (const [id, s] of [['stoolBar', SEATS[1].prop], ['stoolMid', stoolMid], ['stoolFar', stoolFar]]) out.push({ id, x: s.position.x, z: s.position.z, r: 0.17, soft: true });
   if (noticeSign.visible) out.push({ id: 'notice', x: noticeSign.position.x, z: noticeSign.position.z, r: 0.2, soft: true });
   for (const d of decorPapers.values()) out.push({ id: 'decor:' + d.userData.item.id, x: d.position.x, z: d.position.z, r: decorRadius(d), soft: true });
+  // 老闆坐著的地方（鏡頭在那裡）：別人不從老闆身上穿過去（D214，取代凱文出吧台寫死的「繞到老闆背後」航點）
+  const s = bossSeat();
+  if (s) out.push({ id: 'boss', seat: s.id, x: s.eye.x, z: s.eye.z, r: 0.25, soft: true });
   return out;
 }
+const bossSeat = () => (state.mode === 'seat' && state.seat) || null;
+// 徵才啟事收起來／貼出來、老闆坐下／站起來（換座位）也要重建
+const navStale = () => navDirty || noticeSign.visible !== nav.blockers.some((b) => b.id === 'notice')
+  || (bossSeat()?.id || null) !== (nav.blockers.find((b) => b.id === 'boss')?.seat || null);
 function navPath(from, to) {
-  if (navDirty || (noticeSign.visible !== nav.blockers.some((b) => b.id === 'notice'))) { nav.setBlockers(navBlockers()); navDirty = false; }
+  if (navStale()) { nav.setBlockers(navBlockers()); navDirty = false; }
   const res = nav.findPath(from, to);
   navLast = { from: { x: from.x, z: from.z }, to: { x: to.x, z: to.z }, ...res };
   if (!res.ok) console.warn('[nav] 走不到', res.reason, { from: [from.x.toFixed(2), from.z.toFixed(2)], to: [to.x.toFixed(2), to.z.toFixed(2)] });
@@ -4446,14 +4453,13 @@ async function offerKeeperDrink() {
   return serveFavorite('kevin', drinks[j]);
 }
 // 凱文出來坐旁邊喝（承峰 11/4：「出來坐旁邊喝」，D200，取代 D199「放在自己面前的吧台上」）：
-// 凱文在吧台沖好，端著杯子從吧台的出口走出來，繞到老闆背後（不從老闆和吧台之間擠過去），坐到老闆旁邊那張高腳椅（stoolMid），
+// 凱文在吧台沖好，端著杯子循路走出吧台（D214：不再寫死航點；老闆坐的地方是碰撞物，不從老闆和吧台之間擠過去），坐到老闆旁邊那張高腳椅（stoolMid），
 // 杯子放在他面前的吧台上；說完端對／端錯的話、照片淡回之後，再坐著喝一會兒（KEEPER_SIT_MS），喝完端著空杯走回吧台裡他的位子。
 // 吧台後面的紙片（deshu）就是凱文：走路用顧店的圖（kevinBar），坐下換成他當客人時坐高腳椅的圖（char_kevin_barstool，高腳椅畫在圖裡，
 // 店裡那張 stoolMid 先收起來）；沒有「繫圍裙端杯走路」「繫圍裙坐高腳椅喝」的圖，先用現有的頂著（D192：一張圖加程式動態，不生成圖）。
 // 他離開吧台的整段當作 deshuReturning（德叔走回吧台的那個狀態）：請凱文沖一杯會先叫他回吧台再沖、熟客劇情／店裡的小事／客人模式的邀請／
 // 打烊後擦杯子都等他回去；老闆站起來（換座位、打烊、佈置都要先站起來）、換一天、劇情開始，他就收杯回吧台
 const KEEPER_SIDE = { pos: V2(1.3, -2.1), cup: new THREE.Vector3(1.72, TOP, -2.1), stool: stoolMid }; // 老闆旁邊那張高腳椅（OPPOSITE.bar 同一張）
-const KEEPER_OUT = [V2(2.6, 0.6), V2(1.3, 0.8), V2(0.25, 0.2), V2(0.25, -2.1)]; // 吧台出口 → 老闆背後的走道（離鏡頭 0.5 公尺） → 高腳椅左邊
 const KEEPER_HOLD = new THREE.Vector3(0.2, 1.12, 0.15); // 端著走的時候杯子在他身上的哪裡（高過吧台檯面，走出吧台時看得到）
 const KEEPER_SIT_MS = 20000; // 照片淡回之後再坐著喝多久（真實時間，跟開發者倍率）
 const keeperCup = () => keeperOut?.cup || null;
@@ -4491,11 +4497,13 @@ async function keeperWalkOut(kind, dish) {
   cup.position.copy(KEEPER_HOLD);
   cup.rotation.set(0, 0, 0);
   if (state.mode === 'seat' && state.seat?.id === 'bar') followKeeper();
-  for (let i = 0; i < KEEPER_OUT.length; i++) {
-    if (i === 2 && state.mode === 'seat' && state.seat?.id === 'bar') lookToward({ position: KEEPER_SIDE.pos.clone().setY(1.2) }, 1.45); // 走到老闆背後：先轉去高腳椅那邊等他
-    if (!(await walk(deshu, KEEPER_OUT[i], WALK, true)) || keeperOut !== ko || ko.phase !== 'walkOut') return false;
+  // 路由 navPath() 找（D214：不再寫死吧台出口、走道的航點）：一個轉折點走一段，走出吧台的那一段起鏡頭先轉去高腳椅那邊等他
+  let looked = false;
+  for (const pt of navPath(deshu.position, KEEPER_SIDE.pos)) {
+    if (!looked && !behindBar(deshu.position) && state.mode === 'seat' && state.seat?.id === 'bar') { looked = true; lookToward({ position: KEEPER_SIDE.pos.clone().setY(1.2) }, 1.45); }
+    if (!(await walk(deshu, pt, WALK, true)) || keeperOut !== ko || ko.phase !== 'walkOut') return false;
   }
-  if (!(await walk(deshu, KEEPER_SIDE.pos, WALK, true)) || keeperOut !== ko || ko.phase !== 'walkOut') return false;
+  if (deshu.position.distanceTo(KEEPER_SIDE.pos) > 0.05) { keeperHome(); return false; } // 走不到（循路找不到路）：不硬坐上去，端回吧台
   deshu.userData.mesh.position.y = 0;
   // 坐上高腳椅：換成坐著的圖（高腳椅畫在圖裡），店裡那張先收起來
   KEEPER_SIDE.stool.visible = false;
@@ -4542,9 +4550,7 @@ function keeperHome(instant = false) {
     deshu.attach(ko.cup);
     ko.cup.position.copy(KEEPER_HOLD);
     ko.cup.rotation.set(0, 0, 0);
-    const back = [KEEPER_SIDE.pos, ...KEEPER_OUT.slice().reverse(), HOME];
-    const near = back.reduce((bi, p, i) => (p.distanceTo(deshu.position) < back[bi].distanceTo(deshu.position) ? i : bi), 0); // 走出來走到一半：從最近的那一點折回去
-    for (const pt of back.slice(near)) if (!(await walk(deshu, pt, WALK, true)) || keeperOut !== ko) return;
+    if (!(await walk(deshu, HOME, WALK, true)) || keeperOut !== ko) return; // 從他現在站的地方循路走回去（走出來走到一半也一樣）
     deshu.userData.mesh.position.y = 0;
     ko.cup.parent?.remove(ko.cup);
     keeperOut = null;
@@ -5848,11 +5854,12 @@ if (DEV) {
   window.__cafe = {
     // 走路的碰撞與循路（pathfind.js）：blockers、最後一條路徑；path(from, to) 試算一條路（不走）
     get nav() {
-      if (navDirty) { nav.setBlockers(navBlockers()); navDirty = false; }
+      if (navStale()) { nav.setBlockers(navBlockers()); navDirty = false; }
       return {
         blockers: nav.blockers.map((b) => ({ ...b })), last: navLast && JSON.parse(JSON.stringify(navLast)),
         path: (from, to) => nav.findPath(from, to), hardAt: (x, z) => nav.hardAt(x, z)?.id || null,
         hits: (a, b) => nav.segmentHits(a, b, true)?.id || null,
+        keeper: () => ({ side: { x: KEEPER_SIDE.pos.x, z: KEEPER_SIDE.pos.z }, out: nav.findPath(HOME, KEEPER_SIDE.pos), back: nav.findPath(KEEPER_SIDE.pos, HOME) }), // 凱文出吧台到高腳椅、回吧台（D214）
         spots: { home: HOME, door: DOOR_IN, ...Object.fromEntries(SEATS.filter((s) => s.serve).map((s) => [s.id + 'Serve', s.serve])), ...Object.fromEntries(Object.entries(SPOT).map(([k, v]) => [k, v.pos])), ...Object.fromEntries(Object.entries(OPPOSITE).map(([k, v]) => ['opp' + k, v.pos])), ...Object.fromEntries(Object.entries(ORDER_SPOT).map(([k, v]) => ['order' + k, v])) },
         get deshu() { return { x: deshu.position.x, z: deshu.position.z }; },
         deshuTo: (x, z) => deshuGo(V2(x, z)).then(() => ({ x: deshu.position.x, z: deshu.position.z })), // 德叔照循路走過去（截圖確認走道）
