@@ -39,6 +39,20 @@ function check(ok, msg) {
 
 const { server, url } = await startServer();
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+// 整份要跑十幾分鐘：中途「Target page, context or browser has been closed」時，分得出是分頁當掉還是 Chromium 被外面關掉（外層逾時砍掉子程序）
+const t0 = Date.now();
+const elapsed = () => `${Math.round((Date.now() - t0) / 1000)} 秒`;
+let finishing = false;
+browser.on('disconnected', () => { if (!finishing) console.error(`\n!! 瀏覽器在第 ${elapsed()} 中途斷線（沒有分頁當掉的紀錄就是 Chromium 被外面關掉，例如外層指令逾時）`); });
+const watchCrash = (page) => page.on('crash', () => console.error(`\n!! 分頁在第 ${elapsed()} 當掉（renderer crash，多半是記憶體不夠）：${page.url()}`));
+for (const make of ['newPage', 'newContext']) {
+  const orig = browser[make].bind(browser);
+  browser[make] = async (...a) => {
+    const r = await orig(...a);
+    if (make === 'newPage') watchCrash(r); else r.on('page', watchCrash);
+    return r;
+  };
+}
 
 async function open(viewport, query) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
@@ -198,19 +212,20 @@ try {
     await page.click('#brew');
     await page.waitForTimeout(200);
     check(await page.evaluate(() => window.__cafe.brewing && window.__cafe.closeup), '按沖咖啡後鏡頭移到吧台');
+    // 按住畫面 ×3：×20 時一杯只沖幾秒，電腦忙的時候後面的檢查一拖就沖完了，所以按完沖咖啡馬上按住
+    const box = await page.locator('#app canvas').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(100);
+    const held = await page.evaluate(() => ({ brewing: window.__cafe.brewing, speed: window.__cafe.speed }));
+    check(held.brewing && held.speed === 60, `沖煮中按住畫面，動作 ×3 ${JSON.stringify(held)}`);
+    await page.mouse.up();
+    check(await page.evaluate(() => window.__cafe.speed === 20), '放開恢復原速');
     // 美術評分修正 d：德叔的沖煮圖已經拿著手沖壺與濾杯，吧台上的立體器具收起來；沖煮中一直是沖煮圖
     await page.waitForFunction(() => window.__cafe.phase === 'brew' && window.__cafe.art.now.deshu === 'char_deshu_brew', null, { timeout: 5000 }).catch(() => {});
     const kit = await page.evaluate(() => ({ kit: window.__cafe.brewKit, deshu: window.__cafe.art.now.deshu }));
     check(!kit.kit && kit.deshu === 'char_deshu_brew', `沖煮中德叔是沖煮圖、吧台上沒有另一套立體器具 ${JSON.stringify(kit)}`);
     check((await page.textContent('#brew')) === '回座位', '沖煮中按鈕是「回座位」');
-    // 按住畫面 ×3
-    const box = await page.locator('#app canvas').boundingBox();
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.waitForTimeout(100);
-    check(await page.evaluate(() => window.__cafe.speed === 60), '沖煮中按住畫面，動作 ×3');
-    await page.mouse.up();
-    check(await page.evaluate(() => window.__cafe.speed === 20), '放開恢復原速');
 
     await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 20000 });
     check(!(await page.isDisabled('#brew')) && (await page.textContent('#brew')) === '請德叔沖一杯', '杯子上桌後按鈕立刻恢復');
@@ -2349,9 +2364,10 @@ try {
   console.error(e);
   failed++;
 } finally {
+  finishing = true;
   await browser.close();
   server.close();
 }
 
-console.log(failed ? `\n冒煙測試失敗：${failed} 項` : '\n冒煙測試通過');
+console.log((failed ? `\n冒煙測試失敗：${failed} 項` : '\n冒煙測試通過') + `（${elapsed()}）`);
 process.exit(failed ? 1 : 0);
