@@ -169,6 +169,15 @@
   .album-cap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 4px; font-size: 12px; line-height: 1.35; opacity: .8; }
   .album-cap small { display: block; opacity: .7; }
   .album-fav { margin: 4px 0 10px; font-size: 13.5px; color: #7a4a2c; }
+  /* 人物誌（D209、D218）：記事本裡每一位是一顆按鈕（點開人物誌頁）；人物誌頁一段一段，跟著照片的段落左邊放縮圖 */
+  .nb-person.nb-profile { width: 100%; text-align: left; align-items: flex-start; padding: 8px 10px; margin: 0 0 6px; background: #fff; color: inherit; border: 1px solid rgba(59,42,32,.25); box-shadow: none; border-radius: 10px; font-weight: normal; min-height: 44px; }
+  .album-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .album-profile { font-size: 13px; padding: 6px 12px; min-height: 44px; background: #fff; border: 1px solid rgba(59,42,32,.35); box-shadow: none; }
+  .profile-seg { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(59,42,32,.12); }
+  .profile-seg p { flex: 1 1 60%; margin: 0; font-size: 14px; line-height: 1.6; }
+  .profile-seg p small { display: block; font-size: 12px; opacity: .6; }
+  .profile-seg .profile-photo { flex: 0 0 96px; width: 96px; }
+  .profile-seg .profile-letter { flex: 1 0 100%; font-size: 13px; padding: 6px 12px; min-height: 44px; background: #fff; border: 1px solid rgba(59,42,32,.35); box-shadow: none; }
   /* 端對時淡入的照片（Q76「照片是回憶畫面」）：照片外的白邊與陰影由程式畫，圖裡不畫相框；淡入、極慢的推近、一道暖光由 CSS 做（D192） */
   #photo { position: absolute; inset: 0; z-index: 13; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px;
     background: rgba(20,14,10,.72); opacity: 0; transition: opacity 1.6s ease; }

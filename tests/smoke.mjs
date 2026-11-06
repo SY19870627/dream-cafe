@@ -21,6 +21,7 @@
 // 誤按打烊（承峰 11/5，D205）：按打烊德叔先問一次（再坐一會兒在最下面）、按鈕列換了 0.5 秒內連點不打烊（觸控）。
 // 試咖啡（承峰 11/5，D206、D207）：德叔提一次、試做、測試紀錄、定案上黑板（寫滿時換一行）、隔天德叔提一次只一次、第 8 版舊存檔遷移。
 // 烘豆（承峰 11/6，D217）：開店時點烘豆機德叔說一句、打烊後點它選烘焙度（剛好在最下面）、德叔演完走回吧台、架上這一批與菜單本那一句、隔天沖時說一次、重新整理還在。
+// 人物誌（承峰 11/6，D218）：記事本「店裡的熟客」點開人物誌頁、一段一段寫進去、照片縮圖、相簿入口、老先生重讀律師信、重新整理還在。
 // 碰撞與循路（承峰 11/6）：桌子、吧台、椅子、擺飾都是碰撞物；各位子之間的路不穿過硬的東西；德叔端杯到窗邊座的一路上不在桌子或吧台裡。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
@@ -2282,6 +2283,65 @@ try {
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(1500);
     check((await cafe('roast')).batch?.level === 'light', '重新整理：架上還是淺焙那一批');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
+  }
+  /* ---------- 人物誌（D209、D218）：記事本「店裡的熟客」點開人物誌頁、一段一段寫進去、照片縮圖（佔位）、相簿的入口、老先生只指向信 ---------- */
+  console.log('手機 390×844（人物誌：記事本、相簿入口、分段揭露）');
+  {
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&weather=clear&moments=0');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    for (let i = 0; i < 4 && await page.isVisible('#journal'); i++) { await page.click('#jr-close'); await page.waitForTimeout(300); }
+    let pr = await cafe('profiles');
+    check(['deshu', 'longan', 'oldman'].every((w) => pr.open.includes(w)) && !pr.open.includes('yuan') && !pr.open.includes('grandpa'), `看過開場：德叔、龍眼、老先生開頁；還沒見過的人不列（${pr.open.join(',')}）`);
+    await page.click('#menu-btn');
+    await page.click('#open-notebook');
+    const rows = await page.$$eval('#nb-people .nb-profile', (b) => b.map((x) => x.dataset.who));
+    check(rows.includes('deshu') && rows.includes('longan') && rows.includes('oldman'), `記事本「店裡的熟客」列出德叔、龍眼、老先生（${rows.join(',')}）`);
+    check((await smallTargets(page)).length === 0, '記事本的人物誌按鈕都 ≥ 44px');
+    await page.click('#nb-people .nb-profile[data-who="deshu"]');
+    pr = await cafe('profiles');
+    check(pr.showing === 'deshu' && pr.title === '德叔' && pr.segs === 1, `點德叔：打開人物誌頁，只寫第一段（${pr.segs} 段）`);
+    check(!(await page.textContent('#sheet-list')).match(/還有|\d+\/\d+|學徒/), '人物誌頁不寫還有幾段，也不寫德叔的秘密');
+    await page.screenshot({ path: OUT + 'phone-profile-deshu.png' });
+    await page.click('#sheet-close');
+    // 予安走到第三段（里程碑 1～5、照片 yuan-1、yuan-2）：人物誌一段一段寫進去，跟著照片的段落有縮圖
+    await page.evaluate(() => window.__cafe.favSetup('yuan', 3));
+    await page.evaluate(() => window.__cafe.profile('yuan'));
+    pr = await cafe('profiles');
+    check(pr.showing === 'yuan' && pr.segs === 4 && pr.photos === 2, `予安：寫進 4 段（里程碑與兩張照片），兩段有照片縮圖（${pr.segs} 段、${pr.photos} 張）`);
+    check(JSON.stringify(pr.got.yuan.map((x) => x.n)) === JSON.stringify([1, 2, 3, 4]), '還沒拿到的照片那一段（第 5 段）不出現、也不留空格');
+    await page.waitForFunction(() => [...document.querySelectorAll('#sheet-list .profile-photo img')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 10000 });
+    check(true, '照片縮圖載得出來（沒有圖的用「回憶等待觸發」佔位圖）');
+    check((await smallTargets(page)).length === 0, '人物誌頁的按鈕都 ≥ 44px');
+    await page.screenshot({ path: OUT + 'phone-profile-yuan.png' });
+    await page.click('#sheet-list .profile-photo >> nth=0');
+    await page.waitForFunction(() => window.__cafe.fav.photoOpen, null, { timeout: 5000 });
+    check(true, '點縮圖看大圖');
+    await page.click('#photo-close');
+    await page.waitForTimeout(1500);
+    await page.click('#sheet-close');
+    // 相簿：予安那一頁有人物誌的入口
+    await page.evaluate(() => window.__cafe.album());
+    check(await page.isVisible('.album-profile[data-who="yuan"]'), '相簿：予安那一頁有「人物誌」入口');
+    check((await smallTargets(page)).length === 0, '相簿的按鈕都 ≥ 44px');
+    await page.screenshot({ path: OUT + 'phone-album-profile.png' });
+    await page.click('.album-profile[data-who="yuan"]');
+    check((await cafe('profiles')).showing === 'yuan', '從相簿點進予安的人物誌');
+    await page.click('#sheet-close');
+    // 老先生以已故為準：只指向信
+    await page.evaluate(() => window.__cafe.profile('oldman'));
+    pr = await cafe('profiles');
+    check(pr.letters === 1 && (await page.textContent('#sheet-list')).includes('過世'), '老先生：寫已經過世、可以重讀律師信');
+    await page.click('#sheet-list .profile-letter');
+    await page.waitForSelector('#letter', { state: 'visible', timeout: 5000 });
+    check(true, '「重讀這封信」打開律師信');
+    await page.click('#lt-close');
+    await page.reload();
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(1500);
+    for (let i = 0; i < 4 && await page.isVisible('#journal'); i++) { await page.click('#jr-close'); await page.waitForTimeout(300); }
+    check(JSON.stringify((await page.evaluate(() => JSON.parse(localStorage.getItem('dream-cafe.save')).profiles.got.yuan)).map((x) => x.n)) === JSON.stringify([1, 2, 3, 4]), '重新整理：寫進去的段落還在存檔裡');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }

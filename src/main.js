@@ -20,6 +20,7 @@ import * as MN from './menu.js';
 import * as FV from './favorites.js';
 import * as TS from './tasting.js';
 import * as RO from './roast.js';
+import * as PR from './profiles.js';
 import { createNav } from './pathfind.js';
 
 const $ = (id) => document.getElementById(id);
@@ -117,6 +118,7 @@ let resetting = false;
 function persist() {
   if (resetting) return;
   save.lastSeen = now();
+  PR.syncProfiles(save, today()); // 人物誌（D218）：里程碑、照片、信、告別發生了，就把那一段寫進去
   store.write(save);
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') persist(); });
@@ -2555,19 +2557,28 @@ function openNotebook(open) {
   // 店裡的熟客（只列見過的人，不列來店次數）與菜單
   const people = $('nb-people');
   people.innerHTML = '';
+  // 人物誌（D209、D218）：每一位點開是他的人物誌頁；德叔、龍眼、阿哲的阿公、老先生放同一區（見過、開了頁才列）
+  PR.syncProfiles(save, today());
   const met = S.REGULAR_IDS.filter((w) => S.hasMilestone(save, w, 1));
-  if (met.length) {
+  const others = PR.openPages(save, PR.OTHER_PROFILES);
+  if (met.length || others.length) {
     const h = document.createElement('h3');
     h.textContent = '店裡的熟客';
     people.appendChild(h);
+    const row = (w, title, about) => {
+      const p = document.createElement('button');
+      p.className = 'nb-person nb-profile';
+      p.dataset.who = w;
+      p.innerHTML = `<b>${esc(title)}</b><span>${esc(about)}</span>`;
+      p.onclick = () => { openNotebook(false); openProfile(w); };
+      people.appendChild(p);
+    };
     for (const w of met) {
       const info = S.REGULARS[w];
       const named = w !== 'kevin' || S.hasMilestone(save, 'kevin', 2);
-      const p = document.createElement('p');
-      p.className = 'nb-person';
-      p.innerHTML = `<b>${named ? `${info.name}（${info.short}）` : '冰美式先生'}</b><span>${info.about}</span>`;
-      people.appendChild(p);
+      row(w, named ? `${info.name}（${info.short}）` : '冰美式先生', info.about);
     }
+    for (const w of others) row(w, PR.profileName(save, w), PR.profilePage(save, w).segs[0].text);
   }
   const h = document.createElement('h3');
   h.textContent = '菜單';
@@ -4852,6 +4863,59 @@ $('photo-close').textContent = FV.FAV_TEXT.close;
 $('photo-close').onclick = () => closePhoto();
 photoEl.addEventListener('click', (e) => { if (photoEl.dataset.mode === 'auto' || e.target === photoEl) closePhoto(); });
 
+// 人物誌頁（D209、D218）：和相簿同一個從下面拉起的面板。寫進去的段落照順序一段一段排（沒寫進去的不出現、不寫還有幾段）；
+// 跟著回憶照片的段落放那張照片的縮圖（還沒畫的用「回憶等待觸發」的佔位圖，點了看大圖），指向信的段落放「重讀這封信」
+let profileWho = '';
+function openProfile(who) {
+  PR.syncProfiles(save, today());
+  if (!PR.pageOpen(save, who)) return false;
+  openAbout(false);
+  profileWho = who;
+  sheetKind = 'profile';
+  renderProfile(who);
+  sheet.hidden = false;
+  $('sheet-list').scrollTop = 0;
+  $('sheet-close').focus();
+  return true;
+}
+function renderProfile(who) {
+  const page = PR.profilePage(save, who);
+  const list = $('sheet-list');
+  list.innerHTML = '';
+  $('sheet-title').textContent = page.name;
+  $('sheet-sub').textContent = PR.PROFILE_TEXT.sub;
+  for (const seg of page.segs) {
+    const el = document.createElement('div');
+    el.className = 'profile-seg';
+    el.dataset.n = seg.n;
+    if (seg.photo) {
+      const ph = FV.photoById(seg.photo);
+      const b = document.createElement('button');
+      b.className = 'album-slot profile-photo';
+      b.dataset.id = seg.photo;
+      b.setAttribute('aria-label', PR.PROFILE_TEXT.photo);
+      const img = document.createElement('img');
+      img.alt = '';
+      photoSrc(ph).then((src) => { img.src = src; });
+      b.appendChild(img);
+      b.onclick = () => showPhoto(seg.photo);
+      el.appendChild(b);
+    }
+    const txt = document.createElement('p');
+    txt.innerHTML = `${seg.day ? `<small>${esc(PR.PROFILE_TEXT.day(seg.day))}</small>` : ''}${esc(seg.text)}`;
+    el.appendChild(txt);
+    const l = seg.letter === 'lawyer' ? LAWYER_LETTER : seg.letter ? letterById(seg.letter) : null;
+    if (l) {
+      const b = document.createElement('button');
+      b.className = 'profile-letter';
+      b.textContent = PR.PROFILE_TEXT.reread;
+      b.onclick = () => { closeSheet(); openLetter(l); };
+      el.appendChild(b);
+    }
+    list.appendChild(el);
+  }
+}
+
 // 相簿：和菜單本、型錄同一個從下面拉起的面板。見過的熟客一列三格：拿到的照片是縮圖（點了看大圖），還沒拿到的是空格（Q77）
 function renderAlbum() {
   const list = $('sheet-list');
@@ -4860,7 +4924,16 @@ function renderAlbum() {
   $('sheet-sub').textContent = FV.FAV_TEXT.albumSub;
   for (const page of FV.album(save)) {
     const h = document.createElement('h3');
+    h.className = 'album-head';
     h.textContent = favName(page.who);
+    if (PR.pageOpen(save, page.who)) { // 人物誌的入口（D209、D218）
+      const go = document.createElement('button');
+      go.className = 'album-profile';
+      go.textContent = PR.PROFILE_TEXT.open;
+      go.dataset.who = page.who;
+      go.onclick = () => openProfile(page.who);
+      h.appendChild(go);
+    }
     list.appendChild(h);
     const row = document.createElement('div');
     row.className = 'album-row';
@@ -6325,6 +6398,14 @@ if (DEV) {
     keeperOffer() { if (!keeperFavOfferable()) return false; say(keeperLine(), 3500, deshu); offerKeeperDrink(); return true; },
     photo(id = 'yuan-1') { if (!FV.photoById(id)) return Promise.resolve(false); return showPhoto(id, { auto: true }).then(() => true); },
     album() { openAbout(false); openNotebook(false); openSheet('album'); return true; },
+    // 人物誌（D218）：profiles 讀狀態（每一頁寫進去的段落、開著哪一頁、頁上幾段幾張縮圖幾封信）；profile('yuan') 直接打開那一頁
+    get profiles() {
+      PR.syncProfiles(save, today());
+      return { got: JSON.parse(JSON.stringify(save.profiles.got)), open: PR.openPages(save), showing: !sheet.hidden && sheetKind === 'profile' ? profileWho : '',
+        segs: document.querySelectorAll('#sheet-list .profile-seg').length, photos: document.querySelectorAll('#sheet-list .profile-photo').length,
+        letters: document.querySelectorAll('#sheet-list .profile-letter').length, title: $('sheet-title').textContent };
+    },
+    profile(who) { openNotebook(false); return openProfile(who); },
     // 烘豆（D217）：roast 讀狀態（架上這一批、正在烘的哪一段、現在點烘豆機會不會開始、爐火、竹篩、煙、菜單本那一句）；
     // roastStart('light') 不經過選項直接烘；roasterOnScreen() 烘豆機在畫面上、點下去真的會算點到烘豆機的一點（相對 #app 與整頁的座標）
     get roast() {
