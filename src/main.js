@@ -1246,15 +1246,11 @@ function navBlockers() {
   for (const [id, s] of [['stoolBar', SEATS[1].prop], ['stoolMid', stoolMid], ['stoolFar', stoolFar]]) out.push({ id, x: s.position.x, z: s.position.z, r: 0.17, soft: true });
   if (noticeSign.visible) out.push({ id: 'notice', x: noticeSign.position.x, z: noticeSign.position.z, r: 0.2, soft: true });
   for (const d of decorPapers.values()) out.push({ id: 'decor:' + d.userData.item.id, x: d.position.x, z: d.position.z, r: decorRadius(d), soft: true });
-  // 老闆坐著的地方（鏡頭在那裡）：別人不從老闆身上穿過去（D214，取代凱文出吧台寫死的「繞到老闆背後」航點）
-  const s = bossSeat();
-  if (s) out.push({ id: 'boss', seat: s.id, x: s.eye.x, z: s.eye.z, r: 0.25, soft: true });
+  // 老闆坐的地方不另加碰撞物（承峰 11/6：「我坐的地方不會影響才對」）：能坐的都是店裡真的有擺椅子的位子，椅子本身就是碰撞物
   return out;
 }
-const bossSeat = () => (state.mode === 'seat' && state.seat) || null;
-// 徵才啟事收起來／貼出來、老闆坐下／站起來（換座位）也要重建
-const navStale = () => navDirty || noticeSign.visible !== nav.blockers.some((b) => b.id === 'notice')
-  || (bossSeat()?.id || null) !== (nav.blockers.find((b) => b.id === 'boss')?.seat || null);
+// 徵才啟事收起來／貼出來也要重建
+const navStale = () => navDirty || noticeSign.visible !== nav.blockers.some((b) => b.id === 'notice');
 function navPath(from, to) {
   if (navStale()) { nav.setBlockers(navBlockers()); navDirty = false; }
   const res = nav.findPath(from, to);
@@ -4453,7 +4449,7 @@ async function offerKeeperDrink() {
   return serveFavorite('kevin', drinks[j]);
 }
 // 凱文出來坐旁邊喝（承峰 11/4：「出來坐旁邊喝」，D200，取代 D199「放在自己面前的吧台上」）：
-// 凱文在吧台沖好，端著杯子循路走出吧台（D214：不再寫死航點；老闆坐的地方是碰撞物，不從老闆和吧台之間擠過去），坐到老闆旁邊那張高腳椅（stoolMid），
+// 凱文在吧台沖好，端著杯子循路走出吧台（D214：不再寫死航點，不穿椅子、高腳椅與硬的東西），坐到老闆旁邊那張高腳椅（stoolMid），
 // 杯子放在他面前的吧台上；說完端對／端錯的話、照片淡回之後，再坐著喝一會兒（KEEPER_SIT_MS），喝完端著空杯走回吧台裡他的位子。
 // 吧台後面的紙片（deshu）就是凱文：走路用顧店的圖（kevinBar），坐下換成他當客人時坐高腳椅的圖（char_kevin_barstool，高腳椅畫在圖裡，
 // 店裡那張 stoolMid 先收起來）；沒有「繫圍裙端杯走路」「繫圍裙坐高腳椅喝」的圖，先用現有的頂著（D192：一張圖加程式動態，不生成圖）。

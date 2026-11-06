@@ -171,45 +171,34 @@ test('換擺飾後重建：setBlockers 之後舊的結果不再沿用', () => {
 });
 
 // D214（承峰 11/6：「寫死的走法也應該處理」）：凱文出吧台去老闆旁邊的高腳椅、喝完回吧台，不再走寫死的航點（KEEPER_OUT），改走循路。
-// 老闆坐吧台座時，他坐的地方（鏡頭，eye 0.75, −0.9）也是 soft 的碰撞物，別人不從老闆身上穿過去
+// 老闆坐的地方不另加碰撞物（承峰 11/6：「我坐的地方不會影響才對」）：能坐的位子都有真的椅子，椅子本身就是碰撞物
 const KEEPER_SIDE = P(1.3, -2.1);
-const BOSS_BAR = { id: 'boss', x: 0.75, z: -0.9, r: 0.25, soft: true };
 
-test('凱文出吧台到老闆旁邊的高腳椅、再回吧台：不穿硬的東西，也不穿老闆、其他高腳椅', () => {
-  for (const extra of [[], [BOSS_BAR]]) {
-    const nav = makeNav(extra);
-    const soft = [...ALL_SOFT, ...extra.map((b) => b.id)];
-    const out = nav.findPath(HOME, KEEPER_SIDE);
-    assert.ok(out.ok);
-    assert.deepEqual(out.pts.at(-1), KEEPER_SIDE);
-    assertClear(nav, HOME, out.pts, { soft, ignore: ['stoolMid'] });
-    const back = nav.findPath(KEEPER_SIDE, HOME);
-    assert.ok(back.ok);
-    assert.deepEqual(back.pts.at(-1), HOME);
-    assertClear(nav, KEEPER_SIDE, back.pts, { soft, ignore: ['stoolMid'] });
-    // 後牆沒擺東西：走吧台最裡端的空隙（比繞店門口那一端近）
-    assert.ok(out.pts.some((p) => p.z < -3.25) && out.pts.every((p) => p.z < 0.25), '走最裡端的空隙');
-  }
+test('凱文出吧台到老闆旁邊的高腳椅、再回吧台：不穿硬的東西，也不穿椅子、其他高腳椅', () => {
+  const nav = makeNav();
+  const out = nav.findPath(HOME, KEEPER_SIDE);
+  assert.ok(out.ok);
+  assert.deepEqual(out.pts.at(-1), KEEPER_SIDE);
+  assertClear(nav, HOME, out.pts, { soft: ALL_SOFT, ignore: ['stoolMid'] });
+  const back = nav.findPath(KEEPER_SIDE, HOME);
+  assert.ok(back.ok);
+  assert.deepEqual(back.pts.at(-1), HOME);
+  assertClear(nav, KEEPER_SIDE, back.pts, { soft: ALL_SOFT, ignore: ['stoolMid'] });
+  // 後牆沒擺東西：走吧台最裡端的空隙（比繞店門口那一端近）
+  assert.ok(out.pts.some((p) => p.z < -3.25) && out.pts.every((p) => p.z < 0.25), '走最裡端的空隙');
 });
 
-test('後牆 (2.2, −3.6) 的擺飾位擺了櫃子（選項 B，擺飾位保留）：吧台裡外改走店門口那一端，不穿檯面、不穿櫃子、不穿老闆', () => {
+test('後牆 (2.2, −3.6) 的擺飾位擺了櫃子（選項 B，擺飾位保留）：吧台裡外改走店門口那一端，不穿檯面、不穿櫃子、不穿椅子', () => {
   // 靠牆的擺飾貼到後牆前 0.22 公尺（orient()：z −3.78）；老碗櫥的碰撞半徑約 0.25（decorRadius()）
   const cabinet = { id: 'decor:cabinet', x: 2.2, z: -3.78, r: 0.25, soft: true };
-  for (const extra of [[cabinet], [cabinet, BOSS_BAR]]) {
-    const nav = makeNav(extra);
-    const soft = [...ALL_SOFT, ...extra.map((b) => b.id)];
-    for (const [from, to, ignore] of [[HOME, KEEPER_SIDE, ['stoolMid']], [KEEPER_SIDE, HOME, ['stoolMid']], [P(2.6, -3.0), P(1.3, -3.4), ['stoolFar']], [P(-1.55, -0.9), P(2.5, -2.9), []]]) {
-      const r = nav.findPath(from, to);
-      assert.ok(r.ok, JSON.stringify([from, to]));
-      assert.deepEqual(r.pts.at(-1), to);
-      assertClear(nav, from, r.pts, { soft, ignore });
-      assert.ok(r.pts.some((p) => p.z > 0.25), `從店門口那一端繞 ${JSON.stringify(r.pts)}`);
-      assert.ok(r.pts.every((p) => p.z > -3.25 || p.x < 1.6), '不走被櫃子擋住的空隙（檯面最裡端和後牆之間）');
-    }
-    if (extra.includes(BOSS_BAR)) {
-      // 老闆坐在吧台座：從老闆背後繞過去（不從老闆和吧台之間擠過去）
-      const r = nav.findPath(HOME, KEEPER_SIDE);
-      assert.ok(r.pts.some((p) => p.x < BOSS_BAR.x - BOSS_BAR.r), `從老闆背後繞 ${JSON.stringify(r.pts)}`);
-    }
+  const nav = makeNav([cabinet]);
+  const soft = [...ALL_SOFT, cabinet.id];
+  for (const [from, to, ignore] of [[HOME, KEEPER_SIDE, ['stoolMid']], [KEEPER_SIDE, HOME, ['stoolMid']], [P(2.6, -3.0), P(1.3, -3.4), ['stoolFar']], [P(-1.55, -0.9), P(2.5, -2.9), []]]) {
+    const r = nav.findPath(from, to);
+    assert.ok(r.ok, JSON.stringify([from, to]));
+    assert.deepEqual(r.pts.at(-1), to);
+    assertClear(nav, from, r.pts, { soft, ignore });
+    assert.ok(r.pts.some((p) => p.z > 0.25), `從店門口那一端繞 ${JSON.stringify(r.pts)}`);
+    assert.ok(r.pts.every((p) => p.z > -3.25 || p.x < 1.6), '不走被櫃子擋住的空隙（檯面最裡端和後牆之間）');
   }
 });

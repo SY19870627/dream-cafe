@@ -1246,16 +1246,16 @@ try {
     check(/要請我喝哪一杯/.test(await page.textContent('#ask')), '選項上面凱文問「老闆要請我喝哪一杯？」');
     await page.screenshot({ path: OUT + 'phone-keeper-drinks.png' });
     await page.tap('#choices button >> text=東山的豆');
-    // D214：凱文出吧台、回吧台走循路（不再是寫死的航點）：每 40ms 記一次他站的地方，不在吧台、桌子裡，也不穿過老闆
+    // D214：凱文出吧台、回吧台走循路（不再是寫死的航點）：每 40ms 記一次他站的地方，不在吧台、桌子裡，也不穿過椅子、高腳椅（老闆坐的位子不另加碰撞物：那裡本來就有椅子）
     await page.evaluate(() => {
-      const trail = window.__keeperTrail = { hard: new Set(), boss: 0, out: 0, back: 0, minZ: 9, maxZ: -9 };
+      const trail = window.__keeperTrail = { hard: new Set(), soft: new Set(), out: 0, back: 0, minZ: 9, maxZ: -9 };
       const tick = setInterval(() => {
         const f = window.__cafe.fav, n = window.__cafe.nav;
         if (!f.keeperPhase) { if (trail.back) clearInterval(tick); return; }
         if (f.keeperPhase === 'sit') return;
-        const { x, z } = f.keeperPos, h = n.hardAt(x, z), b = n.blockers.find((q) => q.id === 'boss');
+        const { x, z } = f.keeperPos, h = n.hardAt(x, z);
         if (h) trail.hard.add(h);
-        if (b && Math.hypot(x - b.x, z - b.z) < b.r) trail.boss++;
+        for (const b of n.blockers) if (b.soft && b.id !== 'stoolMid' && b.r && Math.hypot(x - b.x, z - b.z) < b.r) trail.soft.add(b.id); // stoolMid 是他要坐的那張
         trail[f.keeperPhase === 'walkOut' ? 'out' : 'back']++;
         if (x < 1.6) { trail.minZ = Math.min(trail.minZ, z); trail.maxZ = Math.max(trail.maxZ, z); }
       }, 40);
@@ -1283,8 +1283,8 @@ try {
     check((await fav()).keeperCup && (await fav()).sideStool, '喝完：站起來端著空杯走回去，高腳椅放回店裡');
     await page.waitForFunction(() => window.__cafe.fav.keeperHome, null, { timeout: 30000 });
     check(!(await fav()).keeperCup && (await page.evaluate(() => window.__cafe.deshuHome)), '回到吧台裡他的位子，杯子收走');
-    const trail = await page.evaluate(() => { const t = window.__keeperTrail; return { ...t, hard: [...t.hard] }; });
-    check(trail.out > 5 && trail.back > 5 && trail.hard.length === 0 && trail.boss === 0, `凱文出吧台到高腳椅、回吧台：一路不在吧台、桌子裡，也不穿過老闆（循路，D214）${JSON.stringify(trail)}`);
+    const trail = await page.evaluate(() => { const t = window.__keeperTrail; return { ...t, hard: [...t.hard], soft: [...t.soft] }; });
+    check(trail.out > 5 && trail.back > 5 && trail.hard.length === 0 && trail.soft.length === 0, `凱文出吧台到高腳椅、回吧台：一路不在吧台、桌子裡，也不穿過椅子、高腳椅（循路，D214）${JSON.stringify(trail)}`);
     await page.waitForTimeout(400);
     await tapKevin();
     check(!(await choices()).includes('請凱文喝一杯'), '再點凱文：只搭話');
@@ -2126,7 +2126,7 @@ try {
   }
   {
     // 選項 B（承峰 11/6：「B，另外寫死的走法也應該處理」，D214）：後牆 (2.2, −3.6) 的擺飾位保留；擺了櫃子，吧台最裡端的空隙被擋住，
-    // 吧台裡外的路（凱文出吧台到老闆旁邊的高腳椅、回吧台）循路改走店門口那一端，不穿檯面、不穿櫃子；老闆坐吧台座時從老闆背後繞
+    // 吧台裡外的路（凱文出吧台到老闆旁邊的高腳椅、回吧台）循路改走店門口那一端，不穿檯面、不穿櫃子、不穿椅子；老闆坐吧台座也一樣（老闆坐的位子不另加碰撞物，D214 修正）
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
     const errors = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
@@ -2144,21 +2144,21 @@ try {
     for (let i = 0; i < 4 && await page.isVisible('#journal'); i++) { await page.click('#jr-close'); await page.waitForTimeout(400); }
     const route = () => page.evaluate(() => {
       const n = window.__cafe.nav, k = n.keeper(), home = n.spots.home, hits = [];
-      const cab = n.blockers.find((b) => b.id === 'decor:cabinet'), boss = n.blockers.find((b) => b.id === 'boss') || null;
-      const soft = [cab, boss, ...n.blockers.filter((b) => b.id === 'stoolBar' || b.id === 'stoolFar')].filter(Boolean);
+      const cab = n.blockers.find((b) => b.id === 'decor:cabinet');
+      const soft = n.blockers.filter((b) => b.soft && b.r && b.id !== 'stoolMid'); // 櫃子、椅子、高腳椅、沙發（stoolMid 是凱文要坐的那張）
       for (const [from, r] of [[home, k.out], [k.side, k.back]]) {
         const all = [from, ...r.pts];
         for (let i = 1; i < all.length; i++) {
           const h = n.hits(all[i - 1], all[i]);
           if (h) hits.push(h);
-          for (let j = 0; j <= 50; j++) { // 也不穿過櫃子、老闆、另外兩張高腳椅的本體
+          for (let j = 0; j <= 50; j++) { // 也不穿過櫃子、椅子、另外兩張高腳椅的本體
             const x = all[i - 1].x + (all[i].x - all[i - 1].x) * j / 50, z = all[i - 1].z + (all[i].z - all[i - 1].z) * j / 50;
             for (const b of soft) if (Math.hypot(x - b.x, z - b.z) < b.r) hits.push(b.id);
           }
         }
       }
-      return { ok: k.out.ok && k.back.ok, hits: [...new Set(hits)], cab, boss: !!boss, door: k.out.pts.some((p) => p.z > 0.25) && k.back.pts.some((p) => p.z > 0.25),
-        gap: [...k.out.pts, ...k.back.pts].some((p) => p.z < -3.25 && p.x > 1.6), behind: k.out.pts.some((p) => boss && p.x < boss.x - boss.r) };
+      return { ok: k.out.ok && k.back.ok, hits: [...new Set(hits)], cab, boss: n.blockers.some((b) => b.id === 'boss'), door: k.out.pts.some((p) => p.z > 0.25) && k.back.pts.some((p) => p.z > 0.25),
+        gap: [...k.out.pts, ...k.back.pts].some((p) => p.z < -3.25 && p.x > 1.6) };
     });
     const r0 = await route();
     check(r0.cab && Math.abs(r0.cab.x - 2.2) < 0.01, `後牆 (2.2, −3.6) 的擺飾位照舊可以擺（櫃子是碰撞物）${JSON.stringify(r0.cab)}`);
@@ -2166,7 +2166,7 @@ try {
     await page.click('.seat-label >> text=吧台座');
     await page.waitForTimeout(1600);
     const r1 = await route();
-    check(r1.ok && r1.boss && r1.door && !r1.gap && r1.behind && r1.hits.length === 0, `老闆坐吧台座：從老闆背後繞過去，不穿過老闆 ${JSON.stringify(r1)}`);
+    check(r1.ok && !r1.boss && r1.door && !r1.gap && r1.hits.length === 0, `老闆坐吧台座：沒有老闆的碰撞物（承峰「我坐的地方不會影響才對」），仍走店門口那一端、不穿檯面、櫃子、椅子 ${JSON.stringify(r1)}`);
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }
