@@ -20,6 +20,7 @@
 // 德叔換黑板只換黑板上真的有的東西、重新整理後黑板還在、還沒解鎖的品項看不到。
 // 誤按打烊（承峰 11/5，D205）：按打烊德叔先問一次（再坐一會兒在最下面）、按鈕列換了 0.5 秒內連點不打烊（觸控）。
 // 試咖啡（承峰 11/5，D206、D207）：德叔提一次、試做、測試紀錄、定案上黑板（寫滿時換一行）、隔天德叔提一次只一次、第 8 版舊存檔遷移。
+// 烘豆（承峰 11/6，D217）：開店時點烘豆機德叔說一句、打烊後點它選烘焙度（剛好在最下面）、德叔演完走回吧台、架上這一批與菜單本那一句、隔天沖時說一次、重新整理還在。
 // 碰撞與循路（承峰 11/6）：桌子、吧台、椅子、擺飾都是碰撞物；各位子之間的路不穿過硬的東西；德叔端杯到窗邊座的一路上不在桌子或吧台裡。
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
@@ -2219,6 +2220,70 @@ try {
     check(!!zp?.technique, '定案寫入 zhe-new brewProfile');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await ctx.close();
+  }
+  /* ---------- 烘豆（D217）：打烊後點烘豆機、選烘焙度、德叔演完、東山的豆換成這一批、菜單本多一句、沖的時候說一次 ---------- */
+  console.log('手機 390×844（烘豆：打烊後點烘豆機、淺／深／剛好、架上這一批）');
+  {
+    const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0&weather=clear&moments=0');
+    const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
+    let pt = await page.evaluate(() => window.__cafe.roasterOnScreen());
+    check(!!pt, `俯瞰看得到吧台最裡端的烘豆機 ${JSON.stringify(pt)}`);
+    await page.mouse.click(pt.pageX, pt.pageY);
+    await page.waitForTimeout(300);
+    check((await page.textContent('#bubble')).includes('打烊以後再烘') && !(await cafe('roast')).roasting && await page.isHidden('#choices'), '開店時點烘豆機：德叔說一句，不會開始烘');
+    await page.waitForTimeout(3500);
+    await closeShop(page);
+    await page.waitForFunction(() => window.__cafe.closing === 'lastcup', null, { timeout: 20000 });
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForFunction(() => window.__cafe.closing === 'after', null, { timeout: 25000 });
+    await page.waitForTimeout(1500);
+    await page.click('#stand');
+    await page.waitForFunction(() => window.__cafe.roast.openable && window.__cafe.mode === 'overview', null, { timeout: 15000 });
+    await page.waitForTimeout(1500); // 等鏡頭回到俯瞰
+    await page.waitForFunction(() => !document.getElementById('bubble').classList.contains('show'), null, { timeout: 15000 }); // 德叔說完話（鏡頭不再轉向他）
+    pt = await page.evaluate(() => window.__cafe.roasterOnScreen());
+    await page.mouse.click(pt.pageX, pt.pageY);
+    await page.waitForSelector('#choices button', { timeout: 5000 });
+    const opts = await page.$$eval('#choices button', (b) => b.map((x) => x.textContent));
+    check(opts.length === 3 && opts[2] === '剛好', `打烊後點烘豆機：德叔問淺一點、深一點、剛好（剛好在最下面）${opts.join('／')}`);
+    check((await smallTargets(page)).length === 0, '烘豆的選項都 ≥ 44px');
+    await page.screenshot({ path: OUT + 'phone-roast-ask.png' });
+    await page.click('#choices button >> nth=0');
+    check((await cafe('roast')).batch?.level === 'light', '選「淺一點」：架上換成這一批（先存檔，中途離開也不白烘）');
+    await page.waitForFunction(() => window.__cafe.roast.roasting?.phase === 'roast', null, { timeout: 15000 });
+    await page.waitForFunction(() => window.__cafe.roast.smoke > 0 && window.__cafe.roast.flame > 0.2, null, { timeout: 10000 });
+    const r1 = await cafe('roast');
+    check(Math.abs(r1.deshu.x - 2.6) < 0.05 && Math.abs(r1.deshu.z + 3) < 0.05, `德叔走到烘豆機後面搖滾筒、爐火亮、冒淡灰的煙 ${JSON.stringify(r1.deshu)}`);
+    check(await page.isVisible('#goodnight') && await page.isVisible('#diary-btn'), '烘的時候老闆照樣可以做別的事（明天見、今天的一杯）');
+    await page.screenshot({ path: OUT + 'phone-roast-roasting.png' });
+    await page.waitForFunction(() => window.__cafe.roast.tray, null, { timeout: 15000 });
+    check(true, '下豆：竹篩出現');
+    await page.waitForFunction(() => !window.__cafe.roast.roasting, null, { timeout: 20000 });
+    const r2 = await cafe('roast');
+    check(!r2.tray && r2.smoke === 0 && r2.flame === 0 && Math.abs(r2.deshu.z + 1.6) < 0.05, '烘完：德叔走回吧台，竹篩收起來、煙與爐火都停了');
+    // 菜單本那一頁多一句；黑板不變
+    await page.evaluate(() => window.__cafe.menuBook());
+    const note = await page.textContent('.menu-row[data-item="dongshan"]');
+    check(note.includes('架上這一批：淺焙'), `菜單本「東山的豆」那一頁多一句（${note.slice(0, 60)}）`);
+    check(JSON.stringify((await cafe('menu')).lines) === JSON.stringify(['東山 日曬']), '黑板還是同一行「東山 日曬」');
+    await page.click('#sheet-close');
+    // 隔天沖東山的豆：德叔說一次是哪一批，第二杯不再說
+    await page.click('#menu-btn');
+    await page.click('#dev-day1');
+    if (await page.isVisible('#journal')) await page.click('#jr-close');
+    await page.waitForTimeout(800);
+    await page.click('.seat-label >> text=窗邊座');
+    await page.waitForTimeout(1500);
+    await page.click('#brew');
+    await page.waitForFunction(() => window.__cafe.moments.lastSaid?.text?.includes('這一批烘得淺'), null, { timeout: 40000 });
+    check(true, '隔天德叔沖東山的豆：說一次「這一批烘得淺」');
+    check((await cafe('roast')).batch.told, '說過就記下來（只說一次）');
+    await page.reload();
+    await page.waitForSelector('#app canvas');
+    await page.waitForTimeout(1500);
+    check((await cafe('roast')).batch?.level === 'light', '重新整理：架上還是淺焙那一批');
+    check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
+    await page.close();
   }
 } catch (e) {
   console.error(e);

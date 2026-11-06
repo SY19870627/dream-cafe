@@ -11,7 +11,7 @@ const newSave = () => { const s = defaultSave(T0); giveStarters(s); s.flags.seen
 const reach = (s, who, n) => { for (let i = 1; i <= n; i++) if (!s.regulars[who].milestones.includes(i)) s.regulars[who].milestones.push(i); };
 
 test('存檔第 10 版：新存檔有 tasting（紀錄是空的）', () => {
-  assert.equal(SAVE_VERSION, 10);
+  assert.ok(SAVE_VERSION >= 10); // 第 11 版（烘豆）見 roast.test.mjs
   const s = newSave();
   assert.deepEqual(s.tasting, { trials: {}, records: [], nextId: 1, guided: false, offerHint: false });
   assert.equal(s.menu.items.dongshan.brewProfile, null);
@@ -27,7 +27,7 @@ test('第 8／9 版舊存檔升上來：補 tasting、legacy 參數、已定案�
   delete old.tasting;
   const before = JSON.parse(JSON.stringify(old));
   const s = migrate(JSON.parse(JSON.stringify(old)), T0);
-  assert.equal(s.version, 10);
+  assert.equal(s.version, SAVE_VERSION);
   assert.deepEqual(s.tasting, { trials: {}, records: [], nextId: 1, guided: false, offerHint: false });
   assert.deepEqual(s.menu.board, before.menu.board);
   assert.deepEqual(s.favorites, before.favorites);
@@ -46,7 +46,7 @@ test('第 8／9 版舊存檔升上來：補 tasting、legacy 參數、已定案�
   MN.unlock(v9, 'kiln', 7, 0, { from: 'trial:kiln', board: true });
   delete v9.menu.items.kiln.brewProfile;
   const m = migrate(JSON.parse(JSON.stringify(v9)), T0);
-  assert.equal(m.version, 10);
+  assert.equal(m.version, SAVE_VERSION);
   assert.equal(m.tasting.records[0].legacy, true);
   assert.ok(m.tasting.records[0].params.ratio);
   assert.ok(m.menu.items.kiln.brewProfile.ratio);

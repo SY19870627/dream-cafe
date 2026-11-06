@@ -19,6 +19,7 @@ import * as MO from './moments.js';
 import * as MN from './menu.js';
 import * as FV from './favorites.js';
 import * as TS from './tasting.js';
+import * as RO from './roast.js';
 import { createNav } from './pathfind.js';
 
 const $ = (id) => document.getElementById(id);
@@ -673,6 +674,37 @@ const counterBag = paper(A.longanBag(), 1.95, 0.1, { y: TOP, shadow: false });
 // 窗邊座的桌上放一張手寫菜單的杯墊當焦點。兩張都只有手繪圖，沒有載到就不放
 if (A.artLoaded('kettleSet')) paper(A.kettleSet(), 2.2, -2.85, { y: TOP, shadow: false, clamp: 0.9, base: -Math.PI / 2 });
 if (A.coaster()) paper(A.coaster(), tA.x + 0.2, tA.z - 0.14, { y: tA.h + 0.02, shadow: false });
+// 烘豆機（烘豆，D217）：吧台最裡端靠後牆那一角（手沖器具組的旁邊）。放在這裡是因為從吧台座、角落沙發看黑板的視線都不經過這一角，
+// 不會擋到黑板的字（D189）。打烊後點它：德叔問這次烘淺一點、深一點，還是剛好（照 D191 點黑板的判斷：前面有人就算點到人）
+const ROASTER_AT = { x: 1.85, z: -3.1 };
+const roasterP = paper(A.roaster(), ROASTER_AT.x, ROASTER_AT.z, { y: TOP, shadow: false, name: 'roaster' });
+// 底下的爐火（烘的時候淡入、輕輕閃）與竹篩（下豆以後出現，豆子是程式畫的小點、照烘焙度上色）
+const roastFlame = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: '#ff9a3c', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+roastFlame.position.set(ROASTER_AT.x, TOP + 0.06, ROASTER_AT.z + 0.02);
+roastFlame.scale.setScalar(0.16);
+scene.add(roastFlame);
+const roastTray = new THREE.Group();
+{
+  const rim = cyl(0.1, 0.092, 0.018, new THREE.MeshLambertMaterial({ color: '#b48a52' }));
+  rim.position.y = 0.009;
+  const bed = cyl(0.088, 0.088, 0.004, new THREE.MeshLambertMaterial({ color: '#d4b47a' }));
+  bed.position.y = 0.017;
+  roastTray.add(rim, bed);
+}
+const roastBeanMat = new THREE.MeshLambertMaterial({ color: RO.BEAN_COLOR.green });
+const roastBeans = [];
+for (let i = 0; i < 22; i++) {
+  const a = i * 2.39996, r = 0.012 + 0.065 * Math.sqrt((i + 0.5) / 22); // 均勻散在竹篩裡
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), roastBeanMat);
+  b.scale.set(1, 0.7, 1.3);
+  b.position.set(Math.cos(a) * r, 0.026, Math.sin(a) * r);
+  b.userData.y = 0.026;
+  roastTray.add(b);
+  roastBeans.push(b);
+}
+roastTray.position.set(1.8, TOP, -2.72);
+roastTray.visible = false;
+scene.add(roastTray);
 counterBag.visible = MN.unlocked(save, 'longan');
 // 老先生的信：德叔從吧台抽屜拿出來，放在吧台上
 const envelope = paper(A.envelope(), 1.8, -0.75, { y: TOP, shadow: false });
@@ -988,8 +1020,9 @@ function applyLamps() {
 /* ---------- 蒸氣 ---------- */
 const puffTex = A.tex(A.puff());
 const puffs = [];
-function emitSteam(pos) {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, transparent: true, opacity: 0.5, depthWrite: false }));
+// color：烘豆的煙是淡灰的（D217，沿用蒸氣）
+function emitSteam(pos, color = '#ffffff') {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color, transparent: true, opacity: 0.5, depthWrite: false }));
   s.position.copy(pos).add(new THREE.Vector3((Math.random() - 0.5) * 0.04, 0, (Math.random() - 0.5) * 0.04));
   s.scale.setScalar(0.06);
   s.userData.life = 0;
@@ -1304,6 +1337,7 @@ function moveKettle(target, sec = 0.9) {
 }
 
 const steamSources = new Set();
+const smokeSources = new Set(); // 烘豆的煙（淡灰，D217）
 // brewing：從按下沖咖啡到杯子放上桌為止。
 // phase：'wait'（等德叔走回吧台）→ 'brew'（吧台沖煮）→ 'serve'（端過來）
 let brewing = false;
@@ -1392,10 +1426,13 @@ async function brew(seat, bean = 'dongshan', opt = {}) {
   placeCup(cup, seat);
   if (iced) cup.userData.age = 999; // 冰的不冒煙
   const served = MN.ITEMS[bean]?.served;
+  // 烘豆（D217）：架上換了一批之後，德叔第一次沖那支豆時說一次是哪一批（最後一杯、試調、凱文顧店不說）
+  const roastLine = !keeper() && !opt.enamel && !opt.last && !opt.tune && !opt.trial ? RO.brewLine(save, bean) : '';
   if (opt.enamel) { /* 最後一晚：德叔叫老闆名字的那句，由告別的場景說（farewell.js 第 7 段） */ }
   else if (opt.last) say(H.CLOSING.lastCup, 4500); // 劇本：打烊「最後一杯，是老闆的。」
   else if (opt.tune) say(TS.lineFromParams(opt.tune.params, opt.tune.item, opt.tune.recipe), 4500); // 試調：依參數的口感句
   else if (opt.trial && TS.RECIPES[opt.trial]) say(TS.RECIPES[opt.trial].served, 4500); // 舊路徑
+  else if (roastLine) { RO.markBrewTold(save); say(roastLine, 4500); }
   else if (served && (bean === 'zhe-beans' || (!keeper() && bean !== 'dongshan'))) say(served, 4500); // 黑板上的那一杯（menu.js 的 served）
   else if (withLongan && !save.flags.longanServed) { save.flags.longanServed = true; say('配阿哲阿公的龍眼乾。窯烤的。', 4500); } // 【待定】
   else say(keeper() ? F.KEEPER.served : MN.ITEMS.dongshan.served, 4500);
@@ -2294,6 +2331,8 @@ function menuRow(id, note, btnText, onClick, disabled = false) {
   }
   return r;
 }
+// 菜單本每一樣的小字：定案的店內沖法（試咖啡）＋架上這一批（烘豆，D217：只有東山的豆）
+const bookNote = (id) => [MN.brewProfileNote(save, id), RO.roastNote(save, id)].filter(Boolean).join('・');
 function menuChanged() {
   persist();
   drawBackBar();
@@ -2325,7 +2364,7 @@ function renderMenuBook() {
       }, !ok));
     } else {
       const ok = MN.canErase(save, id);
-      const note = [ok ? '' : MN.BOOK.keepOne, MN.brewProfileNote(save, id)].filter(Boolean).join('・');
+      const note = [ok ? '' : MN.BOOK.keepOne, bookNote(id)].filter(Boolean).join('・');
       list.appendChild(menuRow(id, note, MN.BOOK.erase, () => { MN.erase(save, id); menuChanged(); }, !ok));
     }
   }
@@ -2343,7 +2382,7 @@ function renderMenuBook() {
     list.appendChild(h2);
     for (const id of rest) {
       const full = MN.boardFull(save);
-      const note = [save.menu.items[id].seen ? '' : MN.BOOK.isNew, MN.brewProfileNote(save, id)].filter(Boolean).join('・');
+      const note = [save.menu.items[id].seen ? '' : MN.BOOK.isNew, bookNote(id)].filter(Boolean).join('・');
       list.appendChild(menuRow(id, note, full ? MN.BOOK.replace : MN.BOOK.write, () => {
         if (MN.boardFull(save)) { swapFor = id; renderMenuBook(); return; }
         MN.write(save, id, d);
@@ -2769,7 +2808,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const rect = renderer.domElement.getBoundingClientRect();
   ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  if (!state.placing) { if (!(tap && tapBoard(ray))) talkTo(ray); return; }
+  if (!state.placing) { if (!(tap && (tapBoard(ray) || tapRoaster(ray)))) talkTo(ray); return; }
   if (state.mode !== 'overview') return;
   const decor = [...decorPapers.values()];
   const hit = ray.intersectObjects(decor.map((d) => d.userData.mesh))[0];
@@ -2898,7 +2937,135 @@ function hoverBoard(e) {
   const rect = renderer.domElement.getBoundingClientRect();
   ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  renderer.domElement.style.cursor = boardOpenable() && boardDist(ray) !== null ? 'pointer' : '';
+  renderer.domElement.style.cursor = (boardOpenable() && boardDist(ray) !== null) || (roasterTappable() && roasterDist(ray) !== null) ? 'pointer' : '';
+}
+
+/* ---------- 烘豆（承峰 11/6：「我希望你直接完成這兩項 烘豆……」，D217；roast.js） ---------- */
+// 打烊後點吧台最裡端的烘豆機：德叔問烘淺一點、深一點，還是剛好（choose()，剛好放最下面）→ 走過去倒生豆、搖滾筒（爐火、淡灰的煙）、
+// 一爆的細劈啪、下豆到竹篩、搖一搖冷卻 → 走回吧台。全部用動作呈現，泡泡只有開頭一句與最後一句（AGENTS：泡泡不描述步驟）。
+// 選完那一刻就換掉架上那一批並存檔（中途按「明天見」或關掉也不會白烘）；演的時候用 runMoment()，熟客場景、交信、德叔的話都等它演完。
+// 老闆可以坐著看，也可以去做別的事（關燈、寫日記、整理擺飾）；不加溫度、不進任務、不計數量
+const ROASTER_SPOT = new THREE.Vector3(2.6, 0, -3.0); // 德叔站在烘豆機後面（吧台和後牆之間的空隙旁）
+let roasting = null; // { level, phase: 'ask'|'walk'|'pour'|'roast'|'drop'|'cool'|'back', k }
+const roasterTappable = () => !keeper() && !state.cinematic && !state.tutorial && !state.scene && !state.choice && !state.guest && !state.arriving
+  && !state.placing && !state.favorite && !state.letter && !overlayOpen();
+// 現在點下去會開始烘：打烊後、德叔在吧台（擦琺瑯杯也算）、沒在沖、沒有別的事在演
+const roastOpenable = () => roasterTappable() && state.closing === 'after' && !roasting && !brewing && !deshuReturning && !moments.busy && !live.deshuWalk
+  && deshu.position.distanceTo(HOME) < 0.05;
+// 射線最先碰到的實心東西是烘豆機時，回傳距離（照 boardDist() 的做法：紙片透明的地方不算、被人擋住不算）
+function roasterDist(r) {
+  if (!roasterP.visible) return null;
+  const objs = []; scene.traverseVisible((o) => { if (o.isMesh) objs.push(o); });
+  // 烘豆機很小（從俯瞰只有十幾個像素）：整張紙片的範圍都算（透明的縫也算），前面被實心的東西擋住才不算
+  const hit = r.intersectObjects(objs, false).find((h) => h.object === roasterP.userData.mesh || solidAt(h, false));
+  return hit && hit.object === roasterP.userData.mesh ? hit.distance : null;
+}
+function tapRoaster(r) {
+  if (!roasterTappable()) return false;
+  const d = roasterDist(r);
+  if (d === null) return false;
+  const people = [deshu, yuan, zhe, kevin, cat].filter((p) => p.visible);
+  const person = r.intersectObjects(people.map((p) => p.userData.mesh))[0];
+  if (person && person.distance < d) return false;
+  if (roasting) { if (!bubble.classList.contains('show')) say(RO.ROAST.busy, 2600); return true; } // 【待定】
+  if (state.closing !== 'after') { // 開店時（或打烊後還沒喝最後一杯）：德叔說一句，什麼都不會少
+    if (!state.closing && !brewing && !sayBusy) say(RO.ROAST.notYet, 3200);
+    return !state.closing;
+  }
+  if (!roastOpenable()) return false;
+  startRoast();
+  return true;
+}
+async function startRoast(pick = null) {
+  if (!roastOpenable()) return false;
+  roasting = { level: '', phase: 'ask', k: 0 };
+  const ch = RO.roastChoices();
+  const level = pick && RO.LEVELS.includes(pick) ? pick : ch[await choose(ch.map((c) => c.text), RO.ROAST.ask, '德叔')].level;
+  RO.roastBatch(save, level, today(), now());
+  persist();
+  roasting.level = level;
+  runMoment('roast', level, () => roastShow(level)).finally(() => { roasting = null; updateUI(); });
+  return true;
+}
+async function roastShow(level) {
+  const R = roasting, m = deshu.userData.mesh, drum = roasterP.userData.mesh;
+  const T = RO.TIMING;
+  say(RO.ROAST.start, 2200);
+  R.phase = 'walk';
+  await deshuGo(ROASTER_SPOT);
+  // 1. 倒生豆：德叔手上的生豆一顆一顆落進上面的漏斗（淡綠的小點）
+  R.phase = 'pour';
+  setPaper(deshu, deshuCanvas.pour);
+  const fall = [];
+  const top = V3(ROASTER_AT.x + 0.02, TOP + 0.33, ROASTER_AT.z);
+  for (let i = 0; i < 9; i++) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 5), new THREE.MeshLambertMaterial({ color: RO.BEAN_COLOR.green }));
+    b.visible = false;
+    scene.add(b);
+    fall.push(b);
+  }
+  audio.play('tray');
+  await animate(T.pour, (k) => {
+    fall.forEach((b, i) => {
+      const kk = THREE.MathUtils.clamp(k * 1.6 - i * 0.07, 0, 1);
+      b.visible = kk > 0 && kk < 1;
+      b.position.set(top.x + 0.25 * (1 - kk) + (i % 3 - 1) * 0.01, top.y + 0.22 * (1 - kk) * (1 - kk) + 0.02, top.z + (i % 2 ? 0.01 : -0.01));
+    });
+  });
+  for (const b of fall) { scene.remove(b); b.geometry.dispose(); b.material.dispose(); }
+  // 2. 烘：搖滾筒（紙片輕晃，德叔跟著小幅搖）、爐火淡入、淡灰的煙；一爆的時候細細的劈啪幾下
+  R.phase = 'roast';
+  setPaper(deshu, deshuCanvas.idle);
+  audio.start('roast');
+  const smoke = V3(ROASTER_AT.x + 0.1, TOP + 0.3, ROASTER_AT.z);
+  let pops = 0;
+  await animate(T.roast[level] || T.roast.medium, (k) => {
+    R.k = k;
+    const t = performance.now();
+    drum.rotation.z = Math.sin(t / 170) * 0.025;
+    m.rotation.z = Math.sin(t / 340) * 0.03;
+    roastFlame.material.opacity = Math.min(1, k * 6) * (0.55 + 0.15 * Math.sin(t / 90) + 0.1 * Math.sin(t / 37));
+    if (k > 0.25) smokeSources.add(smoke);
+    // 一爆：從 crack 那一刻起，間隔一下劈啪一次，共四次
+    if (pops < 4 && k >= T.crack + pops * 0.035) { pops++; audio.play('crack'); }
+  });
+  audio.stop('roast');
+  smokeSources.delete(smoke);
+  drum.rotation.z = 0;
+  m.rotation.z = 0;
+  // 3. 下豆：竹篩出現，豆子一顆一顆倒進去（顏色就是這一批）
+  R.phase = 'drop';
+  setPaper(deshu, deshuCanvas.serve);
+  roastBeanMat.color.set(RO.BEAN_COLOR[level]);
+  roastBeans.forEach((b) => { b.visible = false; b.position.y = b.userData.y; });
+  roastTray.rotation.y = 0;
+  roastTray.visible = true;
+  audio.play('tray');
+  await animate(T.drop, (k) => {
+    roastFlame.material.opacity = Math.max(0, 0.6 * (1 - k * 2));
+    roastBeans.forEach((b, i) => { b.visible = i < Math.ceil(k * roastBeans.length); });
+  });
+  roastFlame.material.opacity = 0;
+  // 4. 冷卻：搖一搖竹篩，豆子跳一下
+  R.phase = 'cool';
+  let shook = 0;
+  await animate(T.cool, (k) => {
+    const t = performance.now();
+    const shake = Math.sin(k * Math.PI * 10) * Math.sin(Math.PI * k);
+    roastTray.rotation.y = shake * 0.25;
+    roastBeans.forEach((b, i) => { b.position.y = b.userData.y + Math.max(0, Math.sin(t / 70 + i * 1.7)) * 0.006 * Math.abs(shake); });
+    if (shook < 2 && k > 0.2 + shook * 0.4) { shook++; audio.play('tray'); }
+  });
+  roastTray.rotation.y = 0;
+  roastBeans.forEach((b) => { b.position.y = b.userData.y; });
+  setPaper(deshu, deshuCanvas.idle);
+  say(RO.ROAST.done[level], 4200);
+  await wait(2.2);
+  // 走回吧台；竹篩收起來（豆子進了架上那一罐）
+  R.phase = 'back';
+  roastTray.visible = false;
+  await deshuGo(HOME);
+  deshu.userData.mesh.position.y = 0;
 }
 
 // 測試用（__cafe.boardView()）：畫面上的這幾點裡，離 (cx, cy) 最近、點下去會算點到黑板的一點
@@ -5675,6 +5842,7 @@ function loop() {
     steamAcc = 0;
     for (const c of cups) if ((c.userData.age += 0.35) < 90) emitSteam(c.userData.steamAt);
     for (const p of steamSources) emitSteam(p);
+    for (const p of smokeSources) emitSteam(p, '#bdb6ad');
   }
   updateSteam(dt);
   layoutOverlays();
@@ -6157,6 +6325,30 @@ if (DEV) {
     keeperOffer() { if (!keeperFavOfferable()) return false; say(keeperLine(), 3500, deshu); offerKeeperDrink(); return true; },
     photo(id = 'yuan-1') { if (!FV.photoById(id)) return Promise.resolve(false); return showPhoto(id, { auto: true }).then(() => true); },
     album() { openAbout(false); openNotebook(false); openSheet('album'); return true; },
+    // 烘豆（D217）：roast 讀狀態（架上這一批、正在烘的哪一段、現在點烘豆機會不會開始、爐火、竹篩、煙、菜單本那一句）；
+    // roastStart('light') 不經過選項直接烘；roasterOnScreen() 烘豆機在畫面上、點下去真的會算點到烘豆機的一點（相對 #app 與整頁的座標）
+    get roast() {
+      return { batch: save.roast?.batch ? { ...save.roast.batch } : null, roasting: roasting && { ...roasting }, openable: roastOpenable(), tappable: roasterTappable(),
+        flame: +roastFlame.material.opacity.toFixed(2), tray: roastTray.visible, smoke: smokeSources.size, note: RO.roastNote(save, 'dongshan'),
+        deshu: { x: +deshu.position.x.toFixed(2), z: +deshu.position.z.toFixed(2) } };
+    },
+    roastStart(level = 'medium') { return startRoast(level); },
+    roasterOnScreen() {
+      const r = new THREE.Raycaster(), n = new THREE.Vector2(), W = app.clientWidth, H = app.clientHeight;
+      const c = V3(ROASTER_AT.x, TOP + 0.18, ROASTER_AT.z).project(camera);
+      const cx = ((c.x + 1) / 2) * W, cy = ((1 - c.y) / 2) * H;
+      const people = [deshu, yuan, zhe, kevin, cat].filter((p) => p.visible).map((p) => p.userData.mesh);
+      const o = app.getBoundingClientRect();
+      for (let rad = 0; rad <= 30; rad += 3) for (let a = 0; a < 8; a++) {
+        const x = cx + Math.cos(a * Math.PI / 4) * rad, y = cy + Math.sin(a * Math.PI / 4) * rad;
+        if (x < 0 || y < 0 || x > W || y > H) continue;
+        r.setFromCamera(n.set((x / W) * 2 - 1, 1 - (y / H) * 2), camera);
+        const d = roasterDist(r), person = r.intersectObjects(people)[0];
+        if (d === null || (person && person.distance < d)) continue;
+        return { x: Math.round(x), y: Math.round(y), pageX: Math.round(x + o.left), pageY: Math.round(y + o.top) };
+      }
+      return null;
+    },
     // 階段 7：聲音與效能
     get audio() { return audio.state; },
     audioPeak() { return audio.peak(); },

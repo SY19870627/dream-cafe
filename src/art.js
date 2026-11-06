@@ -1923,6 +1923,39 @@ export function longanBag() {
   return c;
 }
 
+// 烘豆機（烘豆，D217；提案的 prop_roaster【暫名】）：吧台最裡端的小型手搖滾筒烘豆機，3/4 視角。
+// 畫師交圖前用這張 Canvas 暫代（機身上不寫字、不畫刻度數字，D202）。交圖後把 prop_roaster 加進 ROOM_SPEC（size 0.36×0.4）就會換上；
+// 還沒加進 ROOM_SPEC 是因為載不到的檔案會在主控台留下 404（冒煙測試把它算成錯誤）。滾筒轉、火光、煙由 main.js 做
+export function roaster() {
+  const a = room('prop_roaster');
+  if (a) return a;
+  const { c, g } = canvas(0.36, 0.4, HI);
+  // 鐵架與底座
+  g.fillStyle = '#3f3a36';
+  rr(g, 0.04, 0.37, 0.28, 0.025, 0.01); g.fill(); outline(g, 0.008);
+  rr(g, 0.06, 0.2, 0.022, 0.18, 0.008); g.fill(); outline(g, 0.007);
+  rr(g, 0.278, 0.2, 0.022, 0.18, 0.008); g.fill(); outline(g, 0.007);
+  // 底下的小爐口（火光由程式疊上去）
+  ell(g, 0.18, 0.335, 0.075, 0.018); g.fillStyle = '#2b2522'; g.fill(); outline(g, 0.007);
+  // 滾筒：橫放的圓筒，正面是一個橢圓的端蓋
+  rr(g, 0.08, 0.13, 0.2, 0.13, 0.03); g.fillStyle = '#6d6a66'; g.fill(); outline(g, 0.009);
+  g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 0.006;
+  for (const y of [0.16, 0.195, 0.23]) { g.beginPath(); g.moveTo(0.1, y); g.lineTo(0.26, y); g.stroke(); }
+  ell(g, 0.08, 0.195, 0.03, 0.066); g.fillStyle = '#85817b'; g.fill(); outline(g, 0.009);
+  ell(g, 0.08, 0.195, 0.012, 0.012); g.fillStyle = '#3f3a36'; g.fill();
+  // 搖把（木柄）
+  g.strokeStyle = '#3f3a36'; g.lineWidth = 0.01;
+  g.beginPath(); g.moveTo(0.08, 0.195); g.lineTo(0.025, 0.15); g.stroke();
+  rr(g, 0.006, 0.105, 0.024, 0.05, 0.01); g.fillStyle = '#8a5a36'; g.fill(); outline(g, 0.007);
+  // 上面的入豆漏斗
+  g.beginPath(); g.moveTo(0.17, 0.135); g.lineTo(0.145, 0.06); g.lineTo(0.255, 0.06); g.lineTo(0.23, 0.135); g.closePath();
+  g.fillStyle = '#9a958e'; g.fill(); outline(g, 0.008);
+  ell(g, 0.2, 0.06, 0.055, 0.012); g.fillStyle = '#5a5550'; g.fill(); outline(g, 0.007);
+  // 出豆口
+  rr(g, 0.27, 0.2, 0.06, 0.03, 0.01); g.fillStyle = '#5a5550'; g.fill(); outline(g, 0.007);
+  return c;
+}
+
 // 雨絲（貼在窗戶前面，往下捲動）
 export function rain(heavy) {
   const c = document.createElement('canvas');

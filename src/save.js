@@ -7,9 +7,10 @@ import { blankFarewell } from './farewell.js';
 import { blankMenu, migrateMenu } from './menu.js';
 import { blankFavorites, lastBeanOf } from './favorites.js';
 import { blankTasting, migrateTastingToV10 } from './tasting.js';
+import { blankRoast } from './roast.js';
 
 export const SAVE_KEY = 'dream-cafe.save';
-export const SAVE_VERSION = 10; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
+export const SAVE_VERSION = 11; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
 // 3：階段 4 加入熟客故事線（來店次數、里程碑、結算到哪一天）、菜單、颱風那天
 // 4：階段 5 加入打烊（closing）、「今天的一杯」咖啡日記（diary）、龍眼（cat）
 // 5：階段 6 加入徵店長與告別（farewell）
@@ -18,6 +19,7 @@ export const SAVE_VERSION = 10; // 2：階段 3 加入開場、玩家資料、�
 // 8：承峰 11/4「做每人三段的版本」：熟客最愛的咖啡（favorites）與相簿（photos），stats.lastBean 老闆最近一次喝的那杯（favorites.js）
 // 9：承峰 11/5「先做試咖啡」：試咖啡與測試紀錄（tasting：德叔提過哪些配方、紀錄、定案；tasting.js）
 // 10：承峰 11/5 夜試咖啡重做：參數微調（粉水／水溫／研磨／技法）→ 登錄紀錄 → 定案寫 brewProfile；tasting 紀錄帶 params
+// 11：承峰 11/6「直接完成……烘豆」：架上這一批東山的豆（roast.batch：烘焙度、哪天烘的、德叔沖的時候說過沒；roast.js）
 
 const regular = () => ({ visits: 0, milestones: [], on: {}, settled: 0, lastVisit: 0, lastMilestoneDay: 0 });
 
@@ -62,6 +64,8 @@ export function defaultSave(now) {
     favorites: blankFavorites(),
     // 試咖啡（tasting.js，第 10 版）：參數微調紀錄（params／flavor／line／item）、定案寫入 menu.items[].brewProfile
     tasting: blankTasting(),
+    // 烘豆（roast.js，第 11 版）：batch 架上這一批 { bean, level, day, t, told }，null＝還沒烘過（照德叔平常的）；一批不計數量、沒有庫存
+    roast: blankRoast(),
     photos: [], // 相簿：[{ id: 'yuan-1', day, t, item 端過去的那杯, snack 附了龍眼乾沒 }]，照拿到的順序
     letters: [], // 讀過的老先生的信：[{ id, t, day }]
     journal: [], // 最近幾頁德叔的營業日誌（記事本可以重讀），見 journal.js
@@ -118,6 +122,8 @@ export function migrate(data, now) {
   // 已經走過開放配方的里程碑的存檔，德叔之後在店裡安靜時照樣提一次
   if (v < 9) save.tasting = blankTasting();
   migrateTastingToV10(save); // v9→v10 參數／brewProfile；之後讀檔也補缺欄
+  // 第 11 版以前沒有烘豆：架上沒有「這一批」（fill() 補上 batch: null），東山的豆照德叔平常的沖；黑板、菜單本、試咖啡、熟客最愛都照舊
+  if (v < 11) save.roast = blankRoast();
   save.version = SAVE_VERSION;
   save.nextUid = Math.max(save.nextUid, ...save.owned.map((o) => (Number(o.uid) || 0) + 1), 1);
   return save;

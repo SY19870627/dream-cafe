@@ -3,7 +3,7 @@
 //
 // 音樂：慵懶的日系咖啡店電鋼琴（Bbmaj7 → C7sus → Am7 → Dm7 → Gm7 → C7 → Fmaj7 → Dm9 八小節循環），
 //   白天有很輕的刷鼓；打烊後換成更慢、更稀疏、更暗的版本；店裡擺了黑膠唱機時多一點唱針的沙沙聲。
-// 店裡的聲音：磨豆、熱水壺注水、倒進杯子、杯子放上桌、門口的鈴、關燈的「喀」、窗外經過的機車、
+// 店裡的聲音：磨豆、熱水壺注水、倒進杯子、杯子放上桌、門口的鈴、關燈的「喀」、烘豆（滾筒翻豆、一爆、倒進竹篩）、窗外經過的機車、
 //   雨打在鐵皮雨遮上、颱風夜的風；開場的辦公室有日光燈的嗡嗡聲與鍵盤聲，信封裡的鑰匙會響。
 // 音量預設「小」，選單可以調、可以分別關掉音樂與店裡的聲音。
 
@@ -292,6 +292,15 @@ export function createAudio({ AudioContextClass = globalThis.AudioContext || glo
           }
         }
         break;
+      case 'crack': // 烘豆的一爆（D217）：細細的劈啪，三四下散開，音量很小、不會突然變大
+        for (let i = 0; i < 4; i++) {
+          const tt = t + Math.random() * 0.9;
+          noiseSrc(tt, 0.012, out, { type: 'highpass', freq: 2200 + Math.random() * 1800, gain: 0.035 + Math.random() * 0.03, attack: 0.001, release: 0.008 });
+        }
+        break;
+      case 'tray': // 烘好的豆子倒進竹篩、搖一搖：一陣沙沙聲
+        noiseSrc(t, 1.1, out, { type: 'bandpass', freq: 1500, q: 0.8, gain: 0.05, attack: 0.15, release: 0.4 });
+        break;
       case 'door': // 推門：老木門低低的一聲
         noiseSrc(t, 0.5, out, { type: 'lowpass', freq: 380, gain: 0.08, attack: 0.08, release: 0.2 });
         break;
@@ -338,6 +347,16 @@ export function createAudio({ AudioContextClass = globalThis.AudioContext || glo
         while (next < now + 0.25) {
           noiseSrc(next, 0.04, out, { type: 'bandpass', freq: 900 + Math.random() * 1600, q: 1.4, gain: 0.05 + Math.random() * 0.06, attack: 0.002, release: 0.018 });
           next += 0.035 + Math.random() * 0.045;
+        }
+      };
+      l.grain(t);
+    } else if (name === 'roast') {
+      // 烘豆（D217）：豆子在滾筒裡翻的低沙沙聲，一小陣一小陣（比磨豆輕、低）
+      let next = t;
+      l.grain = (now) => {
+        while (next < now + 0.25) {
+          noiseSrc(next, 0.18, out, { type: 'bandpass', freq: 420 + Math.random() * 380, q: 0.9, gain: 0.018 + Math.random() * 0.014, attack: 0.04, release: 0.08 });
+          next += 0.12 + Math.random() * 0.08;
         }
       };
       l.grain(t);
