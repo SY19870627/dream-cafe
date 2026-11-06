@@ -43,15 +43,17 @@ export function tex(c, repeat) {
 // h：圖裡畫到的部分（頭頂到腳底，含帽子）是幾公尺，照原本 Canvas 紙片的身高；同一個人的站姿共用一個高度。
 // ax：紙片原點（腳底中心／坐姿的臀部）在圖寬的哪裡，預設正中間；圖會以它為中線左右對稱地裁切。
 // hip：坐姿臀部底下在圖高的哪裡（從上緣量的比例），用來在底下放椅子或高腳椅（畫師的坐姿多半沒有畫椅子）。
+// rest：臀部坐在離地幾公尺的椅面上（配合 hip）：圖底下補一段透明，紙片原點仍是地面，人坐在店裡現成的那張椅子上、不另外畫。
 // facing：圖裡面朝哪邊（走路的龍眼面向左，往畫面右邊走時鏡像）。
 const ART_SPEC = {
   char_deshu_stand: { h: 1.67 }, char_deshu_brew: { h: 1.67 }, char_deshu_serve: { h: 1.67, cup: [-0.14, 1.03] },
   char_deshu_smile: { h: 1.67 }, char_deshu_thermo: { h: 1.67 }, char_deshu_sit: { h: 1.3 },
   char_kevin_stand: { h: 1.61 }, char_kevin_bar: { h: 1.61 }, char_kevin_sit: { h: 1.28, ax: 0.78, hip: 0.6 },
-  // 美術評分修正 d2：凱文坐在吧台高腳椅上（圖裡自己畫了高腳椅，和 stool.webp 同視角）。底邊是最前面那支椅腳，
-  // 椅面中心（臀部壓著的地方，原圖約 x 670、y 1105）到地面照 stool.webp 的 0.66 公尺，換算整張畫到的高度約 1.41 公尺；
-  // ax 對到椅面中心，紙片原點就是高腳椅的位置（和原本在他底下畫一張高腳椅時一樣）
-  char_kevin_barstool: { h: 1.41, ax: 0.654 },
+  // 凱文坐在吧台高腳椅上（D216：換成沒有畫椅子的圖 char_kevin_barstool_nochair，坐在店裡那張高腳椅上；舊的 char_kevin_barstool
+  // 自己畫了一張，和店裡那張疊成兩張，檔案留著不載）。縮放照舊圖的人：頭寬 286→331、肩寬 447→498 像素，約 1.14 倍，
+  // 每公尺 1364→1555 像素，頭頂（y 104）到鞋底（y 2006）1.22 公尺；臀部底下在 y 1315（大腿後側最低處，x 700～800），
+  // rest：臀部坐在離地 0.66 公尺的椅面上（stool.webp 的 sit 點），整張往上抬、鞋底懸在橫桿附近。ax 對到椅面中心（x 約 695）
+  char_kevin_barstool_nochair: { h: 1.22, ax: 0.679, hip: 0.642, rest: 0.66 },
   char_yuan_sit: { h: 1.22, ax: 0.8, hip: 0.63 }, char_yuan_stand: { h: 1.56 },
   char_zhe_stand: { h: 1.62 }, char_zhe_wet: { h: 1.62 },
   char_grandpa_stand: { h: 1.5 }, char_grandpa_sit: { h: 1.2 },
@@ -163,15 +165,16 @@ async function decodeArt(name, blob) {
     const half = Math.max(axPx - left * q, (right + 1) * q - axPx) + 4;
     const pad = 4;
     const s = Math.max(W, H) > 1024 ? Math.min(1, ART_MAX / Math.max(W, H)) : 1; // 龍眼的圖本來就小（512），不縮
+    const ppm = ((sole - figTop) * s) / spec.h;
+    const hip = spec.hip ? ((sole - spec.hip * H) * s) / ppm : 0;
+    const lift = spec.rest ? Math.max(0, Math.round((spec.rest - hip) * ppm)) : 0; // 鞋底離地多少像素
     const c = document.createElement('canvas');
     c.width = Math.round(2 * half * s);
-    c.height = Math.round((sole - figTop + pad) * s);
+    c.height = Math.round((sole - figTop + pad) * s) + lift;
     const g = c.getContext('2d', { willReadFrequently: true });
     g.imageSmoothingQuality = 'high';
     g.drawImage(bmp, 0, 0, W, H, (half - axPx) * s, (pad - figTop) * s, W * s, H * s);
-    const ppm = ((sole - figTop) * s) / spec.h;
-    const hip = spec.hip ? ((sole - spec.hip * H) * s) / ppm : 0;
-    return { c, ppm, hip, spec };
+    return { c, ppm, hip: hip + lift / ppm, spec };
   } finally {
     bmp.close?.();
   }
@@ -1519,10 +1522,10 @@ function drawZhe(pose) {
 // 手繪圖：sit（坐著開筆電、戴耳機；闔上筆電那一下也用它）、stand（走路、面試那天；沒帶筆電的日子 free 與躲到角落 hide
 // 也用站著的，因為坐著的圖一定開著筆電，和「以後都不用開會了」對不上）、bar（繫圍裙：當了店長）。
 // seat 是 main.js 依他在哪裡決定的（'stool' 吧台的高腳椅、其他 'chair'）：坐著的畫在他底下（free 在吧台時站在店裡那張高腳椅前面，D215）。
-// 美術評分修正 d2：坐在吧台高腳椅上有自己的圖（char_kevin_barstool，高腳椅畫在圖裡）；沒有載到就照舊在坐姿底下畫一張
+// 坐在吧台高腳椅上有自己的圖（D216：char_kevin_barstool_nochair，沒有畫椅子，坐在店裡那張高腳椅上）；沒有載到就照舊在坐姿底下畫一張
 export function kevin(pose = 'sit', seat = 'chair') {
   const name = pose === 'sit' || pose === 'closed' ? 'sit' : pose === 'apron' ? 'bar' : 'stand';
-  if (name === 'sit' && seat === 'stool') { const b = art('char_kevin_barstool'); if (b) return b; }
+  if (name === 'sit' && seat === 'stool') { const b = art('char_kevin_barstool_nochair'); if (b) return b; }
   // free 在吧台：原本在他身旁畫一張高腳椅（店裡那張收起來了）；椅子一律擺著之後（D215）他就站在店裡那張前面，不另外畫
   return art(`char_kevin_${name}`, name === 'sit' ? seat : null) || drawKevin(pose);
 }

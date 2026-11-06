@@ -4441,8 +4441,8 @@ async function offerKeeperDrink() {
 // 凱文出來坐旁邊喝（承峰 11/4：「出來坐旁邊喝」，D200，取代 D199「放在自己面前的吧台上」）：
 // 凱文在吧台沖好，端著杯子循路走出吧台（D214：不再寫死航點，不穿椅子、高腳椅與硬的東西），坐到老闆旁邊那張高腳椅（stoolMid），
 // 杯子放在他面前的吧台上；說完端對／端錯的話、照片淡回之後，再坐著喝一會兒（KEEPER_SIT_MS），喝完端著空杯走回吧台裡他的位子。
-// 吧台後面的紙片（deshu）就是凱文：走路用顧店的圖（kevinBar），坐下換成他當客人時坐高腳椅的圖（char_kevin_barstool，高腳椅畫在圖裡，
-// 店裡那張 stoolMid 先收起來）；沒有「繫圍裙端杯走路」「繫圍裙坐高腳椅喝」的圖，先用現有的頂著（D192：一張圖加程式動態，不生成圖）。
+// 吧台後面的紙片（deshu）就是凱文：走路用顧店的圖（kevinBar），坐下換成他當客人時坐高腳椅的圖（char_kevin_barstool_nochair，
+// 沒有畫椅子，坐在店裡那張 stoolMid 上；D215 起椅子不收，D216 換掉自己畫了椅子的舊圖免得疊兩張）；沒有「繫圍裙端杯走路」「繫圍裙坐高腳椅喝」的圖，先用現有的頂著（D192：一張圖加程式動態，不生成圖）。
 // 他離開吧台的整段當作 deshuReturning（德叔走回吧台的那個狀態）：請凱文沖一杯會先叫他回吧台再沖、熟客劇情／店裡的小事／客人模式的邀請／
 // 打烊後擦杯子都等他回去；老闆站起來（換座位、打烊、佈置都要先站起來）、換一天、劇情開始，他就收杯回吧台
 const KEEPER_SIDE = { pos: V2(1.3, -2.1), cup: new THREE.Vector3(1.72, TOP, -2.1), stool: stoolMid }; // 老闆旁邊那張高腳椅（OPPOSITE.bar 同一張）
@@ -4491,7 +4491,7 @@ async function keeperWalkOut(kind, dish) {
   }
   if (deshu.position.distanceTo(KEEPER_SIDE.pos) > 0.05) { keeperHome(); return false; } // 走不到（循路找不到路）：不硬坐上去，端回吧台
   deshu.userData.mesh.position.y = 0;
-  // 坐上高腳椅：換成坐著的圖（高腳椅畫在圖裡，和店裡那張同一個位置、同一個視角，疊在它前面）；店裡那張不收（D215）
+  // 坐上高腳椅：換成坐著的圖（D216：圖裡沒有椅子，臀部對到店裡那張的椅面，紙片疊在它前面）；店裡那張不收（D215）
   setArt(deshu, A.kevin('sit', 'stool'));
   HEAD.delete(deshu); // 泡泡與鏡頭照坐著的圖量頭在哪裡（站在吧台後面固定 2.0 公尺）
   scene.attach(cup);
