@@ -650,16 +650,9 @@ function setPose(who, pose) {
   setArt(PEOPLE[who], poseArt(who, pose, seat));
 }
 // 予安的椅子：手繪的予安坐著沒有畫椅子，窗邊那張小桌放一張（在她身後一點，鏡頭都在南邊，椅子總是在她後面）。
-// 她不在的時候，就是一張空椅子；退回 Canvas 繪圖（她的圖自己有坐姿）時不放
+// 店裡的椅子一律固定在拉開的狀態（承峰 11/6：「我們一率把椅子保留拉開的狀態」，D215）：她坐下、站起來、不在都一直擺著，
+// 不收、不切換顯示；所以她坐著的圖不再自己畫一張椅子（A.yuan()），免得兩張疊在一起
 const yuanChair = paper(A.chair(), -0.4, -1.86);
-const YUAN_CHAIR = A.artLoaded('char_yuan_sit');
-yuanChair.visible = YUAN_CHAIR;
-// 接正式美術第二批：她坐在這張椅子上時，椅子已經畫進她的圖裡（A.yuan() 坐姿），店裡這張先收起來，免得兩張疊在一起
-function updateYuanChair() {
-  const on = yuan.visible && poses.yuan !== 'book' && poses.yuan !== 'frame' && poses.yuan !== 'stand'
-    && Math.hypot(yuan.position.x - yuanChair.position.x, yuan.position.z - yuanChair.position.z) < 0.5;
-  yuanChair.visible = YUAN_CHAIR && !on;
-}
 
 // 德叔與龍眼
 const HOME = new THREE.Vector3(2.6, 0, -1.6);
@@ -668,6 +661,8 @@ const deshuCanvas = Object.fromEntries(DESHU_POSES.map((k) => [k, A.deshu(k)]));
 const deshu = paper(deshuCanvas.idle, HOME.x, HOME.z);
 deshu.userData.art = deshuCanvas.idle;
 const PEOPLE = { deshu, yuan, zhe, kevin, grandpa };
+// 椅子一律擺著（D215）：坐在高腳椅上的凱文和那張高腳椅在同一個位置、紙片同一個平面，人物的深度往鏡頭拉一點點，一定畫在椅子前面
+for (const p of Object.values(PEOPLE)) Object.assign(p.userData.mesh.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
 // 熟客由故事線決定什麼時候出現（startDay）；關掉熟客的測試模式沿用舊做法：予安從開店第 2 天起坐在窗邊
 for (const p of [yuan, zhe, kevin, grandpa]) p.visible = false;
 const showYuan = () => { if (!REGULARS_ON) yuan.visible = today() >= 2; };
@@ -2048,7 +2043,7 @@ function sit(seat) {
   cam.yaw = 0; cam.pitch = 0;
   frontWall.visible = true;
   ceiling.visible = true;
-  seat.prop.visible = false;
+  // 坐的那張椅子不收起來（D215：椅子一律保留拉開的狀態）；擋在鏡頭前的由 updateOcclusion() 照舊淡出
   focusP = null; lookTok++;
   moveCamera(seat.eye, seat.look);
   state.satAt = performance.now();
@@ -2089,7 +2084,6 @@ function stand() {
   focusP = null; lookTok++;
   const satSec = ((performance.now() - (state.satAt || performance.now())) / 1000) * DEV_SPEED;
   state.closeup = false;
-  state.seat.prop.visible = true;
   state.mode = 'overview';
   state.seat = null;
   cam.yaw = 0; cam.pitch = 0;
@@ -3250,10 +3244,9 @@ async function walkPath(p, pts, speed, own = false) {
   p.userData.mesh.position.y = 0;
   return true;
 }
+// 坐上高腳椅、椅子不收起來（D215：椅子一律保留拉開的狀態）；人物的紙片畫在同一個位置的高腳椅前面（PEOPLE 的 polygonOffset）
 function settle(w, spot) {
-  if (live.at[w]?.stool) live.at[w].stool.visible = true;
   live.at[w] = spot;
-  if (spot.stool) spot.stool.visible = false;
   PEOPLE[w].position.set(spot.pos.x, 0, spot.pos.z);
 }
 function placeAt(w, spot, pose) {
@@ -3278,7 +3271,6 @@ async function enterPerson(w, spot, walkPose, thenPose, fast) {
 }
 async function movePerson(w, spot, walkPose, thenPose) {
   const p = PEOPLE[w];
-  if (live.at[w]?.stool) live.at[w].stool.visible = true;
   const tok = live.token;
   if (walkPose) setPose(w, walkPose);
   if (!(await walkPath(p, [spot.pos], walkSpeed(w), true))) return;
@@ -3290,7 +3282,6 @@ async function leavePerson(w) {
   const p = PEOPLE[w];
   if (!p.visible) return;
   live.arrived.delete(w);
-  if (live.at[w]?.stool) live.at[w].stool.visible = true;
   delete live.at[w];
   removeGuestCup(w);
   setPose(w, w === 'kevin' ? 'walk' : w === 'grandpa' || w === 'yuan' ? 'stand' : poses[w]); // 予安站起來走（Canvas 版站著與坐著是同一張）
@@ -3810,7 +3801,6 @@ function stopStory() {
     PEOPLE[w].visible = false;
     removeGuestCup(w);
   }
-  for (const s of [stoolFar, stoolMid]) s.visible = true;
   live.expect.clear(); live.arrived.clear(); live.leaveAt.clear();
   live.at = {}; live.planned = {}; live.answers = {}; live.seatHinted = false; live.closeHinted = false; live.deshuWalk = null; live.fwHinted = 0; live.held = new Set(); live.trialOfferHint = '';
   live.day = 0;
@@ -4501,8 +4491,7 @@ async function keeperWalkOut(kind, dish) {
   }
   if (deshu.position.distanceTo(KEEPER_SIDE.pos) > 0.05) { keeperHome(); return false; } // 走不到（循路找不到路）：不硬坐上去，端回吧台
   deshu.userData.mesh.position.y = 0;
-  // 坐上高腳椅：換成坐著的圖（高腳椅畫在圖裡），店裡那張先收起來
-  KEEPER_SIDE.stool.visible = false;
+  // 坐上高腳椅：換成坐著的圖（高腳椅畫在圖裡，和店裡那張同一個位置、同一個視角，疊在它前面）；店裡那張不收（D215）
   setArt(deshu, A.kevin('sit', 'stool'));
   HEAD.delete(deshu); // 泡泡與鏡頭照坐著的圖量頭在哪裡（站在吧台後面固定 2.0 公尺）
   scene.attach(cup);
@@ -4520,7 +4509,6 @@ function keeperHome(instant = false) {
   if (instant) {
     keeperOut = null;
     ko.cup.parent?.remove(ko.cup);
-    KEEPER_SIDE.stool.visible = true;
     deshu.userData.walkId = ++walkSeq; // 走到一半的那段停下來
     setArt(deshu, deshuCanvas.idle);
     HEAD.set(deshu, DESHU_HEAD);
@@ -4539,7 +4527,6 @@ function keeperHome(instant = false) {
       ko.cup.userData.age = 999;
       setArt(deshu, deshuCanvas.idle);
       HEAD.set(deshu, DESHU_HEAD);
-      KEEPER_SIDE.stool.visible = true;
       await wait(0.3);
     }
     if (keeperOut !== ko) return;
@@ -4908,7 +4895,7 @@ function becomeKeeper() {
 async function keeperArrive() {
   state.arriving = true;
   updateUI();
-  if (state.seat) { state.seat.prop.visible = true; state.seat = null; }
+  state.seat = null; // 坐過的椅子本來就擺著（D215）
   state.mode = 'door';
   frontWall.visible = false;
   ceiling.visible = true;
@@ -5387,7 +5374,7 @@ async function guestEnter(tok) {
   await fade(true);
   if (tok !== guestTok) return;
   // 鏡頭退到門外；兩位熟客在店裡（予安在她的桌子，另一位站在桌子另一邊），龍眼睡在他的地方
-  if (state.seat) { state.seat.prop.visible = true; state.seat = null; }
+  state.seat = null; // 坐過的椅子本來就擺著（D215）
   state.closeup = false;
   guestPair = pickGuestPair();
   const d = today();
@@ -5673,7 +5660,6 @@ function loop() {
   updateCamera(dt);
   faceCamera(dt);
   updateCatHalo(dt);
-  updateYuanChair();
   flipCat();
   updateOcclusion(dt);
   updateDoor(dt);
@@ -5861,6 +5847,8 @@ if (DEV) {
         deshuTo: (x, z) => deshuGo(V2(x, z)).then(() => ({ x: deshu.position.x, z: deshu.position.z })), // 德叔照循路走過去（截圖確認走道）
       };
     },
+    // 店裡的椅子（D215：一律保留拉開的狀態）：每一張都看得到、位置固定
+    get chairs() { return Object.fromEntries([...SEATS.map((s) => [s.id, s.prop]), ['stoolMid', stoolMid], ['stoolFar', stoolFar], ['yuanChair', yuanChair]].map(([k, q]) => [k, { visible: q.visible, x: +q.position.x.toFixed(3), z: +q.position.z.toFixed(3) }])); },
     get temp() { return state.temp; },
     get shownTemp() { return shownTemp; },
     get brewing() { return brewing; },

@@ -772,10 +772,11 @@ function drawCat(pose) {
 
 // 予安：坐著寫稿的作家。pose：'type'（看筆電）、'napkin'（借了筆在紙巾上寫字）、'read'（念稿子）、'book'（拿著剛印好的書）
 // 手繪圖只有坐著開筆電（sit）與站著抱一本書（stand）：念稿、借筆用坐著的；拿書、拿裱框的紙巾、走路用站著的。
-// 接正式美術第二批：坐著時，手繪的椅子（同樣 3/4 側面）畫進她的圖裡、椅面對準臀部；她不在或站起來時，店裡那張空椅子（main.js 的 yuanChair）才出現
+// 椅子一律保留拉開的狀態（承峰 11/6，D215）：店裡那張椅子（main.js 的 yuanChair）一直擺在她身後，坐著的圖不再自己畫一張（原本畫進圖裡、店裡那張收起來）。
+// 手繪坐姿的臀部高度（1.22 ×（1 − 0.63）≈ 0.45 公尺）正好是椅面高度
 export function yuan(pose = 'type') {
   const stand = pose === 'book' || pose === 'frame' || pose === 'stand';
-  return art(`char_yuan_${stand ? 'stand' : 'sit'}`, stand ? null : 'chair') || drawYuan(pose);
+  return art(`char_yuan_${stand ? 'stand' : 'sit'}`) || drawYuan(pose);
 }
 function drawYuan(pose) {
   const { c, g } = canvas(0.8, 1.35, HI);
@@ -1517,12 +1518,13 @@ function drawZhe(pose) {
 // 'shirt'（來面試那天，穿著一件燙過的襯衫，站著）、'apron'（當了店長，繫著圍裙，站著）
 // 手繪圖：sit（坐著開筆電、戴耳機；闔上筆電那一下也用它）、stand（走路、面試那天；沒帶筆電的日子 free 與躲到角落 hide
 // 也用站著的，因為坐著的圖一定開著筆電，和「以後都不用開會了」對不上）、bar（繫圍裙：當了店長）。
-// seat 是 main.js 依他在哪裡決定的（'stool' 吧台的高腳椅、其他 'chair'）：坐著的畫在他底下；free 在吧台時，高腳椅畫在他旁邊。
+// seat 是 main.js 依他在哪裡決定的（'stool' 吧台的高腳椅、其他 'chair'）：坐著的畫在他底下（free 在吧台時站在店裡那張高腳椅前面，D215）。
 // 美術評分修正 d2：坐在吧台高腳椅上有自己的圖（char_kevin_barstool，高腳椅畫在圖裡）；沒有載到就照舊在坐姿底下畫一張
 export function kevin(pose = 'sit', seat = 'chair') {
   const name = pose === 'sit' || pose === 'closed' ? 'sit' : pose === 'apron' ? 'bar' : 'stand';
   if (name === 'sit' && seat === 'stool') { const b = art('char_kevin_barstool'); if (b) return b; }
-  return art(`char_kevin_${name}`, name === 'sit' || pose === 'free' ? seat : null) || drawKevin(pose);
+  // free 在吧台：原本在他身旁畫一張高腳椅（店裡那張收起來了）；椅子一律擺著之後（D215）他就站在店裡那張前面，不另外畫
+  return art(`char_kevin_${name}`, name === 'sit' ? seat : null) || drawKevin(pose);
 }
 function drawKevin(pose) {
   if (pose === 'shirt' || pose === 'apron') return kevinStand(pose);

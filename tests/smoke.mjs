@@ -1268,8 +1268,8 @@ try {
     check(out.keeperCup && out.keeperPos.x < 1.6 && !out.keeperHome, `凱文端著杯子走出吧台（${out.keeperPos.x}, ${out.keeperPos.z}）`);
     await page.waitForFunction(() => window.__cafe.fav.keeperSeated, null, { timeout: 40000 });
     const side = await fav();
-    check(Math.abs(side.keeperPos.x - 1.3) < 0.05 && Math.abs(side.keeperPos.z + 2.1) < 0.05 && !side.sideStool && side.keeperCup && side.busy === 'kevin',
-      `坐在老闆旁邊的高腳椅（${side.keeperPos.x}, ${side.keeperPos.z}），店裡那張高腳椅收起來（圖裡畫了），杯子在面前`);
+    check(Math.abs(side.keeperPos.x - 1.3) < 0.05 && Math.abs(side.keeperPos.z + 2.1) < 0.05 && side.sideStool && side.keeperCup && side.busy === 'kevin',
+      `坐在老闆旁邊的高腳椅（${side.keeperPos.x}, ${side.keeperPos.z}），店裡那張高腳椅照樣擺著（D215），杯子在面前`);
     await page.waitForTimeout(900);
     const on = await page.evaluate(() => window.__cafe.personOnScreen('deshu'));
     check(on && on.x > 20 && on.x < 370 && on.y > 60 && on.y < 800, `鏡頭轉過去：坐在旁邊的凱文在畫面裡（${on && Math.round(on.x)}, ${on && Math.round(on.y)}）`);
@@ -1280,7 +1280,7 @@ try {
     check(!(await fav()).keeperOfferable, '一天一杯：今天請過了就不再出現');
     check((await fav()).keeperSeated && (await page.isVisible('#stand')), '說完以後：凱文還坐著喝，老闆可以站起來');
     await page.waitForFunction(() => window.__cafe.fav.keeperPhase === 'walkBack', null, { timeout: 30000 });
-    check((await fav()).keeperCup && (await fav()).sideStool, '喝完：站起來端著空杯走回去，高腳椅放回店裡');
+    check((await fav()).keeperCup && (await fav()).sideStool, '喝完：站起來端著空杯走回去，高腳椅一直擺著');
     await page.waitForFunction(() => window.__cafe.fav.keeperHome, null, { timeout: 30000 });
     check(!(await fav()).keeperCup && (await page.evaluate(() => window.__cafe.deshuHome)), '回到吧台裡他的位子，杯子收走');
     const trail = await page.evaluate(() => { const t = window.__keeperTrail; return { ...t, hard: [...t.hard], soft: [...t.soft] }; });
@@ -1296,7 +1296,7 @@ try {
     await page.waitForTimeout(300);
     check((await page.evaluate(() => window.__cafe.mode)) === 'overview' && (await fav()).keeperPhase === 'walkBack', '坐在旁邊時老闆站起來：凱文馬上收杯走回吧台');
     await page.waitForFunction(() => window.__cafe.fav.keeperHome, null, { timeout: 30000 });
-    check((await fav()).sideStool && !(await fav()).keeperCup, '站起來之後：凱文回到吧台、高腳椅放回去');
+    check((await fav()).sideStool && !(await fav()).keeperCup, '站起來之後：凱文回到吧台、高腳椅一直擺著');
     // 坐在旁邊時按「請凱文沖一杯」：先回吧台再沖（不衝突）
     await page.evaluate(() => window.__cafe.keeperSetup(2));
     page.evaluate(() => window.__cafe.favServe('kevin', 'black'));
@@ -1791,7 +1791,7 @@ try {
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(1800);
     const art = await page.evaluate(() => window.__cafe.art);
-    check(blocked >= 64 && art.loaded.length === 0 && Object.values(art.now).every((v) => v === null) && !art.yuanChair, `assets/art 全部失敗（斷線、404、解碼錯誤，攔下 ${blocked} 個請求）：人物退回 Canvas 繪圖`);
+    check(blocked >= 64 && art.loaded.length === 0 && Object.values(art.now).every((v) => v === null) && art.yuanChair, `assets/art 全部失敗（斷線、404、解碼錯誤，攔下 ${blocked} 個請求）：人物退回 Canvas 繪圖，予安那張椅子照樣擺著（D215）`);
     check(Object.values(art.props).every((v) => v === null) && !art.backBar && !art.thermo && art.hanging === 0 && art.windowW <= 400 && art.floorW === 512,
       `店內的家具、層架、溫度計、吊燈、窗景與地板也退回 Canvas 繪圖 ${JSON.stringify(art.props)} 窗 ${art.windowW} 地板 ${art.floorW}`);
     // art2b：開場、地圖與介面的圖、圖示全部沒有：CSS 變數不設（原本的漸層與 2px 墨色框）、按鈕照舊是文字、信封是 Canvas、地圖是 Canvas
@@ -2101,8 +2101,22 @@ try {
       return out;
     });
     check(bad.length === 0, `各位子之間的路都不穿過桌子、吧台 ${bad.slice(0, 6).join(' | ')}`);
+    // 椅子一律保留拉開的狀態（承峰 11/6，D215）：坐下、站起來，椅子都不收、不動，碰撞物也一樣
+    const chairs0 = await page.evaluate(() => window.__cafe.chairs), blk0 = JSON.stringify((await page.evaluate(() => window.__cafe.nav)).blockers);
+    check(Object.values(chairs0).every((c) => c.visible), `店裡每一張椅子都擺著 ${JSON.stringify(chairs0)}`);
+    for (const [label, id] of [['吧台座', 'bar'], ['角落沙發', 'sofa']]) {
+      await page.click(`.seat-label >> text=${label}`);
+      await page.waitForTimeout(1600);
+      const c = await page.evaluate(() => window.__cafe.chairs);
+      check((await page.evaluate(() => window.__cafe.camInfo)).seat === id && JSON.stringify(c) === JSON.stringify(chairs0), `坐${label}：坐的那張和其他椅子都照樣擺著、位置不變`);
+      check(JSON.stringify((await page.evaluate(() => window.__cafe.nav)).blockers) === blk0, `坐${label}：碰撞物不變`);
+      await page.click('#stand');
+      await page.waitForTimeout(1400);
+      check(JSON.stringify(await page.evaluate(() => window.__cafe.chairs)) === JSON.stringify(chairs0), `從${label}站起來：椅子還是擺著`);
+    }
     await page.click('.seat-label >> text=窗邊座');
     await page.waitForTimeout(1600);
+    check((await page.evaluate(() => window.__cafe.chairs)).window.visible, '坐窗邊座：那張椅子照樣擺著');
     await page.click('#brew');
     // 德叔端杯走過去再走回吧台：每 40ms 量一次他站的地方
     const inside = await page.evaluate(async () => {
