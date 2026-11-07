@@ -94,6 +94,9 @@
   /* 美術評分修正 f：放在家具下面（上面被別的凳子佔了）：牌子在上緣、小三角朝上 */
   #labels .seat-label.under { align-items: flex-start; padding: 7px 0 0; }
   #labels .seat-label.under span::after { top: -8px; bottom: auto; border-width: 0 6px 6px; border-color: transparent transparent var(--ink); }
+  /* 版本號（承峰 11/7）：右下角、底部按鈕列下面的空隙裡（.bottom 離底 14px），小字半透明、點不到；對話框與面板蓋在它上面 */
+  #version { position: absolute; right: 12px; bottom: 1px; font-size: 10px; line-height: 12px; color: rgba(246,239,226,.55);
+    text-shadow: 0 0 2px rgba(0,0,0,.6); pointer-events: none; user-select: none; -webkit-user-select: none; white-space: nowrap; }
   /* 關於面板：蓋在畫面上，點外面關閉 */
   #about { position: absolute; inset: 0; background: rgba(20,14,10,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 10; }
   #about .card { width: 100%; max-width: 320px; max-height: 100%; overflow-y: auto; touch-action: pan-y; background: var(--paper); border-radius: 18px; padding: 20px 18px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
@@ -429,7 +432,34 @@
     #map-list span { white-space: normal; overflow: visible; } /* 14px 放不下一行：說明在右欄裡折行，不要被刪節號吃掉 */
   }
 </style>
-<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+<!-- 快取：JS 都帶 ?v=版本號（和 src/version.js 的 GAME_VERSION 一樣，每次 commit 前一起遞增；tests/unit/version.test.mjs 檢查）。
+     子模組之間是用 './xxx.js' 互相 import，不會繼承 main.js 網址上的 ?v=，所以在 importmap 把每個子模組對到帶 ?v= 的網址；
+     新增 src/ 的模組時也要加進來。three 是固定版本的打包檔，不加。 -->
+<script type="importmap">{ "imports": {
+  "three": "./vendor/three.module.min.js",
+  "./src/afterhours.js": "./src/afterhours.js?v=0.1.0",
+  "./src/art.js": "./src/art.js?v=0.1.0",
+  "./src/audio.js": "./src/audio.js?v=0.1.0",
+  "./src/cat.js": "./src/cat.js?v=0.1.0",
+  "./src/catalog.js": "./src/catalog.js?v=0.1.0",
+  "./src/clock.js": "./src/clock.js?v=0.1.0",
+  "./src/farewell.js": "./src/farewell.js?v=0.1.0",
+  "./src/favorites.js": "./src/favorites.js?v=0.1.0",
+  "./src/journal.js": "./src/journal.js?v=0.1.0",
+  "./src/letters.js": "./src/letters.js?v=0.1.0",
+  "./src/menu.js": "./src/menu.js?v=0.1.0",
+  "./src/moments.js": "./src/moments.js?v=0.1.0",
+  "./src/opening.js": "./src/opening.js?v=0.1.0",
+  "./src/pathfind.js": "./src/pathfind.js?v=0.1.0",
+  "./src/profiles.js": "./src/profiles.js?v=0.1.0",
+  "./src/roast.js": "./src/roast.js?v=0.1.0",
+  "./src/save.js": "./src/save.js?v=0.1.0",
+  "./src/story.js": "./src/story.js?v=0.1.0",
+  "./src/tasks.js": "./src/tasks.js?v=0.1.0",
+  "./src/tasting.js": "./src/tasting.js?v=0.1.0",
+  "./src/version.js": "./src/version.js?v=0.1.0",
+  "./src/weather.js": "./src/weather.js?v=0.1.0"
+} }</script>
 </head>
 <body>
 <div id="backdrop"></div>
@@ -475,6 +505,8 @@
       <button id="goodnight" class="primary" hidden>明天見</button>
     </div>
   </div>
+  <!-- 版本號：字由 main.js 從 src/version.js 填進來 -->
+  <div id="version" aria-hidden="true"></div>
   <div id="about" hidden role="dialog" aria-modal="true" aria-labelledby="about-title">
     <div class="card">
       <h2 id="about-title">我單方面辭退老闆後，開了一間夢想中的咖啡店</h2>
@@ -606,6 +638,6 @@
   <!-- 開場：第一幕到第三幕（新存檔才會出現），由 src/opening.js 建立 -->
   <div id="opening" hidden></div>
 </div>
-<script type="module" src="./src/main.js"></script>
+<script type="module" src="./src/main.js?v=0.1.0"></script>
 </body>
 </html>

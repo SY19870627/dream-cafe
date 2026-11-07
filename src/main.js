@@ -22,6 +22,7 @@ import * as TS from './tasting.js';
 import * as RO from './roast.js';
 import * as PR from './profiles.js';
 import { createNav } from './pathfind.js';
+import { versionLabel } from './version.js';
 
 const $ = (id) => document.getElementById(id);
 // 瀏覽器（手機尤其）可能拿到快取的舊 index.html、配上新的 main.js：少了試咖啡的 #tune 面板時，
@@ -41,6 +42,17 @@ if (!$('tune')) {
     + '<div class="tune-actions"><button id="tune-brew" class="primary">請德叔依這組沖</button><button id="tune-cancel">下次再調</button></div></div>';
   const nb = $('notebook');
   if (nb) nb.before(el); else document.body.appendChild(el);
+}
+// 版本號（承峰 11/7）：右下角的小字，從 src/version.js 讀；舊的 index.html 沒有 #version 時補上（樣式寫在元素上）
+{
+  let ver = $('version');
+  if (!ver) {
+    ver = document.createElement('div');
+    ver.id = 'version'; ver.setAttribute('aria-hidden', 'true');
+    ver.style.cssText = 'position:absolute;right:12px;bottom:1px;font-size:10px;line-height:12px;color:rgba(246,239,226,.55);text-shadow:0 0 2px rgba(0,0,0,.6);pointer-events:none;user-select:none;white-space:nowrap';
+    $('app').querySelector('.bottom').after(ver);
+  }
+  ver.textContent = versionLabel();
 }
 const lightsEl = $('lights'); // 打烊後每盞燈旁邊的「關燈／開燈」
 
