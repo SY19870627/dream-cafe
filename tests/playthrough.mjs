@@ -329,7 +329,15 @@ async function play([W, H]) {
     r = await settle(`第 ${day} 天（坐下）`, { close: false });
     if (r === 'map') { ended = true; break; }
     if (await vis('#brew') && !(await page.isDisabled('#brew'))) {
-      await page.click('#brew');
+      // D224：桌機有時按鈕列還在切換，#brew 先看得到再點時已隱藏——先等不忙，失敗就短等再試一次（不略過最終斷言）
+      await page.waitForFunction(() => !window.__cafe.scene && !window.__cafe.storyBusy && !window.__cafe.choosing && !window.__cafe.brewing, null, { timeout: 20000 }).catch(() => {});
+      try {
+        await page.click('#brew', { timeout: 15000 });
+      } catch {
+        await page.waitForTimeout(1500);
+        await page.waitForFunction(() => !window.__cafe.scene && !window.__cafe.choosing, null, { timeout: 10000 }).catch(() => {});
+        if (await vis('#brew') && !(await page.isDisabled('#brew'))) await page.click('#brew', { timeout: 15000 });
+      }
       await page.waitForTimeout(300);
       if (await vis('#choices')) await page.click('#choices button >> nth=0');
       await page.waitForFunction(() => !window.__cafe.brewing, null, { timeout: 40000 }).catch(() => {});
