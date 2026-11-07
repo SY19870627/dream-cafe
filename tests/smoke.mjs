@@ -717,7 +717,7 @@ try {
     check(kevinAsk.includes('凱文') && kevinAsk.includes('你當初怎麼敢辭職的？'), `三選一的上面一行是凱文的問句（${kevinAsk}）`);
     check(choiceSmall && choiceSmall.length === 0, '選項按鈕都 ≥ 44px');
     check(shots.has('kevin2') && shots.has('manuscript'), '凱文被罵時龍眼陪他、予安念稿');
-    check(typhoonHint === '什麼都不用做，在這裡就好' && kevinHint === '什麼都不用做，在這裡就好', `颱風夜與凱文第二幕都顯示場景提示（颱風夜「${typhoonHint}」、凱文「${kevinHint}」）`);
+    check(typhoonHint === '營業中' && kevinHint === '營業中', `颱風夜與凱文第二幕都顯示場景提示（颱風夜「${typhoonHint}」、凱文「${kevinHint}」）`);
     check(closedFor.has('yuan5') && readAfterClosing, '予安念稿：老闆按了「打烊」、喝完最後一杯之後才念');
     check(guestSeen && (await cafe('tasks')).includes('guest-visit'), '溫度到了 28°C，德叔邀請老闆從門口進來一次（客人模式）');
     const tasks = await cafe('tasks');
@@ -798,7 +798,7 @@ try {
     check(true, '阿哲推門進來：門往店裡開');
     await page.waitForFunction(() => window.__cafe.scene, null, { timeout: 30000 });
     const sh = await cafe('waitHint');
-    check(sh.hint === '什麼都不用做，在這裡就好' && sh.breathe, '熟客場景的提示一字不改，提示列慢慢呼吸');
+    check(sh.hint === '營業中' && sh.breathe, '熟客場景的提示是「營業中」，提示列慢慢呼吸');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
     await page.close();
   }

@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import * as S from '../../src/story.js';
 import { TASKS, stageNoteText } from '../../src/tasks.js';
 
-test('熟客場景的提示仍是作者的原文（D177 不動）', () => {
-  assert.equal(S.SCENE_HINT, '什麼都不用做，在這裡就好');
+test('熟客場景的提示仍是作者的原文（D219「營業中」）', () => {
+  assert.equal(S.SCENE_HINT, '營業中');
 });
 
 test('有人快走到門口：不管多久沒人說話，都先說「好像有人往這邊走來了」', () => {

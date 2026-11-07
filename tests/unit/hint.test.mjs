@@ -1,10 +1,10 @@
-// 熟客場景的提示「什麼都不用做，在這裡就好」：每個熟客場景都顯示，颱風夜也是（作者 2026-11-02，D177）
+// 熟客場景的提示「營業中」：每個熟客場景都顯示，颱風夜也是（作者 2026-11-02，D177；承峰 2026-11-07 改字，D219）
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../../src/story.js';
 
 test('場景提示是作者的原文', () => {
-  assert.equal(S.SCENE_HINT, '什麼都不用做，在這裡就好');
+  assert.equal(S.SCENE_HINT, '營業中');
 });
 
 test('颱風夜（阿哲第三幕）也顯示場景提示', () => {

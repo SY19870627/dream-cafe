@@ -4082,7 +4082,7 @@ setInterval(storyTick, 500);
 /* ---------- 等客人（承峰 11/3 試玩回饋 3，D179） ---------- */
 // 「要玩家等，但要等啥沒讓玩家知道，會以為當機了」：熟客快走到門口的前幾秒，門外有腳步聲、門上的鈴輕輕晃，
 // 提示列寫「好像有人往這邊走來了……」；坐著、一陣子沒人說話時，提示列換成等待的句子（文字與規則在 story.js 的 waitHint()）。
-// 熟客場景裡「什麼都不用做，在這裡就好」（D177）一字不改，只讓提示列慢慢呼吸（index.html 的 .hint.breathe），看得出畫面沒有停住
+// 熟客場景裡「營業中」（D219）一字不改，只讓提示列慢慢呼吸（index.html 的 .hint.breathe），看得出畫面沒有停住
 // 下一位熟客還有幾毫秒走進門（遊戲時間，開發者倍率換算回來）；今天沒有人要來、客人模式、打烊時是 null
 function nextArrivalMs() {
   if (!REGULARS_ON || !live.day || live.day !== today() || state.guest || state.closing) return null;
