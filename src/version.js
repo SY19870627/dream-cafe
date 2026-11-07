@@ -5,8 +5,8 @@
 // - 每次 commit 前遞增（規則見 AGENTS.md「協作慣例」）：修正與小調整加 PATCH（0.1.0 → 0.1.1），
 //   新功能或新段落加 MINOR、PATCH 歸零（0.1.1 → 0.2.0）；GAME_VERSION_DATE 改成當天日期。
 // 純資料，不依賴 Three.js 或 DOM。
-export const GAME_VERSION = '0.1.4';
+export const GAME_VERSION = '0.2.0';
 export const GAME_VERSION_DATE = '2026-11-07';
 
-// 記事本最底下顯示的字：v0.1.4・2026-11-07
+// 記事本最底下顯示的字：v0.2.0・2026-11-07
 export const versionLabel = () => `v${GAME_VERSION}・${GAME_VERSION_DATE}`;

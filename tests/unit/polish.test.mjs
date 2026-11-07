@@ -7,6 +7,9 @@ import { rainFloorDue, RAIN_FLOOR_DAY, RAIN_FLOOR_GAP, RAIN_HINT } from '../../s
 import { defaultSave, migrate, giveStarters } from '../../src/save.js';
 import { writeJournal } from '../../src/journal.js';
 import { createAudio, VOLUMES, VOLUME_NAMES } from '../../src/audio.js';
+import * as SM from '../../src/story.js';
+import * as VS from '../../src/visits.js';
+import * as FW from '../../src/farewell.js';
 
 const T0 = new Date(2026, 10, 1, 21, 30).getTime();
 const DAY = 864e5;
@@ -73,7 +76,8 @@ function strings(file) {
   return out;
 }
 const html = readFileSync(new URL('../../index.html', import.meta.url), 'utf8').replace(/<style>[\s\S]*?<\/style>/, '').replace(/<!--[\s\S]*?-->/g, '');
-const ALL = [...SRC.flatMap(strings), html];
+// 熟客的台詞在劇本檔（scripts/*.yaml，D224）：從 story.js 的 allLines() 讀（含來訪段落）
+const ALL = [...SRC.flatMap(strings), ...SM.allLines(), html];
 
 test('文字校對：玩家看得到的字裡沒有上班、催促、不划算的詞', () => {
   // 劇本原文裡「不在考核之列」「不用把菜單改得划算」「翻桌率不重要」是否定的說法，可以
@@ -90,9 +94,12 @@ test('文字校對：中文句子用全形標點（……、，、？），德�
   // 單一個「…」也要寫成「……」
   const single = ALL.filter((t) => t !== html).filter((t) => /…/.test(t.replace(/……/g, '')));
   assert.deepEqual(single.map((t) => t.slice(0, 40)), []);
-  // 德叔不會用「店長」「老大」「你這個」稱呼玩家
-  const story = readFileSync(new URL('../../src/story.js', import.meta.url), 'utf8') + readFileSync(new URL('../../src/farewell.js', import.meta.url), 'utf8');
-  const deshu = [...story.matchAll(/say\('deshu', '([^']*)'/g)].map((m) => m[1]);
+  // 德叔不會用「店長」「老大」「你這個」稱呼玩家（熟客的台詞在劇本檔 scripts/*.yaml，D224：讀編譯好的步驟）
+  const deshu = [];
+  const walk = (list) => { for (const s of list || []) { if (s.do === 'say' && s.who === 'deshu') deshu.push(s.text); walk(s.steps); if (s.cases) Object.values(s.cases).forEach(walk); } };
+  for (const m of SM.MILESTONES) walk(m.scene);
+  for (const s of VS.SEGMENTS) { walk(s.steps); if (s.invite && typeof s.invite === 'object') { walk(s.invite.yes); walk(s.invite.no); walk(s.invite.missing); } }
+  for (const s of FW.SEGMENTS) walk(s.scene);
   assert.ok(deshu.length > 15, '找得到德叔的台詞');
   assert.deepEqual(deshu.filter((l) => /老大|你這個|喂/.test(l)), []);
 });

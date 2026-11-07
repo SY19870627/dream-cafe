@@ -3,7 +3,9 @@
 // 純邏輯，不依賴 Three.js；storage 可以注入，方便用 node --test 測試。
 import { STARTER_ITEMS } from './catalog.js';
 import { daysOpen } from './clock.js';
-import { blankFarewell } from './farewell.js';
+import { blankFarewell, SEGMENTS as FAREWELL } from './farewell.js';
+import { MILESTONES } from './story.js';
+import { choiceIdsOf, SCRIPT } from './script.js';
 import { blankMenu, migrateMenu } from './menu.js';
 import { blankFavorites, lastBeanOf } from './favorites.js';
 import { blankTasting, migrateTastingToV10 } from './tasting.js';
@@ -12,7 +14,7 @@ import { blankProfiles, syncProfiles } from './profiles.js';
 import { blankRel, migrateRel } from './visits.js';
 
 export const SAVE_KEY = 'dream-cafe.save';
-export const SAVE_VERSION = 13; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
+export const SAVE_VERSION = 14; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
 // 3：階段 4 加入熟客故事線（來店次數、里程碑、結算到哪一天）、菜單、颱風那天
 // 4：階段 5 加入打烊（closing）、「今天的一杯」咖啡日記（diary）、龍眼（cat）
 // 5：階段 6 加入徵店長與告別（farewell）
@@ -24,8 +26,10 @@ export const SAVE_VERSION = 13; // 2：階段 3 加入開場、玩家資料、�
 // 12：承峰 11/6「直接完成……人物誌分段揭露」：人物誌寫進去的段落（profiles.got[人] = [{ n, day }]；profiles.js）
 // 11：承峰 11/6「直接完成……烘豆」：架上這一批東山的豆（roast.batch：烘焙度、哪天烘的、德叔沖的時候說過沒；roast.js）
 // 13：2026-11-07 文本與關係鋪陳（依 fable 審稿）：熟客的來訪段落（rel：演過／跳過的段落、擴寫版演過的里程碑、今天用掉幾段、請咖啡今天問過沒、段落結尾的第一杯問過的熟客 invited（後來才加，沒有時 visits.js 讀的時候補上）；visits.js）
+// 14：2026-11-07 劇本獨立成 scripts/*.yaml（D224）：story.answers[key] 從選項的數字 index 改成選項的 id（字串），branch 用 id 對應；
+//     舊存檔的數字由 migrateAnswers() 照每個 choice 的選項順序換成 id
 
-const regular = () => ({ visits: 0, milestones: [], on: {}, settled: 0, lastVisit: 0, lastMilestoneDay: 0 });
+const regular =() => ({ visits: 0, milestones: [], on: {}, settled: 0, lastVisit: 0, lastMilestoneDay: 0 });
 
 export function defaultSave(now) {
   const save = {
@@ -138,8 +142,29 @@ export function migrate(data, now) {
   // 第 13 版以前沒有來訪段落：已經發生的里程碑，當天的擴寫與接回都當作演過（不補演舊的事），窗口過了的段落跳過；
   // 最愛的段落（stage）、照片、metYuan 都不動（第一段改成 yuan3／zhe2／kevin3 之後開放，已經拿到的照片不收回）
   if (v < 13) { save.rel = blankRel(); migrateRel(save); }
+  // 第 14 版以前 story.answers 存的是選項的 index：照每個 choice 的選項順序換成 id（對不上的拿掉，branch 照沒選過走第一個）
+  if (v < 14) migrateAnswers(save);
   save.version = SAVE_VERSION;
   save.nextUid = Math.max(save.nextUid, ...save.owned.map((o) => (Number(o.uid) || 0) + 1), 1);
+  return save;
+}
+
+// 每個 choice 的 key → 依選項順序的 id（劇本檔的來訪段落、里程碑場景，與 farewell.js 的告別段落）
+export function choiceTable() {
+  return choiceIdsOf([
+    ...SCRIPT.segments.map((s) => s.steps),
+    ...MILESTONES.map((m) => m.scene),
+    ...FAREWELL.map((s) => s.scene),
+  ]);
+}
+// 存檔 13 → 14：story.answers 的數字 index 換成選項 id
+export function migrateAnswers(save) {
+  const table = choiceTable(), answers = save.story.answers;
+  for (const [k, v] of Object.entries(answers)) {
+    if (typeof v !== 'number') continue;
+    const id = table[k]?.[v];
+    if (id) answers[k] = id; else delete answers[k];
+  }
   return save;
 }
 

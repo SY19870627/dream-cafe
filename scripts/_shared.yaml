@@ -1,0 +1,77 @@
+# 共用：說話者、地方、客人註冊表、條件的別名、共用的句子。
+# 寫法見 docs/劇本格式.md；改完跑 npm run test:unit 與 npm run script:view。
+
+# 台詞前面的說話者（- 德叔: 字）→ 程式裡的人物 id
+speakers:
+  德叔: deshu
+  予安: yuan
+  阿哲: zhe
+  凱文: kevin
+  阿公: grandpa
+  主管: boss       # 視訊裡的主管（泡泡是沒有尾巴的畫外音）
+  你: player       # 老闆自己說的話（泡泡在畫面下方）
+
+# 旁白：描述場景、動作、氣氛；泡泡沒有名字、沒有尾巴，放在畫面上方中間
+narrator: 旁白
+
+# look／glance／deshuTo 與 { do: …, who: … } 的對象，除了上面的人，還可以是這些地方
+targets:
+  窗外: window
+  龍眼: cat
+  溫度計: thermo
+
+# 條件的別名（when: met 等於 when: flag:metYuan）。基本的條件：
+#   catSill            龍眼此刻睡在窗台上（演的當下看）
+#   flag:名字          存檔 flags 裡記過（mark 的 flag）
+#   early:名字         前三天的小段落演過（mark 的 early，或店裡的小事演過）
+#   seg:段落 id        那一段演過（或過期跳過）
+#   milestone:里程碑 id 那個里程碑發生過
+#   前面加 not 是相反
+conds:
+  peeked: early:d1-peek   # 第一天門口那位小姐的小段落演過
+  met: flag:metYuan       # 予安說過名字
+
+# 共用的句子
+lines:
+  seatHint:               # 閒聊要老闆坐著；站著時德叔提一次
+    text: 先坐。
+    tag: 原句
+
+# 客人註冊表：加新客人時，在這裡加一列，再加一個 scripts/<id>.yaml（里程碑的條件與排程在 src/story.js）
+#   name 全名、short 短名（相簿、記事本）、first 開店第幾天第一次來、rate 平常日子來店的機率、salt 每天來不來的亂數種子
+#   stranger：還不知道名字時，泡泡上的稱呼；until 其中一個條件成立就改叫名字；visits: true＝只在來訪段落開著時（&visits=0 照舊叫名字）
+#   intro：第一次點他時的自我介紹（說完記 flag）；ready 其中一個條件成立才說（來訪段落開著時）
+regulars:
+  yuan:
+    name: 林予安
+    short: 予安
+    first: 2
+    rate: 0.85
+    salt: 101
+    about: 卡稿的作家，34 歲。辦了留職停薪，從台北搬回阿公的三合院寫書。總坐窗邊，只點黑咖啡。
+    stranger:
+      name: 窗邊的小姐
+      until: [flag:metYuan, milestone:yuan2]
+      visits: true
+    intro:
+      text: ……啊，你好。我叫予安，常坐在這裡寫稿。
+      tag: 原句
+      flag: metYuan
+      ready: [seg:yuan-v2, milestone:yuan2]
+  zhe:
+    name: 陳柏哲
+    short: 阿哲
+    first: 1
+    rate: 0.6
+    salt: 202
+    about: 返鄉青農，26 歲。農學院畢業後回來接阿公的龍眼園與咖啡園。說話快，鞋子上總是泥。
+  kevin:
+    name: 張凱文
+    short: 凱文
+    first: 3
+    rate: 0.9
+    salt: 303
+    about: 遠距工作的工程師，31 歲。台北公司遠端上班，在東山租了一間老屋。和老闆最像的人。
+    stranger:
+      name: 冰美式先生
+      until: [milestone:kevin2]

@@ -168,7 +168,7 @@ test('凱文下午五點才來；里程碑 4 的回答與「單方面辭退」',
   const choice = k4.scene.find((x) => x.do === 'choice');
   const branch = k4.scene.find((x) => x.do === 'branch');
   assert.equal(choice.options.length, 3, '三選一');
-  assert.equal(branch.cases.length, 3);
+  assert.deepEqual(Object.keys(branch.cases), choice.options.map((o) => o.id), '每個選項 id 一個分支（存檔第 14 版）');
   assert.ok(k4.scene.find((x) => x.do === 'ifFire').steps.some((x) => x.text === '你真的這樣寫？'));
   assert.ok(k4.needSeat, '要老闆坐著，他才坐到對面');
 });

@@ -48,7 +48,7 @@ export const SEGMENTS = [
     when: () => true,
     hint: '老闆，今天打烊以後，門口要貼一樣東西。', // 【待定】第 1 段演完、還沒貼就換了一天時
     scene: [say('deshu', '門口，貼一張徵才的啟事吧。老闆來寫。'), // 【待定】
-      { do: 'choice', key: 'notice', prompt: '啟事要寫哪一句？', options: NOTICES.map((x) => x.text) }, // 提示字【待定】
+      { do: 'choice', key: 'notice', prompt: '啟事要寫哪一句？', options: NOTICES.map(({ id, text }) => ({ id, text })) }, // 提示字【待定】
       { do: 'notice' },
       say('deshu', '貼好了。明天，看誰先來。')] }, // 【待定】
   { n: 3, id: 'interview', who: 'kevin', entrance: true,
@@ -57,11 +57,11 @@ export const SEGMENTS = [
     scene: [{ do: 'enter', who: 'kevin', at: 'bar', pose: 'shirt' }, { do: 'look', who: 'kevin' },
       say('deshu', '……凱文先生。今天穿得很整齊。'), // 【待定】
       say('kevin', '我看到門口的啟事了。'), // 【待定】
-      { do: 'branch', key: 'notice', cases: [ // 【待定】凱文念出啟事的那句
-        [say('kevin', '「需要喜歡貓」。這一條，我應該可以。')],
-        [say('kevin', '「徵一個不趕時間的人」。我最近……剛好不趕了。')],
-        [say('kevin', '「翻桌率不重要」。我看了三次，確定沒看錯。')],
-      ] },
+      { do: 'branch', key: 'notice', cases: { // 【待定】凱文念出啟事的那句（選項 id 就是啟事的 id）
+        cat: [say('kevin', '「需要喜歡貓」。這一條，我應該可以。')],
+        slow: [say('kevin', '「徵一個不趕時間的人」。我最近……剛好不趕了。')],
+        turnover: [say('kevin', '「翻桌率不重要」。我看了三次，確定沒看錯。')],
+      } },
       say('kevin', '我不會煮咖啡。但我知道龍眼喜歡睡哪個位子，也知道予安寫不出來的時候會坐哪裡。'), // 劇本原文
       wait(1.2), { do: 'glance', who: 'deshu' },
       say('deshu', '咖啡我教你。後面那些，教不來。'), // 劇本原文
@@ -91,11 +91,11 @@ export const SEGMENTS = [
     scene: [{ do: 'look', who: 'kevin' }, { do: 'deshuTo', who: 'kevin' }, { do: 'keys', who: 'kevin' },
       say('deshu', '吧台的鑰匙。'), // 【待定】
       say('kevin', '這間店，我幫你顧。龍眼也是。你會常回來吧？'), // 劇本原文
-      { do: 'choice', key: 'kevinBack', options: ['我會常回來。', '我會當你的熟客。'] }, // 劇本原文
-      { do: 'branch', key: 'kevinBack', cases: [ // 【待定】凱文的反應
-        [say('kevin', '好。你常坐的那個位子，我幫你留著。')],
-        [say('kevin', '熟客啊。那我要記得，你第一次點的是什麼。')],
-      ] },
+      { do: 'choice', key: 'kevinBack', options: [{ id: 'often', text: '我會常回來。' }, { id: 'regular', text: '我會當你的熟客。' }] }, // 劇本原文
+      { do: 'branch', key: 'kevinBack', cases: { // 【待定】凱文的反應
+        often: [say('kevin', '好。你常坐的那個位子，我幫你留著。')],
+        regular: [say('kevin', '熟客啊。那我要記得，你第一次點的是什麼。')],
+      } },
       { do: 'deshuHome' }] },
   { n: 7, id: 'lastNight', who: 'kevin', needClosing: true, lastNight: true,
     when: (c) => c.day >= c.on[6],
@@ -186,9 +186,9 @@ export function complete(save, n, day) {
   return true;
 }
 
-// 貼出啟事（第 2 段）
-export function postNotice(save, i) {
-  const n = NOTICES[i] || NOTICES[0];
+// 貼出啟事（第 2 段）：pick＝選項 id（存檔第 14 版起；舊的數字 index 也認得）
+export function postNotice(save, pick) {
+  const n = (typeof pick === 'number' ? NOTICES[pick] : NOTICES.find((x) => x.id === pick)) || NOTICES[0];
   fw(save).notice = n.id;
   return n;
 }
@@ -223,9 +223,9 @@ export function allFarewellLines() {
   const walk = (steps) => {
     for (const s of steps) {
       if (s.text) out.push(s.text);
-      if (s.options) out.push(...s.options);
+      if (s.options) out.push(...s.options.map((o) => o.text));
       if (s.prompt) out.push(s.prompt);
-      if (s.cases) s.cases.forEach(walk);
+      if (s.cases) Object.values(s.cases).forEach(walk);
     }
   };
   for (const s of SEGMENTS) { walk(s.scene); if (s.hint) out.push(s.hint); }

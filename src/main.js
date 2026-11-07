@@ -1256,9 +1256,12 @@ const bubble = $('bubble');
 let bubbleTimer;
 let speaker = null;
 const NAMES = new Map();
-// 泡泡上的名字；凱文在主管叫出他的名字以前，店裡都叫他「冰美式先生」；予安說出名字以前是「窗邊的小姐」（來訪段落開著時，visits.js）
-const nameOf = (who) => (who === kevin && !S.hasMilestone(save, 'kevin', 2) ? '冰美式先生'
-  : who === yuan && VISITS_ON && VS.yuanStranger(save) ? VS.YUAN_STRANGER : NAMES.get(who) || '');
+// 泡泡上的名字；凱文在主管叫出他的名字以前，店裡都叫他「冰美式先生」；予安說出名字以前是「窗邊的小姐」（來訪段落開著時）
+// 稱呼與改口的條件是資料：scripts/_shared.yaml 的 regulars[].stranger（visits.js 的 strangerName()）
+const nameOf = (who) => {
+  const id = S.REGULAR_IDS.find((w) => PEOPLE[w] === who);
+  return (id && VS.strangerName(save, id, { visits: VISITS_ON })) || NAMES.get(who) || '';
+};
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 let sayEnds = 0; // 這句話什麼時候說完（老先生的信要等店裡安靜下來才交）
 let lastSaid = null; // 最後一句話（誰、什麼時候）：選項出現時，上面那一行就是這句（美術評分修正 b）
@@ -1272,12 +1275,28 @@ function say(text, ms = 3500, who = deshu, name = null, voice = false) {
   // 對話中（熟客的場景、客人模式的聊天）：說話的人轉進畫面裡
   if (conversing() && state.mode === 'seat' && !state.closeup && who && who !== 'player' && who.visible && isPerson(who) && (who !== focusP || movedSinceLook(who))) lookToward(who, 2.3);
   sayEnds = performance.now() + (ms || 4000);
+  bubble.classList.remove('narrate');
   bubble.classList.toggle('me', who === 'player');
   bubble.classList.toggle('voice', voice);
   const label = name ?? (who === 'player' ? '你' : nameOf(who));
   bubble.innerHTML = `<b>${label}</b>${esc(text)}`; // 台詞可能帶著玩家自己寫的名字
   if (/龍眼(?!乾)/.test(String(text)) && who !== cat) catMentionUntil = performance.now() + (ms || 4000) + 1500;
   lastSaid = who === 'player' ? null : { name: label, text: String(text), at: performance.now() };
+  bubble.classList.add('show');
+  clearTimeout(bubbleTimer);
+  if (ms) bubbleTimer = setTimeout(() => bubble.classList.remove('show'), ms);
+}
+
+// 旁白（劇本檔的「- 旁白: 字」，D224）：描述場景、動作、氣氛，不是誰說的話。和台詞同一個泡泡，但沒有名字、沒有尾巴、
+// 置中斜體、深色半透明底（#bubble.narrate），固定在畫面上方中間；鏡頭不轉（要看哪裡，劇本前面加 look）
+function narrate(text, ms = 3500) {
+  if (!String(text ?? '').trim()) { bubble.classList.remove('show'); return; }
+  speaker = 'narrate';
+  sayEnds = performance.now() + (ms || 4000);
+  bubble.classList.remove('me', 'voice');
+  bubble.classList.add('narrate');
+  bubble.textContent = String(text);
+  lastSaid = null; // 選項上面的那一行只放角色說的話
   bubble.classList.add('show');
   clearTimeout(bubbleTimer);
   if (ms) bubbleTimer = setTimeout(() => bubble.classList.remove('show'), ms);
@@ -2643,8 +2662,9 @@ function openNotebook(open) {
     };
     for (const w of met) {
       const info = S.REGULARS[w];
-      const named = w !== 'kevin' || S.hasMilestone(save, 'kevin', 2);
-      row(w, named ? `${info.name}（${info.short}）` : '冰美式先生', info.about);
+      // 記事本照舊只有凱文在主管叫出名字以前寫稱呼（予安的名字揭露未定，Q157：visits: false 不看「窗邊的小姐」）
+      const stranger = VS.strangerName(save, w, { visits: false });
+      row(w, stranger || `${info.name}（${info.short}）`, info.about);
     }
     for (const w of others) row(w, PR.profileName(save, w), PR.profilePage(save, w).segs[0].text);
   }
@@ -2952,8 +2972,11 @@ function talkTo(r) {
   if (who === deshu && brewing) return;
   if (who === cat) { petTheCat(); return; } // 摸龍眼（點太多次他會走開）
   let line;
-  // 予安的自我介紹：來訪段落的第 2 次（打招呼）演過、或那個窗口過了，才在點她時說（fable 第四節 6；選了「點點頭」的人，名字留到這時候）
-  if (who === yuan && !save.flags.metYuan && (!VISITS_ON || VS.yuanIntroReady(save))) { line = '……啊，你好。我叫予安，常坐在這裡寫稿。'; save.flags.metYuan = true; persist(); }
+  // 熟客的自我介紹（scripts/_shared.yaml 的 intro）：予安是來訪段落的第 2 次（打招呼）演過、或那個窗口過了，才在點她時說
+  // （fable 第四節 6；選了「點點頭」的人，名字留到這時候）
+  const rid = S.REGULAR_IDS.find((w) => PEOPLE[w] === who);
+  const intro = rid ? VS.introLine(save, rid, { visits: VISITS_ON }) : null;
+  if (intro) { line = intro; save.flags[VS.introFlag(rid)] = true; persist(); }
   else if (who === yuan || who === zhe || who === kevin) line = regularLine(who === yuan ? 'yuan' : who === zhe ? 'zhe' : 'kevin');
   else if (who === deshu && keeper() && keeperFavOfferable()) line = keeperLine(); // 坐吧台座、凱文那一段開放：偶爾說那一段的線索（D199）
   else if (who === deshu && keeper()) { const l = state.closing ? F.KEEPER.closingTalk : F.KEEPER.talk; line = l[Math.floor(Math.random() * l.length)]; } // 離開東山之後，吧台後面是凱文
@@ -4049,12 +4072,18 @@ async function playStep(s, tok) {
     case 'glance': return glance(personOf(s.who));
     case 'weather': return startTyphoon();
     case 'prop': counterBag.visible = true; return realWait(500);
+    // 選項是 [{ id, text }]；存檔記選項的 id（第 14 版，D224），branch 用 id 對應
     case 'choice': {
-      const i = await choose(s.options, s.prompt || ''); live.answers[s.key] = i; save.story.answers[s.key] = i; persist();
-      if (s.speak) await playerSays(s.options[i]); // 來訪段落：老闆那句以「你」的泡泡說出來（括號的動作不出泡泡）
+      const i = await choose(VS.optionTexts(s.options), s.prompt || ''); const o = s.options[i];
+      live.answers[s.key] = o.id; save.story.answers[s.key] = o.id; persist();
+      if (s.speak) await playerSays(o.text); // 來訪段落：老闆那句以「你」的泡泡說出來（括號的動作不出泡泡）
       return;
     }
-    // 來訪段落（visits.js）多的幾種步驟：只在某個狀態下演、記一件事、龍眼在窗台上的小動作
+    // 旁白（D224）：描述場景、動作、氣氛；泡泡沒有名字、沒有尾巴，放在畫面上方中間，鏡頭不動
+    case 'narrate': { const ms = sayMs(s.text) + 600;
+      narrate(s.text, Math.max(ms / DEV_SPEED, Math.min(ms, 700)));
+      return realWait(ms + 450); }
+    // 來訪段落（visits.js）多的幾種步驟：只在某個條件下演、記一件事、龍眼在窗台上的小動作
     case 'when': return VS.condOk(save, s.if, { catSill: catOnSill() }) ? playSteps(s.steps, tok) : undefined;
     case 'mark':
       if (s.flag) save.flags[s.flag] = true;
@@ -4062,7 +4091,10 @@ async function playStep(s, tok) {
       persist();
       return undefined;
     case 'catMove': return catFree() ? catMove(s.kind) : undefined;
-    case 'branch': return playSteps(s.cases[live.answers[s.key] ?? save.story.answers[s.key] ?? 0] || [], tok); // 隔天才用到的選項（凱文念啟事）從存檔讀
+    case 'branch': { // 隔天才用到的選項（凱文念啟事）從存檔讀；沒選過就是第一個選項的分支
+      const id = live.answers[s.key] ?? save.story.answers[s.key];
+      return playSteps(s.cases[id] || Object.values(s.cases)[0] || [], tok);
+    }
     case 'notice': return postNotice();
     case 'keys': return handKeys(s.who);
     case 'name': { // 最後一晚：德叔第一次叫老闆的名字
@@ -4179,12 +4211,12 @@ async function runInvite(w, inv, tok) {
   if (!VS.inviteReady(save, w, d) || !PEOPLE[w]?.visible) return;
   VS.markOffered(save, w, d);
   persist();
-  const i = await choose(inv.options);
+  const i = await choose(VS.optionTexts(inv.options));
   if (tok !== live.token) throw ABORT;
   VS.markInvited(save, w); // 問到了（選項出來前中斷的，之後由接回補問：予安是 yuan-r3）
   persist();
-  await playerSays(inv.options[i]);
-  if (i !== 0) { await playSteps(inv.no, tok); return; }
+  await playerSays(inv.options[i].text);
+  if (inv.options[i].id !== VS.INVITE_TREAT) { await playSteps(inv.no, tok); return; }
   const drink = VS.inviteDrink(save, inv, boardShift);
   await playSteps(drink ? inv.yes : inv.missing, tok);
   state.scene = null; // 端過去的那段由 serveFavorite() 接手（state.favorite）
@@ -5355,7 +5387,7 @@ async function runFarewell(seg) {
 }
 // 第 2 段：貼出徵才啟事（老闆選的那句），德叔拿到門口貼好
 async function postNotice() {
-  const n = F.postNotice(save, live.answers.notice ?? save.story.answers.notice ?? 0);
+  const n = F.postNotice(save, live.answers.notice ?? save.story.answers.notice ?? F.NOTICES[0].id);
   persist();
   await new Promise((r) => openLetter({ title: '徵才啟事', paragraphs: [n.text], hand: true }, r));
   await deshuGo(V2(0.6, 3.15));
@@ -6070,6 +6102,7 @@ function placeBubble(W, H, note = null) {
   const minTop = UI_SPACE.top + UI_GAP;
   let x = W / 2, top = minTop, aim = null;
   if (speaker === 'player') top = H - 120 - bh; // 老闆自己說的話：固定在畫面下方的按鈕上面
+  else if (speaker === 'narrate') top = minTop; // 旁白：畫面上方中間（D224）
   else {
     sv.copy(speaker.position); sv.y += headOf(speaker); sv.project(camera);
     if (sv.z < 1 && Math.abs(sv.x) <= 1.05 && Math.abs(sv.y) <= 1.05) {

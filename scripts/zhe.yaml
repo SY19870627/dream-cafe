@@ -1,0 +1,265 @@
+# 陳柏哲（阿哲，返鄉青農）
+# segments：來訪段落（src/visits.js 排程）；milestones：六個里程碑的演出、日誌、提示（條件與順序在 src/story.js）
+# 沒寫 tag 的句子都是【待定】；tag: 原句＝已上線的句子搬進段落、tag: 劇本＝docs/第一站劇本.md 的原文。寫法見 docs/劇本格式.md
+
+segments:
+  - id: zhe-v1
+    note: 第 1 次｜陌生（與 zhe1 同天）
+    who: zhe
+    kind: with
+    with: zhe1
+    steps:
+      - { do: prop, prop: longanBag }
+      - 阿哲: 我阿公說新店開張要送東西。我是被逼來的。
+        tag: 原句
+        note: zhe1
+      - 德叔: 替我謝謝阿公。
+        tag: 原句
+        note: zhe1
+      - 阿哲: 窯烤的，配咖啡剛好。不是我說的，是我阿公說的。
+        tag: 原句
+        note: zhe1
+      - 德叔: 隔壁龍眼園的阿哲。
+        note: 對老闆，小聲
+      - 德叔: 他講話快。沒聽清楚的，我再說一次給老闆聽。
+      - 阿哲: 德叔，我聽得到喔。
+      - choice: vZhe1Thanks
+        options:
+          - thanks: 謝謝你的龍眼乾。
+            then:
+              - 阿哲: 不用謝我啦，是我阿公——
+              - 阿哲: ……好啦，我也有幫忙翻。
+          - nod: （點點頭）
+            then:
+              - 阿哲: 老闆話很少喔。跟德叔一樣。
+      - 阿哲: 那袋要綁緊喔，東山很潮。
+      - 德叔: 知道了。
+
+  - id: zhe-v2
+    note: 第 2 次｜點單寒暄（zhe1 之後、zhe2 之前）
+    who: zhe
+    kind: visit
+    after: 1
+    before: 2
+    steps:
+      - 旁白: 門口的腳踏墊上，多了一排泥印。
+        note: 示範旁白（D224），等 fable 重寫
+      - look: 阿哲
+      - 阿哲: 我阿公叫我來看看你們缺什麼。我是被逼來的。
+        tag: 原句
+        note: TALK
+      - 德叔: 不缺。待一下再走。
+        note: 阿哲沒有坐姿的圖
+      - 阿哲: 老闆，你以前是上班族喔？看得出來啦，坐得很直。
+      - choice: vZhe2Office
+        options:
+          - obvious: 這麼明顯？
+            then:
+              - 阿哲: 超明顯。我們這邊的人，坐椅子都歪一邊。
+          - was: 以前是。
+            then:
+              - 阿哲: 以前喔。……那現在是老闆了。很好啊。
+      - 德叔: 阿哲，鞋。
+      - 阿哲: 啊，又踩進來了。歹勢歹勢。果園的土，洗不掉啦。
+      - choice: vZhe2Mud
+        options:
+          - fine: 沒關係，店裡不怕泥。
+            then:
+              - 阿哲: 老闆人很好。德叔，你要學一下。
+                note: AI 味檢核 O3：這段句尾喔／啦少一個，其餘照人物誌的口吻
+              - 德叔: 嗯。
+          - smile: （笑一下）
+            then:
+              - { do: laugh, who: [阿哲] }
+      - 德叔: 門口的泥，我晚一點擦。
+
+  - id: zhe-v3
+    note: 第 3 次｜閒聊
+    who: zhe
+    kind: visit
+    after: 1
+    before: 2
+    steps:
+      - look: 阿哲
+      - 阿哲: 德叔，你們的豆子是哪一區的？……我只是問問。
+        tag: 原句
+        note: TALK
+      - 德叔: 窗外那片山。
+      - 阿哲: 我就知道。聞得出來啦，我們那邊的味道。
+      - choice: vZhe3Beans
+        options:
+          - farm: 你家也種咖啡？
+            then:
+              - 阿哲: 龍眼跟咖啡都有。阿公種的，現在換我顧。
+          - smell: 聞得出來？
+            then:
+              - 阿哲: 天天在曬場，鼻子會變好。
+      - 阿哲: 今天果園的龍眼開花了，整片都是蜂。
+        tag: 原句
+        note: TALK
+      - 德叔: 蜂多，好。
+      - 阿哲: 阿公也這樣說。……他只有這個，會跟我站同一邊。
+      - choice: vZhe3More
+        options:
+          - others: 其他的呢？
+            then:
+              - 阿哲: 其他的喔……下次再說啦，說了會氣。
+          - wait: （等他說下去）
+            then:
+              - wait: 2
+              - 阿哲: ……沒事啦。今天講蜂就好。
+      # AI 味檢核 O1：刪掉德叔的總結，段落停在阿哲身上
+
+  - id: zhe-v4
+    note: 第 4 次｜zhe2：原句之後說出自己的事，再自然問第一杯
+    who: zhe
+    kind: with
+    with: zhe2
+    steps:
+      - 阿哲: 德叔，我跟你說，我阿公喔，咖啡豆只肯日曬。
+        tag: 原句
+        note: zhe2
+      - 阿哲: 我想試蜜處理、試厭氧，他連聽都不聽，說古早就是這樣曬。
+        tag: 原句
+        note: zhe2
+      - 德叔: 你阿公曬的豆，我年輕時喝過。
+        tag: 原句
+        note: 劇本
+      - 阿哲: 蛤？
+        tag: 原句
+        note: 劇本
+      - glance: 德叔
+      - 德叔: 很久以前。
+      - 阿哲: ……阿公從來沒說過。
+      - look: 阿哲
+      - 阿哲: 欸老闆，你不要笑喔。我想試新的，不是不要他的。……他都聽成不要。
+    invite:
+      drink: dongshan
+      any: true
+      need: longan
+      options:
+        - treat: 喝一杯再回去吧，我請。
+          note: AI 味檢核 O4：去掉對誰都能說的「他會懂的」
+          then:
+            - 阿哲: 老闆請喔？那……有龍眼乾嗎？
+            - 德叔: 有。
+        - later: 慢慢來。
+          then:
+            - 阿哲: ……希望啦。下次換我請你們——用龍眼乾。
+      missing:
+        # fable 第四節 4；只陳述，接著的選杯標題才問
+        - 阿哲: 老闆請喔？那……有龍眼乾嗎？
+        - 德叔: 黑板上現在沒有龍眼乾。
+
+  - id: zhe-r2
+    note: zhe2 沒有演到擴寫版：之後第一次見到他時的接回（結尾一樣問第一杯）
+    who: zhe
+    kind: reconnect
+    of: zhe2
+    after: 2
+    before: 3
+    steps:
+      - look: 阿哲
+      - 阿哲: 德叔，你上次說喝過我阿公的豆，我回去問了。
+      - 阿哲: 阿公只說『喔』。就一個字。
+        note: fable：之後寫阿公時，以「阿哲問過、阿公沒正面答」為底
+      - 德叔: 嗯。
+      - 阿哲: 你們兩個講話，都很省。
+    invite: zhe-v4
+
+milestones:
+  zhe1:
+    journal:
+      - 隔壁龍眼園的阿哲拎了一袋龍眼乾來，放在吧台上。
+      - text: 他說：「我阿公說新店開張要送東西。我是被逼來的。」
+        tag: 劇本
+    scene:
+      - { do: prop, prop: longanBag }
+      - 阿哲: 我阿公說新店開張要送東西。我是被逼來的。
+        tag: 劇本
+      - 德叔: 替我謝謝阿公。
+      - 阿哲: 窯烤的，配咖啡剛好。不是我說的，是我阿公說的。
+
+  zhe2:
+    journal:
+      - 阿哲坐在吧台抱怨他阿公，說咖啡豆只肯日曬，新方法連試都不讓他試。
+      - text: 我跟他說，他阿公曬的豆，我年輕時喝過。
+        tag: 劇本
+        note: 劇本台詞改成日誌的口吻
+      - text: 他說：「蛤？」
+        tag: 劇本
+    scene:
+      - 阿哲: 德叔，我跟你說，我阿公喔，咖啡豆只肯日曬。
+      - 阿哲: 我想試蜜處理、試厭氧，他連聽都不聽，說古早就是這樣曬。
+      - 德叔: 你阿公曬的豆，我年輕時喝過。
+        tag: 劇本
+      - 阿哲: 蛤？
+        tag: 劇本
+      - glance: 德叔
+
+  zhe3:
+    waiting: 晚上的風很大。阿哲來看了一下天空，說果園的樹要綁一綁。
+    note: 颱風夜：天色暗下來、風雨聲，阿哲全身是泥衝進店裡；德叔沒說話，遞毛巾與咖啡
+    scene:
+      - look: 窗外
+      - { do: weather, weather: typhoon }
+      - wait: 3
+      - glance: 德叔
+      - wait: 1.5
+      - { do: enter, who: 阿哲, at: bar, pose: muddy, fast: true }
+      - look: 阿哲
+      - 阿哲: ……德叔。
+      - deshuTo: 阿哲
+      - { do: pose, who: 阿哲, pose: towel }
+      - deshuHome
+      - { do: serve, who: 阿哲, kind: hot }
+      - wait: 1.5
+      - 阿哲: 阿公種了四十年的樹，一個晚上就……
+        tag: 劇本
+        note: 停住，沒說完
+      - wait: 5
+
+  zhe4:
+    journal:
+      - 阿哲帶他阿公來了。阿公坐在角落，喝了一口店裡的東山豆。
+      - text: 阿公說：「這是阮的豆仔。」
+        tag: 劇本
+        note: 台語，Q13
+      - 祖孫兩個一起笑了。我第一次看到他們一起笑。
+    scene:
+      - { do: enter, who: 阿公, at: corner, pose: stand, async: true }
+      - { do: enter, who: 阿哲, at: cornerSide, pose: stand }
+      - arrived: 阿公
+      - { do: pose, who: 阿公, pose: sit }
+      - look: 阿公
+      - { do: serve, who: 阿公, kind: hot }
+      - { do: deshuHome, async: true }
+      - wait: 2.5
+      - 阿公: 這是阮的豆仔。
+        tag: 劇本
+      - { do: laugh, who: [阿哲, 阿公] }
+      - wait: 2
+
+  zhe5:
+    waiting: 阿哲帶了兩包豆子來，說要等老闆在才打開。
+    scene:
+      - look: 阿哲
+      - 阿哲: 德叔、老闆，這兩包是我自己處理的第一批。
+      - 阿哲: 一半照阿公的古法日曬，一半是我的新方法。你們喝喝看。
+      - brewTaste
+      - glance: 德叔
+      - 德叔: 兩種都好。你阿公的是以前，你的是以後。
+        tag: 劇本
+      - { do: laugh, who: [阿哲] }
+
+  zhe6:
+    journal:
+      - text: 菜單上多了一杯「阿哲的豆」。
+        tag: 劇本
+      - text: 阿哲看了很久，說：「你確定要寫我的名字？……好啦，寫大一點。」
+        tag: 劇本
+    scene:
+      - 德叔: 阿哲，菜單上，我想加一杯你的豆。
+      - 阿哲: 你確定要寫我的名字？……好啦，寫大一點。
+        tag: 劇本
+      - menu

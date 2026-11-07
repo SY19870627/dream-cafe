@@ -9,7 +9,8 @@
     "serve": "node tests/serve.mjs",
     "test:unit": "node --test tests/unit/*.test.mjs",
     "playthrough": "node tests/playthrough.mjs",
-    "pending": "node tests/pending.mjs"
+    "pending": "node tests/pending.mjs",
+    "script:view": "node tests/script-view.mjs"
   },
   "devDependencies": {
     "playwright": "^1.50.0"

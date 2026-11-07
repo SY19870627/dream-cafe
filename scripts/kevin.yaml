@@ -1,0 +1,293 @@
+# 張凱文（遠距工作的工程師，之後接任店長）
+# segments：來訪段落（src/visits.js 排程）；milestones：六個里程碑的演出、日誌、提示（條件與順序在 src/story.js）
+# 沒寫 tag 的句子都是【待定】；tag: 原句＝已上線的句子搬進段落、tag: 劇本＝docs/第一站劇本.md 的原文。寫法見 docs/劇本格式.md
+
+segments:
+  - id: kevin-v1
+    note: 第 1 次｜陌生（與 kevin1 同天）
+    who: kevin
+    kind: with
+    with: kevin1
+    steps:
+      - wait: 2
+      - { do: serve, who: 凱文, kind: iced }
+      - 德叔: 冰美式。他說，以後每天這個時間都會來。
+        tag: 原句
+        note: kevin1
+      - deshuHome
+      - 德叔: 冰塊，我等他坐下才放。
+        note: 回到吧台，小聲；「冰塊」只留這裡和 kevin3（fable 第二節 6）
+      - choice: vKevin1Busy
+        options:
+          - busy: 他好像很忙。
+            then:
+              - 德叔: 耳機戴著。這種時候，不用說話。
+          - quiet: （不打擾他）
+            then:
+              - 德叔: 嗯。
+      - wait: 3
+      - deshuTo: 凱文
+      - 凱文: ……抱歉，我在開會。
+        tag: 原句
+        note: TALK
+      - 德叔: 水，我放這裡。
+      - deshuHome
+
+  - id: kevin-v2
+    note: 第 2 次｜點單寒暄（kevin1 之後、kevin2 之前）
+    who: kevin
+    kind: visit
+    after: 1
+    before: 2
+    steps:
+      - deshuTo: 凱文
+      - 德叔: 一樣？
+      - 凱文: 嗯？喔，冰美式，謝謝。
+        tag: 原句
+        note: TALK
+      - { do: serve, who: 凱文, kind: iced }
+      - 德叔: 五點整。他推門的時候，我才開始磨。
+      - wait: 3
+      - 凱文: 這裡的網路比台北的辦公室穩。
+        tag: 原句
+        note: TALK；fable 換時機：對還站在旁邊的德叔說，說完德叔才回吧台
+      - deshuHome
+      - choice: vKevin2Net
+        options:
+          - taipei: 台北來的？
+            then:
+              - 凱文: ……公司在台北。我是說，我人在這裡。
+          - net: 網路穩就好。
+            then:
+              - 凱文: 嗯。斷線的話，會被……
+              - 凱文: ……沒事。
+      - 德叔: 說完，他就把耳機戴回去了。
+
+  - id: kevin-v3
+    note: 第 3 次｜點單寒暄（還沒有名字）
+    who: kevin
+    kind: visit
+    after: 1
+    before: 2
+    steps:
+      - when: catSill
+        steps:
+          - 德叔: 窗台上的龍眼，一直在看他。
+      - look: 凱文
+      - 凱文: ……那隻貓，叫什麼名字？
+      - glance: 德叔
+        # fable 換說話者：德叔不替老闆答，只看老闆一眼
+      - choice: vKevin3Cat
+        options:
+          - name: 他叫龍眼。這間店，其實是他的。
+            then:
+              - 凱文: 店是貓的？……我是說，那我要跟他打招呼嗎。
+          - glance: （看向德叔）
+            then:
+              - 德叔: 龍眼。
+              - 凱文: 龍眼。……好。
+      - 德叔: 他問了貓的名字。人的，還沒問。
+
+  # 第 4 次是 kevin2（被罵）：原句照舊，不加句（fable 第三節）
+
+  - id: kevin-v5
+    note: 第 5 次｜閒聊（第一次叫他的名字；kevin2 之後、kevin3 之前）
+    who: kevin
+    kind: visit
+    after: 2
+    before: 3
+    steps:
+      - { do: serve, who: 凱文, kind: iced }
+      - 德叔: 凱文先生，冰美式。
+      - 凱文: ……你知道我的名字了。
+      - 德叔: 那天，聽到的。
+      - 凱文: 喔。……那天，大家都聽到了。
+      - deshuHome
+      - choice: vKevin5Day
+        options:
+          - mind: 那天的事，不用放在心上。
+            then:
+              - 凱文: ……嗯。謝謝。我是說，我盡量。
+          - hill: 窗外那片山，看過了嗎？
+            note: 不說天氣：雨天也演這一段
+            then:
+              - look: 窗外
+              - 凱文: 山？……我還沒看。
+              - 凱文: ……這麼近。
+      - 德叔: 耳機，他拿下了一邊。
+        note: AI 味檢核 N5：不再用「X今天，Y。」句型
+
+  - id: kevin-v6
+    note: 第 6 次｜閒聊
+    who: kevin
+    kind: visit
+    after: 2
+    before: 3
+    steps:
+      - look: 凱文
+      - 凱文: 我把會議的鏡頭關掉了。看山比較好。
+        tag: 原句
+        note: TALK
+      - choice: vKevin6Cam
+        options:
+          - meeting: 會議沒關係嗎？
+            then:
+              - 凱文: ……沒人發現。大概。
+          - hill: 看山好。
+            then:
+              - 凱文: 嗯。以前我都不知道，窗外有山。
+      - when: catSill
+        steps:
+          - 凱文: 龍眼也睡在那裡。
+            note: AI 味檢核 O5：不再用「X今天，Y。」句型
+          - 德叔: 老闆在的時候，他都睡窗台。
+      - 凱文: ……下次，我帶點東西給龍眼。可以嗎？
+        note: 只在 kevin3 還沒發生時（窗口）；寫名字：窗台那兩句跳過時也有指涉
+      - 德叔: 問他。
+
+  - id: kevin-v7
+    note: 第 7 次｜kevin3：原句之後一句，再自然問第一杯（五點那杯已經端過，請的是第二杯）
+    who: kevin
+    kind: with
+    with: kevin3
+    steps:
+      - { do: cat, who: 凱文, lap: false }
+      - 凱文: 我在台北租的地方不能養。這裡可以嗎？
+        tag: 原句
+        note: 劇本
+      - 凱文: 我是說……來這裡看他。
+        tag: 原句
+        note: 劇本
+      - 德叔: 龍眼說可以。
+        tag: 原句
+        note: kevin3
+      - 凱文: ……那我明天也來。我是說，本來就會來。
+    invite:
+      drink: iced
+      options:
+        - treat: 再一杯冰美式，我請。
+          then:
+            - 凱文: ……老闆請？
+            - 德叔: 冰塊，最後才放。
+              note: 第 1 次「冰塊，我等他坐下才放」的兌現
+        - happy: 龍眼會很高興。
+          then:
+            - 凱文: ……希望是。
+      missing:
+        # 只陳述，接著的選杯標題才問
+        - 凱文: ……老闆請？
+        - 德叔: 黑板上現在沒有冰美式。
+
+  - id: kevin-r3
+    note: kevin3 沒有演到擴寫版：之後第一次見到他時的接回（結尾一樣問第一杯）
+    who: kevin
+    kind: reconnect
+    of: kevin3
+    after: 3
+    before: 4
+    steps:
+      - look: 凱文
+      - 凱文: 上次帶的零食，龍眼沒吃。……他有聞。
+      - 德叔: 他聞過，就是吃了。
+    invite: kevin-v7
+
+milestones:
+  kevin1:
+    journal:
+      - text: 下午五點，來了一位先生，點了一杯冰美式。開筆電、戴耳機，從頭到尾沒看人。
+        note: 劇本的「冰美式先生今天也來了」放進之後幾天的日誌
+    scene:
+      - wait: 2
+      - { do: serve, who: 凱文, kind: iced }
+      - 德叔: 冰美式。他說，以後每天這個時間都會來。
+
+  kevin2:
+    waiting: 冰美式先生今天一直盯著螢幕，好像在等一場不想開的會。
+    note: 視訊會議被主管當眾罵；關掉鏡頭躲到角落；德叔把音樂調小，龍眼跳上他的腿
+    scene:
+      - look: 凱文
+      - 主管: 張凱文，這個上禮拜就說好了吧？大家都在等你一個人。
+        name: 視訊裡的主管
+      - 主管: 你到底有沒有在聽？
+        name: 視訊裡的主管
+      - 凱文: ……是，我馬上改。
+      - { do: pose, who: 凱文, pose: closed }
+      - wait: 1.5
+      - { do: walk, who: 凱文, at: corner, pose: walk, then: hide }
+      - music
+      - { do: cat, who: 凱文, lap: true }
+      - wait: 2
+      - look: 凱文
+      - 凱文: ……謝謝。我是說貓。
+        tag: 劇本
+      - wait: 2
+
+  kevin3:
+    journal:
+      - text: 凱文先生開始帶貓零食來了。
+        tag: 劇本
+      - text: 他說：「我在台北租的地方不能養。這裡可以嗎？我是說……來這裡看他。」
+        tag: 劇本
+    scene:
+      - { do: cat, who: 凱文, lap: false }
+      - 凱文: 我在台北租的地方不能養。這裡可以嗎？
+        tag: 劇本
+      - 凱文: 我是說……來這裡看他。
+        tag: 劇本
+      - 德叔: 龍眼說可以。
+
+  kevin4:
+    waiting:
+      text: 凱文先生今天好像有話想說，但想等老闆在。
+      tag: 劇本
+    needSeatHint: 凱文先生好像有話想問老闆。老闆坐下來，他大概就會過去。
+    scene:
+      - { do: walk, who: 凱文, at: opposite, pose: walk, then: free }
+      - look: 凱文
+      - 凱文: 老闆，可以坐這裡嗎？
+      - 凱文: 你當初怎麼敢辭職的？
+        tag: 劇本
+      # 玩家從三句話選一句回答（不影響結果）
+      - choice: kevinQuit
+        options:
+          - finished: 其實沒有很敢。那天剛好寫完了。
+            then:
+              - 凱文: 剛好寫完……我那封寫了三年，還沒寫完。
+          - key: 有人寄了一把鑰匙給我。
+            then:
+              - 凱文: 鑰匙啊。我也想要一把。
+          - myshop: 我想坐在自己會想去的店裡。
+            then:
+              - 凱文: 自己會想去的店……我好像沒想過，我想去哪裡。
+      # 開場選了「從今天起，我單方面辭退您」：多一句
+      - ifFire:
+          - 你: 辭呈最後一句，我寫「從今天起，我單方面辭退您」。
+          - 凱文: 你真的這樣寫？
+            tag: 劇本
+          - 凱文: ……我也想寫一次看看。
+      - wait: 1.5
+      - { do: walk, who: 凱文, at: home, pose: walk }
+
+  kevin5:
+    journal:
+      - text: 凱文先生今天沒帶筆電，點了一杯熱的。
+        tag: 劇本
+      - text: 他說：「今天不用開會。以後都不用了。」
+        tag: 劇本
+    scene:
+      - wait: 1.5
+      - { do: serve, who: 凱文, kind: hot }
+      - look: 凱文
+      - 凱文: 今天不用開會。以後都不用了。
+        tag: 劇本
+
+  kevin6:
+    waiting: 凱文先生今天在門口站了很久，看著山。他說等老闆在再說。
+    scene:
+      - look: 凱文
+      - 凱文: 老闆，我想留在東山。
+      - 凱文: 可是我不知道，在這裡能做什麼。
+      - 凱文: 我會寫程式，會開會，會被罵。就是不會生活。
+        tag: 劇本
+      - { do: serve, who: 凱文, kind: hot }
+      - wait: 2

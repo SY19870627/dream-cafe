@@ -18,6 +18,7 @@ const TYPES = {
   '.svg': 'image/svg+xml',
   '.webp': 'image/webp',
   '.md': 'text/markdown; charset=utf-8',
+  '.yaml': 'text/yaml; charset=utf-8', // 劇本檔 scripts/*.yaml（D224）
 };
 
 export function startServer(port = 0) {

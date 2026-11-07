@@ -718,7 +718,7 @@ try {
     check(day <= 25, `大約三週走完（第 ${day} 天）`);
     check(st.typhoonDay >= 8 && shots.has('typhoon'), `第 2 週的颱風夜（第 ${st.typhoonDay} 天）`);
     check(st.zhe.on[4] >= st.zhe.on[3] + 3, '颱風後 3 天，阿哲和阿公一起來');
-    check(kevinOptions?.length === 3 && st.answers.kevinQuit === 0, `凱文問「你當初怎麼敢辭職的？」：三選一 ${JSON.stringify(kevinOptions)}`);
+    check(kevinOptions?.length === 3 && st.answers.kevinQuit === 'finished',`凱文問「你當初怎麼敢辭職的？」：三選一 ${JSON.stringify(kevinOptions)}`);
     check(kevinAsk.includes('凱文') && kevinAsk.includes('你當初怎麼敢辭職的？'), `三選一的上面一行是凱文的問句（${kevinAsk}）`);
     check(choiceSmall && choiceSmall.length === 0, '選項按鈕都 ≥ 44px');
     check(shots.has('kevin2') && shots.has('manuscript'), '凱文被罵時龍眼陪他、予安念稿');

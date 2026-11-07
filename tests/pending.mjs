@@ -23,6 +23,8 @@ const out = [
   '> 收錄程式裡標了 `// 【待定】` 的每一行：自行補寫、還沒經作者確認的台詞、信件、日誌句與介面文字。',
   '> 「說明」是程式註解裡的補充（例如什麼時候出現）。劇本原文不在這份清單裡。',
   '> 摘要與分類另見 [第一版開發計畫.md](./第一版開發計畫.md)「五、【待定】文本清單」。',
+  '> 三位熟客的來訪段落與里程碑的台詞在劇本檔 `scripts/*.yaml`（D224），不在這份清單裡：沒有標 tag 的句子都是【待定】，',
+  '> 逐句清單見 `npm run script:view` 產生的 [劇本對照.md](./劇本對照.md)。',
   '',
 ];
 for (const f of FILES) {
@@ -64,6 +66,6 @@ for (const f of FILES) {
   }
   out.push('');
 }
-out.splice(7, 0, `共 ${total} 處。`, '');
+out.splice(9, 0, `共 ${total} 處。`, '');
 writeFileSync(ROOT + 'docs/待定文本審稿.md', out.join('\n'));
 console.log(`docs/待定文本審稿.md：${total} 處`);
