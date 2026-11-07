@@ -39718,3 +39718,32 @@ export function allTastingLines() {
 議題A原兩句與68附註：第一輪即共識，附帶修正第二輪確認。議題B20段複審：兩輪達共識。AI味專題：兩輪（檢核、改稿複審）達共識；N1-N5及O1-O7全採，A1-A4保留待作者。Q159未定，維持既定黑板規則。
 測試：npm run pending已重產；npm run test:unit最後183/183過，0失敗，約60.2秒。第一次新增測試誤掃註解而181/182過，已修正為玩家可見資料檢查，未動劇情來迎合測試。僅單元，沒有冒煙、playthrough或推送。版本v0.1.4。
 註：Opus前文把本代理跑測試誤稱為承峰自己跑，實際測試由本代理透過小葉Shell執行；其npm test建議未採（使用者只授權單元）。
+
+---
+
+# 續：feat/story-rewrite 劇本 YAML 重寫（2026-11-07 晚，Asia/Taipei）
+
+模型：`claude-fable-5-1`；`--tools ""`；未傳 `--effort`（CLI 預設）。
+
+## 輪 0｜第一版交稿（22:51–22:59）
+
+- 提示：`_agent/fable-rewrite-prompt.txt`（附 劇本格式、人物誌、AI味檢核表、現行 scripts）
+- 產出：`_agent/fable-rewrite-raw.md` → 拆入 `scripts/*.yaml`
+- fable 自列：① 原句去 tag；② 主管「張凱文」改字；③ 美術未畫小物旁白
+
+## 輪 1｜設定／銜接歧見（23:08–23:09）
+
+- 提示／回覆：`_agent/fable-rewrite-discuss1-prompt.txt`、`_agent/fable-rewrite-discuss1-raw.md`
+- **共識**：
+  1. 已上線機制句（予安自我介紹、先坐、張凱文全名）保留原字；重寫只動非機制句。
+  2. 禁詞表優先；撞到改近義句。
+  3. 旁白只寫瞬間動作，不寫會持續留在畫面上但美術沒畫的物件；劇情道具例外（yuan6 牛皮紙袋）。
+- 整合者已套用：恢復 intro 原句、去掉「打卡」、yuan-v4 旁白移到 look 窗外之前、依原則改旁白、yuan-v3 與 yuan2 scene 旁白對齊。
+
+## 未再開輪
+
+雙方對機制句／禁詞／旁白原則已共識；無超過三輪僵持的爭點。
+
+## AI 味檢核（整合者抽樣）
+
+依 `_agent/AI味檢核表.md` 20 條，對予安 v4、阿哲 v2、凱文 v5／kevin2 抽樣：01–20 皆勾「已檢查可接受」。新句皆【待定】，尚未請承峰定稿。細節見該次回報。

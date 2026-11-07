@@ -33,7 +33,7 @@ conds:
 
 # 共用的句子
 lines:
-  seatHint:               # 閒聊要老闆坐著；站著時德叔提一次
+  seatHint:               # 閒聊要老闆坐著；站著時德叔提一次（沒重寫，照舊）
     text: 先坐。
     tag: 原句
 

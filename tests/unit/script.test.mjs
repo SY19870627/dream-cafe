@@ -213,7 +213,7 @@ test('存檔 13 → 14：story.answers 的數字 index 換成選項 id；對不�
   assert.deepEqual(again.story.answers, s.story.answers);
 });
 
-test('旁白（narrate）：新步驟、泡泡樣式和台詞不同（沒有名字、沒有尾巴、置中斜體）、示範只有一兩處而且是【待定】', () => {
+test('旁白（narrate）：泡泡樣式；每個來訪段落與有 scene 的里程碑都至少一句，且為【待定】', () => {
   const html = read('index.html');
   assert.match(html, /#bubble\.narrate[^{]*\{[^}]*font-style: italic[^}]*text-align: center/);
   assert.match(html, /#bubble\.narrate::after \{ display: none; \}/);
@@ -221,15 +221,23 @@ test('旁白（narrate）：新步驟、泡泡樣式和台詞不同（沒有名�
   assert.match(main, /case 'narrate':/);
   assert.match(main, /function narrate\(/);
   assert.match(main, /speaker === 'narrate'/);
-  // 示範旁白：只有一兩處，都沒有標原句或劇本（＝【待定】）
+  // D224 重寫：每段現況旁白；一律【待定】（不再限制「示範一兩處」）
   const meta = SC.build(SC.TEXTS, { meta: true });
   const found = [];
-  const walk = (list) => { for (const s of list || []) { if (s.do === 'narrate') found.push(s); walk(s.steps); Object.values(s.cases || {}).forEach(walk); } };
-  for (const s of meta.segments) walk(s.steps);
-  for (const m of Object.values(meta.milestones)) walk(m.scene);
-  assert.ok(found.length >= 1 && found.length <= 2, `示範旁白 ${found.length} 處`);
+  const walk = (list) => { for (const st of list || []) { if (st.do === 'narrate') found.push(st); walk(st.steps); Object.values(st.cases || {}).forEach(walk); } };
+  for (const seg of meta.segments) {
+    const before = found.length;
+    walk(seg.steps);
+    assert.ok(found.length > before, `${seg.id} 要有旁白`);
+  }
+  for (const [id, m] of Object.entries(meta.milestones)) {
+    if (!m.scene || !m.scene.length) continue;
+    const before = found.length;
+    walk(m.scene);
+    assert.ok(found.length > before, `里程碑 ${id} 的 scene 要有旁白`);
+  }
+  assert.ok(found.length >= 20, `旁白合計 ${found.length} 處`);
   for (const n of found) assert.equal(n.tag, '待定');
-  // 旁白不算說出口的話（子序列檢查不受影響），但算玩家看得到的字
   for (const n of found) assert.ok(S.allLines().includes(n.text));
 });
 
@@ -238,7 +246,8 @@ test('【原句】與【劇本】：標了的句子在搬家前的來源裡（�
   const tagged = [];
   const walk = (list) => { for (const s of list || []) { if (s.tag && s.tag !== '待定') tagged.push(s); walk(s.steps); Object.values(s.cases || {}).forEach(walk); } };
   for (const s of meta.segments) { walk(s.steps); if (s.invite && typeof s.invite === 'object') { walk(s.invite.yes); walk(s.invite.no); walk(s.invite.missing); } }
-  assert.ok(tagged.length >= 25, `段落裡標了原句的有 ${tagged.length} 句`);
+  // D224 重寫：新稿一律【待定】；保留的已上線句可繼續標原句／劇本，但不再要求 ≥25
+  assert.ok(tagged.every((t) => ['原句', '劇本'].includes(t.tag)), 'tag 只能是原句或劇本');
   const sources = new Set([
     ...S.MILESTONES.flatMap((m) => VS.sayTexts(m.scene)),
     ...Object.values(S.TALK).flatMap((l) => l.flatMap((t) => t.lines)),
