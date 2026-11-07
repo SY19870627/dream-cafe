@@ -1956,6 +1956,37 @@ export function roaster() {
   return c;
 }
 
+// 黑板上的便條（承峰 11/7：「便條紙直接貼上黑板好了」）：一張微微歪著的小紙片，上緣一條半透明的紙膠帶。
+// 圖上不寫字（D202 的原則）：要說的話在點開的面板裡。NOTE 是紙片在黑板（層架圖）上的位置與大小（公尺），main.js 照它貼
+// 放在黑板右上角、一半壓在框上：在寫字那一塊（BOARD_TEXT）的字的上面，4 行時也不壓到標題（__cafe.boardView() 照舊量得到全部的字）
+export const NOTE = { u: 1.79, v: 1.16, w: 0.15, h: 0.14 };
+export function boardNote() {
+  const { c, g } = canvas(NOTE.w, NOTE.h, HI);
+  const cx = NOTE.w / 2, cy = NOTE.h / 2 + 0.006;
+  // 紙片：米白、稍微往左歪，右下角一點點翹起來的陰影
+  g.save();
+  g.translate(cx, cy); g.rotate(-0.1);
+  g.fillStyle = 'rgba(0,0,0,0.22)';
+  rr(g, -0.05 + 0.004, -0.045 + 0.005, 0.1, 0.09, 0.004); g.fill();
+  g.fillStyle = '#f4ecd6';
+  rr(g, -0.05, -0.045, 0.1, 0.09, 0.004); g.fill();
+  const grd = g.createLinearGradient(-0.05, -0.045, 0.05, 0.045);
+  grd.addColorStop(0, 'rgba(255,255,255,0.25)'); grd.addColorStop(1, 'rgba(150,120,80,0.18)');
+  g.fillStyle = grd; rr(g, -0.05, -0.045, 0.1, 0.09, 0.004); g.fill();
+  g.strokeStyle = 'rgba(120,95,60,0.45)'; g.lineWidth = 0.0025;
+  rr(g, -0.05, -0.045, 0.1, 0.09, 0.004); g.stroke();
+  g.restore();
+  // 紙膠帶：淡黃、半透明，橫貼在上緣，和紙片歪的方向不一樣
+  g.save();
+  g.translate(cx + 0.004, cy - 0.046); g.rotate(0.07);
+  g.fillStyle = 'rgba(236,214,150,0.78)';
+  g.fillRect(-0.03, -0.009, 0.06, 0.018);
+  g.fillStyle = 'rgba(255,255,255,0.22)';
+  g.fillRect(-0.03, -0.009, 0.06, 0.005);
+  g.restore();
+  return c;
+}
+
 // 雨絲（貼在窗戶前面，往下捲動）
 export function rain(heavy) {
   const c = document.createElement('canvas');

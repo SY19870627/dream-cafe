@@ -94,9 +94,6 @@
   /* 美術評分修正 f：放在家具下面（上面被別的凳子佔了）：牌子在上緣、小三角朝上 */
   #labels .seat-label.under { align-items: flex-start; padding: 7px 0 0; }
   #labels .seat-label.under span::after { top: -8px; bottom: auto; border-width: 0 6px 6px; border-color: transparent transparent var(--ink); }
-  /* 版本號（承峰 11/7）：右下角、底部按鈕列下面的空隙裡（.bottom 離底 14px），小字半透明、點不到；對話框與面板蓋在它上面 */
-  #version { position: absolute; right: 12px; bottom: 1px; font-size: 10px; line-height: 12px; color: rgba(246,239,226,.55);
-    text-shadow: 0 0 2px rgba(0,0,0,.6); pointer-events: none; user-select: none; -webkit-user-select: none; white-space: nowrap; }
   /* 關於面板：蓋在畫面上，點外面關閉 */
   #about { position: absolute; inset: 0; background: rgba(20,14,10,.55); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 10; }
   #about .card { width: 100%; max-width: 320px; max-height: 100%; overflow-y: auto; touch-action: pan-y; background: var(--paper); border-radius: 18px; padding: 20px 18px 16px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
@@ -140,6 +137,8 @@
   #nb-list b { font-size: 15px; }
   #nb-list span { font-size: 13px; opacity: .8; }
   .nb-empty { font-size: 14px; margin: 12px 0 16px; }
+  /* 版本號（承峰 11/7）：記事本最底下、「闔上」下面的一行小字，淡淡的、不能選 */
+  #nb-version { margin: 8px 0 0; font-size: 11px; line-height: 14px; text-align: center; opacity: .5; user-select: none; -webkit-user-select: none; white-space: nowrap; }
   /* 德叔的型錄／倉庫 */
   #sheet { position: absolute; inset: 0; z-index: 9; display: flex; flex-direction: column; justify-content: flex-end; background: rgba(20,14,10,.45); }
   #sheet .card { background: var(--paper); border-radius: 18px 18px 0 0; padding: 14px 14px 10px; max-height: 64%; display: flex; flex-direction: column;
@@ -350,6 +349,9 @@
   .tune-items button { text-align: left; font-size: 14px; padding: 10px 12px; background: #fff; border: 1px solid rgba(59,42,32,.35); box-shadow: none; }
   .tune-items button[aria-pressed="true"] { background: #3b2a20; color: #f6efe2; border-color: #3b2a20; }
   .tune-actions { display: flex; flex-direction: column; gap: 8px; }
+  #note-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; touch-action: pan-y; margin: 4px 0 12px; }
+  #note-body p { margin: 0 0 10px; font-size: 15px; line-height: 1.7; }
+  #note-body .sign { text-align: right; opacity: .8; }
 
   /* 試咖啡的測試紀錄（D206）：德叔的筆記，一次一張；字是 UI 文字（D202），「喜歡」「定案」≥ 44px */
   .nb-record { margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.55); border: 1px dashed rgba(59,42,32,.35);
@@ -437,28 +439,28 @@
      新增 src/ 的模組時也要加進來。three 是固定版本的打包檔，不加。 -->
 <script type="importmap">{ "imports": {
   "three": "./vendor/three.module.min.js",
-  "./src/afterhours.js": "./src/afterhours.js?v=0.1.0",
-  "./src/art.js": "./src/art.js?v=0.1.0",
-  "./src/audio.js": "./src/audio.js?v=0.1.0",
-  "./src/cat.js": "./src/cat.js?v=0.1.0",
-  "./src/catalog.js": "./src/catalog.js?v=0.1.0",
-  "./src/clock.js": "./src/clock.js?v=0.1.0",
-  "./src/farewell.js": "./src/farewell.js?v=0.1.0",
-  "./src/favorites.js": "./src/favorites.js?v=0.1.0",
-  "./src/journal.js": "./src/journal.js?v=0.1.0",
-  "./src/letters.js": "./src/letters.js?v=0.1.0",
-  "./src/menu.js": "./src/menu.js?v=0.1.0",
-  "./src/moments.js": "./src/moments.js?v=0.1.0",
-  "./src/opening.js": "./src/opening.js?v=0.1.0",
-  "./src/pathfind.js": "./src/pathfind.js?v=0.1.0",
-  "./src/profiles.js": "./src/profiles.js?v=0.1.0",
-  "./src/roast.js": "./src/roast.js?v=0.1.0",
-  "./src/save.js": "./src/save.js?v=0.1.0",
-  "./src/story.js": "./src/story.js?v=0.1.0",
-  "./src/tasks.js": "./src/tasks.js?v=0.1.0",
-  "./src/tasting.js": "./src/tasting.js?v=0.1.0",
-  "./src/version.js": "./src/version.js?v=0.1.0",
-  "./src/weather.js": "./src/weather.js?v=0.1.0"
+  "./src/afterhours.js": "./src/afterhours.js?v=0.1.1",
+  "./src/art.js": "./src/art.js?v=0.1.1",
+  "./src/audio.js": "./src/audio.js?v=0.1.1",
+  "./src/cat.js": "./src/cat.js?v=0.1.1",
+  "./src/catalog.js": "./src/catalog.js?v=0.1.1",
+  "./src/clock.js": "./src/clock.js?v=0.1.1",
+  "./src/farewell.js": "./src/farewell.js?v=0.1.1",
+  "./src/favorites.js": "./src/favorites.js?v=0.1.1",
+  "./src/journal.js": "./src/journal.js?v=0.1.1",
+  "./src/letters.js": "./src/letters.js?v=0.1.1",
+  "./src/menu.js": "./src/menu.js?v=0.1.1",
+  "./src/moments.js": "./src/moments.js?v=0.1.1",
+  "./src/opening.js": "./src/opening.js?v=0.1.1",
+  "./src/pathfind.js": "./src/pathfind.js?v=0.1.1",
+  "./src/profiles.js": "./src/profiles.js?v=0.1.1",
+  "./src/roast.js": "./src/roast.js?v=0.1.1",
+  "./src/save.js": "./src/save.js?v=0.1.1",
+  "./src/story.js": "./src/story.js?v=0.1.1",
+  "./src/tasks.js": "./src/tasks.js?v=0.1.1",
+  "./src/tasting.js": "./src/tasting.js?v=0.1.1",
+  "./src/version.js": "./src/version.js?v=0.1.1",
+  "./src/weather.js": "./src/weather.js?v=0.1.1"
 } }</script>
 </head>
 <body>
@@ -505,8 +507,6 @@
       <button id="goodnight" class="primary" hidden>明天見</button>
     </div>
   </div>
-  <!-- 版本號：字由 main.js 從 src/version.js 填進來 -->
-  <div id="version" aria-hidden="true"></div>
   <div id="about" hidden role="dialog" aria-modal="true" aria-labelledby="about-title">
     <div class="card">
       <h2 id="about-title">我單方面辭退老闆後，開了一間夢想中的咖啡店</h2>
@@ -554,6 +554,15 @@
       </div>
     </div>
   </div>
+  <!-- 黑板上的便條（承峰 11/7）：點黑板右上角的小紙片打開，字由 main.js 從 tasting.js 的 BOARD_NOTE 填進來 -->
+  <div id="note" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="note-title">
+    <div class="card paper">
+      <h2 id="note-title"></h2>
+      <p class="sub" id="note-sub"></p>
+      <div id="note-body"></div>
+      <button id="note-close" class="primary"></button>
+    </div>
+  </div>
   <div id="notebook" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="nb-title">
     <div class="card paper">
       <h2 id="nb-title">店的記事本</h2>
@@ -566,6 +575,8 @@
         <ol id="nb-list"></ol>
       </div>
       <button id="nb-close" class="primary wide">闔上</button>
+      <!-- 版本號（承峰 11/7「順便把版本號改在記事本裡面」）：記事本最底下的小字，由 main.js 從 src/version.js 填進來 -->
+      <p id="nb-version"></p>
     </div>
   </div>
   <!-- 德叔的型錄／倉庫：從下方拉起的面板 -->
@@ -638,6 +649,6 @@
   <!-- 開場：第一幕到第三幕（新存檔才會出現），由 src/opening.js 建立 -->
   <div id="opening" hidden></div>
 </div>
-<script type="module" src="./src/main.js?v=0.1.0"></script>
+<script type="module" src="./src/main.js?v=0.1.1"></script>
 </body>
 </html>

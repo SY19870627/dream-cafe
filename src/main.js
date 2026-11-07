@@ -43,14 +43,27 @@ if (!$('tune')) {
   const nb = $('notebook');
   if (nb) nb.before(el); else document.body.appendChild(el);
 }
-// 版本號（承峰 11/7）：右下角的小字，從 src/version.js 讀；舊的 index.html 沒有 #version 時補上（樣式寫在元素上）
+// 同上：舊的 index.html 沒有黑板便條的 #note 面板（承峰 11/7）
+if (!$('note')) {
+  const st = document.createElement('style');
+  st.textContent = `#note-body{overflow-y:auto;flex:1 1 auto;min-height:0;touch-action:pan-y;margin:4px 0 12px}#note-body p{margin:0 0 10px;font-size:15px;line-height:1.7}#note-body .sign{text-align:right;opacity:.8}`;
+  document.head.appendChild(st);
+  const el = document.createElement('div');
+  el.id = 'note'; el.className = 'overlay'; el.hidden = true;
+  el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'note-title');
+  el.innerHTML = '<div class="card paper"><h2 id="note-title"></h2><p class="sub" id="note-sub"></p><div id="note-body"></div><button id="note-close" class="primary"></button></div>';
+  const nb = $('notebook');
+  if (nb) nb.before(el); else document.body.appendChild(el);
+}
+// 版本號（承峰 11/7「順便把版本號改在記事本裡面」）：記事本最底下的小字，從 src/version.js 讀；
+// 舊的 index.html 沒有 #nb-version 時補在「闔上」下面（樣式寫在元素上）
 {
-  let ver = $('version');
+  let ver = $('nb-version');
   if (!ver) {
-    ver = document.createElement('div');
-    ver.id = 'version'; ver.setAttribute('aria-hidden', 'true');
-    ver.style.cssText = 'position:absolute;right:12px;bottom:1px;font-size:10px;line-height:12px;color:rgba(246,239,226,.55);text-shadow:0 0 2px rgba(0,0,0,.6);pointer-events:none;user-select:none;white-space:nowrap';
-    $('app').querySelector('.bottom').after(ver);
+    ver = document.createElement('p');
+    ver.id = 'nb-version';
+    ver.style.cssText = 'margin:8px 0 0;font-size:11px;line-height:14px;text-align:center;opacity:.5;user-select:none;white-space:nowrap';
+    $('nb-close').after(ver);
   }
   ver.textContent = versionLabel();
 }
@@ -256,6 +269,21 @@ onBackBar((A.BOARD_TEXT.x0 + A.BOARD_TEXT.x1) / 2, (A.BOARD_TEXT.y0 + A.BOARD_TE
 boardFace.rotation.y = -Math.PI / 2;
 boardFace.renderOrder = 1;
 scene.add(boardFace);
+// 黑板上的便條（承峰 11/7：「便條紙直接貼上黑板好了」）：程式畫的小紙片加紙膠帶（art.js 的 boardNote()，圖上不寫字），
+// 貼在黑板右上角、比字面再前面一點；一直留著。點它打開德叔寫的說明（openNote()），文字在 tasting.js 的 NOTE
+const noteMesh = new THREE.Mesh(new THREE.PlaneGeometry(A.NOTE.w, A.NOTE.h), lambert(A.tex(A.boardNote()), { transparent: true, alphaTest: 0.05, depthWrite: false }));
+onBackBar(A.NOTE.u, A.NOTE.v, noteMesh.position).x -= 0.006;
+noteMesh.rotation.y = -Math.PI / 2;
+noteMesh.renderOrder = 2;
+noteMesh.name = 'note';
+scene.add(noteMesh);
+// 點便條的範圍比紙片大一圈（從角落沙發看過去紙片只有十幾個像素）：一塊看不見的板子，只拿來打射線（不在 traverseVisible 裡，不擋任何東西）
+const noteHit = new THREE.Mesh(new THREE.PlaneGeometry(A.NOTE.w * 1.4, A.NOTE.h * 1.4), new THREE.MeshBasicMaterial());
+noteHit.position.copy(noteMesh.position);
+noteHit.rotation.y = -Math.PI / 2;
+noteHit.visible = false;
+scene.add(noteHit);
+noteHit.updateMatrixWorld(true);
 const BACK_BASE = { d: 0.2, h: 0.95 };
 const counterFrontTex = A.tex(A.counterFront(), [1, 1]);
 const woodTopTex = A.tex(A.woodTop(), [1, 1]);
@@ -2531,6 +2559,7 @@ window.addEventListener('keydown', (e) => {
   else if (!$('letter').hidden) closeLetter();
   else if (!$('journal').hidden) closeJournal();
   else if (!$('tune').hidden) openTune(false);
+  else if (!$('note').hidden) openNote(false);
   else if (!notebook.hidden) openNotebook(false);
   else if (!sheet.hidden) closeSheet();
   else if (!about.hidden) openAbout(false);
@@ -2831,7 +2860,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const rect = renderer.domElement.getBoundingClientRect();
   ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  if (!state.placing) { if (!(tap && (tapBoard(ray) || tapRoaster(ray)))) talkTo(ray); return; }
+  if (!state.placing) { if (!(tap && (tapNote(ray) || tapBoard(ray) || tapRoaster(ray)))) talkTo(ray); return; }
   if (state.mode !== 'overview') return;
   const decor = [...decorPapers.values()];
   const hit = ray.intersectObjects(decor.map((d) => d.userData.mesh))[0];
@@ -2901,6 +2930,7 @@ function talkTo(r) {
   else if (who === deshu && keeper() && keeperFavOfferable()) line = keeperLine(); // 坐吧台座、凱文那一段開放：偶爾說那一段的線索（D199）
   else if (who === deshu && keeper()) { const l = state.closing ? F.KEEPER.closingTalk : F.KEEPER.talk; line = l[Math.floor(Math.random() * l.length)]; } // 離開東山之後，吧台後面是凱文
   else if (who === deshu && state.closing) line = H.CLOSING.deshuTalk[Math.floor(Math.random() * H.CLOSING.deshuTalk.length)]; // 打烊後，他在擦杯子
+  else if (who === deshu && !noteBarTold && needBarSeat()) { line = TS.BOARD_NOTE.needBar; noteBarTold = true; } // 黑板便條：還沒坐吧台座就想試，先提醒一次
   else { const l = LINES.get(who); line = l[Math.floor(Math.random() * l.length)]; }
   say(line, 3500, who);
   const w = PEOPLE_IDS.find((k) => PEOPLE[k] === who);
@@ -2960,8 +2990,72 @@ function hoverBoard(e) {
   const rect = renderer.domElement.getBoundingClientRect();
   ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  renderer.domElement.style.cursor = (boardOpenable() && boardDist(ray) !== null) || (roasterTappable() && roasterDist(ray) !== null) ? 'pointer' : '';
+  renderer.domElement.style.cursor = (boardOpenable() && (noteDist(ray) !== null || boardDist(ray) !== null)) || (roasterTappable() && roasterDist(ray) !== null) ? 'pointer' : '';
 }
+
+/* ---------- 黑板上的便條（承峰 11/7：「便條紙直接貼上黑板好了」；文字與規則在 tasting.js 的 BOARD_NOTE） ---------- */
+// 不做箭頭、不做發光：便條一直貼在黑板右上角，點它打開德叔寫的說明（可以一直重讀）。
+// 什麼時候點得到和點黑板一樣（boardOpenable()）；點到便條就不打開菜單本。人物站在前面、比便條近時照舊搭話
+function noteDist(r) {
+  const h = r.intersectObject(noteHit, false)[0];
+  if (!h) return null;
+  const objs = []; scene.traverseVisible((o) => { if (o.isMesh && o !== backBar && o !== boardFace && o !== noteMesh) objs.push(o); });
+  const block = r.intersectObjects(objs, false).find((x) => x.distance < h.distance - 0.02 && solidAt(x, false));
+  return block ? null : h.distance;
+}
+function tapNote(r) {
+  if (!boardOpenable()) return false;
+  const d = noteDist(r);
+  if (d === null) return false;
+  const people = [deshu, yuan, zhe, kevin, cat].filter((p) => p.visible);
+  const person = r.intersectObjects(people.map((p) => p.userData.mesh))[0];
+  if (person && person.distance < d) return false;
+  // 和點黑板一樣：手指放開後補的那一個 click 會落在剛打開的面板背景上，吃掉
+  const eat = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+  window.addEventListener('click', eat, { capture: true, once: true });
+  setTimeout(() => window.removeEventListener('click', eat, true), 500);
+  openNote(true);
+  return true;
+}
+function openNote(open) {
+  const el = $('note');
+  if (!open) { el.hidden = true; syncModal(); updateUI(); return; }
+  openAbout(false); openNotebook(false);
+  const N = TS.BOARD_NOTE;
+  $('note-title').textContent = N.title;
+  $('note-sub').textContent = N.sub;
+  const body = $('note-body');
+  body.innerHTML = '';
+  for (const line of N.lines) { const p = document.createElement('p'); p.textContent = line; body.appendChild(p); }
+  const sign = document.createElement('p');
+  sign.className = 'sign'; sign.textContent = N.sign;
+  body.appendChild(sign);
+  $('note-close').textContent = N.close;
+  el.hidden = false; // 只是讀：配方照劇情開放，讀便條不解鎖任何東西
+  syncModal();
+  updateUI();
+  $('note-close').focus();
+}
+$('note-close').onclick = () => openNote(false);
+$('note').addEventListener('click', (e) => { if (e.target === $('note')) openNote(false); });
+// 德叔提一次便條（第一次坐吧台座、第一次打烊後）：走「店裡的小事」的佇列，劇情、交信、選項、有人說話時都等
+async function noteHint(kind) {
+  TS.markNote(save, kind);
+  persist();
+  say(kind === 'bar' ? TS.BOARD_NOTE.barHint : TS.BOARD_NOTE.closeHint, 4600, deshu);
+  await realWait(5000);
+}
+// 現在可以提哪一句：坐吧台座的那句在營業中、坐著、德叔閒著時；打烊的那句在最後一杯喝完以後、德叔在吧台、沒在烘豆時。
+// 都要店裡安靜（quiet()）、沒有要演的熟客劇情或要交的信（storyBusy()）；凱文顧店以後不提（便條還在，但沒有德叔可以點）
+function noteHintDue() {
+  if (keeper() || !MOMENTS_ON || moments.busy || !quiet() || storyBusy() || dueLetter(save, letterCtx()) || bubble.classList.contains('show')) return null;
+  if (TS.noteHintDue(save, 'bar') && !state.closing && state.mode === 'seat' && state.seat?.id === 'bar' && deshuFree() && !state.arriving && !waiting.approach
+    && performance.now() - (state.satAt || 0) > 3000 / DEV_SPEED) return 'bar';
+  if (TS.noteHintDue(save, 'close') && state.closing === 'after' && !roasting && !brewing && !deshuReturning && !live.deshuWalk
+    && deshu.visible && deshu.position.distanceTo(HOME) < 0.05 && !(REGULARS_ON && F.segmentDue(save, today())?.lastNight)) return 'close';
+  return null;
+}
+let noteBarTold = false; // 還沒坐吧台座就點德叔想試：這次進店提醒過了沒（提醒一次，之後照舊閒聊）
 
 /* ---------- 烘豆（承峰 11/6：「我希望你直接完成這兩項 烘豆……」，D217；roast.js） ---------- */
 // 打烊後點吧台最裡端的烘豆機：德叔問烘淺一點、深一點，還是剛好（choose()，剛好放最下面）→ 走過去倒生豆、搖滾筒（爐火、淡灰的煙）、
@@ -3289,12 +3383,12 @@ letterEl.addEventListener('click', (e) => { if (e.target === letterEl) closeLett
 
 // 交信要等店裡安靜下來：開場結束、沒在沖咖啡、沒在佈置、沒有打開的面板、德叔沒在說話
 let readyAt = Infinity;
-const overlayOpen = () => [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map'), $('photo'), $('tune')].some((el) => !el.hidden);
+const overlayOpen = () => [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map'), $('photo'), $('tune'), $('note')].some((el) => !el.hidden);
 // 彈窗打開時，場景上的標籤、提示、泡泡、按鈕列都收起來（index.html 的 #app.modal；美術評分修正 b）。
 // 任何彈窗的 hidden 一變就馬上切換，不等下一格
 const syncModal = () => app.classList.toggle('modal', overlayOpen());
 const modalWatch = new MutationObserver(syncModal);
-for (const el of [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map'), $('photo'), $('tune')]) modalWatch.observe(el, { attributes: true, attributeFilter: ['hidden'] });
+for (const el of [about, notebook, sheet, journalEl, letterEl, $('opening'), $('diary'), $('closed'), $('map'), $('photo'), $('tune'), $('note')]) modalWatch.observe(el, { attributes: true, attributeFilter: ['hidden'] });
 syncModal();
 function quiet() {
   return save.flags.seenOpening && !state.tutorial && !state.letter && !state.cinematic && !state.scene && !state.choice && !brewing && !deshuReturning && !state.placing && !moments.busy && !state.favorite
@@ -4160,6 +4254,9 @@ async function runMoment(kind, id, fn) {
 setInterval(() => {
   if (moments.busy || !MOMENTS_ON) return;
   const t = performance.now();
+  // 黑板便條：德叔各提一次（第一次坐吧台座、第一次打烊後）。打烊後 momentsFree() 是 false，所以放在它前面，條件自己看（noteHintDue()）
+  const nh = noteHintDue();
+  if (nh) { runMoment('note', nh, () => noteHint(nh)); return; }
   if (!momentsFree()) { moments.quietFrom = t; return; }
   const quietMs = (t - moments.quietFrom) * DEV_SPEED;
   if (quietMs > 4000) {
@@ -4536,7 +4633,10 @@ async function offerTrial(id) {
   await realWait(3600);
 }
 // 吧台座點德叔：一起試一杯 → 開微調面板
-const trialAgainable = () => trialOfferable() && !moments.busy && (!!save.tasting?.guided || TS.againRecipes(save).length > 0 || TS.openRecipes(save).length > 0);
+const trialAgainable = () => trialOfferable() && !moments.busy && TS.tastingOpen(save);
+// 還沒坐吧台座就點德叔想試（黑板便條，承峰 11/7）：營業中、試咖啡開放了（TS.tastingOpen）、老闆站著或坐在別的位子時，德叔提醒先坐吧台
+const needBarSeat = () => !keeper() && !state.closing && !(state.mode === 'seat' && state.seat?.id === 'bar') && TS.tastingOpen(save) && !brewing && !moments.busy
+  && !state.choice && !state.scene && !state.favorite && !state.guest && !state.tutorial && !state.placing;
 async function offerTrialAgain() {
   const j = await choose([TS.TASTE.together, TS.TASTE.just]);
   if (j === 0) openTune(true, {});
@@ -6325,6 +6425,33 @@ if (DEV) {
         box: { x0: Math.round(sx0), x1: Math.round(sx1), y0: Math.round(sy0), y1: Math.round(sy1) }, lines: L.rows.length - 1,
         center: { x: Math.round((sx0 + sx1) / 2), y: Math.round((sy0 + sy1) / 2) }, tap: tapPoint(open, (sx0 + sx1) / 2, (sy0 + sy1) / 2),
       };
+    },
+    // 黑板便條（承峰 11/7）：便條在畫面上的位置。rect 是紙片四角投影的範圍（相對 #app 的 CSS 像素，截圖 clip 用 pageRect），
+    // tap 是紙片中心（x／y 相對 #app，pageX／pageY 是整頁座標，page.mouse.click／page.touchscreen.tap 直接用）；
+    // inView 中心在不在畫面裡、first 在中心點一下會怎樣（'note' 打開便條，或點到的人、'board'、null），ok 現在點得開嗎
+    noteView() {
+      const W = app.clientWidth, H = app.clientHeight, o = app.getBoundingClientRect(), n = new THREE.Vector3(), p = new THREE.Vector3();
+      const scr = (u, v) => { n.copy(onBackBar(u, v, p)).project(camera); return { x: ((n.x + 1) / 2) * W, y: ((1 - n.y) / 2) * H, z: n.z }; };
+      const N = A.NOTE, pts = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => scr(N.u + (a * N.w) / 2, N.v + (b * N.h) / 2)), c = scr(N.u, N.v);
+      const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+      const rect = { x0: Math.round(Math.min(...xs)), x1: Math.round(Math.max(...xs)), y0: Math.round(Math.min(...ys)), y1: Math.round(Math.max(...ys)) };
+      const r = new THREE.Raycaster();
+      r.setFromCamera(new THREE.Vector2((c.x / W) * 2 - 1, 1 - (c.y / H) * 2), camera);
+      const d = noteDist(r), people = [deshu, yuan, zhe, kevin, cat].filter((q) => q.visible);
+      const person = r.intersectObjects(people.map((q) => q.userData.mesh))[0];
+      const first = d !== null && !(person && person.distance < d) ? 'note' : person ? NAMES.get(people.find((q) => q.userData.mesh === person.object)) : boardDist(r) !== null ? 'board' : null;
+      return {
+        inView: c.z < 1 && c.x >= 0 && c.x <= W && c.y >= 0 && c.y <= H, first, ok: boardOpenable(), px: rect.x1 - rect.x0, rect,
+        pageRect: { x: rect.x0 + o.left, y: rect.y0 + o.top, width: rect.x1 - rect.x0, height: rect.y1 - rect.y0 },
+        tap: { x: Math.round(c.x), y: Math.round(c.y), pageX: Math.round(c.x + o.left), pageY: Math.round(c.y + o.top) },
+      };
+    },
+    noteOpen(open = true) { openNote(open); return !$('note').hidden; }, // 不經過點擊直接打開／收起便條
+    // 德叔提一次便條（'bar' 第一次坐吧台座／'close' 第一次打烊後），不看條件直接演（Promise）；會記進存檔
+    noteHint(kind = 'bar') { if (moments.busy || !TS.NOTE_FLAG[kind]) return Promise.resolve(false); return runMoment('note', kind, () => noteHint(kind)).then(() => true); },
+    get boardNote() { // （__cafe.note() 是任務小紙條，這裡叫 boardNote）
+      return { open: !$('note').hidden, barHint: !!save.flags.noteBarHint, closeHint: !!save.flags.noteCloseHint,
+        due: noteHintDue(), barTold: noteBarTold, tastingOpen: TS.tastingOpen(save), visible: noteMesh.visible, text: $('note-body').textContent };
     },
     // 美術評分修正 c：鏡頭停好了（沒有在移動、轉向，推近也到了），全流程截圖等這個再拍
     get camStill() {

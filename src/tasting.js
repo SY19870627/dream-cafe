@@ -84,6 +84,35 @@ export const TASTE = {
   defaultLine: '和店裡平常那杯差不多。穩。', // 【待定】
 };
 
+// 黑板上的便條（承峰 11/7：「便條紙直接貼上黑板好了」）：不做箭頭、不做發光，黑板右上角一直貼著一張德叔寫的便條，
+// 點開是可以重複讀的說明（試咖啡怎麼開始、烘豆什麼時候烘）。這是「黑板不暗示調過」（承峰）之外的新例外：
+// 便條只說怎麼開始，黑板上寫的品名照舊不暗示調過。不新增記事本頁面。
+// 德叔提便條各一次（存檔 flags）：第一次坐吧台座、第一次打烊（最後一杯喝完以後）；還沒坐吧台座就點德叔想試，提醒先坐吧台（一次進店一次）
+export const BOARD_NOTE = {
+  title: '黑板上的便條', // 【待定】
+  sub: '德叔寫的，一直貼著。', // 【待定】
+  lines: [
+    '老闆：', // 【待定】
+    '新的配方會跟著店裡的故事慢慢開，不用急著找；有了，我先跟你說。', // 【待定】配方照劇情開放，便條不提前解鎖
+    '有配方可以試的時候，先坐到吧台座，再點我一聲。研磨、粉水比、水溫、技法，我們一項一項慢慢調，沒有錯的沖法。', // 【待定】
+    '想烘豆，等打烊、最後一杯喝完以後，點吧台最裡面、靠後牆那台烘豆機。淺一點、深一點，跟我說就好。', // 【待定】
+    '不急。這張我一直貼著。', // 【待定】
+  ],
+  sign: '——德叔', // 【待定】
+  close: '收起來', // 【待定】
+  barHint: '老闆，黑板右上角那張便條是我寫的。想試新的沖法，看一下就知道。', // 【待定】第一次坐吧台座
+  closeHint: '打烊以後也可以烘豆。怎麼烘，寫在黑板那張便條上。', // 【待定】第一次打烊、最後一杯喝完
+  needBar: '想試新的沖法，先坐到吧台來。黑板上的便條有寫。', // 【待定】還沒坐吧台座就點德叔
+};
+const noteFlags = (save) => (save.flags && typeof save.flags === 'object' ? save.flags : (save.flags = {}));
+// kind：'bar'（第一次坐吧台座）／'close'（第一次打烊）；提過就不再提
+export const NOTE_FLAG = { bar: 'noteBarHint', close: 'noteCloseHint' };
+export const noteHintDue = (save, kind) => !!NOTE_FLAG[kind] && !noteFlags(save)[NOTE_FLAG[kind]];
+export function markNote(save, kind) { if (NOTE_FLAG[kind]) noteFlags(save)[NOTE_FLAG[kind]] = true; }
+// 吧台座點德叔會出現「一起試一杯」：照原本的規則，德叔引導過或有配方照劇情開放了（againRecipes 是 openRecipes 的一部分）。
+// 讀便條不會解鎖任何東西
+export const tastingOpen = (save) => !!save.tasting?.guided || openRecipes(save).length > 0;
+
 export const blankTasting = () => ({ trials: {}, records: [], nextId: 1, guided: false, offerHint: false });
 const T = (save) => {
   if (!save.tasting || typeof save.tasting !== 'object') save.tasting = blankTasting();
@@ -353,6 +382,7 @@ export function allTastingLines() {
     else if (Array.isArray(v)) out.push(...v.filter(Boolean));
     else out.push(...Object.values(v));
   }
+  for (const v of Object.values(BOARD_NOTE)) out.push(...(Array.isArray(v) ? v : [v]));
   out.push('亮一點', '酸收著', '甜在中間', '尾巴有一點厚', '尾段乾淨', '還可以再濃一點', '再淡一點也許會打開', '水溫偏熱，香氣先出來', '磨得細，層次比較近', '味道穩');
   return out;
 }

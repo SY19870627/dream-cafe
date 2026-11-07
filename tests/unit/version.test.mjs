@@ -1,4 +1,4 @@
-// 遊戲版本號（承峰 11/7）：唯一的常數在 src/version.js，畫面角落顯示它，index.html 載入 JS 的 ?v= 跟著它
+// 遊戲版本號（承峰 11/7）：唯一的常數在 src/version.js，記事本最底下的小字顯示它，index.html 載入 JS 的 ?v= 跟著它
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -14,21 +14,27 @@ test('版本號是 0.x.y，日期是真的日期', () => {
   assert.equal(new Date(GAME_VERSION_DATE + 'T00:00:00Z').toISOString().slice(0, 10), GAME_VERSION_DATE);
 });
 
-test('畫面上的字從常數來：v 加版本號與日期，短到放得進角落', () => {
+test('畫面上的字從常數來：v 加版本號與日期，短到一行放得下', () => {
   const label = versionLabel();
   assert.ok(label.startsWith('v' + GAME_VERSION));
   assert.ok(label.includes(GAME_VERSION_DATE));
   assert.ok(label.length <= 24);
 });
 
-test('main.js 用 versionLabel() 填 #version，index.html 有這個元素、點不到、字小', () => {
+test('版本號在記事本最底下：main.js 用 versionLabel() 填 #nb-version，放在「闔上」下面、字小；右下角不再有版本號', () => {
   assert.match(main, /import \{ versionLabel \} from '\.\/version\.js'/);
+  assert.match(main, /ver = \$\('nb-version'\)/);
   assert.match(main, /textContent = versionLabel\(\)/);
-  assert.match(html, /<div id="version"[^>]*><\/div>/);
-  const css = html.match(/#version \{([^}]*)\}/);
-  assert.ok(css, '#version 要有樣式');
-  assert.match(css[1], /pointer-events: none/);
+  // 在記事本面板裡、「闔上」之後（最底下）
+  const nb = html.slice(html.indexOf('<div id="notebook"'), html.indexOf('<div id="sheet"'));
+  assert.match(nb, /<button id="nb-close"[^>]*>[^<]*<\/button>\s*(<!--[^>]*-->\s*)?<p id="nb-version"><\/p>/);
+  assert.equal((html.match(/id="nb-version"/g) || []).length, 1);
+  const css = html.match(/#nb-version \{([^}]*)\}/);
+  assert.ok(css, '#nb-version 要有樣式');
   assert.ok(Number(css[1].match(/font-size: (\d+)px/)[1]) <= 11);
+  // 舊的右下角 #version 拿掉了
+  assert.doesNotMatch(html, /id="version"|#version \{/);
+  assert.doesNotMatch(main, /\$\('version'\)/);
   // 版本號沒有寫死在 index.html 的畫面文字裡（只出現在 ?v= 參數）
   assert.ok(!html.replace(/\?v=[\d.]+/g, '').includes(GAME_VERSION));
 });
