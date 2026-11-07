@@ -23,7 +23,8 @@ import * as RO from './roast.js';
 import * as PR from './profiles.js';
 import * as VS from './visits.js';
 import { createNav } from './pathfind.js';
-import { versionLabel } from './version.js';
+import { versionLabel, GAME_VERSION } from './version.js';
+import { FILES as SCRIPT_FILES } from './script.js';
 
 const $ = (id) => document.getElementById(id);
 // 瀏覽器（手機尤其）可能拿到快取的舊 index.html、配上新的 main.js：少了試咖啡的 #tune 面板時，
@@ -6515,6 +6516,8 @@ if (DEV) {
     // 來訪段落（visits.js）：visits 讀狀態（開著沒、演過／跳過的段落、今天用掉幾段、現在誰有段落可以演、演過的紀錄）；
     // visitPlay('yuan-v2') 直接演那一段（不看窗口與一天的份量，Promise）；開發者模式預設開著，網址 &visits=0 關掉（隔離測試用）
     get visits() { const d = today(); return { on: VISITS_ON, rel: JSON.parse(JSON.stringify(save.rel || {})), slots: VS.slotsToday(save, d), next: visitCandidate(d)?.id || null, log: visitLog.map((x) => ({ ...x })), stranger: VS.yuanStranger(save) }; },
+    // D224：測試用——劇本 YAML 是否載入／編譯完成（smoke／playthrough 的 awaitGame 會查）
+    get script() { return { files: [...SCRIPT_FILES], segments: VS.SEGMENTS.length, milestones: S.MILESTONES.length, version: GAME_VERSION }; },
     visitPlay(id) { const seg = VS.segmentById(id); if (!seg || state.scene) return Promise.resolve(false); return runVisit(seg).then(() => true); },
     // art2b：對話時前景淡出的狀態：誰是說話的人、哪些擺飾與椅子淡掉了（透明度 < 1）
     get occlusion() {

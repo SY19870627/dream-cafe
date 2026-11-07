@@ -59,13 +59,26 @@ for (const make of ['newPage', 'newContext']) {
 const OPTIONAL_ART = ['prop_roaster_large'];
 const optionalMiss = (m) => OPTIONAL_ART.some((n) => (m.location().url || '').includes(`/assets/art/${n}.webp`));
 
+
+// D224：劇本 YAML 以 top-level await 載入；#app canvas 是 main.js 在 import（含 scripts/*.yaml）完成後才掛上。
+// 再等 __cafe，並確認來訪段落／里程碑已從劇本編譯出來（不是空的），避免「畫面出了但劇本沒載到」的假通過。
+async function awaitGame(page) {
+  await page.waitForSelector('#app canvas');
+  await page.waitForFunction(() => !!window.__cafe, null, { timeout: 15000 });
+  const sc = await page.evaluate(() => window.__cafe.script);
+  if (!sc || sc.segments < 20 || sc.milestones < 18 || !sc.files?.includes('yuan')) {
+    throw new Error(`劇本還沒就緒或數量不對：${JSON.stringify(sc)}`);
+  }
+  return sc;
+}
+
 async function open(viewport, query) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
   const errors = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error' && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
   await page.goto(url + query);
-  await page.waitForSelector('#app canvas');
+  await awaitGame(page);
   await page.waitForTimeout(1800); // 等俯瞰鏡頭與第一句話
   return { page, errors };
 }
@@ -359,7 +372,7 @@ try {
 
     // 重新整理：進度都在
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(800);
     check((await cafe('saveStatus')) === 'loaded' && (await page.textContent('#temp')) === '20.5°C' && (await cafe('fund')) === 200
       && (await cafe('placed')).length === 2 && (await cafe('stored')).length === 2, '重新整理後溫度、基金、擺設都在');
@@ -390,13 +403,13 @@ try {
     await page.screenshot({ path: OUT + 'phone-notebook.png' });
     await page.click('#nb-close');
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(800);
     check((await page.textContent('#day')) === '開店第 10 天' && (await cafe('temp')) === 22, '重新整理後仍是第 10 天、22.0°C');
     // 重置存檔
     await page.click('#menu-btn');
     await page.click('#dev-reset');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(800);
     check((await cafe('saveStatus')) === 'new' && (await cafe('temp')) === 20 && (await cafe('day')) === 1, '重置存檔後回到第 1 天、20.0°C');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
@@ -470,7 +483,7 @@ try {
     await page.click('#sheet-close');
     await page.click('#p-done');
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1000);
     check(await page.isHidden('#opening') && (await cafe('saveStatus')) === 'loaded', '重新整理後直接進店，不再播開場');
     check(errors.length === 0, 'Phase3 開場沒有 JS 錯誤 ' + errors.join(' | '));
@@ -491,7 +504,7 @@ try {
     await page.click('#op-skip');
     await page.waitForFunction(() => window.__cafe.tutorial === 'sit', null, { timeout: 5000 });
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForFunction(() => window.__cafe.tutorial === 'sit', null, { timeout: 5000 });
     await page.waitForTimeout(1000);
     check(await page.isHidden('#opening'), '進店之後重新整理，從第四幕「先坐。」接著演');
@@ -537,7 +550,7 @@ try {
     await page.waitForFunction(() => !window.__cafe.cinematic, null, { timeout: 10000 });
     check(JSON.stringify(await cafe('letters')) === '["first"]' && !(await cafe('letterWaiting')), '信記進存檔');
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(2500);
     check(await page.isHidden('#journal') && !(await cafe('letterWaiting')) && await page.isHidden('#read-letter'), '重新整理：同一天不再寫日誌，信也不再交');
     await page.click('#menu-btn');
@@ -578,7 +591,7 @@ try {
         nextUid: 4, seatsSat: ['window'], stats: { cups: 1, rainyWindowCups: 0 }, flags: { starterGiven: true } }));
     }, 864e5);
     await page.goto(url + '?dev=1&speed=20');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1500);
     check(await page.isHidden('#opening'), '舊存檔不播開場，直接進店');
     check(await page.isVisible('#journal') && (await page.$$('#jr-body .jr-day')).length === 2, '離開兩天：看到兩天的營業日誌');
@@ -596,7 +609,7 @@ try {
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
     await page.addInitScript(() => Object.defineProperty(window, 'localStorage', { get() { throw new Error('SecurityError'); } }));
     await page.goto(url + '?dev=1&opening=0');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(800);
     check(await page.evaluate(() => window.__cafe.saveStatus === 'memory'), '讀不到 localStorage 時改用記憶體');
     await page.click('#menu-btn');
@@ -758,7 +771,7 @@ try {
     // 重新整理：故事進度都在，同一天的予安、凱文還在位子上
     const before = await story();
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1500);
     const after = await story();
     check(JSON.stringify(after.yuan.milestones) === JSON.stringify(before.yuan.milestones) && after.zhe.visits === before.zhe.visits, '重新整理後熟客的進度都在');
@@ -928,7 +941,7 @@ try {
     check(after.drinks[0] === 'iced' && before.drinks[0] === 'dongshan' && [...after.lines].sort().join() === [...before.lines].sort().join(), `德叔換黑板：換一杯到最上面，黑板上的東西不變（${after.lines.join('／')}）`);
     // 重新整理：黑板還在
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1500);
     check((await menu()).board.join() === 'dongshan,longan,iced', '重新整理後黑板照舊');
     // 黑板字修正（D189）：黑板寫滿 4 行，手機直向坐吧台座（正面）、看德叔沖、角落沙發，黑板上的字整段在畫面裡、不被德叔或其他東西擋住
@@ -1066,7 +1079,7 @@ try {
     const errors = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
     await page.goto(url + '?dev=1&speed=8&opening=0&regulars=0&weather=clear&board=dongshan,zhe-beans,cocoa,longan');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1800);
     await page.tap('.seat-label >> text=角落沙發');
     await page.waitForFunction(() => window.__cafe.camStill, null, { timeout: 8000 });
@@ -1090,7 +1103,7 @@ try {
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error' && !/\/assets\/art\/photo_/.test(m.location().url || '') && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
     await page.goto(url + '?dev=1&speed=8&opening=0&weather=clear&moments=0&board=dongshan,black,iced,longan');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(2200);
     const fav = () => page.evaluate(() => window.__cafe.fav);
     const choices = () => page.$$eval('#choices button', (b) => b.map((x) => x.textContent));
@@ -1192,7 +1205,7 @@ try {
     await page.tap('#sheet-close');
     // 重新整理：照片、段落還在
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1800);
     const after = await fav();
     check(after.photos.length === 4 && after.favorites.kevin.stage === 3 && after.favorites.yuan.stage === 1, '重新整理：相簿與段落存在存檔裡');
@@ -1249,7 +1262,7 @@ try {
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error' && !/\/assets\/art\/photo_/.test(m.location().url || '') && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
     await page.goto(url + '?dev=1&speed=8&opening=0&weather=clear&moments=0&board=dongshan,black,iced,longan');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(2200);
     const fav = () => page.evaluate(() => window.__cafe.fav);
     const choices = () => page.$$eval('#choices button', (b) => b.map((x) => x.textContent));
@@ -1514,7 +1527,7 @@ try {
     check(await page.isHidden('#closed') && (await cafe('closing')) === 'after', '「再待一下」回到打烊後的店裡');
     // 重新整理：同一天仍是打烊後的店，燈還是關著
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1500);
     check((await cafe('closing')) === 'after' && (await cafe('night')) && (await cafe('pendantLevels')).every((v) => v < 0.05), '重新整理：今天已經打烊，燈也還關著');
     await page.click('#menu-btn');
@@ -1560,7 +1573,7 @@ try {
     check((await cafe('tasks')).includes('guest-visit'), '客人模式完成：任務 #17');
     check(await page.isVisible('#stand') && (await cafe('mode')) === 'seat', '結束後還坐在位子上，按鈕恢復');
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(3000);
     check(!(await cafe('guest')), '當過一次客人，不會再邀請');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
@@ -1732,7 +1745,7 @@ try {
     check((await cafe('barName')) === '凱文' && !(await cafe('here')).includes('kevin'), '回東山坐坐：常態店，凱文在吧台後面顧店');
     // 重新整理：仍是常態店，凱文從門口迎接；可以請凱文沖一杯
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForFunction(() => window.__cafe && window.__cafe.keeper && !window.__cafe.arriving && window.__cafe.mode === 'overview', null, { timeout: 20000 });
     check((await cafe('barName')) === '凱文' && (await fw()).departed && (await fw()).mapSeen, '重新整理後仍是常態店');
     await page.waitForTimeout(1800); // 鏡頭回到俯瞰
@@ -1768,7 +1781,7 @@ try {
     page.on('console', (m) => { if (m.type() === 'error' && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
     page.on('response', (r) => { const m = r.url().match(/assets\/art\/([^/?]+)\.webp/); if (m) got.set(m[1], r.status()); });
     await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1500);
     const art = await page.evaluate(() => window.__cafe.art);
     // art2b：第二批的開場、地圖與介面再加 7 張 webp（信封、辭呈與律師信背景、信箱、縣道、地圖、信紙、泡泡外框）＋ CSS 的啟動畫面
@@ -1819,7 +1832,7 @@ try {
       return r.abort('failed');
     });
     await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1800);
     const art = await page.evaluate(() => window.__cafe.art);
     check(blocked >= 64 && art.loaded.length === 0 && Object.values(art.now).every((v) => v === null) && art.yuanChair, `assets/art 全部失敗（斷線、404、解碼錯誤，攔下 ${blocked} 個請求）：人物退回 Canvas 繪圖，予安那張椅子照樣擺著（D215）`);
@@ -1853,7 +1866,7 @@ try {
     const errors = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
     await page.goto(url + '?dev=1&speed=8&opening=0&regulars=0&weather=clear');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1200);
     await page.click('.seat-label >> text=窗邊座');
     await page.waitForTimeout(1200);
@@ -1897,7 +1910,7 @@ try {
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error' && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
     await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1800);
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     const center = async (sel) => { const b = await page.locator(sel).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
@@ -1966,7 +1979,7 @@ try {
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error' && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
     await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1800);
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     const said = (text, timeout = 20000) => page.waitForFunction((x) => window.__cafe.moments.lastSaid?.text?.includes(x), text, { timeout });
@@ -2087,7 +2100,7 @@ try {
     });
     const boardOld = (await cafe('menu')).board;
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1800);
     for (let i = 0; i < 6 && await page.isVisible('#journal'); i++) { await page.click('#jr-close'); await page.waitForTimeout(400); }
     t = await cafe('tasting');
@@ -2192,7 +2205,7 @@ try {
         owned: [{ uid: 1, item: 'cabinet', placed: true, x: 2.2, z: -3.6 }], nextUid: 2, seatsSat: ['window'], stats: { cups: 1, rainyWindowCups: 0 }, flags: { starterGiven: true } }));
     }, 864e5);
     await page.goto(url + '?dev=1&speed=6&opening=0&regulars=0&weather=clear&moments=0');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1500);
     for (let i = 0; i < 4 && await page.isVisible('#journal'); i++) { await page.click('#jr-close'); await page.waitForTimeout(400); }
     const route = () => page.evaluate(() => {
@@ -2230,7 +2243,7 @@ try {
     const errors = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
     await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear&moments=0&board=dongshan,black,iced,longan');
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1800);
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     await page.evaluate(() => window.__cafe.tastingSetup('zhe-new'));
@@ -2321,7 +2334,7 @@ try {
     check(true, '隔天德叔沖東山的豆：說一次「這一批烘得淺」');
     check((await cafe('roast')).batch.told, '說過就記下來（只說一次）');
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1500);
     check((await cafe('roast')).batch?.level === 'light', '重新整理：架上還是淺焙那一批');
     check(errors.length === 0, `沒有 JS 錯誤 ${errors.join(' | ')}`);
@@ -2379,7 +2392,7 @@ try {
     check(true, '「重讀這封信」打開律師信');
     await page.click('#lt-close');
     await page.reload();
-    await page.waitForSelector('#app canvas');
+    await awaitGame(page);
     await page.waitForTimeout(1500);
     for (let i = 0; i < 4 && await page.isVisible('#journal'); i++) { await page.click('#jr-close'); await page.waitForTimeout(300); }
     check(JSON.stringify((await page.evaluate(() => JSON.parse(localStorage.getItem('dream-cafe.save')).profiles.got.yuan)).map((x) => x.n)) === JSON.stringify([1, 2, 3, 4]), '重新整理：寫進去的段落還在存檔裡');

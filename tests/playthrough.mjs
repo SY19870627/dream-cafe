@@ -21,6 +21,18 @@ function check(ok, msg) {
 }
 
 const { server, url } = await startServer();
+
+// D224：與 smoke.mjs 相同——等 canvas、__cafe、劇本 YAML 編譯完成，才開始通關流程。
+async function awaitGame(page) {
+  await page.waitForSelector('#app canvas');
+  await page.waitForFunction(() => !!window.__cafe, null, { timeout: 15000 });
+  const sc = await page.evaluate(() => window.__cafe.script);
+  if (!sc || sc.segments < 20 || sc.milestones < 18 || !sc.files?.includes('yuan')) {
+    throw new Error(`劇本還沒就緒或數量不對：${JSON.stringify(sc)}`);
+  }
+  return sc;
+}
+
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 
 async function play([W, H]) {
@@ -32,7 +44,7 @@ async function play([W, H]) {
   // 畫師還在畫的落地烘豆機（prop_roaster_large，承峰 11/7）：檔案放進來之前是 404（網路層的訊息），遊戲用 Canvas 暫代，不算錯誤
   page.on('console', (m) => { if (m.type() === 'error' && !(m.location().url || '').includes('/assets/art/prop_roaster_large.webp')) errors.push(`console: ${m.text()}`); });
   await page.goto(url + '?dev=1&speed=20');
-  await page.waitForSelector('#app canvas');
+  await awaitGame(page);
   const cafe = (k) => page.evaluate((key) => window.__cafe?.[key], k);
   const vis = (sel) => page.isVisible(sel);
   const shots = [];

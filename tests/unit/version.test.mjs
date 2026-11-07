@@ -22,7 +22,7 @@ test('畫面上的字從常數來：v 加版本號與日期，短到一行放得
 });
 
 test('版本號在記事本最底下：main.js 用 versionLabel() 填 #nb-version，放在「闔上」下面、字小；右下角不再有版本號', () => {
-  assert.match(main, /import \{ versionLabel \} from '\.\/version\.js'/);
+  assert.match(main, /import \{ versionLabel(?:, GAME_VERSION)? \} from '\.\/version\.js'/); // D224：也可一併匯入 GAME_VERSION（__cafe.script）
   assert.match(main, /ver = \$\('nb-version'\)/);
   assert.match(main, /textContent = versionLabel\(\)/);
   // 在記事本面板裡、「闔上」之後（最底下）
