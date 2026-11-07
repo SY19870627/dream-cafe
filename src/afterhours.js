@@ -111,9 +111,9 @@ export const GUEST_TALKS = [
   { id: 'cabinet', need: (p) => p.has('cabinet'),
     lines: [['A', '碗櫥裡的杯子都不成套。'], ['B', '所以每次來，都可以換一個杯子用。']] },
   { id: 'napkin', yuan: true, need: (p) => p.has('napkin'),
-    lines: [['B', '那張紙巾上面，寫滿了字。'], ['yuan', '……那是我寫的。沒想到真的擺出來了。']] },
+    lines: [['A', '那張紙巾上面，寫滿了字。'], ['yuan', '……那是我寫的。沒想到真的擺出來了。']] },
   { id: 'yuan-book', yuan: true, need: (p) => p.has('yuan-book'),
-    lines: [['B', '那本書，是予安寫的吧？'], ['yuan', '不要念出書名，很害羞。']] },
+    lines: [['A', '那本書，是你寫的吧？'], ['yuan', '不要念出書名，很害羞。']] },
   // 擺飾很少、很多的時候
   { id: 'few', need: (p, c) => c.count < 4,
     lines: [['A', '店裡東西不多。'], ['B', '空空的也好，坐起來很鬆。']] },

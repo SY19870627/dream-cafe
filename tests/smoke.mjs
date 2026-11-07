@@ -1104,6 +1104,11 @@ try {
     await page.waitForTimeout(300);
     check((await choices()).length === 0 && (await fav()).log.length === 0, '「只是聊聊」：照舊只搭話，沒有端');
     await page.waitForTimeout(400);
+    // 每位熟客一天只主動問一次（文本與關係鋪陳，提案決策 D）：今天再點她只搭話
+    await tapPerson('yuan');
+    check(!(await choices()).includes('請德叔端一杯給予安') && !(await fav()).offerable.yuan, '選了「只是聊聊」：今天再點她不再問');
+    await page.waitForTimeout(3800);
+    await page.evaluate(() => window.__cafe.favSetup('yuan', 1)); // 重設今天問過的紀錄，接著測選杯
     await tapPerson('yuan');
     await page.tap('#choices button >> nth=0');
     await page.waitForTimeout(400);
@@ -2020,8 +2025,8 @@ try {
     check(!!rec.params.ratio && !!rec.params.grind && !!rec.params.technique, '紀錄帶四項參數');
     check((await cafe('fav')).lastBean === bean0, '試調那杯不算 lastBean');
     check(!(await cafe('menu')).book.includes('kiln'), '還沒定案：不在菜單本');
-    await said('測試紀錄');
-    check(true, '德叔說記在測試紀錄了');
+    await said('試調紀錄');
+    check(true, '德叔說記在試調紀錄了');
     await page.tap('#menu-btn');
     await page.tap('#open-notebook');
     await page.waitForSelector('.nb-record');

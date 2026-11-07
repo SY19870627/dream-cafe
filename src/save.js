@@ -9,9 +9,10 @@ import { blankFavorites, lastBeanOf } from './favorites.js';
 import { blankTasting, migrateTastingToV10 } from './tasting.js';
 import { blankRoast } from './roast.js';
 import { blankProfiles, syncProfiles } from './profiles.js';
+import { blankRel, migrateRel } from './visits.js';
 
 export const SAVE_KEY = 'dream-cafe.save';
-export const SAVE_VERSION = 12; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
+export const SAVE_VERSION = 13; // 2：階段 3 加入開場、玩家資料、營業日誌；初始擺飾改由開場第四幕送出
 // 3：階段 4 加入熟客故事線（來店次數、里程碑、結算到哪一天）、菜單、颱風那天
 // 4：階段 5 加入打烊（closing）、「今天的一杯」咖啡日記（diary）、龍眼（cat）
 // 5：階段 6 加入徵店長與告別（farewell）
@@ -22,6 +23,7 @@ export const SAVE_VERSION = 12; // 2：階段 3 加入開場、玩家資料、�
 // 10：承峰 11/5 夜試咖啡重做：參數微調（粉水／水溫／研磨／技法）→ 登錄紀錄 → 定案寫 brewProfile；tasting 紀錄帶 params
 // 12：承峰 11/6「直接完成……人物誌分段揭露」：人物誌寫進去的段落（profiles.got[人] = [{ n, day }]；profiles.js）
 // 11：承峰 11/6「直接完成……烘豆」：架上這一批東山的豆（roast.batch：烘焙度、哪天烘的、德叔沖的時候說過沒；roast.js）
+// 13：2026-11-07 文本與關係鋪陳（依 fable 審稿）：熟客的來訪段落（rel：演過／跳過的段落、擴寫版演過的里程碑、今天用掉幾段、請咖啡今天問過沒、段落結尾的第一杯問過的熟客 invited（後來才加，沒有時 visits.js 讀的時候補上）；visits.js）
 
 const regular = () => ({ visits: 0, milestones: [], on: {}, settled: 0, lastVisit: 0, lastMilestoneDay: 0 });
 
@@ -70,6 +72,9 @@ export function defaultSave(now) {
     roast: blankRoast(),
     // 人物誌（profiles.js，第 12 版）：got[人] = [{ n 第幾段, day 第幾天寫進去的（0＝舊存檔升上來時補的） }]；不計數、不顯示還有幾段
     profiles: blankProfiles(),
+    // 熟客的來訪段落（visits.js，第 13 版）：done 演過或跳過的段落、seen 老闆坐著看過擴寫版（或接回）的里程碑、
+    // today { day, slots 今天已經用掉一段的熟客 }、offered[人] 點他時「請德叔端一杯」今天問過了（第幾天）
+    rel: blankRel(),
     photos: [], // 相簿：[{ id: 'yuan-1', day, t, item 端過去的那杯, snack 附了龍眼乾沒 }]，照拿到的順序
     letters: [], // 讀過的老先生的信：[{ id, t, day }]
     journal: [], // 最近幾頁德叔的營業日誌（記事本可以重讀），見 journal.js
@@ -130,6 +135,9 @@ export function migrate(data, now) {
   if (v < 11) save.roast = blankRoast();
   // 第 12 版以前沒有人物誌：已經發生過的里程碑、照片、信、告別，那幾段直接補進去（第 0 天，頁上不寫日期）
   if (v < 12) { save.profiles = blankProfiles(); syncProfiles(save, 0); }
+  // 第 13 版以前沒有來訪段落：已經發生的里程碑，當天的擴寫與接回都當作演過（不補演舊的事），窗口過了的段落跳過；
+  // 最愛的段落（stage）、照片、metYuan 都不動（第一段改成 yuan3／zhe2／kevin3 之後開放，已經拿到的照片不收回）
+  if (v < 13) { save.rel = blankRel(); migrateRel(save); }
   save.version = SAVE_VERSION;
   save.nextUid = Math.max(save.nextUid, ...save.owned.map((o) => (Number(o.uid) || 0) + 1), 1);
   return save;

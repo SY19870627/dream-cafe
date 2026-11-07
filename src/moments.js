@@ -87,7 +87,7 @@ export const DECOR_REACTIONS = {
     { who: 'deshu', line: '龍眼乾放在看得到的地方，人會比較想坐久一點。' }], // 【待定】
   succulent: [{ who: 'deshu', act: 'visit', line: '這幾盆不太需要人照顧。跟龍眼一樣。' }], // 【待定】
   'book-stack': [{ who: 'yuan', line: '有一本我高中讀過。書頁黃成這樣，剛好。' }, // 【待定】
-    { who: 'deshu', line: '舊書放著，客人會翻。翻了，就會坐久一點。' }], // 【待定】
+    { who: 'deshu', line: '舊書放著，客人會翻。翻著翻著，就忘了看時間。' }], // 【待定】
   'coffee-sack': [{ who: 'zhe', line: '「東山」兩個字印歪了。……我們家的袋子也都這樣。' }, // 【待定】
     { who: 'deshu', line: '生豆袋放著，店裡就有一點豆子的味道。' }], // 【待定】
   'cat-cushion': [{ who: 'cat', act: 'sit', line: '他看了一眼。今天大概還是睡窗台。' }], // 【待定】德叔說

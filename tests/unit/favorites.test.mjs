@@ -38,8 +38,10 @@ test('存檔第 8 版：新存檔有 favorites（三位都從第 0 段開始）�
 test('階段開放：每段跟在一個里程碑後面、照順序；還沒開放時不能端', () => {
   const s = newSave();
   for (const w of FV.FAV_IDS) assert.equal(FV.isOpen(s, w), false, `${w} 見面之前沒有開放`);
-  reach(s, 'yuan', 1);
-  assert.equal(FV.isOpen(s, 'yuan'), true, '予安第一幕之後開放第一段');
+  reach(s, 'yuan', 2);
+  assert.equal(FV.isOpen(s, 'yuan'), false, '第一杯延到她說出身世之後（文本與關係鋪陳）：yuan2 還沒開放');
+  reach(s, 'yuan', 3);
+  assert.equal(FV.isOpen(s, 'yuan'), true, '予安第三幕（龍眼窯）之後開放第一段');
   assert.equal(FV.current(s, 'yuan').n, 1);
   assert.ok(FV.serve(s, 'yuan', 'black', 2).right);
   assert.equal(FV.isOpen(s, 'yuan'), false, '第二段要等第四幕（退稿）');
@@ -47,13 +49,25 @@ test('階段開放：每段跟在一個里程碑後面、照順序；還沒開�
   reach(s, 'yuan', 4, 8);
   assert.equal(FV.isOpen(s, 'yuan'), true);
   assert.equal(FV.current(s, 'yuan').n, 2);
-  // 每段的開放條件（提案第三節的表）
-  assert.deepEqual(FV.FAV_IDS.map((w) => FV.STAGES[w].map((x) => x.after)), [[1, 4, 5], [1, 4, 6], [1, 5, 6]]);
+  // 每段的開放條件（提案第三節的表；第一段改成 yuan3／zhe2／kevin3 之後，提案_文本關係鋪陳決策 A）
+  assert.deepEqual(FV.FAV_IDS.map((w) => FV.STAGES[w].map((x) => x.after)), [[3, 4, 5], [2, 4, 6], [3, 5, 6]]);
+  const z = newSave();
+  reach(z, 'zhe', 1, 1);
+  assert.equal(FV.isOpen(z, 'zhe'), false, '阿哲第一次見面還不能請');
+  reach(z, 'zhe', 2, 4);
+  assert.equal(FV.isOpen(z, 'zhe'), true, '阿哲 zhe2 之後');
+  const k = newSave();
+  reach(k, 'kevin', 2, 8);
+  assert.equal(FV.isOpen(k, 'kevin'), false, '凱文 kevin2 之後還不能請');
+  reach(k, 'kevin', 3, 9);
+  assert.equal(FV.isOpen(k, 'kevin'), true, '凱文 kevin3 之後');
+  // 德叔第一段的線索只說觀察，不提請客（提案決策 C）
+  for (const w of FV.FAV_IDS) assert.doesNotMatch(FV.STAGES[w][0].deshu, /請|跟我說一聲/);
 });
 
 test('端對：熟客說那一句、拿到照片、進到下一段；第一張照片 first 為 true', () => {
   const s = newSave();
-  reach(s, 'kevin', 1, 3);
+  reach(s, 'kevin', 3, 3);
   const r = FV.serve(s, 'kevin', 'iced', 3, 123);
   assert.equal(r.right, true);
   assert.equal(r.line, FV.STAGES.kevin[0].ok);
@@ -62,14 +76,14 @@ test('端對：熟客說那一句、拿到照片、進到下一段；第一張�
   assert.equal(r.favorite, false);
   assert.deepEqual(s.photos, [{ id: 'kevin-1', day: 3, t: 123, item: 'iced', snack: false }]);
   assert.equal(s.favorites.kevin.stage, 1);
-  reach(s, 'yuan', 1);
+  reach(s, 'yuan', 3);
   const r2 = FV.serve(s, 'yuan', 'black', 3);
   assert.equal(r2.first, false, '第二張以後不是 first');
 });
 
 test('端錯：熟客照喝、說一句溫和的話；不拿照片、不扣東西、段落不變', () => {
   const s = newSave();
-  reach(s, 'yuan', 1);
+  reach(s, 'yuan', 3);
   const before = JSON.stringify({ fund: s.fund, tasks: s.tasks, menu: s.menu });
   const r = FV.serve(s, 'yuan', 'dongshan', 2);
   assert.equal(r.right, false);
@@ -85,7 +99,7 @@ test('端錯：熟客照喝、說一句溫和的話；不拿照片、不扣東�
 
 test('一天一位熟客只收一杯（Q80 預設）：今天收過了就不能再端，明天可以；別的熟客不受影響', () => {
   const s = newSave();
-  reach(s, 'yuan', 1); reach(s, 'kevin', 1, 3);
+  reach(s, 'yuan', 3); reach(s, 'kevin', 3, 3);
   assert.ok(FV.serve(s, 'yuan', 'iced', 5));
   assert.equal(FV.canServe(s, 'yuan', 5), false);
   assert.equal(FV.serve(s, 'yuan', 'black', 5), null, '同一天第二杯不收');
@@ -96,7 +110,7 @@ test('一天一位熟客只收一杯（Q80 預設）：今天收過了就不能�
 
 test('同一段錯兩次：德叔說一句更靠近的話；之後每次端錯都說；端對以後 misses 歸零', () => {
   const s = newSave();
-  reach(s, 'yuan', 1);
+  reach(s, 'yuan', 3);
   assert.equal(FV.serve(s, 'yuan', 'dongshan', 2).hint, '');
   const r = FV.serve(s, 'yuan', 'dongshan', 3);
   assert.equal(r.hint, FV.STAGES.yuan[0].hint);
@@ -140,7 +154,7 @@ test('三杯最愛（Q79 預設）：予安黑咖啡要配龍眼乾、阿哲的�
 
 test('溫度（Q78）：只有第三段（最愛）每位 +0.5°C；前兩段不加；和任務加起來最多 37°C', () => {
   const s = newSave();
-  reach(s, 'yuan', 1);
+  reach(s, 'yuan', 3);
   FV.serve(s, 'yuan', 'black', 2);
   assert.equal(temperature(s), 20, '第一段不加溫度');
   finish(s, 'yuan');
@@ -184,7 +198,7 @@ test('溫度門檻：找到最愛的玩家早一點到 37°C，告別一樣要�
 test('線索：開放的段落，搭話的句子與德叔的一句；德叔每段只說一次', () => {
   const s = newSave();
   assert.deepEqual(FV.clueLines(s, 'yuan'), []);
-  reach(s, 'yuan', 1);
+  reach(s, 'yuan', 3);
   assert.ok(FV.clueLines(s, 'yuan').includes('再一杯黑咖啡，我就寫得出來。'), '現有的句子照抄');
   assert.ok(S.TALK.yuan[0].lines.includes('再一杯黑咖啡，我就寫得出來。'), '現有的台詞沒有改');
   assert.equal(FV.pendingClue(s, []), null, '予安不在店裡');
@@ -200,7 +214,7 @@ test('線索：開放的段落，搭話的句子與德叔的一句；德叔每�
 test('相簿（Q77）：見過的熟客一頁三格，拿到的照片＋空格（空格不寫內容）；三段都找到寫他的最愛', () => {
   const s = newSave();
   assert.deepEqual(FV.album(s), [], '還沒見過熟客：沒有頁');
-  reach(s, 'yuan', 1); reach(s, 'zhe', 1, 1);
+  reach(s, 'yuan', 3); reach(s, 'zhe', 1, 1);
   FV.serve(s, 'yuan', 'black', 2);
   const a = FV.album(s);
   assert.deepEqual(a.map((p) => p.who), ['yuan', 'zhe'], '凱文還沒來過：不列');

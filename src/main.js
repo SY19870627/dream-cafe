@@ -21,6 +21,7 @@ import * as FV from './favorites.js';
 import * as TS from './tasting.js';
 import * as RO from './roast.js';
 import * as PR from './profiles.js';
+import * as VS from './visits.js';
 import { createNav } from './pathfind.js';
 import { versionLabel } from './version.js';
 
@@ -112,6 +113,8 @@ const DEV = params.get('dev') === '1';
 const DEV_SPEED = DEV ? Math.max(1, Number(params.get('speed')) || 1) : 1;
 // 測試用：?dev=1&regulars=0 關掉熟客（不測熟客的冒煙測試段落用，溫度與基金才算得準）；&weather=rain|typhoon 指定店裡的天氣
 const REGULARS_ON = !(DEV && params.get('regulars') === '0');
+// 熟客的來訪段落（visits.js）：一般玩家與開發者模式一樣開著；&visits=0 關掉（只給要隔離原本里程碑場景的測試用，不是預設）
+const VISITS_ON = REGULARS_ON && !(DEV && params.get('visits') === '0');
 const DEV_WEATHER = DEV ? params.get('weather') : null;
 
 /* ---------- 存檔與遊戲時間 ---------- */
@@ -1253,8 +1256,9 @@ const bubble = $('bubble');
 let bubbleTimer;
 let speaker = null;
 const NAMES = new Map();
-// 泡泡上的名字；凱文在主管叫出他的名字以前，店裡都叫他「冰美式先生」
-const nameOf = (who) => (who === kevin && !S.hasMilestone(save, 'kevin', 2) ? '冰美式先生' : NAMES.get(who) || '');
+// 泡泡上的名字；凱文在主管叫出他的名字以前，店裡都叫他「冰美式先生」；予安說出名字以前是「窗邊的小姐」（來訪段落開著時，visits.js）
+const nameOf = (who) => (who === kevin && !S.hasMilestone(save, 'kevin', 2) ? '冰美式先生'
+  : who === yuan && VISITS_ON && VS.yuanStranger(save) ? VS.YUAN_STRANGER : NAMES.get(who) || '');
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 let sayEnds = 0; // 這句話什麼時候說完（老先生的信要等店裡安靜下來才交）
 let lastSaid = null; // 最後一句話（誰、什麼時候）：選項出現時，上面那一行就是這句（美術評分修正 b）
@@ -2948,7 +2952,8 @@ function talkTo(r) {
   if (who === deshu && brewing) return;
   if (who === cat) { petTheCat(); return; } // 摸龍眼（點太多次他會走開）
   let line;
-  if (who === yuan && !save.flags.metYuan) { line = '……啊，你好。我叫予安，常坐在這裡寫稿。'; save.flags.metYuan = true; persist(); }
+  // 予安的自我介紹：來訪段落的第 2 次（打招呼）演過、或那個窗口過了，才在點她時說（fable 第四節 6；選了「點點頭」的人，名字留到這時候）
+  if (who === yuan && !save.flags.metYuan && (!VISITS_ON || VS.yuanIntroReady(save))) { line = '……啊，你好。我叫予安，常坐在這裡寫稿。'; save.flags.metYuan = true; persist(); }
   else if (who === yuan || who === zhe || who === kevin) line = regularLine(who === yuan ? 'yuan' : who === zhe ? 'zhe' : 'kevin');
   else if (who === deshu && keeper() && keeperFavOfferable()) line = keeperLine(); // 坐吧台座、凱文那一段開放：偶爾說那一段的線索（D199）
   else if (who === deshu && keeper()) { const l = state.closing ? F.KEEPER.closingTalk : F.KEEPER.talk; line = l[Math.floor(Math.random() * l.length)]; } // 離開東山之後，吧台後面是凱文
@@ -3989,6 +3994,15 @@ async function brewTaste() {
 }
 
 const sayMs = (text) => Math.min(6500, 1900 + [...text].length * 115);
+// 選項選了以後，老闆說出那一句（泡泡在畫面下方）；「（點點頭）」這種括號開頭的動作不出泡泡（fable 第四節 8）
+async function playerSays(text) {
+  if (!text || text.startsWith('（')) return;
+  const ms = sayMs(text);
+  say(text, Math.max(ms / DEV_SPEED, Math.min(ms, 700)), 'player');
+  await realWait(ms + 450);
+}
+// 龍眼此刻睡在窗台上（來訪段落裡講到窗台的句子只在這時候演；cat-chair 把他叫到椅子上時跳過，不改龍眼的位置）
+const catOnSill = () => catAtHome && !catOnSeat && cat.visible;
 const personOf = (w) => (w === 'boss' ? kevin : w === 'player' ? 'player' : w === 'cat' ? cat : w === 'window' ? windows[0] : w === 'thermo' ? thermo : PEOPLE[w]);
 
 async function playSteps(steps, tok) {
@@ -4035,7 +4049,19 @@ async function playStep(s, tok) {
     case 'glance': return glance(personOf(s.who));
     case 'weather': return startTyphoon();
     case 'prop': counterBag.visible = true; return realWait(500);
-    case 'choice': { const i = await choose(s.options, s.prompt || ''); live.answers[s.key] = i; save.story.answers[s.key] = i; persist(); return; }
+    case 'choice': {
+      const i = await choose(s.options, s.prompt || ''); live.answers[s.key] = i; save.story.answers[s.key] = i; persist();
+      if (s.speak) await playerSays(s.options[i]); // 來訪段落：老闆那句以「你」的泡泡說出來（括號的動作不出泡泡）
+      return;
+    }
+    // 來訪段落（visits.js）多的幾種步驟：只在某個狀態下演、記一件事、龍眼在窗台上的小動作
+    case 'when': return VS.condOk(save, s.if, { catSill: catOnSill() }) ? playSteps(s.steps, tok) : undefined;
+    case 'mark':
+      if (s.flag) save.flags[s.flag] = true;
+      if (s.early) MO.markEarly(save, s.early);
+      persist();
+      return undefined;
+    case 'catMove': return catFree() ? catMove(s.kind) : undefined;
     case 'branch': return playSteps(s.cases[live.answers[s.key] ?? save.story.answers[s.key] ?? 0] || [], tok); // 隔天才用到的選項（凱文念啟事）從存檔讀
     case 'notice': return postNotice();
     case 'keys': return handKeys(s.who);
@@ -4085,13 +4111,17 @@ async function zheBeansAsk() {
 }
 
 // 演一個里程碑；演完才記進存檔（中途重新整理就從頭再演一次）
-async function runScene(m) {
+// full：老闆坐著、來訪段落開著時，改演那個里程碑當天的擴寫（visits.js 的 kind: 'with'；原場景的每一句照順序都在裡面），
+// 演完記進存檔之後，結尾有第一杯的就自然問一次（runInvite()）。站著、離線時照舊是原場景。
+// 正式流程只在今天還有份量時才呼叫（storyTick() 的 liveScene()／entranceDue()）；開發者的 __cafe.playScene() 不看份量，滿了時是原場景
+async function runScene(m, { full = false } = {}) {
   const tok = ++live.token;
+  const ex = full ? VS.expansionFor(save, m.id, today()) : null;
   state.scene = m;
   bubble.classList.remove('show');
   updateUI();
   try {
-    await playSteps(m.scene, tok);
+    await playSteps(ex ? ex.steps : m.scene, tok);
     if (!behindBar(deshu.position) || deshu.position.distanceTo(HOME) > 0.05) await deshuGo(HOME);
   } catch (e) {
     if (e !== ABORT) console.warn('熟客場景中斷', e);
@@ -4103,12 +4133,100 @@ async function runScene(m) {
   if (m.gift) glowFund(); // 熟客送的東西收進倉庫：佈置鈕輕輕亮一下
   if (m.id === 'zhe4') for (const w of ['zhe', 'grandpa']) live.leaveAt.set(w, performance.now() + 60000 / DEV_SPEED);
   if (m.id === 'zhe3') live.leaveAt.delete('zhe'); // 颱風夜，阿哲待在店裡
+  // 來訪段落：老闆看到的里程碑（含同日擴寫）算那位熟客今天的一段；擴寫版演過就不再演接回；窗口過了的段落跳過
+  VS.noteMilestone(save, m.who, d);
+  if (ex) VS.markPlayed(save, ex, d);
+  VS.expire(save);
   persist();
+  if (ex && VS.inviteOf(ex) && tok === live.token) await runInvite(m.who, VS.inviteOf(ex), tok).catch((e) => { if (e !== ABORT) console.warn('第一杯的邀請中斷', e); });
   state.scene = null;
   updateUI();
   refreshDevTools();
   checkTasks({ delay: 600 });
   readyAt = performance.now() + 6000 / DEV_SPEED;
+}
+
+// 熟客的來訪段落（visits.js）：里程碑之間的閒聊、離線里程碑之後的接回。和熟客場景同一套步驟與鏡頭（state.scene，conversing() 為真）；
+// 不完成任務、不加溫度、不寫日誌；演完才記進存檔（中途換一天就作廢，那一段之後照窗口規則再演或跳過）
+async function runVisit(seg) {
+  const tok = ++live.token;
+  state.scene = { id: seg.id, visit: true, who: seg.who };
+  bubble.classList.remove('show');
+  updateUI();
+  try {
+    await playSteps(seg.steps, tok);
+    if (!behindBar(deshu.position) || deshu.position.distanceTo(HOME) > 0.05) await deshuGo(HOME);
+  } catch (e) {
+    if (e !== ABORT) console.warn('來訪段落中斷', e);
+    if (tok !== live.token) return;
+  }
+  const d = today();
+  VS.markPlayed(save, seg, d);
+  visitLog.push({ id: seg.id, day: d });
+  persist();
+  const inv = VS.inviteOf(seg);
+  if (inv && tok === live.token) await runInvite(seg.who, inv, tok).catch((e) => { if (e !== ABORT) console.warn('第一杯的邀請中斷', e); });
+  state.scene = null;
+  updateUI();
+  refreshDevTools();
+  readyAt = performance.now() + 6000 / DEV_SPEED;
+}
+const visitLog = []; // 測試用：演過的來訪段落
+// 段落結尾的第一杯（最愛第一段）：老闆在選項裡自然請一杯（提案決策 B）。選「我請」就直接端黑板上的那一杯（服從一天一杯）；
+// 黑板上沒有那一杯（阿哲是沒有龍眼乾）時，德叔問要端哪一杯，照平常的選杯流程。今天這位熟客的邀請就算問過了（點他不再問）
+async function runInvite(w, inv, tok) {
+  const d = today();
+  if (!VS.inviteReady(save, w, d) || !PEOPLE[w]?.visible) return;
+  VS.markOffered(save, w, d);
+  persist();
+  const i = await choose(inv.options);
+  if (tok !== live.token) throw ABORT;
+  VS.markInvited(save, w); // 問到了（選項出來前中斷的，之後由接回補問：予安是 yuan-r3）
+  persist();
+  await playerSays(inv.options[i]);
+  if (i !== 0) { await playSteps(inv.no, tok); return; }
+  const drink = VS.inviteDrink(save, inv, boardShift);
+  await playSteps(drink ? inv.yes : inv.missing, tok);
+  state.scene = null; // 端過去的那段由 serveFavorite() 接手（state.favorite）
+  if (drink) { await serveFavorite(w, drink, { quiet: true }); return; }
+  const drinks = MN.boardDrinks(save, boardShift);
+  if (!drinks.length) return;
+  const j = await choose([...drinks.map((id) => MN.ITEMS[id].name), FV.FAV_TEXT.cancel], FV.FAV_TEXT.ask(favName(w)), barName());
+  if (j < drinks.length && tok === live.token && PEOPLE[w].visible) await serveFavorite(w, drinks[j]); // 選完杯，德叔照平常說「好，我沖一杯過去。」
+}
+// 老闆在場時，這位熟客現在可以開始演的里程碑：S.liveNext() 再看今天的份量（visits.js 的 milestoneRoom()：
+// 在場的里程碑含同日擴寫算一段，每位熟客一天一段、全店一天兩段）。份量滿了就是 null：今天不演、不記完成、不給獎勵，
+// 條件與順序不動，等下一個有份量的遊玩日（老闆不在的日子照舊由營業日誌結算）。&visits=0（隔離原場景的測試）不看份量
+function liveScene(w, d) {
+  const m = S.liveNext(save, w, d);
+  return m && (!VISITS_ON || VS.milestoneRoom(save, w, d)) ? m : null;
+}
+// 走進來就是演出的里程碑（颱風夜、阿哲帶阿公來）今天可以演：條件達成、在場的全店一天一個、今天的份量還有
+const entranceDue = (w, m, d) => !!m?.entrance && S.isDue(save, m, d) && (!m.present || save.story.lastPresentDay !== d)
+  && (!VISITS_ON || VS.milestoneRoom(save, w, d));
+// 今天別的熟客還要演的里程碑有幾個（全店一天兩段：先留給它們）；今天已經用掉一段的熟客，里程碑今天也不會演，不留
+function reservedMilestones(w, d) {
+  let n = 0;
+  const used = VS.slotsToday(save, d);
+  for (const o of S.REGULAR_IDS) {
+    if (o === w || used.includes(o) || (!live.arrived.has(o) && !live.expect.has(o))) continue;
+    const m = S.nextMilestone(save, o);
+    if (m && save.regulars[o].lastMilestoneDay !== d && S.isDue(save, m, d) && (!m.present || save.story.lastPresentDay !== d)) n++;
+  }
+  return n;
+}
+const VISIT_QUIET_MS = 8000; // 店裡安靜這麼久（遊戲時間）之後，才開始來訪段落（熟客剛坐下、剛說完話時不馬上開始）
+// 現在可以演的來訪段落：人在店裡、坐在自己的位子上，這位熟客今天沒有里程碑要演
+function visitCandidate(d) {
+  if (!VISITS_ON || keeper() || F.inFarewell(save) || state.guest || state.closing) return null;
+  for (const w of S.REGULAR_IDS) {
+    if (!live.arrived.has(w) || !PEOPLE[w].visible || live.at[w] !== HOME_SPOT[w] || state.favorite === w) continue;
+    const m = S.nextMilestone(save, w);
+    const due = !!m && save.regulars[w].lastMilestoneDay !== d && S.isDue(save, m, d);
+    const seg = VS.dueVisit(save, w, d, { milestoneDue: due, reserved: reservedMilestones(w, d) });
+    if (seg) return seg;
+  }
+  return null;
 }
 
 // 新的一天（進店、跳天數、過了午夜）：決定今天誰會來
@@ -4122,7 +4240,7 @@ function stopStory() {
     removeGuestCup(w);
   }
   live.expect.clear(); live.arrived.clear(); live.leaveAt.clear();
-  live.at = {}; live.planned = {}; live.answers = {}; live.seatHinted = false; live.closeHinted = false; live.deshuWalk = null; live.fwHinted = 0; live.held = new Set(); live.trialOfferHint = '';
+  live.at = {}; live.planned = {}; live.answers = {}; live.seatHinted = false; live.visitSeatHinted = false; live.closeHinted = false; live.deshuWalk = null; live.fwHinted = 0; live.held = new Set(); live.trialOfferHint = '';
   live.day = 0;
   catHoldUntil = 0;
 }
@@ -4146,7 +4264,7 @@ function startDay() {
     if (p.who === 'kevin' && keeper()) continue; // 離開東山之後，凱文在吧台後面顧店
     if (p.already) {
       // 同一天重新整理：予安、凱文還在位子上；阿哲平常早就走了（颱風夜還在，或還有話要說時才在）
-      if (p.who !== 'zhe' || save.story.typhoonDay === d || S.liveNext(save, 'zhe', d)) {
+      if (p.who !== 'zhe' || save.story.typhoonDay === d || liveScene('zhe', d)) {
         placeAt(p.who, HOME_SPOT[p.who]);
         live.arrived.add(p.who);
       }
@@ -4189,8 +4307,9 @@ function storyTick() {
     if (state.guest || state.closing) break; // 客人模式、打烊時沒有人走進來
     if (t < at) continue;
     const m = S.nextMilestone(save, w);
-    // 自己走進來就是演出的里程碑（颱風夜、阿哲帶阿公來）：等店裡安靜下來
-    if (m?.entrance && S.isDue(save, m, d) && (!m.present || save.story.lastPresentDay !== d)) {
+    // 自己走進來就是演出的里程碑（颱風夜、阿哲帶阿公來）：等店裡安靜下來。
+    // 今天的份量滿了就照平常走進來，那個里程碑等下一個有份量的遊玩日（不記完成）
+    if (entranceDue(w, m, d)) {
       if (sceneReady() && !state.scene) { live.expect.delete(w); runScene(m); return; }
       continue;
     }
@@ -4199,10 +4318,11 @@ function storyTick() {
   }
   for (const [w, at] of live.leaveAt) {
     if (state.guest) break; // 客人模式中，聊天的人不會走
-    if (t > at && !state.scene && state.favorite !== w && (!S.REGULAR_IDS.includes(w) || !S.liveNext(save, w, d)) && !farewellNeeds(w, d)) { live.leaveAt.delete(w); leavePerson(w); }
+    if (t > at && !state.scene && state.favorite !== w && (!S.REGULAR_IDS.includes(w) || !liveScene(w, d)) && !farewellNeeds(w, d)) { live.leaveAt.delete(w); leavePerson(w); }
   }
   if (state.scene || !sceneReady()) return;
-  const cands = [...live.arrived].map((w) => S.liveNext(save, w, d)).filter(Boolean)
+  // 今天的份量滿了的熟客不在候選裡（liveScene()）：不演第三段，也不提「先坐」「等打烊」
+  const cands = [...live.arrived].map((w) => liveScene(w, d)).filter(Boolean)
     .sort((a, b) => (a.present - b.present) || S.MILESTONES.indexOf(a) - S.MILESTONES.indexOf(b));
   for (const m of cands) {
     // 予安念稿：要老闆按了「打烊」、喝完最後一杯；還沒打烊時德叔提一次
@@ -4214,8 +4334,22 @@ function storyTick() {
       if (!live.seatHinted) { live.seatHinted = true; say(m.needSeatHint, 4800); }
       continue;
     }
-    runScene(m);
+    // 里程碑當天的擴寫（visits.js）：老闆坐著才演擴寫版。在場的里程碑（yuan3）等老闆坐下，德叔提一次「先坐。」；
+    // 可以離線的里程碑不等，照舊演原場景（之後演接回或跳過），條件與順序都不動。
+    // 能走到這裡就表示今天還有份量（liveScene()），擴寫不會因為份量滿了消失
+    const ex = VISITS_ON ? VS.expansionFor(save, m.id, d) : null;
+    if (ex && m.present && state.mode !== 'seat') {
+      if (!live.visitSeatHinted) { live.visitSeatHinted = true; say(VS.SEAT_HINT, 3000); }
+      continue;
+    }
+    runScene(m, { full: !!ex && state.mode === 'seat' });
     return;
+  }
+  // 來訪段落：里程碑都沒有要演時，坐著才演；站著時德叔提一次「先坐。」（一天一次）
+  const seg = live.day === d && moments.quietFrom && (performance.now() - moments.quietFrom) * DEV_SPEED > VISIT_QUIET_MS ? visitCandidate(d) : null;
+  if (seg) {
+    if (state.mode === 'seat') { runVisit(seg); return; }
+    if (!live.visitSeatHinted && !state.placing) { live.visitSeatHinted = true; say(VS.SEAT_HINT, 3000); }
   }
   farewellTick(d);
 }
@@ -4233,7 +4367,7 @@ function nextArrivalMs() {
   for (const [w, at] of live.expect) {
     if (!Number.isFinite(at)) continue;
     const m = S.nextMilestone(save, w);
-    if (m?.entrance && S.isDue(save, m, live.day) && !sceneReady()) continue; // 走進來就是演出的：要等店裡安靜下來，時間說不準
+    if (entranceDue(w, m, live.day) && !sceneReady()) continue; // 走進來就是演出的：要等店裡安靜下來，時間說不準
     best = Math.min(best ?? Infinity, Math.max(0, at - t) * DEV_SPEED);
   }
   return best;
@@ -4728,7 +4862,12 @@ const favLog = []; // 測試用：演過的結果
 const favName = (w) => (w === 'kevin' ? nameOf(kevin) : S.REGULARS[w].short);
 const barName = () => (keeper() ? F.KEEPER.name : '德叔');
 // 現在可以請德叔端一杯給他嗎：劇情演出、選項、客人模式、打烊、開場、佈置、面板開著時都不行；凱文顧店以後凱文不是客人
+// 每位熟客一天只主動問一次（來訪段落的第一杯邀請也算一次，visits.js 的 offered）
 function favOfferable(w) {
+  return VS.offerable(save, w, today()) && favServable(w);
+}
+// 端得過去嗎（不看今天問過沒：問了、選了「請」之後用這個再確認一次）
+function favServable(w) {
   return REGULARS_ON && S.REGULAR_IDS.includes(w) && FV.canServe(save, w, today()) && live.day === today() && live.arrived.has(w) && PEOPLE[w].visible
     && live.at[w] === HOME_SPOT[w] && !state.favorite && !state.scene && !state.choice && !state.guest && !state.closing && !state.cinematic && !state.tutorial
     && !state.arriving && !state.placing && !state.letter && !brewing && !moments.busy && !overlayOpen() && !(keeper() && w === 'kevin');
@@ -4736,11 +4875,13 @@ function favOfferable(w) {
 // 點熟客搭話之後：選項上面那一行是他剛說的那句；「只是聊聊」就照舊只搭話
 async function offerFavorite(w) {
   const name = favName(w);
+  VS.markOffered(save, w, today()); // 選「只是聊聊」當天就不再問（提案決策 D）
+  persist();
   const i = await choose([FV.FAV_TEXT.offer(barName(), name), FV.FAV_TEXT.just]);
-  if (i !== 0 || !favOfferable(w)) return false;
+  if (i !== 0 || !favServable(w)) return false;
   const drinks = MN.boardDrinks(save, boardShift);
   const j = await choose([...drinks.map((id) => MN.ITEMS[id].name), FV.FAV_TEXT.cancel], FV.FAV_TEXT.ask(name), barName());
-  if (j >= drinks.length || !favOfferable(w)) return false;
+  if (j >= drinks.length || !favServable(w)) return false;
   return serveFavorite(w, drinks[j]);
 }
 // 吧台請凱文喝一杯（承峰 11/4：「坐吧台時可以請凱文喝一杯」，D199）：離開東山之後凱文在吧台後面顧店（吧台後面的紙片 deshu 換成凱文的圖）。
@@ -4904,7 +5045,8 @@ async function brewForRegular() {
   steamSources.delete(steam);
   setPaper(deshu, deshuCanvas.idle);
 }
-async function serveFavorite(w, drink) {
+// quiet：來訪段落結尾的第一杯，德叔剛回過話（「有。」「冰塊，最後才放。」），不再說「好，我沖一杯過去。」
+async function serveFavorite(w, drink, { quiet: hush = false } = {}) {
   if (state.favorite) return null;
   state.favorite = w;
   bubble.classList.remove('show');
@@ -4914,7 +5056,7 @@ async function serveFavorite(w, drink) {
   let r = null;
   try {
     const start = self ? FV.KEEPER_FAV.start : keeper() ? F.KEEPER.brewStart : FV.FAV_TEXT.start, ms0 = sayMs(start);
-    say(start, ms0 / DEV_SPEED, deshu);
+    if (!hush) say(start, ms0 / DEV_SPEED, deshu);
     await brewForRegular();
     if (self) {
       const sat = await keeperWalkOut(MN.ITEMS[drink]?.cup || 'hot', snack);
@@ -5131,7 +5273,7 @@ function storyBusy(withGuest = true) {
   if (state.closing && state.closing !== 'after') return true;
   if ([...live.expect.values()].some((at) => at - performance.now() < 60000)) return true;
   const d = live.day;
-  return [...live.arrived].some((w) => { const m = S.liveNext(save, w, d); return m && (!m.needSeat || state.mode === 'seat') && !!m.needClosing === (state.closing === 'after'); })
+  return [...live.arrived].some((w) => { const m = liveScene(w, d); return m && (!m.needSeat || state.mode === 'seat') && !!m.needClosing === (state.closing === 'after'); })
     || !!dueLetter(save, letterCtx()) || farewellReady(d) || !!state.arriving;
 }
 
@@ -5458,7 +5600,7 @@ async function startClosingMode() {
   say(H.CLOSING.start, 3400);
   // 予安有稿子想念的那天，她留下來；颱風夜，阿哲待在店裡
   const stay = new Set();
-  if (REGULARS_ON && S.liveNext(save, 'yuan', d)?.needClosing && live.arrived.has('yuan')) stay.add('yuan');
+  if (REGULARS_ON && liveScene('yuan', d)?.needClosing && live.arrived.has('yuan')) stay.add('yuan');
   if (save.story.typhoonDay === d) stay.add('zhe');
   if (REGULARS_ON && F.segmentDue(save, d)?.lastNight) stay.add('kevin'); // 告別的最後一晚：凱文留下來
   const going = PEOPLE_IDS.filter((w) => PEOPLE[w].visible && !stay.has(w));
@@ -6163,6 +6305,7 @@ function devFavSetup(who, n = 1, { misses = 0, alone = true, photos = true } = {
   for (const m of S.MILESTONES.filter((x) => x.who === who && x.n <= st.after)) S.complete(save, m, d, now());
   const f = save.favorites[who];
   Object.assign(f, { stage: n - 1, misses, servedDay: 0, told: n });
+  VS.resetOffered(save, who); // 今天問過「請德叔端一杯」的紀錄也重來（點他搭話會再問一次）
   if (photos) for (let k = 1; k < n; k++) if (!save.photos.some((x) => x.id === `${who}-${k}`)) save.photos.push({ id: `${who}-${k}`, day: d, t: now(), item: 'dongshan', snack: false });
   if (alone) { live.expect.clear(); for (const o of S.REGULAR_IDS) if (o !== who && live.arrived.has(o)) { PEOPLE[o].visible = false; live.arrived.delete(o); } }
   S.arrive(save, who, d);
@@ -6335,7 +6478,11 @@ if (DEV) {
     // art2b：鏡頭的狀態（轉了多少、在不在推近、看著誰）
     get camInfo() { return { yaw: Math.round(cam.yaw * 100) / 100, focus: !!state.focus, closeup: !!state.closeup, focusP: focusP ? nameOf(focusP) : null, tween: !!tween, mode: state.mode, seat: state.seat?.id || null, speaker: isPerson(speaker) ? nameOf(speaker) : null, scene: state.scene?.id || null, show: bubble.classList.contains('show'), zheVisible: zhe.visible, guest: state.guest }; },
     // art2b：直接演某一個熟客里程碑的場景（截圖檢查站位用；會照常記進存檔）
-    playScene(id) { const m = S.milestoneById(id); if (m && !state.scene) runScene(m); return !!m; },
+    playScene(id, opt = {}) { const m = S.milestoneById(id); if (m && !state.scene) runScene(m, { full: !!opt.full }); return !!m; }, // full：演里程碑當天的擴寫（visits.js）。開發者直接演，不看一天的份量（正式流程份量滿了不演；這裡滿了就是原場景）
+    // 來訪段落（visits.js）：visits 讀狀態（開著沒、演過／跳過的段落、今天用掉幾段、現在誰有段落可以演、演過的紀錄）；
+    // visitPlay('yuan-v2') 直接演那一段（不看窗口與一天的份量，Promise）；開發者模式預設開著，網址 &visits=0 關掉（隔離測試用）
+    get visits() { const d = today(); return { on: VISITS_ON, rel: JSON.parse(JSON.stringify(save.rel || {})), slots: VS.slotsToday(save, d), next: visitCandidate(d)?.id || null, log: visitLog.map((x) => ({ ...x })), stranger: VS.yuanStranger(save) }; },
+    visitPlay(id) { const seg = VS.segmentById(id); if (!seg || state.scene) return Promise.resolve(false); return runVisit(seg).then(() => true); },
     // art2b：對話時前景淡出的狀態：誰是說話的人、哪些擺飾與椅子淡掉了（透明度 < 1）
     get occlusion() {
       const talker = focusP || (conversing() && bubble.classList.contains('show') && isPerson(speaker) ? speaker : null);
@@ -6372,7 +6519,7 @@ if (DEV) {
     get diary() { return save.diary.map((e) => ({ ...e })); },
     get guest() { return state.guest; },
     get guestPair() { return guestPair; },
-    get needClosing() { return REGULARS_ON && !state.closing && !!S.liveNext(save, 'yuan', today())?.needClosing && live.arrived.has('yuan'); },
+    get needClosing() { return REGULARS_ON && !state.closing && !!liveScene('yuan', today())?.needClosing && live.arrived.has('yuan'); },
     get pendantLevels() { return pendants.map((p) => Math.round(p.level * 100) / 100); },
     get hemi() { return Math.round(hemi.intensity * 100) / 100; },
     get deshuWiping() { return wipeOn; },
@@ -6563,7 +6710,7 @@ if (DEV) {
     jumpDays(n = 1) { jumpDays(n); return today(); },
     favOffer(who) { if (!favOfferable(who)) return false; say(regularLine(who), 3500, PEOPLE[who]); offerFavorite(who); return true; },
     favServe(who, drink) {
-      const ok = who === 'kevin' && keeper() ? keeperFavOfferable() : favOfferable(who);
+      const ok = who === 'kevin' && keeper() ? keeperFavOfferable() : favServable(who); // 不經過選項：今天問過了也可以直接端
       if (!ok || !MN.onBoard(save, drink)) return Promise.resolve(null);
       return serveFavorite(who, drink);
     },

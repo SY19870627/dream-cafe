@@ -110,7 +110,7 @@ test('定案：寫入 brewProfile；新品收進菜單本並寫上黑板；已�
   assert.equal(TS.settle(s, r.id, 8), 'done');
   assert.ok(MN.unlocked(s, 'kiln') && MN.onBoard(s, 'kiln'));
   assert.deepEqual(s.menu.items.kiln.brewProfile, TS.normalizeParams(TS.RECIPES.kiln.params, 'kiln'));
-  assert.ok(TS.recordLines(r).settled.includes('寫入沖法'));
+  assert.ok(TS.recordLines(r).settled.includes('沖法換成這一版'));
 
   // 已在黑板的東山：只更新沖法
   const r2 = TS.addTuneRecord(s, { item: 'dongshan', params: { ratio: '1:12', temp: 88, grind: 'coarse', technique: 'one-pour' }, day: 9 });
@@ -168,7 +168,7 @@ test('文字：沒有分數、評分、催促；四句教學改寫為參數微�
   }
   assert.match(TS.TASTE.guide, /吧台/);
   assert.match(TS.TASTE.offerHint, /撥一撥|沒有錯/);
-  assert.match(TS.TASTE.later, /點我一聲/);
+  assert.match(TS.TASTE.later, /叫我一聲/);
   assert.match(TS.TASTE.recordsHelp, /粉水比|定成/);
   const s = newSave();
   TS.markGuided(s); TS.markOfferHint(s);

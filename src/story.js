@@ -8,6 +8,7 @@
 import { hash01 } from './weather.js';
 import { temperature, pending } from './tasks.js';
 import * as M from './menu.js';
+import { allVisitLines } from './visits.js';
 
 export const WEEK2 = 8; // 「第 2 週」＝開店第 8 天起（Q7）
 export const WEEK3 = 15; // 「第 3 週」＝開店第 15 天起
@@ -398,5 +399,6 @@ export function allLines() {
   out.push(...Object.values(WAIT_HINT));
   for (const list of Object.values(TALK)) for (const t of list) out.push(...t.lines);
   out.push(AFTER_TYPHOON, ...Object.values(DOCS).flatMap((d) => d.paragraphs));
+  out.push(...allVisitLines()); // 來訪段落、里程碑當天的擴寫、接回、第一杯的邀請（visits.js）
   return out;
 }
