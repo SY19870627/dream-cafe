@@ -47,7 +47,13 @@ async function play([W, H]) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   // 畫師還在畫的落地烘豆機（prop_roaster_large，承峰 11/7）：檔案放進來之前是 404（網路層的訊息），遊戲用 Canvas 暫代，不算錯誤
-  page.on('console', (m) => { if (m.type() === 'error' && !(m.location().url || '').includes('/assets/art/prop_roaster_large.webp')) errors.push(`console: ${m.text()}`); });
+  // D204／D224：未交回憶照片 photo_*.webp、畫師還在畫的 prop_roaster_large 是預期 404（網路層，不是 JS 錯誤）
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    const u = m.location().url || '';
+    if (u.includes('/assets/art/prop_roaster_large.webp') || /\/assets\/art\/photo_/.test(u)) return;
+    errors.push(`console: ${m.text()} @${u}`);
+  });
   await page.goto(url + '?dev=1&speed=20');
   await awaitGame(page);
   const cafe = (k) => page.evaluate((key) => window.__cafe?.[key], k);
