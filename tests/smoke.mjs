@@ -57,7 +57,11 @@ for (const make of ['newPage', 'newContext']) {
 // 畫師還在畫的圖（承峰 11/7 的落地烘豆機 prop_roaster_large）：檔案放進來之前是 404，瀏覽器記一筆「Failed to load resource」
 // （網路層的訊息，不是 JS 錯誤），遊戲照舊用 Canvas 暫代。只放過這幾張的那一筆
 const OPTIONAL_ART = ['prop_roaster_large'];
-const optionalMiss = (m) => OPTIONAL_ART.some((n) => (m.location().url || '').includes(`/assets/art/${n}.webp`));
+// D204／D224：未交的回憶照片 photo_*.webp 是預期的 404（網路層訊息，不是 JS 錯誤）；與後面相簿／最愛段落同一套放過規則。
+const optionalMiss = (m) => {
+  const u = m.location().url || '';
+  return OPTIONAL_ART.some((n) => u.includes(`/assets/art/${n}.webp`)) || /\/assets\/art\/photo_/.test(u);
+};
 
 
 // D224：劇本 YAML 以 top-level await 載入；#app canvas 是 main.js 在 import（含 scripts/*.yaml）完成後才掛上。
@@ -81,7 +85,7 @@ async function open(viewport, query) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
   const errors = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error' && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
+  page.on('console', (m) => { if (m.type() === 'error' && !optionalMiss(m)) errors.push(`console: ${m.text()} @${m.location().url || ''}`); });
   await page.goto(url + query);
   await awaitGame(page);
   await page.waitForTimeout(1800); // 等俯瞰鏡頭與第一句話

@@ -3,10 +3,10 @@
 // - index.html 載入 JS 時加的 ?v= 也要和這裡一樣（main.js 的 <script src> 與 importmap 裡每個子模組），
 //   tests/unit/version.test.mjs 會檢查兩邊對得上。
 // - 每次 commit 前遞增（規則見 AGENTS.md「協作慣例」）：修正與小調整加 PATCH（0.1.0 → 0.1.1），
-//   新功能或新段落加 MINOR、PATCH 歸零（0.1.1 → 0.2.2）；GAME_VERSION_DATE 改成當天日期。
+//   新功能或新段落加 MINOR、PATCH 歸零（0.1.1 → 0.2.3）；GAME_VERSION_DATE 改成當天日期。
 // 純資料，不依賴 Three.js 或 DOM。
-export const GAME_VERSION = '0.2.2';
+export const GAME_VERSION = '0.2.3';
 export const GAME_VERSION_DATE = '2026-11-07';
 
-// 記事本最底下顯示的字：v0.2.2・2026-11-07
+// 記事本最底下顯示的字：v0.2.3・2026-11-07
 export const versionLabel = () => `v${GAME_VERSION}・${GAME_VERSION_DATE}`;
