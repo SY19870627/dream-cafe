@@ -81,16 +81,16 @@ export const SEGMENTS = [
         say('player', '想坐多久都可以。'), // 【待定】
         say('yuan', '……謝謝。我會小聲一點打字。')], // 【待定】
       [say('yuan', '……你好。'), // 【待定】
-        say('deshu', '點過頭了。在這裡，這樣就算打過招呼。')]), // 【待定】
+        say('deshu', '點過頭了。這樣就算打過招呼。')]), // 【待定】AI 味檢核 O6：去掉「在這裡，」
     { do: 'deshuHome' }, { do: 'pose', who: 'yuan', pose: 'type' }, wait(5),
     say('yuan', '這句我又刪掉了。'), // 【原句】TALK
     say('deshu', '那一句，她打了很久。'), // 【待定】
     wait(4), { do: 'serve', who: 'yuan', kind: 'hot' }, { do: 'mark', early: 'd2-refill' },
     say('yuan', '謝謝。'), // 【待定】
     say('yuan', '窗外那片山，今天的顏色很好看。'), // 【原句】TALK
-    choice('vYuan2Hill', ['下午會更好看。', '（一起看一下窗外）']), // 【待定】
+    choice('vYuan2Hill', ['晚一點會更好看。', '（一起看一下窗外）']), // 【待定】不說「下午」：多半下班後進店，夜裡也成立
     branch('vYuan2Hill',
-      [say('yuan', '那我等到下午。')], // 【待定】
+      [say('yuan', '那我晚一點再走。')], // 【待定】
       [look('window'), wait(3), say('yuan', '……嗯。')]), // 【待定】
     { do: 'deshuHome' },
     say('deshu', '她今天，多說了一句。'), // 【待定】
@@ -127,7 +127,7 @@ export const SEGMENTS = [
   { id: 'yuan-r2', who: 'yuan', kind: 'reconnect', of: 'yuan2', after: 2, before: 3, steps: [
     look('yuan'),
     say('deshu', '那天的紙巾，我收在倉庫了。'), // 【待定】
-    say('yuan', '……那天寫的，我後來都打進去了。'), // 【待定】
+    say('yuan', '那天寫的，我後來都打進去了。'), // 【待定】AI 味檢核 O7：開頭不加「……」
   ] },
   // 第 4 次｜閒聊（問她才答，說到一半停住；yuan2 之後、yuan3 之前）
   { id: 'yuan-v4', who: 'yuan', kind: 'visit', after: 2, before: 3, steps: [
@@ -138,7 +138,7 @@ export const SEGMENTS = [
       [say('deshu', '我沒問。她的事，等她想說再說。')], // 【待定】
       [say('deshu', '嗯。')]), // 【待定】
     wait(5),
-    say('yuan', '……德叔，可以再一杯嗎？'), // 【待定】
+    say('yuan', '德叔，可以再一杯嗎？'), // 【待定】AI 味檢核 O7：開頭不加「……」
     say('deshu', '黑的。'), // 【待定】
     { do: 'serve', who: 'yuan', kind: 'hot' },
     say('yuan', '謝謝。'), // 【待定】
@@ -147,8 +147,8 @@ export const SEGMENTS = [
       [say('yuan', '……比昨天多一頁。'), // 【待定】
         say('yuan', '不過明天，大概又會刪掉。')], // 【待定】
       [say('yuan', '剛好。亮一點，比較不會睡著。'), // 【待定】
-        say('yuan', '……我是說，不是這間店讓人想睡。')]), // 【待定】
-    { do: 'deshuHome' }, look('window'),
+        say('yuan', '……不對，不是這間店讓人想睡。')]), // 【待定】AI 味檢核 N1：予安改口用「不對」，「我是說」留給凱文
+    { do: 'deshuHome' }, look('window'), wait(4), // 先轉到窗外停一拍，老闆才開口（fable 第二輪）
     say('player', '這條路兩邊，都是龍眼樹。'), // 【待定】fable 換時機：老闆先說，她才接（不碰「第六次來才第一次主動開口」）
     look('yuan'),
     say('yuan', '我阿公以前也在這條路上烤龍眼。'), // 【原句】TALK
@@ -156,23 +156,21 @@ export const SEGMENTS = [
     branch('vYuan4Longan',
       [say('yuan', '……嗯。很久以前了。')], // 【待定】
       [wait(3), say('yuan', '……沒事。我繼續寫。')]), // 【待定】
-    { do: 'pose', who: 'yuan', pose: 'type' },
-    say('deshu', '她說到一半，自己停了。'), // 【待定】
+    { do: 'pose', who: 'yuan', pose: 'type' }, // AI 味檢核 N4：不再重述她停住（畫面已經演了），「沒關係」直接接她的停頓
     say('deshu', '沒關係。話說到一半的人，通常還會回來說完。'), // 【待定】全篇只用這一次；yuan3 的「她說完了。」兌現
     wait(4),
     say('yuan', '……這段，先留著。'), // 【待定】
-    when('catSill', [{ do: 'catMove', kind: 'roll' }, say('deshu', '龍眼在窗台上翻了個身。他也在等。')]), // 【待定】
+    when('catSill', [{ do: 'catMove', kind: 'roll' }, say('deshu', '龍眼在窗台上翻了個身。')]), // 【待定】AI 味檢核 O2：只留翻身的事實，不替貓配旁白
   ] },
   // 第 5 次｜閒聊（yuan3 前一次）
   { id: 'yuan-v5', who: 'yuan', kind: 'visit', after: 2, before: 3, steps: [
     { do: 'serve', who: 'yuan', kind: 'hot' },
-    say('deshu', '第二杯。'), // 【待定】
-    say('yuan', '……謝謝。'), // 【待定】
+    say('deshu', '第二杯。'), // 【待定】AI 味檢核 N3：她不回「謝謝」（和第 4 次同一拍），埋著頭
     { do: 'deshuHome' }, wait(3),
     say('yuan', '紙巾上的，打進去就不對了。'), // 【待定】看著紙巾，又看筆電
     choice('vYuan5Napkin', ['那就先寫在紙巾上。', '（點點頭）']), // 【待定】
     branch('vYuan5Napkin',
-      [say('yuan', '……嗯。德叔，紙巾可以再給我幾張嗎？'), // 【待定】
+      [say('yuan', '嗯。德叔，紙巾可以再給我幾張嗎？'), // 【待定】AI 味檢核 O7：開頭不加「……」
         say('deshu', '整包。')], // 【待定】
       [say('yuan', '……嗯。')]), // 【待定】
     say('deshu', '她今天，抬頭看了門口兩次。'), // 【待定】
@@ -187,9 +185,9 @@ export const SEGMENTS = [
     say('deshu', '她說完了。'), // 【待定】
   ], invite: { drink: 'black',
     options: ['再一杯黑咖啡？我請。', '慢慢寫。'], // 【待定】
-    yes: [say('yuan', '……好。謝謝老闆。')], // 【待定】
+    yes: [say('yuan', '……好。')], // 【待定】AI 味檢核 N2：端對時 favorites 的 ok 已經有「謝謝」，這裡不疊
     no: [say('yuan', '……嗯。謝謝你聽。')], // 【待定】
-    missing: [say('yuan', '……好。謝謝老闆。'), say('deshu', '黑板上現在沒有這一杯。老闆，要端哪一杯？')] } }, // 【待定】黑板上沒有黑咖啡時
+    missing: [say('yuan', '……好。'), say('deshu', '黑板上現在沒有黑咖啡。')] } }, // 【待定】黑板上沒有黑咖啡時；只陳述，接著的選杯標題才問（N2 與 yes 同改）
   // yuan3 已經發生、結尾的第一杯沒有問到（rel.invited 沒有予安、第一段還沒找到）：之後第一次見到她時只補那個邀請。
   // 沒有新句：選項與分支就是 yuan-v6 的 invite（uninvited：窗口看「問過沒」，不看擴寫版演過沒）
   { id: 'yuan-r3', who: 'yuan', kind: 'reconnect', of: 'yuan3', uninvited: true, after: 3, before: 4, steps: [
@@ -218,7 +216,7 @@ export const SEGMENTS = [
   { id: 'zhe-v2', who: 'zhe', kind: 'visit', after: 1, before: 2, steps: [
     look('zhe'),
     say('zhe', '我阿公叫我來看看你們缺什麼。我是被逼來的。'), // 【原句】TALK
-    say('deshu', '不缺。坐一下再走。'), // 【待定】
+    say('deshu', '不缺。待一下再走。'), // 【待定】阿哲沒有坐姿的圖
     say('zhe', '老闆，你以前是上班族喔？看得出來啦，坐得很直。'), // 【待定】
     choice('vZhe2Office', ['這麼明顯？', '以前是。']), // 【待定】
     branch('vZhe2Office',
@@ -228,7 +226,7 @@ export const SEGMENTS = [
     say('zhe', '啊，又踩進來了。歹勢歹勢。果園的土，洗不掉啦。'), // 【待定】
     choice('vZhe2Mud', ['沒關係，店裡不怕泥。', '（笑一下）']), // 【待定】
     branch('vZhe2Mud',
-      [say('zhe', '老闆人很好喔。德叔，你要學一下。'), // 【待定】
+      [say('zhe', '老闆人很好。德叔，你要學一下。'), // 【待定】AI 味檢核 O3：這段句尾喔／啦少一個，其餘照人物誌的口吻
         say('deshu', '嗯。')], // 【待定】
       [{ do: 'laugh', who: ['zhe'] }]),
     say('deshu', '門口的泥，我晚一點擦。'), // 【待定】
@@ -250,7 +248,7 @@ export const SEGMENTS = [
     branch('vZhe3More',
       [say('zhe', '其他的喔……下次再說啦，說了會氣。')], // 【待定】
       [wait(2), say('zhe', '……沒事啦。今天講蜂就好。')]), // 【待定】
-    say('deshu', '他話很多。剛才那句，沒說完。'), // 【待定】
+    // AI 味檢核 O1：刪掉德叔的總結，段落停在阿哲身上
   ] },
   // 第 4 次｜zhe2：原句之後說出自己的事，再自然問第一杯
   { id: 'zhe-v4', who: 'zhe', kind: 'with', with: 'zhe2', steps: [
@@ -264,11 +262,11 @@ export const SEGMENTS = [
     look('zhe'),
     say('zhe', '欸老闆，你不要笑喔。我想試新的，不是不要他的。……他都聽成不要。'), // 【待定】
   ], invite: { drink: 'dongshan', any: true, need: 'longan',
-    options: ['喝一杯再回去吧，我請。', '慢慢來。他會懂的。'], // 【待定】
+    options: ['喝一杯再回去吧，我請。', '慢慢來。'], // 【待定】AI 味檢核 O4：去掉對誰都能說的「他會懂的」
     yes: [say('zhe', '老闆請喔？那……有龍眼乾嗎？'), // 【待定】
       say('deshu', '有。')], // 【待定】
     no: [say('zhe', '……希望啦。下次換我請你們——用龍眼乾。')], // 【待定】
-    missing: [say('zhe', '老闆請喔？那……有龍眼乾嗎？'), say('deshu', '黑板上現在沒有龍眼乾。老闆，要端哪一杯？')] } }, // 【待定】fable 第四節 4
+    missing: [say('zhe', '老闆請喔？那……有龍眼乾嗎？'), say('deshu', '黑板上現在沒有龍眼乾。')] } }, // 【待定】fable 第四節 4；只陳述，接著的選杯標題才問
   // zhe2 沒有演到擴寫版：之後第一次見到他時的接回（結尾一樣問第一杯）
   { id: 'zhe-r2', who: 'zhe', kind: 'reconnect', of: 'zhe2', after: 2, before: 3, steps: [
     look('zhe'),
@@ -333,12 +331,12 @@ export const SEGMENTS = [
     say('deshu', '那天，聽到的。'), // 【待定】
     say('kevin', '喔。……那天，大家都聽到了。'), // 【待定】
     { do: 'deshuHome' },
-    choice('vKevin5Day', ['那天的事，不用放在心上。', '今天的山很清楚。']), // 【待定】
+    choice('vKevin5Day', ['那天的事，不用放在心上。', '窗外那片山，看過了嗎？']), // 【待定】不說天氣：雨天也演這一段
     branch('vKevin5Day',
       [say('kevin', '……嗯。謝謝。我是說，我盡量。')], // 【待定】
       [look('window'), say('kevin', '山？……我還沒看。'), // 【待定】
-        say('kevin', '……真的很清楚。')]), // 【待定】
-    say('deshu', '他今天，拿下了一邊的耳機。'), // 【待定】
+        say('kevin', '……這麼近。')]), // 【待定】
+    say('deshu', '耳機，他拿下了一邊。'), // 【待定】AI 味檢核 N5：不再用「X今天，Y。」句型
   ] },
   // 第 6 次｜閒聊
   { id: 'kevin-v6', who: 'kevin', kind: 'visit', after: 2, before: 3, steps: [
@@ -348,9 +346,9 @@ export const SEGMENTS = [
     branch('vKevin6Cam',
       [say('kevin', '……沒人發現。大概。')], // 【待定】
       [say('kevin', '嗯。以前我都不知道，窗外有山。')]), // 【待定】
-    when('catSill', [say('kevin', '龍眼今天，也睡在那裡。'), // 【待定】
+    when('catSill', [say('kevin', '龍眼也睡在那裡。'), // 【待定】AI 味檢核 O5：不再用「X今天，Y。」句型
       say('deshu', '老闆在的時候，他都睡窗台。')]), // 【待定】
-    say('kevin', '……下次，我帶點東西給他。可以嗎？'), // 【待定】只在 kevin3 還沒發生時（窗口）
+    say('kevin', '……下次，我帶點東西給龍眼。可以嗎？'), // 【待定】只在 kevin3 還沒發生時（窗口）；寫名字：窗台那兩句跳過時也有指涉
     say('deshu', '問他。'), // 【待定】
   ] },
   // 第 7 次｜kevin3：原句之後一句，再自然問第一杯（五點那杯已經端過，請的是第二杯）
@@ -365,7 +363,7 @@ export const SEGMENTS = [
     yes: [say('kevin', '……老闆請？'), // 【待定】
       say('deshu', '冰塊，最後才放。')], // 【待定】第 1 次「冰塊，我等他坐下才放」的兌現
     no: [say('kevin', '……希望是。')], // 【待定】
-    missing: [say('kevin', '……老闆請？'), say('deshu', '黑板上現在沒有這一杯。老闆，要端哪一杯？')] } }, // 【待定】
+    missing: [say('kevin', '……老闆請？'), say('deshu', '黑板上現在沒有冰美式。')] } }, // 【待定】只陳述，接著的選杯標題才問
   // kevin3 沒有演到擴寫版：之後第一次見到他時的接回（結尾一樣問第一杯）
   { id: 'kevin-r3', who: 'kevin', kind: 'reconnect', of: 'kevin3', after: 3, before: 4, steps: [
     look('kevin'),

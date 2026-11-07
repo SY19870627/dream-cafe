@@ -24,7 +24,7 @@ export const RECIPES = {
     item: 'kiln', after: { who: 'yuan', n: 3 }, dish: true,
     params: { ratio: '1:16', temp: 90, grind: 'med', technique: 'bloom-long' },
     offer: '予安小姐說的龍眼窯，我想用粉和水慢慢調一杯。老闆，要不要一起試試？', // 【待定】
-    served: '東山的豆，配窯烤的龍眼乾。煙是甜的，她說的。', // 【待定】
+    served: '東山的豆，配窯烤的龍眼乾。她在寫的那座窯，煙大概是這樣。', // 【待定】「煙是甜的」留給照片 yuan-3 她本人第一次說
     line: '龍眼乾放在旁邊，咖啡喝起來就甜了。', // 【待定】
   },
   'zhe-new': {

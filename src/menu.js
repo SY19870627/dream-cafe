@@ -41,7 +41,7 @@ export const ITEMS = {
     got: '阿哲的豆，我記進菜單本了。黑板要不要換一行，老闆決定。' }, // 【待定】
   // 試咖啡（D206、D207，tasting.js）：德叔試做、老闆在測試紀錄上「定案」才收進菜單本並寫上黑板；from 是 trial:<配方>。dish：端上桌時附一小碟龍眼乾
   kiln: { name: '龍眼窯特調', chalk: '龍眼窯特調', kind: 'coffee', cup: 'hot', dish: true, from: 'trial:kiln', who: 'yuan', station: 'dongshan', // 【待定】
-    desc: '東山的豆配窯烤龍眼乾。予安小姐說過，龍眼窯的煙是甜的。', // 【待定】
+    desc: '東山的豆配窯烤龍眼乾。予安小姐在寫的那座龍眼窯，煙大概是這個味道。', // 【待定】「煙是甜的」留給照片 yuan-3 她本人第一次說
     served: '龍眼窯特調。龍眼乾放在旁邊。' }, // 【待定】
   'zhe-new': { name: '阿哲的新法', chalk: '阿哲的新法', kind: 'coffee', cup: 'hot', from: 'trial:zhe-new', who: 'zhe', station: 'dongshan', // 【待定】
     desc: '阿哲自己的新方法處理的那一包，單獨沖。比較亮。', // 【待定】

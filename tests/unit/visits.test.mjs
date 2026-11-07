@@ -8,6 +8,7 @@ import * as VS from '../../src/visits.js';
 import * as S from '../../src/story.js';
 import * as FV from '../../src/favorites.js';
 import * as MN from '../../src/menu.js';
+import * as TS from '../../src/tasting.js';
 import { defaultSave, giveStarters, migrate, SAVE_VERSION } from '../../src/save.js';
 
 const T0 = new Date(2026, 10, 7, 9, 0).getTime();
@@ -86,7 +87,7 @@ test('窗口：還沒到不演；里程碑之間照順序；下一個里程碑�
   assert.ok(VS.inviteOf(r3), '接回補問第一杯');
   VS.markPlayed(s, r3, 8);
   assert.equal(VS.dueVisit(s, 'yuan', 9), null, '補問只一次，yuan3 之後沒有別的段落了');
-  // 凱文第 6 次「下次我帶點東西給他」不會排在 kevin3 之後（fable 第二節 5）
+  // 凱文第 6 次「下次我帶點東西給龍眼」不會排在 kevin3 之後（fable 第二節 5）
   const k = newSave();
   reach(k, 'kevin', 2, 8);
   assert.equal(VS.dueVisit(k, 'kevin', 9).id, 'kevin-v5', 'kevin2 之前的第 2、3 次已經過了：跳過');
@@ -336,7 +337,7 @@ test('第一杯：最愛第一段在擴寫的里程碑記進存檔之後才開�
   const r = FV.serve(s, 'yuan', VS.inviteDrink(s, inv), 9, 0, false);
   assert.ok(r.right && r.photo === 'yuan-1', '端對：第一張照片');
   assert.equal(VS.inviteReady(s, 'yuan', 10), false, '第一段找到了：之後的接回不再問');
-  // 黑板上沒有那一杯：德叔問要端哪一杯（missing）
+  // 黑板上沒有那一杯：德叔說黑板上沒有（missing），接著老闆選杯
   const b = newSave();
   reach(b, 'kevin', 3, 9);
   MN.erase(b, 'iced');
@@ -461,11 +462,11 @@ test('文字：新句都標了【待定】或【原句】；fable 的改寫都�
     assert.doesNotMatch(t, /KPI|不划算|快點|趕快|獲得|解鎖|任務|\.\.\./);
   }
   const joined = all.join('\n');
-  // fable 第五節「用我的改寫」
+  // fable 第五節「用我的改寫」（「他話很多。剛才那句，沒說完。」與「慢慢來。他會懂的。」之後在 AI 味檢核 O1／O4 改掉，見下面的 AI 味檢核測試）
   for (const t of ['昨天在門口看了很久的那位小姐，今天一開門就進來了。', '打字的聲音，停停走走。', '龍眼在窗台上睡，她在窗台下面寫。',
     '那一句，她打了很久。', '這張……可以留在店裡嗎？', '這條路兩邊，都是龍眼樹。', '她說完了。',
-    '門口的泥，我晚一點擦。', '蜂多，好。', '……沒事啦。今天講蜂就好。', '他話很多。剛才那句，沒說完。',
-    '慢慢來。他會懂的。', '……希望啦。下次換我請你們——用龍眼乾。', '（看向德叔）', '……沒人發現。大概。',
+    '門口的泥，我晚一點擦。', '蜂多，好。', '……沒事啦。今天講蜂就好。',
+    '……希望啦。下次換我請你們——用龍眼乾。', '（看向德叔）', '……沒人發現。大概。',
     '再一杯冰美式，我請。', '上次帶的零食，龍眼沒吃。……他有聞。']) assert.ok(joined.includes(t), t);
   // fable 建議刪掉或改掉的句子不在（省金句、不重複、不提前說自己的事）
   for (const t of ['刪的，比寫的多', '店裡安靜，人才待得住', '刪掉的，也是寫過的', '今天窗邊很安靜', '帶回去，我怕又不敢看',
@@ -498,6 +499,145 @@ test('文字：新句都標了【待定】或【原句】；fable 的改寫都�
   // 進 story.js 的 allLines()（校稿、測試）
   const story = S.allLines();
   for (const t of all) assert.ok(story.includes(t), `allLines 少了：${t}`);
+});
+
+test('第二輪共識（_agent/discussion-opus-response1.md 第三節）：四處改字、missing 只陳述、yuan-v4 的停頓、凱文第一段、煙的轉述', () => {
+  const texts = (id) => VS.sayTexts(VS.segmentById(id).steps);
+  const opts = (id, key) => VS.segmentById(id).steps.find((x) => x.do === 'choice' && x.key === key).options;
+  const br = (id, key) => VS.segmentById(id).steps.find((x) => x.do === 'branch' && x.key === key).cases;
+  const all = VS.allVisitLines().join('\n');
+  // 必要 1：不說「下午」（多半下班後進店）；原句「今天的顏色」照舊
+  assert.deepEqual(opts('yuan-v2', 'vYuan2Hill'), ['晚一點會更好看。', '（一起看一下窗外）']);
+  assert.deepEqual(VS.sayTexts(br('yuan-v2', 'vYuan2Hill')[0]), ['那我晚一點再走。']);
+  assert.ok(texts('yuan-v2').includes('窗外那片山，今天的顏色很好看。'), '原句不動');
+  // 必要 2：寫龍眼的名字（窗台那兩句跳過時也有指涉），德叔接「問他。」
+  const k6 = texts('kevin-v6');
+  assert.equal(k6[k6.indexOf('……下次，我帶點東西給龍眼。可以嗎？') + 1], '問他。');
+  // 必要 3：阿哲沒有坐姿
+  assert.ok(texts('zhe-v2').includes('不缺。待一下再走。'));
+  // 必要 4：不說天氣（段落沒有天氣條件，雨天也演）
+  assert.deepEqual(opts('kevin-v5', 'vKevin5Day'), ['那天的事，不用放在心上。', '窗外那片山，看過了嗎？']);
+  const k5b = br('kevin-v5', 'vKevin5Day')[1];
+  assert.equal(k5b[0].do, 'look');
+  assert.deepEqual(VS.sayTexts(k5b), ['山？……我還沒看。', '……這麼近。']);
+  for (const t of ['下午會更好看', '那我等到下午', '帶點東西給他', '坐一下再走', '今天的山很清楚', '真的很清楚']) assert.ok(!all.includes(t), `不該有：${t}`);
+  // 建議 1：missing 德叔只陳述，選杯標題（FAV_TEXT.ask）才問
+  const missing = (id) => VS.sayTexts(VS.inviteOf(VS.segmentById(id)).missing);
+  assert.deepEqual(missing('yuan-v6'), ['……好。', '黑板上現在沒有黑咖啡。']); // 第一句在 AI 味檢核 N2 改過
+  assert.deepEqual(missing('zhe-v4'), ['老闆請喔？那……有龍眼乾嗎？', '黑板上現在沒有龍眼乾。']);
+  assert.deepEqual(missing('kevin-v7'), ['……老闆請？', '黑板上現在沒有冰美式。']);
+  for (const id of ['yuan-r3', 'zhe-r2', 'kevin-r3']) assert.ok(VS.inviteOf(VS.segmentById(id)).missing.length === 2, `${id} 共用同一組 missing`);
+  assert.ok(!/要端哪一杯|沒有這一杯/.test(all), 'missing 不再問第二次');
+  // 建議 3：yuan-v4 先轉到窗外、停 4 秒，老闆才開口
+  const v4 = VS.segmentById('yuan-v4').steps;
+  const pi = v4.findIndex((x) => x.do === 'say' && x.text === '這條路兩邊，都是龍眼樹。');
+  assert.deepEqual(v4[pi - 2], { do: 'look', who: 'window' });
+  assert.deepEqual(v4[pi - 1], { do: 'wait', sec: 4 });
+  // 建議 2：凱文第一段端對不再疊「我是說」；端錯那句照舊
+  assert.equal(FV.STAGES.kevin[0].ok, '……你記得。謝謝。');
+  assert.equal(FV.MISS.kevin[1], '謝謝。我是說，真的謝謝。');
+  // 議題 A：「煙是甜的」第一次由她本人在照片 yuan-3 說，德叔的兩句轉述不搶
+  assert.equal(MN.ITEMS.kiln.desc, '東山的豆配窯烤龍眼乾。予安小姐在寫的那座龍眼窯，煙大概是這個味道。');
+  assert.equal(FV.STAGES.yuan[2].said, '煙是甜的。');
+  const src = (f) => readFileSync(new URL(`../../src/${f}`, import.meta.url), 'utf8');
+  assert.match(src('tasting.js'), /served: '東山的豆，配窯烤的龍眼乾。她在寫的那座窯，煙大概是這樣。', \/\/ 【待定】/);
+  // 只看玩家看得到的字（原始碼註解裡寫了「煙是甜的」留給誰，不算）
+  const shown = [JSON.stringify(MN.ITEMS), JSON.stringify(TS.RECIPES), ...MN.allMenuLines(), ...TS.allTastingLines()].join('\n');
+  assert.ok(!/煙是甜的/.test(shown), '轉述不說「煙是甜的」');
+  // 新字都還是【待定】
+  for (const [f, t] of [['visits.js', '晚一點會更好看。'], ['visits.js', '那我晚一點再走。'], ['visits.js', '帶點東西給龍眼'], ['visits.js', '不缺。待一下再走。'],
+    ['visits.js', '窗外那片山，看過了嗎？'], ['visits.js', '……這麼近。'], ['visits.js', '黑板上現在沒有黑咖啡。'], ['visits.js', '黑板上現在沒有龍眼乾。'],
+    ['visits.js', '黑板上現在沒有冰美式。'], ['favorites.js', '……你記得。謝謝。'], ['menu.js', '煙大概是這個味道'], ['tasting.js', '煙大概是這樣']]) {
+    const line = src(f).split(/\r?\n/).find((l) => l.includes(t));
+    assert.ok(line && line.includes('【待定】'), `${f}：${t} 標【待定】`);
+  }
+});
+
+test('AI 味檢核（_agent/ai-round1.md、_agent/ai-opus-response1.md）：N1～N5、O1～O7 套用；A1～A4 與原句不動；重複密度降下來', () => {
+  const seg = (id) => VS.segmentById(id);
+  const texts = (id) => VS.sayTexts(seg(id).steps);
+  const br = (id, key) => seg(id).steps.find((x) => x.do === 'branch' && x.key === key).cases;
+  const inv = (id) => VS.inviteOf(seg(id));
+  // 每一句說出口的話和說話的人（branch 的每個分支、when 的步驟、結尾第一杯的 yes／no／missing 都算）
+  const says = (s) => {
+    const out = [];
+    const walk = (list) => { for (const x of list || []) { if (x.do === 'say') out.push(x); if (x.steps) walk(x.steps); if (x.cases) x.cases.forEach(walk); } };
+    walk(s.steps);
+    if (s.invite && typeof s.invite === 'object') { walk(s.invite.yes); walk(s.invite.no); walk(s.invite.missing); }
+    return out;
+  };
+  const allSays = VS.SEGMENTS.flatMap(says);
+  const all = VS.allVisitLines().join('\n');
+  // N1：予安的改口是「不對」，「我是說」只在凱文身上
+  assert.deepEqual(VS.sayTexts(br('yuan-v4', 'vYuan4Write')[1]), ['剛好。亮一點，比較不會睡著。', '……不對，不是這間店讓人想睡。']);
+  const iSaid = allSays.filter((x) => x.text.includes('我是說'));
+  assert.equal(iSaid.length, 5, 'visits.js 的「我是說」五處');
+  assert.ok(iSaid.every((x) => x.who === 'kevin'), '全部是凱文說的');
+  // N2：yuan3 結尾選「我請」與黑板上沒有黑咖啡時都只說「……好。」（端對後 favorites 的 ok 已經有謝謝）；「謝謝你聽。」保留
+  assert.deepEqual(VS.sayTexts(inv('yuan-v6').yes), ['……好。']);
+  assert.deepEqual(VS.sayTexts(inv('yuan-v6').missing), ['……好。', '黑板上現在沒有黑咖啡。']);
+  assert.deepEqual(VS.sayTexts(inv('yuan-v6').no), ['……嗯。謝謝你聽。']);
+  assert.equal(inv('yuan-r3'), inv('yuan-v6'), 'yuan-r3 共用同一組');
+  assert.match(FV.STAGES.yuan[0].ok, /謝謝/, '端對的那句還在');
+  // N3：第 5 次德叔「第二杯。」之後她不回話，德叔直接回吧台
+  const v5 = seg('yuan-v5').steps;
+  const ci = v5.findIndex((x) => x.do === 'say' && x.text === '第二杯。');
+  assert.equal(v5[ci + 1].do, 'deshuHome');
+  assert.ok(!says(seg('yuan-v5')).some((x) => x.who === 'yuan' && /謝謝/.test(x.text)));
+  // N4：不重述她停住；「沒關係」緊接在她切回打字之後
+  const v4 = seg('yuan-v4').steps;
+  const ni = v4.findIndex((x) => x.do === 'say' && x.text === '沒關係。話說到一半的人，通常還會回來說完。');
+  assert.deepEqual(v4[ni - 1], { do: 'pose', who: 'yuan', pose: 'type' });
+  // N5、O5：「X今天，Y。」只剩予安弧線的兩句
+  assert.equal(texts('kevin-v5').at(-1), '耳機，他拿下了一邊。');
+  const k6sill = seg('kevin-v6').steps.find((x) => x.do === 'when' && x.if === 'catSill');
+  assert.deepEqual(VS.sayTexts(k6sill.steps), ['龍眼也睡在那裡。', '老闆在的時候，他都睡窗台。'], 'A3 那句不動、仍在 catSill 裡');
+  assert.deepEqual(VS.allVisitLines().filter((t) => /今天，/.test(t)), ['她今天，多說了一句。', '她今天，抬頭看了門口兩次。']);
+  // O1：zhe-v3 停在阿哲身上（最後一步是他的分支）
+  const z3 = seg('zhe-v3').steps;
+  assert.equal(z3.at(-1).do, 'branch');
+  assert.equal(z3.at(-1).key, 'vZhe3More');
+  // O2：龍眼翻身仍只在窗台上演（不離開窗台），德叔只說事實
+  const y4sill = v4.find((x) => x.do === 'when' && x.if === 'catSill');
+  assert.deepEqual(y4sill.steps, [{ do: 'catMove', kind: 'roll' }, { do: 'say', who: 'deshu', text: '龍眼在窗台上翻了個身。' }]);
+  // O3：zhe-v2 的句尾喔／啦從五個減到四個，其餘照舊
+  assert.ok(texts('zhe-v2').includes('老闆人很好。德叔，你要學一下。'));
+  const tail = says(seg('zhe-v2')).filter((x) => x.who === 'zhe').map((x) => x.text).join('').match(/[喔啦]/g) || [];
+  assert.equal(tail.length, 4);
+  // O4：阿哲第一杯的選項 b 只說「慢慢來。」，zhe-r2 共用；阿哲那句照舊
+  assert.deepEqual(inv('zhe-v4').options, ['喝一杯再回去吧，我請。', '慢慢來。']);
+  assert.equal(inv('zhe-r2'), inv('zhe-v4'));
+  assert.deepEqual(VS.sayTexts(inv('zhe-v4').no), ['……希望啦。下次換我請你們——用龍眼乾。']);
+  // O6
+  assert.deepEqual(VS.sayTexts(br('yuan-v2', 'vYuan2Hello')[1]), ['……你好。', '點過頭了。這樣就算打過招呼。']);
+  // O7：三處開頭不加「……」
+  assert.ok(texts('yuan-v4').includes('德叔，可以再一杯嗎？'));
+  assert.deepEqual(VS.sayTexts(br('yuan-v5', 'vYuan5Napkin')[0]), ['嗯。德叔，紙巾可以再給我幾張嗎？', '整包。']);
+  assert.deepEqual(texts('yuan-r2'), ['那天的紙巾，我收在倉庫了。', '那天寫的，我後來都打進去了。']);
+  // 改掉的舊字都不在
+  for (const t of ['我是說，不是這間店讓人想睡', '好。謝謝老闆', '她說到一半，自己停了', '他今天，拿下了一邊的耳機', '他話很多',
+    '剛才那句，沒說完', '他也在等', '老闆人很好喔', '他會懂的', '龍眼今天，', '在這裡，這樣就算', '……德叔，可以再一杯嗎', '……嗯。德叔，紙巾', '……那天寫的']) {
+    assert.ok(!all.includes(t), `不該有：${t}`);
+  }
+  // 重複密度：予安的「謝謝」8 → 6
+  assert.equal(allSays.filter((x) => x.who === 'yuan' && x.text.includes('謝謝')).length, 6);
+  // A1、A2 保留；附近的原句與照片台詞不動
+  const v3 = texts('yuan-v3');
+  assert.equal(v3[v3.indexOf('這張……可以留在店裡嗎？') + 1], '那張紙巾，她說要留給店裡。我收在倉庫，老闆想擺就擺。');
+  assert.ok(texts('yuan-v4').includes('我沒問。她的事，等她想說再說。'));
+  assert.ok(texts('yuan-v1').includes('本來就是這樣。'));
+  for (const [id, t] of [['yuan-v4', '我阿公以前也在這條路上烤龍眼。'], ['yuan-v2', '窗外那片山，今天的顏色很好看。'], ['zhe-v3', '今天果園的龍眼開花了，整片都是蜂。'],
+    ['zhe-v2', '我阿公叫我來看看你們缺什麼。我是被逼來的。'], ['kevin-v6', '我把會議的鏡頭關掉了。看山比較好。']]) assert.ok(texts(id).includes(t), `原句不動：${t}`);
+  assert.equal(FV.STAGES.yuan[2].said, '煙是甜的。');
+  // 減密度不減關係：每一段（只補第一杯的 yuan-r3 除外）熟客自己都還有話
+  for (const s of VS.SEGMENTS) if (!s.uninvited) assert.ok(says(s).some((x) => x.who === s.who), `${s.id} 熟客還有話`);
+  // 新字都標【待定】
+  const src = readFileSync(new URL('../../src/visits.js', import.meta.url), 'utf8').split(/\r?\n/);
+  for (const t of ['……不對，不是這間店讓人想睡。', "'……好。'", '耳機，他拿下了一邊。', '龍眼在窗台上翻了個身。', '老闆人很好。德叔', "'慢慢來。'",
+    '龍眼也睡在那裡。', '點過頭了。這樣就算打過招呼。', "'德叔，可以再一杯嗎？'", "'嗯。德叔，紙巾可以再給我幾張嗎？'", "'那天寫的，我後來都打進去了。'"]) {
+    const lines = src.filter((l) => l.includes(t));
+    assert.ok(lines.length && lines.every((l) => l.includes('【待定】')), `${t} 標【待定】`);
+  }
 });
 
 test('選項：括號開頭的是動作（不出老闆的泡泡）；每個 choice 都有對應的 branch 或只有一個選項', () => {
