@@ -24,8 +24,13 @@ const { server, url } = await startServer();
 
 // D224：與 smoke.mjs 相同——等 canvas、__cafe、劇本 YAML 編譯完成，才開始通關流程。
 async function awaitGame(page) {
+  // D224：scripts/*.yaml 以 top-level await 載入；main.js 要等它編譯完才會掛上 #app canvas。
   await page.waitForSelector('#app canvas');
-  await page.waitForFunction(() => !!window.__cafe, null, { timeout: 15000 });
+  const isDev = await page.evaluate(() => new URLSearchParams(location.search).get('dev') === '1');
+  // 一般模式故意沒有 window.__cafe（冒煙會斷言 === undefined）。此時等 canvas 已涵蓋 YAML 載入；
+  // 若 YAML 404／編譯失敗，main 不會跑到掛 canvas，這裡會超時失敗——沒有放寬。
+  if (!isDev) return { mode: 'player' };
+  await page.waitForFunction(() => !!window.__cafe?.script, null, { timeout: 15000 });
   const sc = await page.evaluate(() => window.__cafe.script);
   if (!sc || sc.segments < 20 || sc.milestones < 18 || !sc.files?.includes('yuan')) {
     throw new Error(`劇本還沒就緒或數量不對：${JSON.stringify(sc)}`);
