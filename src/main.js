@@ -716,37 +716,57 @@ const counterBag = paper(A.longanBag(), 1.95, 0.1, { y: TOP, shadow: false });
 // 窗邊座的桌上放一張手寫菜單的杯墊當焦點。兩張都只有手繪圖，沒有載到就不放
 if (A.artLoaded('kettleSet')) paper(A.kettleSet(), 2.2, -2.85, { y: TOP, shadow: false, clamp: 0.9, base: -Math.PI / 2 });
 if (A.coaster()) paper(A.coaster(), tA.x + 0.2, tA.z - 0.14, { y: tA.h + 0.02, shadow: false });
-// 烘豆機（烘豆，D217）：吧台最裡端靠後牆那一角（手沖器具組的旁邊）。放在這裡是因為從吧台座、角落沙發看黑板的視線都不經過這一角，
-// 不會擋到黑板的字（D189）。打烊後點它：德叔問這次烘淺一點、深一點，還是剛好（照 D191 點黑板的判斷：前面有人就算點到人）
-const ROASTER_AT = { x: 1.85, z: -3.1 };
-const roasterP = paper(A.roaster(), ROASTER_AT.x, ROASTER_AT.z, { y: TOP, shadow: false, name: 'roaster' });
-// 底下的爐火（烘的時候淡入、輕輕閃）與竹篩（下豆以後出現，豆子是程式畫的小點、照烘焙度上色）
+// 烘豆機（烘豆，D217）：承峰 11/7「咖啡烘焙機應該很大一台，不要放吧台了，改在咖啡廳右下角一大台」：
+// 從吧台最裡端搬到店門口右手邊那一角的地板上（俯瞰畫面的右下角），落地式的大台滾筒烘豆機。
+// 佔地 x 2.05～2.95、z 3.075～3.825（0.9 × 0.75 公尺，離右牆 5 公分、離前牆約 18 公分；roast.js 的 ROASTER），是硬的碰撞物（navBlockers()）；
+// 門口（x −0.39～0.69）、門口的徵才啟事（x 0.95）、吧台店門口那一端（z 0.25 以外）的走道都留著。
+// 從三個座位看出去都不在畫面裡、不擋黑板（D189）；俯瞰時整台要在畫面裡（fitOverview()）。
+// 圖：有 assets/art/prop_roaster_large.webp 就用（art.js 的 ROOM_SPEC），沒有就是 art.js 的 roaster() Canvas 暫代。
+// 打烊後點它：德叔問這次烘淺一點、深一點，還是剛好（照 D191 點黑板的判斷：前面有人就算點到人）
+const ROASTER = RO.ROASTER;
+const roasterBox = RO.roasterBox;
+const roasterP = paper(A.roaster(), ROASTER.x, ROASTER.z, { name: 'roaster' });
+// 演出用的幾個點在烘豆機圖上的位置（roast.js 的 ROASTER_ART：u 從畫到的範圍中線往右、v 從地面往上，公尺）。
+// 換成手繪圖時照圖實際畫到的寬高等比例換算；紙片會轉向鏡頭、俯瞰時往後仰並拉長，所以每一格照紙片現在的姿勢換成店裡的位置
+const RA = RO.ROASTER_ART;
+function onRoaster(pt, out = new THREE.Vector3(), front = 0.03) {
+  const m = roasterP.userData.mesh, p = m.geometry.parameters;
+  m.updateWorldMatrix(true, false); // 連同紙片的群組（位置、轉向）一起算
+  return m.localToWorld(out.set(pt[0] * (p.width / RA.w), pt[1] * (p.height / RA.h), front));
+}
+// 爐口的火光（烘的時候淡入、輕輕閃）與冷卻盤上的竹篩（下豆以後出現，豆子是程式畫的小點、照烘焙度上色）
 const roastFlame = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: '#ff9a3c', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
-roastFlame.position.set(ROASTER_AT.x, TOP + 0.06, ROASTER_AT.z + 0.02);
-roastFlame.scale.setScalar(0.16);
+roastFlame.scale.setScalar(0.24);
 scene.add(roastFlame);
+const ROAST_TRAY_R = RA.trayR * 0.9; // 竹篩的半徑：放得進冷卻盤
 const roastTray = new THREE.Group();
 {
-  const rim = cyl(0.1, 0.092, 0.018, new THREE.MeshLambertMaterial({ color: '#b48a52' }));
-  rim.position.y = 0.009;
-  const bed = cyl(0.088, 0.088, 0.004, new THREE.MeshLambertMaterial({ color: '#d4b47a' }));
-  bed.position.y = 0.017;
+  const k = ROAST_TRAY_R / 0.1;
+  const rim = cyl(0.1 * k, 0.092 * k, 0.03, new THREE.MeshLambertMaterial({ color: '#b48a52' }));
+  rim.position.y = 0.015;
+  const bed = cyl(0.088 * k, 0.088 * k, 0.006, new THREE.MeshLambertMaterial({ color: '#d4b47a' }));
+  bed.position.y = 0.027;
   roastTray.add(rim, bed);
 }
 const roastBeanMat = new THREE.MeshLambertMaterial({ color: RO.BEAN_COLOR.green });
 const roastBeans = [];
-for (let i = 0; i < 22; i++) {
-  const a = i * 2.39996, r = 0.012 + 0.065 * Math.sqrt((i + 0.5) / 22); // 均勻散在竹篩裡
-  const b = new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), roastBeanMat);
+for (let i = 0; i < 40; i++) {
+  const a = i * 2.39996, r = 0.02 + (ROAST_TRAY_R * 0.78) * Math.sqrt((i + 0.5) / 40); // 均勻散在竹篩裡
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), roastBeanMat);
   b.scale.set(1, 0.7, 1.3);
-  b.position.set(Math.cos(a) * r, 0.026, Math.sin(a) * r);
-  b.userData.y = 0.026;
+  b.position.set(Math.cos(a) * r, 0.04, Math.sin(a) * r);
+  b.userData.y = 0.04;
   roastTray.add(b);
   roastBeans.push(b);
 }
-roastTray.position.set(1.8, TOP, -2.72);
 roastTray.visible = false;
 scene.add(roastTray);
+// 火光與竹篩跟著烘豆機的紙片放（每一格演出時呼叫；紙片轉向、後仰、拉長都跟得上）
+function placeRoastFx() {
+  onRoaster(RA.flame, roastFlame.position, 0.06);
+  onRoaster(RA.tray, roastTray.position, 0.1); // 竹篩的後半圈藏在冷卻盤的圖後面，看起來是放進盤子裡
+}
+placeRoastFx();
 counterBag.visible = MN.unlocked(save, 'longan');
 // 老先生的信：德叔從吧台抽屜拿出來，放在吧台上
 const envelope = paper(A.envelope(), 1.8, -0.75, { y: TOP, shadow: false });
@@ -980,9 +1000,10 @@ function freeSpot(item, entries) {
   });
   const open = tall ? FREE_SPOTS.filter(([x, z]) => !MID_SPOTS.has(`${x},${z}`)) : FREE_SPOTS;
   const spots = item.wall ? [...WALL_SPOTS, ...open] : open;
+  // 店門口右手邊那一角是落地烘豆機（承峰 11/7）：離它不到半件擺飾寬（至少 0.5 公尺）的空位不用
   for (const [x, z] of [...spots, ...FREE_SPOTS]) {
     const o = orient(item, x, z);
-    if (free(o)) return o;
+    if (free(o) && RO.roasterGap(o.x, o.z) > Math.max(0.5, half)) return o;
   }
   return orient(item, 0.3, 0.9);
 }
@@ -1309,6 +1330,7 @@ function navBlockers() {
   // 中島吧台（承峰 11/6：「哪個縫隙開放吧，因為圖看起來是中島壩臺」，D213）：檯面最裡端到後牆（z −4～−3.25）留 0.75 公尺的空隙可以走，
   // 吧台兩端都能進出；吧台和裡面的矮櫃之間（x 2.4～2.8）是德叔站的通道
   out.push({ id: 'backBase', x0: ROOM.w / 2 - BACK_BASE.d, x1: ROOM.w / 2, z0: BACK_Z - 1.4, z1: BACK_Z + 1.4 }); // 吧台裡靠牆的矮櫃
+  out.push(roasterBox()); // 店門口右手邊那一角的落地烘豆機（承峰 11/7）：硬的，德叔烘豆時站在它左邊（ROASTER_SPOT）
   for (const [id, t, r] of [['tableWindow', tA, 0.38], ['tableSofa', tC, 0.42], ['tableYuan', tY, 0.34]]) out.push({ id, x: t.x, z: t.z, r });
   out.push({ id: 'chairWindow', x: SEATS[0].prop.position.x, z: SEATS[0].prop.position.z, r: 0.22, soft: true });
   out.push({ id: 'sofa', x: SEATS[2].prop.position.x, z: SEATS[2].prop.position.z, r: 0.6, soft: true });
@@ -2024,7 +2046,8 @@ function fitOverview(smooth = false) {
         lim(p.x, 1 - sx);
         lo = Math.min(lo, p.y - sy); hi = Math.max(hi, p.y + sy);
       };
-      for (const pr of [...props.slice(SEATS.length), deshu]) {
+      // 店門口右手邊的落地烘豆機（承峰 11/7）也要整台在畫面裡（右下角的地板角原本可以切掉一些）
+      for (const pr of [...props.slice(SEATS.length), deshu, roasterP]) {
         const big = pr.userData.big ? OVER_BIG / pr.userData.big : 1; // 德叔俯瞰時放大（美術評分修正 e）
         const half = big * pr.userData.mesh.geometry.parameters.width * drawnHalf(pr === deshu ? deshuCanvas.idle : pr.userData.mesh.material.map?.image);
         const at = pr === deshu ? HOME : pr.position;
@@ -3058,11 +3081,12 @@ function noteHintDue() {
 let noteBarTold = false; // 還沒坐吧台座就點德叔想試：這次進店提醒過了沒（提醒一次，之後照舊閒聊）
 
 /* ---------- 烘豆（承峰 11/6：「我希望你直接完成這兩項 烘豆……」，D217；roast.js） ---------- */
-// 打烊後點吧台最裡端的烘豆機：德叔問烘淺一點、深一點，還是剛好（choose()，剛好放最下面）→ 走過去倒生豆、搖滾筒（爐火、淡灰的煙）、
-// 一爆的細劈啪、下豆到竹篩、搖一搖冷卻 → 走回吧台。全部用動作呈現，泡泡只有開頭一句與最後一句（AGENTS：泡泡不描述步驟）。
+// 打烊後點店門口右手邊那一角的落地烘豆機（承峰 11/7）：德叔問烘淺一點、深一點，還是剛好（choose()，剛好放最下面）→ 從吧台店門口那一端
+// 循路走過去倒生豆、滾筒轉（機器輕輕震、爐口的火光、煙囪冒淡灰的煙）、一爆的細劈啪、下豆到冷卻盤上的竹篩、搖一搖冷卻 → 走回吧台。
+// 全部用動作呈現，泡泡只有開頭一句與最後一句（AGENTS：泡泡不描述步驟）。
 // 選完那一刻就換掉架上那一批並存檔（中途按「明天見」或關掉也不會白烘）；演的時候用 runMoment()，熟客場景、交信、德叔的話都等它演完。
 // 老闆可以坐著看，也可以去做別的事（關燈、寫日記、整理擺飾）；不加溫度、不進任務、不計數量
-const ROASTER_SPOT = new THREE.Vector3(2.6, 0, -3.0); // 德叔站在烘豆機後面（吧台和後牆之間的空隙旁）
+const ROASTER_SPOT = V3(ROASTER.spot.x, 0, ROASTER.spot.z); // 德叔站在烘豆機左邊、冷卻盤旁（roast.js 的 ROASTER.spot）
 let roasting = null; // { level, phase: 'ask'|'walk'|'pour'|'roast'|'drop'|'cool'|'back', k }
 const roasterTappable = () => !keeper() && !state.cinematic && !state.tutorial && !state.scene && !state.choice && !state.guest && !state.arriving
   && !state.placing && !state.favorite && !state.letter && !overlayOpen();
@@ -3073,7 +3097,7 @@ const roastOpenable = () => roasterTappable() && state.closing === 'after' && !r
 function roasterDist(r) {
   if (!roasterP.visible) return null;
   const objs = []; scene.traverseVisible((o) => { if (o.isMesh) objs.push(o); });
-  // 烘豆機很小（從俯瞰只有十幾個像素）：整張紙片的範圍都算（透明的縫也算），前面被實心的東西擋住才不算
+  // 整張紙片的範圍都算（煙囪和機身之間透明的縫也算；手繪圖已經裁掉四周的留白），前面被實心的東西擋住才不算
   const hit = r.intersectObjects(objs, false).find((h) => h.object === roasterP.userData.mesh || solidAt(h, false));
   return hit && hit.object === roasterP.userData.mesh ? hit.distance : null;
 }
@@ -3110,37 +3134,45 @@ async function roastShow(level) {
   say(RO.ROAST.start, 2200);
   R.phase = 'walk';
   await deshuGo(ROASTER_SPOT);
-  // 1. 倒生豆：德叔手上的生豆一顆一顆落進上面的漏斗（淡綠的小點）
+  // 1. 倒生豆：德叔手上的生豆往上一倒、一顆一顆落進機器頂上的入豆漏斗（淡綠的小點）
   R.phase = 'pour';
   setPaper(deshu, deshuCanvas.pour);
   const fall = [];
-  const top = V3(ROASTER_AT.x + 0.02, TOP + 0.33, ROASTER_AT.z);
-  for (let i = 0; i < 9; i++) {
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 5), new THREE.MeshLambertMaterial({ color: RO.BEAN_COLOR.green }));
+  const top = onRoaster(RA.hopper, V3(0, 0, 0));
+  const hand = V3(deshu.position.x + 0.22, 1.15, deshu.position.z + 0.05);
+  for (let i = 0; i < 12; i++) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 5), new THREE.MeshLambertMaterial({ color: RO.BEAN_COLOR.green }));
     b.visible = false;
     scene.add(b);
     fall.push(b);
   }
   audio.play('tray');
   await animate(T.pour, (k) => {
+    onRoaster(RA.hopper, top);
     fall.forEach((b, i) => {
-      const kk = THREE.MathUtils.clamp(k * 1.6 - i * 0.07, 0, 1);
+      const kk = THREE.MathUtils.clamp(k * 1.6 - i * 0.05, 0, 1);
       b.visible = kk > 0 && kk < 1;
-      b.position.set(top.x + 0.25 * (1 - kk) + (i % 3 - 1) * 0.01, top.y + 0.22 * (1 - kk) * (1 - kk) + 0.02, top.z + (i % 2 ? 0.01 : -0.01));
+      // 從手上拋一個小弧線到漏斗口（最高點比漏斗口高 0.15 公尺）
+      b.position.lerpVectors(hand, top, kk);
+      b.position.x += (i % 3 - 1) * 0.012;
+      b.position.y += Math.sin(Math.PI * kk) * 0.15 + 0.02;
+      b.position.z += i % 2 ? 0.012 : -0.012;
     });
   });
   for (const b of fall) { scene.remove(b); b.geometry.dispose(); b.material.dispose(); }
-  // 2. 烘：搖滾筒（紙片輕晃，德叔跟著小幅搖）、爐火淡入、淡灰的煙；一爆的時候細細的劈啪幾下
+  // 2. 烘：滾筒轉（大台的機器只輕輕震，德叔跟著小幅搖）、爐口的火光淡入、煙囪冒淡灰的煙；一爆的時候細細的劈啪幾下
   R.phase = 'roast';
   setPaper(deshu, deshuCanvas.idle);
   audio.start('roast');
-  const smoke = V3(ROASTER_AT.x + 0.1, TOP + 0.3, ROASTER_AT.z);
+  const smoke = onRoaster(RA.smoke, V3(0, 0, 0), 0);
   let pops = 0;
   await animate(T.roast[level] || T.roast.medium, (k) => {
     R.k = k;
     const t = performance.now();
-    drum.rotation.z = Math.sin(t / 170) * 0.025;
+    drum.rotation.z = Math.sin(t / 60) * 0.0025;
     m.rotation.z = Math.sin(t / 340) * 0.03;
+    placeRoastFx();
+    onRoaster(RA.smoke, smoke, 0);
     roastFlame.material.opacity = Math.min(1, k * 6) * (0.55 + 0.15 * Math.sin(t / 90) + 0.1 * Math.sin(t / 37));
     if (k > 0.25) smokeSources.add(smoke);
     // 一爆：從 crack 那一刻起，間隔一下劈啪一次，共四次
@@ -3150,15 +3182,17 @@ async function roastShow(level) {
   smokeSources.delete(smoke);
   drum.rotation.z = 0;
   m.rotation.z = 0;
-  // 3. 下豆：竹篩出現，豆子一顆一顆倒進去（顏色就是這一批）
+  // 3. 下豆：冷卻盤上的竹篩出現，豆子一顆一顆倒進去（顏色就是這一批）
   R.phase = 'drop';
   setPaper(deshu, deshuCanvas.serve);
   roastBeanMat.color.set(RO.BEAN_COLOR[level]);
   roastBeans.forEach((b) => { b.visible = false; b.position.y = b.userData.y; });
   roastTray.rotation.y = 0;
+  placeRoastFx();
   roastTray.visible = true;
   audio.play('tray');
   await animate(T.drop, (k) => {
+    placeRoastFx();
     roastFlame.material.opacity = Math.max(0, 0.6 * (1 - k * 2));
     roastBeans.forEach((b, i) => { b.visible = i < Math.ceil(k * roastBeans.length); });
   });
@@ -3168,6 +3202,7 @@ async function roastShow(level) {
   let shook = 0;
   await animate(T.cool, (k) => {
     const t = performance.now();
+    placeRoastFx();
     const shake = Math.sin(k * Math.PI * 10) * Math.sin(Math.PI * k);
     roastTray.rotation.y = shake * 0.25;
     roastBeans.forEach((b, i) => { b.position.y = b.userData.y + Math.max(0, Math.sin(t / 70 + i * 1.7)) * 0.006 * Math.abs(shake); });
@@ -3477,8 +3512,9 @@ const OPPOSITE = {
   bar: { pos: V2(1.3, -2.1), cup: new THREE.Vector3(1.72, TOP, -2.1), counter: true, stool: stoolMid },
   sofa: { pos: V2(-0.85, 1.75), cup: new THREE.Vector3(-1.2, tC.h + 0.02, 2.2) },
 };
-// 角落的候選位置（凱文躲起來、阿公坐的地方）
-const CORNERS = [V2(-2.45, -3.3), V2(-1.3, -3.45), V2(0.75, -3.45), V2(2.35, 3.1), V2(-0.55, 3.35), V2(0.75, 3.4)];
+// 角落的候選位置（凱文躲起來、阿公坐的地方）。店門口右手邊那一角放了落地烘豆機（承峰 11/7）：原本的 (2.35, 3.1) 在機器裡面，
+// 往店裡挪到機器前面、靠右牆的 (2.45, 2.5)
+const CORNERS = [V2(-2.45, -3.3), V2(-1.3, -3.45), V2(0.75, -3.45), V2(2.45, 2.5), V2(-0.55, 3.35), V2(0.75, 3.4)];
 const HOME_SPOT = { yuan: SPOT.yuan, kevin: SPOT.kevin, zhe: SPOT.bar };
 
 const live = { day: 0, token: 0, expect: new Map(), arrived: new Set(), leaveAt: new Map(), at: {}, answers: {}, cups: new Map(), seatHinted: false, walking: 0, planned: {}, held: new Set(), fwHinted: 0, trialOfferHint: '' };
@@ -6550,12 +6586,15 @@ if (DEV) {
     get roast() {
       return { batch: save.roast?.batch ? { ...save.roast.batch } : null, roasting: roasting && { ...roasting }, openable: roastOpenable(), tappable: roasterTappable(),
         flame: +roastFlame.material.opacity.toFixed(2), tray: roastTray.visible, smoke: smokeSources.size, note: RO.roastNote(save, 'dongshan'),
-        deshu: { x: +deshu.position.x.toFixed(2), z: +deshu.position.z.toFixed(2) } };
+        deshu: { x: +deshu.position.x.toFixed(2), z: +deshu.position.z.toFixed(2) }, spot: { ...ROASTER.spot },
+        // 烘豆機在店裡的位置與佔地（承峰 11/7：店門口右手邊那一角的落地大台）、用的是哪張圖（手繪 prop_roaster_large 或 Canvas 暫代）、紙片多大
+        roaster: { x: ROASTER.x, z: ROASTER.z, box: roasterBox(), art: A.artLoaded('prop_roaster_large') ? 'prop_roaster_large' : 'canvas',
+          w: +roasterP.userData.mesh.geometry.parameters.width.toFixed(2), h: +roasterP.userData.mesh.geometry.parameters.height.toFixed(2) } };
     },
     roastStart(level = 'medium') { return startRoast(level); },
     roasterOnScreen() {
       const r = new THREE.Raycaster(), n = new THREE.Vector2(), W = app.clientWidth, H = app.clientHeight;
-      const c = V3(ROASTER_AT.x, TOP + 0.18, ROASTER_AT.z).project(camera);
+      const c = onRoaster(RA.tap, V3(0, 0, 0), 0).project(camera); // 機身中間（roast.js 的 ROASTER_ART.tap）
       const cx = ((c.x + 1) / 2) * W, cy = ((1 - c.y) / 2) * H;
       const people = [deshu, yuan, zhe, kevin, cat].filter((p) => p.visible).map((p) => p.userData.mesh);
       const o = app.getBoundingClientRect();

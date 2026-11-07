@@ -2,12 +2,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNav } from '../../src/pathfind.js';
+import { roasterBox } from '../../src/roast.js';
 
-// 和 main.js 的 navBlockers() 同一份配置（吧台檯面 0.8 × 3.5、裡面靠牆的矮櫃、三張圓桌、椅子與高腳椅）。
+// 和 main.js 的 navBlockers() 同一份配置（吧台檯面 0.8 × 3.5、裡面靠牆的矮櫃、店門口右手邊的落地烘豆機、三張圓桌、椅子與高腳椅）。
 // 中島吧台（D213）：檯面最裡端（z −3.25）到後牆（z −4）的空隙可以走，吧台兩端都能進出
 const CAFE = [
   { id: 'counter', x0: 1.6, x1: 2.4, z0: -3.25, z1: 0.25 },
   { id: 'backBase', x0: 2.8, x1: 3.0, z0: -2.78, z1: 0.02 },
+  roasterBox(), // 承峰 11/7：烘豆機搬到店門口右手邊那一角的地板（roast.js 的 ROASTER）
   { id: 'tableWindow', x: -2.2, z: -0.6, r: 0.38 },
   { id: 'tableSofa', x: -1.45, z: 2.4, r: 0.42 },
   { id: 'tableYuan', x: -0.4, z: -2.3, r: 0.34 },
@@ -99,7 +101,7 @@ test('客人從門口走到各個位子、再走出去，都不穿桌子與吧�
   const nav = makeNav();
   const spots = {
     yuan: P(-0.4, -1.75), kevin: P(1.3, -2.9), bar: P(1.3, -0.2), oppWindow: P(-2.35, -1.3), oppBar: P(1.3, -2.1), oppSofa: P(-0.85, 1.75),
-    corner: P(-2.45, -3.3), corner2: P(0.75, -3.45), corner3: P(2.35, 3.1),
+    corner: P(-2.45, -3.3), corner2: P(0.75, -3.45), corner3: P(2.45, 2.5), // corner3 原本 (2.35, 3.1)，烘豆機搬過去之後往店裡挪
   };
   for (const [k, to] of Object.entries(spots)) {
     const r = nav.findPath(DOOR_IN, to);

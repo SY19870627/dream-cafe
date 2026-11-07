@@ -20,7 +20,7 @@
 // 德叔換黑板只換黑板上真的有的東西、重新整理後黑板還在、還沒解鎖的品項看不到。
 // 誤按打烊（承峰 11/5，D205）：按打烊德叔先問一次（再坐一會兒在最下面）、按鈕列換了 0.5 秒內連點不打烊（觸控）。
 // 試咖啡（承峰 11/5，D206、D207）：德叔提一次、試做、測試紀錄、定案上黑板（寫滿時換一行）、隔天德叔提一次只一次、第 8 版舊存檔遷移。
-// 烘豆（承峰 11/6，D217）：開店時點烘豆機德叔說一句、打烊後點它選烘焙度（剛好在最下面）、德叔演完走回吧台、架上這一批與菜單本那一句、隔天沖時說一次、重新整理還在。
+// 烘豆（承峰 11/6，D217；11/7 烘豆機搬到店門口右手邊那一角的落地大台，硬的碰撞物）：開店時點烘豆機德叔說一句、打烊後點它選烘焙度（剛好在最下面）、德叔演完走回吧台、架上這一批與菜單本那一句、隔天沖時說一次、重新整理還在。
 // 人物誌（承峰 11/6，D218）：記事本「店裡的熟客」點開人物誌頁、一段一段寫進去、照片縮圖、相簿入口、老先生重讀律師信、重新整理還在。
 // 碰撞與循路（承峰 11/6）：桌子、吧台、椅子、擺飾都是碰撞物；各位子之間的路不穿過硬的東西；德叔端杯到窗邊座的一路上不在桌子或吧台裡。
 import { chromium } from 'playwright';
@@ -54,11 +54,16 @@ for (const make of ['newPage', 'newContext']) {
   };
 }
 
+// 畫師還在畫的圖（承峰 11/7 的落地烘豆機 prop_roaster_large）：檔案放進來之前是 404，瀏覽器記一筆「Failed to load resource」
+// （網路層的訊息，不是 JS 錯誤），遊戲照舊用 Canvas 暫代。只放過這幾張的那一筆
+const OPTIONAL_ART = ['prop_roaster_large'];
+const optionalMiss = (m) => OPTIONAL_ART.some((n) => (m.location().url || '').includes(`/assets/art/${n}.webp`));
+
 async function open(viewport, query) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
   const errors = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+  page.on('console', (m) => { if (m.type() === 'error' && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
   await page.goto(url + query);
   await page.waitForSelector('#app canvas');
   await page.waitForTimeout(1800); // 等俯瞰鏡頭與第一句話
@@ -1083,7 +1088,7 @@ try {
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-    page.on('console', (m) => { if (m.type() === 'error' && !/\/assets\/art\/photo_/.test(m.location().url || '')) errors.push(`console: ${m.text()}`); });
+    page.on('console', (m) => { if (m.type() === 'error' && !/\/assets\/art\/photo_/.test(m.location().url || '') && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
     await page.goto(url + '?dev=1&speed=8&opening=0&weather=clear&moments=0&board=dongshan,black,iced,longan');
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(2200);
@@ -1237,7 +1242,7 @@ try {
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-    page.on('console', (m) => { if (m.type() === 'error' && !/\/assets\/art\/photo_/.test(m.location().url || '')) errors.push(`console: ${m.text()}`); });
+    page.on('console', (m) => { if (m.type() === 'error' && !/\/assets\/art\/photo_/.test(m.location().url || '') && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
     await page.goto(url + '?dev=1&speed=8&opening=0&weather=clear&moments=0&board=dongshan,black,iced,longan');
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(2200);
@@ -1755,15 +1760,19 @@ try {
     const errors = [];
     const got = new Map();
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-    page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+    page.on('console', (m) => { if (m.type() === 'error' && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
     page.on('response', (r) => { const m = r.url().match(/assets\/art\/([^/?]+)\.webp/); if (m) got.set(m[1], r.status()); });
     await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(1500);
     const art = await page.evaluate(() => window.__cafe.art);
     // art2b：第二批的開場、地圖與介面再加 7 張 webp（信封、辭呈與律師信背景、信箱、縣道、地圖、信紙、泡泡外框）＋ CSS 的啟動畫面
+    // 畫師還在畫的圖（OPTIONAL_ART：落地烘豆機）會去要一次：沒有就是 404、照舊用 Canvas 暫代；放進來了就多算一張
+    const extra = OPTIONAL_ART.filter((n) => got.get(n) === 200);
+    check(OPTIONAL_ART.every((n) => got.has(n) && [200, 404].includes(got.get(n))), `畫師還在畫的圖也去要了一次（有就用、沒有是 404）${JSON.stringify(OPTIONAL_ART.map((n) => [n, got.get(n)]))}`);
+    for (const n of OPTIONAL_ART) got.delete(n);
     check(got.size === 74 && [...got.values()].every((s) => s === 200) && got.has('splash_1170x2532'), `從 assets/art 載入 74 張 webp（第一批 18＋凱文坐高腳椅 1、第二批店內 46＋平常杯子 1、開場與介面 7、啟動畫面 1；${got.size} 張）`);
-    check(art.loaded.length === 73 && art.loaded.every((n) => got.has(n)), `73 張都解碼成功（${art.loaded.length} 張；啟動畫面由 CSS 直接用）`);
+    check(art.loaded.length === 73 + extra.length && art.loaded.every((n) => got.has(n) || extra.includes(n)), `${73 + extra.length} 張都解碼成功（${art.loaded.length} 張；啟動畫面由 CSS 直接用）`);
     const tags = await page.evaluate(() => window.__cafe.uiArtTags());
     check(tags.map === 'svg' && tags.road === 'svg' && tags.mail === 'IMG', `地圖與縣道是手繪圖＋程式畫的標記（SVG）、信箱是手繪圖 ${JSON.stringify(tags)}`);
     check(art.ui.length === 6 && art.icons && art.envelope === 'envelope', `開場、地圖與介面的圖、介面圖示、信封都載到了 ${JSON.stringify(art.ui)} 圖示 ${art.icons}`);
@@ -1881,7 +1890,7 @@ try {
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-    page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+    page.on('console', (m) => { if (m.type() === 'error' && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
     await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(1800);
@@ -1950,7 +1959,7 @@ try {
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-    page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+    page.on('console', (m) => { if (m.type() === 'error' && !optionalMiss(m)) errors.push(`console: ${m.text()}`); });
     await page.goto(url + '?dev=1&speed=20&opening=0&regulars=0&weather=clear');
     await page.waitForSelector('#app canvas');
     await page.waitForTimeout(1800);
@@ -2086,11 +2095,19 @@ try {
     // 碰撞與循路（承峰 11/6）：桌子、吧台、椅子、擺飾都是碰撞物，走路自動循路，不穿過去
     const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=6&opening=0&regulars=0&weather=clear&moments=0');
     const nav = await page.evaluate(() => { const n = window.__cafe.nav; return { ids: n.blockers.map((b) => b.id), spots: n.spots }; });
-    for (const id of ['counter', 'backBase', 'tableWindow', 'tableSofa', 'tableYuan', 'chairWindow', 'sofa', 'stoolBar', 'stoolMid', 'stoolFar']) check(nav.ids.includes(id), `碰撞物有 ${id}`);
+    for (const id of ['counter', 'backBase', 'roaster', 'tableWindow', 'tableSofa', 'tableYuan', 'chairWindow', 'sofa', 'stoolBar', 'stoolMid', 'stoolFar']) check(nav.ids.includes(id), `碰撞物有 ${id}`);
     // 中島吧台（D213）：檯面最裡端到後牆的空隙沒有封起來；吧台裡最裡面走到凱文那張高腳椅走這個空隙，不穿檯面
     check(!nav.ids.includes('barBackEnd'), '吧台最裡端沒有封起來');
     const gap = await page.evaluate(() => { const n = window.__cafe.nav, from = { x: 2.6, z: -3.0 }, r = n.path(from, { x: 1.3, z: -3.4 }); const all = [from, ...r.pts]; const hits = []; for (let i = 1; i < all.length; i++) { const h = n.hits(all[i - 1], all[i]); if (h) hits.push(h); } return { ok: r.ok, hits, minZ: Math.min(...r.pts.map((p) => p.z)), maxZ: Math.max(...r.pts.map((p) => p.z)) }; });
     check(gap.ok && gap.hits.length === 0 && gap.minZ < -3.25 && gap.maxZ < 0.25, `吧台最裡端的空隙走得過去、不穿檯面 ${JSON.stringify(gap)}`);
+    // 店門口右手邊的落地烘豆機（承峰 11/7）：硬的碰撞物；德叔從吧台走到它左邊、再走回吧台，不穿檯面也不穿機器；門口走到吧台座不受影響
+    const rst = await page.evaluate(() => {
+      const n = window.__cafe.nav, home = n.spots.home, spot = window.__cafe.roast.spot, door = n.spots.door;
+      const trip = (a, b) => { const r = n.path(a, b), all = [a, ...r.pts], hits = []; for (let i = 1; i < all.length; i++) { const h = n.hits(all[i - 1], all[i]); if (h) hits.push(h); } return { ok: r.ok, hits, end: r.pts.at(-1) }; };
+      return { box: n.blockers.find((b) => b.id === 'roaster') || null, go: trip(home, spot), back: trip(spot, home), bar: trip(door, { x: 1.3, z: -0.2 }), inside: n.hardAt(2.45, 3.45) };
+    });
+    check(rst.box && !rst.box.soft && rst.inside === 'roaster' && rst.go.ok && rst.back.ok && rst.bar.ok && !rst.go.hits.length && !rst.back.hits.length && !rst.bar.hits.length,
+      `落地烘豆機是硬的碰撞物（${JSON.stringify(rst.box)}）：德叔走過去、走回來、客人從門口走到吧台都不穿過去 ${JSON.stringify(rst)}`);
     // 從倉庫擺出盆栽：擺飾也是碰撞物，移過去碰撞物跟著移
     const plantAt = () => page.evaluate(() => window.__cafe.nav.blockers.find((b) => b.id === 'decor:plant') || null);
     await page.click('#place');
@@ -2243,7 +2260,11 @@ try {
     const { page, errors } = await open({ width: 390, height: 844 }, '?dev=1&speed=20&opening=0&regulars=0&weather=clear&moments=0');
     const cafe = (k) => page.evaluate((key) => window.__cafe[key], k);
     let pt = await page.evaluate(() => window.__cafe.roasterOnScreen());
-    check(!!pt, `俯瞰看得到吧台最裡端的烘豆機 ${JSON.stringify(pt)}`);
+    check(!!pt, `俯瞰看得到店門口右手邊的落地烘豆機 ${JSON.stringify(pt)}`);
+    // 承峰 11/7：「改在咖啡廳右下角一大台」：俯瞰畫面的右下那一塊、紙片是落地的大台（畫到的寬約 0.82 公尺、高約 1.8 公尺）
+    const rinfo = (await cafe('roast')).roaster;
+    check(pt && pt.x > 390 / 2 && pt.y > 844 / 2 && rinfo.w >= 0.75 && rinfo.h >= 1.6,`烘豆機在俯瞰畫面的右下角、是落地的大台（${rinfo.art}，${rinfo.w} × ${rinfo.h} 公尺）`);
+    await page.screenshot({ path: OUT + 'phone-roaster-overview.png' });
     await page.mouse.click(pt.pageX, pt.pageY);
     await page.waitForTimeout(300);
     check((await page.textContent('#bubble')).includes('打烊以後再烘') && !(await cafe('roast')).roasting && await page.isHidden('#choices'), '開店時點烘豆機：德叔說一句，不會開始烘');
@@ -2269,7 +2290,7 @@ try {
     await page.waitForFunction(() => window.__cafe.roast.roasting?.phase === 'roast', null, { timeout: 15000 });
     await page.waitForFunction(() => window.__cafe.roast.smoke > 0 && window.__cafe.roast.flame > 0.2, null, { timeout: 10000 });
     const r1 = await cafe('roast');
-    check(Math.abs(r1.deshu.x - 2.6) < 0.05 && Math.abs(r1.deshu.z + 3) < 0.05, `德叔走到烘豆機後面搖滾筒、爐火亮、冒淡灰的煙 ${JSON.stringify(r1.deshu)}`);
+    check(Math.abs(r1.deshu.x - r1.spot.x) < 0.05 && Math.abs(r1.deshu.z - r1.spot.z) < 0.05, `德叔走到烘豆機左邊（冷卻盤旁）、滾筒轉、爐火亮、煙囪冒淡灰的煙 ${JSON.stringify(r1.deshu)}`);
     check(await page.isVisible('#goodnight') && await page.isVisible('#diary-btn'), '烘的時候老闆照樣可以做別的事（明天見、今天的一杯）');
     await page.screenshot({ path: OUT + 'phone-roast-roasting.png' });
     await page.waitForFunction(() => window.__cafe.roast.tray, null, { timeout: 15000 });

@@ -19,7 +19,8 @@ test('便條的字：德叔的口吻，說試咖啡先坐吧台座（研磨、�
   assert.match(body, /打烊/);
   assert.match(body, /最後一杯/);
   assert.match(body, /烘豆機/);
-  assert.match(body, /後牆/);
+  assert.match(body, /門口右手邊角落那台大的/);
+  assert.doesNotMatch(body, /後牆/, '烘豆機已搬到店門口右手邊那一角');
   assert.equal(N.lines[0], '老闆：', '德叔叫玩家「老闆」');
   assert.ok(N.lines.some((l) => /配方/.test(l) && /故事/.test(l)), '便條說新的配方跟著故事開放（不提前解鎖）');
   assert.match(N.barHint, /便條/);

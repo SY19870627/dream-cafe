@@ -1,6 +1,7 @@
 // 美術：原型階段全部用 Canvas 程式繪製；接正式美術後，人物與龍眼改用 assets/art/ 的手繪圖（見「正式美術」一節），
 // 圖載入失敗就退回這裡的 Canvas 繪圖。之後換其他手繪插畫時，一樣只要讓同名函式回傳圖片即可。
 import * as THREE from 'three';
+import { ROASTER_ART } from './roast.js';
 
 const PPM = 200; // 每公尺像素數
 // 人物與桌上的小東西會被推近看（座位視角、看德叔沖、對話時的推近）：200 不夠，特寫會糊、有像素感（美術評分修正 b）。
@@ -93,7 +94,12 @@ const ROOM_SPEC = {
   longanBag: { size: [0.22, 0.2] }, kettleSet: { size: [0.7, 0.45] }, napkin: { size: [0.5, 0.95] },
   yuanBook: { size: [0.5, 0.95] }, framedNapkin: { size: [0.5, 0.95] }, beanBag: { size: [0.5, 0.95] },
   envelope: { size: [0.26, 0.18] }, // art2b：老先生的信封（德叔放在吧台上），每公尺 3000 像素
+  // 店門口右手邊那一角的落地烘豆機（承峰 11/7）：畫布 1200 × 2048 像素＝1.1 × 1.88 公尺（每公尺約 1090 像素），規格在 roast.js 的 ROASTER_ART。
+  // 畫師還在畫：檔案還沒放進來時這一張是 404（冒煙測試放過這一筆），照舊用 roaster() 的 Canvas 暫代；放進來就自動換上，不用改程式
+  prop_roaster_large: { size: ROASTER_ART.size },
 };
+// 畫師給了落地點的圖（圖高的比例）：那一列以下的小雜點不算畫到的範圍，裁切的底邊就是落地點
+const ROOM_FOOT = { prop_roaster_large: ROASTER_ART.foot };
 // art2b：開場、地圖與介面的圖不進 3D 場景，只給 DOM 用（<img>、SVG 的 <image>、CSS 的 background／border-image）：
 // 下載後先解碼一次確認是好的圖（解完馬上釋放），留下壓縮過的檔案（object URL），用到的時候瀏覽器才解碼，
 // 手機不用一直抱著四張 1170×2532 的點陣圖。沒有載到就是 null，用的地方退回原本的 Canvas 繪圖或 CSS 的純色
@@ -114,14 +120,15 @@ async function decodeRoom(name, blob) {
       const mg = m.getContext('2d', { willReadFrequently: true });
       mg.drawImage(bmp, 0, 0, mw, mh);
       const d = mg.getImageData(0, 0, mw, mh).data;
+      const fy = ROOM_FOOT[name] ? Math.round(H * ROOM_FOOT[name]) : H;
       let top = mh, bottom = -1, left = mw, right = -1;
-      for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
+      for (let y = 0; y < mh && y * q < fy; y++) for (let x = 0; x < mw; x++) {
         if (d[(y * mw + x) * 4 + 3] <= 24) continue;
         if (y < top) top = y; if (y > bottom) bottom = y; if (x < left) left = x; if (x > right) right = x;
       }
       if (bottom < 0) throw new Error(`${name}: 整張是透明的`);
       x0 = Math.max(0, left * q - 4); y0 = Math.max(0, top * q - 4);
-      x1 = Math.min(W, (right + 1) * q + 4); y1 = Math.min(H, (bottom + 1) * q);
+      x1 = Math.min(W, (right + 1) * q + 4); y1 = Math.min(fy, (bottom + 1) * q);
     }
     const s = Math.min(1, ART_MAX / Math.max(W, H));
     const c = document.createElement('canvas');
@@ -1923,36 +1930,59 @@ export function longanBag() {
   return c;
 }
 
-// 烘豆機（烘豆，D217；提案的 prop_roaster【暫名】）：吧台最裡端的小型手搖滾筒烘豆機，3/4 視角。
-// 畫師交圖前用這張 Canvas 暫代（機身上不寫字、不畫刻度數字，D202）。交圖後把 prop_roaster 加進 ROOM_SPEC（size 0.36×0.4）就會換上；
-// 還沒加進 ROOM_SPEC 是因為載不到的檔案會在主控台留下 404（冒煙測試把它算成錯誤）。滾筒轉、火光、煙由 main.js 做
+// 烘豆機（烘豆，D217）：承峰 11/7「咖啡烘焙機應該很大一台，不要放吧台了，改在咖啡廳右下角一大台」：
+// 店門口右手邊那一角地板上的落地式大台滾筒烘豆機，3/4 視角。規格（畫到的寬高、爐口／冷卻盤／入豆漏斗／煙囪口的位置）在 roast.js 的 ROASTER_ART。
+// 有 assets/art/prop_roaster_large.webp 就用它（ROOM_SPEC，裁掉透明留白、底邊接地、左右以畫到的範圍置中）；
+// 畫師交圖前（或載不到）用這張 Canvas 暫代，畫布剛好就是畫到的範圍 w × h（機身上不寫字、不畫刻度數字，D202）。
+// 火光、冷卻盤上的竹篩與豆子、落進漏斗的生豆、煙囪的煙、機器輕輕震都由 main.js 做
 export function roaster() {
-  const a = room('prop_roaster');
+  const a = room('prop_roaster_large');
   if (a) return a;
-  const { c, g } = canvas(0.36, 0.4, HI);
-  // 鐵架與底座
-  g.fillStyle = '#3f3a36';
-  rr(g, 0.04, 0.37, 0.28, 0.025, 0.01); g.fill(); outline(g, 0.008);
-  rr(g, 0.06, 0.2, 0.022, 0.18, 0.008); g.fill(); outline(g, 0.007);
-  rr(g, 0.278, 0.2, 0.022, 0.18, 0.008); g.fill(); outline(g, 0.007);
-  // 底下的小爐口（火光由程式疊上去）
-  ell(g, 0.18, 0.335, 0.075, 0.018); g.fillStyle = '#2b2522'; g.fill(); outline(g, 0.007);
-  // 滾筒：橫放的圓筒，正面是一個橢圓的端蓋
-  rr(g, 0.08, 0.13, 0.2, 0.13, 0.03); g.fillStyle = '#6d6a66'; g.fill(); outline(g, 0.009);
-  g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 0.006;
-  for (const y of [0.16, 0.195, 0.23]) { g.beginPath(); g.moveTo(0.1, y); g.lineTo(0.26, y); g.stroke(); }
-  ell(g, 0.08, 0.195, 0.03, 0.066); g.fillStyle = '#85817b'; g.fill(); outline(g, 0.009);
-  ell(g, 0.08, 0.195, 0.012, 0.012); g.fillStyle = '#3f3a36'; g.fill();
-  // 搖把（木柄）
-  g.strokeStyle = '#3f3a36'; g.lineWidth = 0.01;
-  g.beginPath(); g.moveTo(0.08, 0.195); g.lineTo(0.025, 0.15); g.stroke();
-  rr(g, 0.006, 0.105, 0.024, 0.05, 0.01); g.fillStyle = '#8a5a36'; g.fill(); outline(g, 0.007);
-  // 上面的入豆漏斗
-  g.beginPath(); g.moveTo(0.17, 0.135); g.lineTo(0.145, 0.06); g.lineTo(0.255, 0.06); g.lineTo(0.23, 0.135); g.closePath();
-  g.fillStyle = '#9a958e'; g.fill(); outline(g, 0.008);
-  ell(g, 0.2, 0.06, 0.055, 0.012); g.fillStyle = '#5a5550'; g.fill(); outline(g, 0.007);
-  // 出豆口
-  rr(g, 0.27, 0.2, 0.06, 0.03, 0.01); g.fillStyle = '#5a5550'; g.fill(); outline(g, 0.007);
+  const R = ROASTER_ART, W = R.w, H = R.h;
+  const { c, g } = canvas(W, H, Math.round(HI * 0.8));
+  const X = (u) => u + W / 2, Y = (v) => H - v; // u 從中線往右、v 從地面往上（公尺）→ 畫布座標
+  const box = (u0, v0, u1, v1, r = 0.02) => rr(g, X(u0), Y(v1), u1 - u0, v1 - v0, r);
+  // 照畫師交的那張的版面（roast.js 的 ROASTER_ART）：綠色鐵櫃底座、左前方的黃銅冷卻盤、中間的滾筒、頂上的入豆漏斗、右後方的煙囪
+  const iron = '#3a3633', green = '#2f5a5c', greenSide = '#27494b', brassC = '#b8914a', pipe = '#4f524f';
+  // 煙囪：從滾筒後面往上，頂端彎向右邊（煙由程式從 smoke 那一點冒出來）
+  const [sx, sy] = R.smoke;
+  box(0.22, 0.95, 0.32, sy - 0.02, 0.03); g.fillStyle = pipe; g.fill(); outline(g, 0.01);
+  box(0.24, sy - 0.1, Math.min(W / 2, sx + 0.015), Math.min(H, sy + 0.05), 0.04); g.fillStyle = pipe; g.fill(); outline(g, 0.01);
+  g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 0.012;
+  g.beginPath(); g.moveTo(X(0.245), Y(1.0)); g.lineTo(X(0.245), Y(sy - 0.08)); g.stroke();
+  // 底座：綠色鐵櫃（右邊是側面、暗一點），底下一圈踢腳
+  box(-0.37, 0, 0.39, 0.07, 0.01); g.fillStyle = greenSide; g.fill(); outline(g, 0.01);
+  box(-0.33, 0.06, 0.39, 0.64, 0.02); g.fillStyle = green; g.fill(); outline(g, 0.012);
+  box(0.12, 0.06, 0.39, 0.64, 0.01); g.fillStyle = greenSide; g.fill(); outline(g, 0.01);
+  // 底座正面左下的圓形小窗（爐火的光由程式疊上去）
+  const [fx, fy] = R.flame;
+  ell(g, X(fx), Y(fy), 0.036, 0.036); g.fillStyle = brassC; g.fill(); outline(g, 0.008);
+  ell(g, X(fx), Y(fy), 0.022, 0.022); g.fillStyle = '#1e1816'; g.fill();
+  // 滾筒：黃銅的筒身與深色的正面端蓋（上緣是圓拱），中間一個黃銅的軸、左邊一支木柄的拉桿
+  box(-0.02, 0.8, 0.28, 1.24, 0.07); g.fillStyle = brassC; g.fill(); outline(g, 0.012);
+  g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 0.012;
+  g.beginPath(); g.moveTo(X(0.05), Y(1.18)); g.lineTo(X(0.24), Y(1.18)); g.stroke();
+  box(-0.18, 0.8, 0.05, 1.26, 0.1); g.fillStyle = iron; g.fill(); outline(g, 0.012);
+  ell(g, X(-0.065), Y(1.05), 0.04, 0.04); g.fillStyle = brassC; g.fill(); outline(g, 0.008);
+  g.strokeStyle = iron; g.lineWidth = 0.014;
+  g.beginPath(); g.moveTo(X(-0.12), Y(1.0)); g.lineTo(X(-0.22), Y(0.97)); g.stroke();
+  rr(g, X(-0.28), Y(0.99), 0.07, 0.03, 0.012); g.fillStyle = '#8a5a36'; g.fill(); outline(g, 0.007);
+  // 頂上的入豆漏斗（生豆從 hopper 那一點落進去）：深色的頸、黃銅的漏斗
+  const [hx, hy] = R.hopper;
+  box(hx - 0.035, 1.22, hx + 0.035, hy - 0.12, 0.008); g.fillStyle = iron; g.fill(); outline(g, 0.009);
+  g.beginPath(); g.moveTo(X(hx - 0.04), Y(hy - 0.13)); g.lineTo(X(hx - 0.155), Y(hy)); g.lineTo(X(hx + 0.155), Y(hy)); g.lineTo(X(hx + 0.04), Y(hy - 0.13)); g.closePath();
+  g.fillStyle = brassC; g.fill(); outline(g, 0.01);
+  ell(g, X(hx), Y(hy), 0.155, 0.026); g.fillStyle = '#5a4528'; g.fill(); outline(g, 0.009);
+  // 冷卻盤：坐在底座上，黃銅的盤緣、盤面有孔（深色）與一支攪拌臂；竹篩與豆子由程式放上去
+  const [tx, ty] = R.tray, tr = Math.min(R.trayR + 0.035, W / 2 + tx);
+  box(tx - 0.05, 0.6, tx + 0.05, ty - 0.08, 0.01); g.fillStyle = greenSide; g.fill(); outline(g, 0.008);
+  box(tx - tr, ty - 0.09, tx + tr, ty, 0.01); g.fillStyle = brassC; g.fill(); outline(g, 0.01);
+  ell(g, X(tx), Y(ty - 0.09), tr, 0.055); g.fillStyle = brassC; g.fill(); outline(g, 0.01);
+  ell(g, X(tx), Y(ty), tr, 0.06); g.fillStyle = '#d0a85c'; g.fill(); outline(g, 0.01);
+  ell(g, X(tx), Y(ty), tr - 0.03, 0.045); g.fillStyle = '#4a4036'; g.fill();
+  g.strokeStyle = '#8a7350'; g.lineWidth = 0.012;
+  g.beginPath(); g.moveTo(X(tx), Y(ty)); g.lineTo(X(tx + tr - 0.05), Y(ty - 0.01)); g.stroke();
+  ell(g, X(tx), Y(ty + 0.015), 0.025, 0.02); g.fillStyle = brassC; g.fill(); outline(g, 0.006);
   return c;
 }
 

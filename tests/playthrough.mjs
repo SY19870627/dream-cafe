@@ -29,7 +29,8 @@ async function play([W, H]) {
   const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
   const errors = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+  // 畫師還在畫的落地烘豆機（prop_roaster_large，承峰 11/7）：檔案放進來之前是 404（網路層的訊息），遊戲用 Canvas 暫代，不算錯誤
+  page.on('console', (m) => { if (m.type() === 'error' && !(m.location().url || '').includes('/assets/art/prop_roaster_large.webp')) errors.push(`console: ${m.text()}`); });
   await page.goto(url + '?dev=1&speed=20');
   await page.waitForSelector('#app canvas');
   const cafe = (k) => page.evaluate((key) => window.__cafe?.[key], k);
