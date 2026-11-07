@@ -6519,6 +6519,8 @@ if (DEV) {
     // D224：測試用——劇本 YAML 是否載入／編譯完成（smoke／playthrough 的 awaitGame 會查）
     get script() { return { files: [...SCRIPT_FILES], segments: VS.SEGMENTS.length, milestones: S.MILESTONES.length, version: GAME_VERSION }; },
     visitPlay(id) { const seg = VS.segmentById(id); if (!seg || state.scene) return Promise.resolve(false); return runVisit(seg).then(() => true); },
+    // D224 截圖／測試：直接演一串步驟（含旁白）
+    playStepsTest(steps) { if (state.scene) return Promise.resolve(false); const tok = ++live.token; state.scene = { id: "__test" }; return playSteps(steps, tok).finally(() => { if (live.token === tok) state.scene = null; }).then(() => true); },
     // art2b：對話時前景淡出的狀態：誰是說話的人、哪些擺飾與椅子淡掉了（透明度 < 1）
     get occlusion() {
       const talker = focusP || (conversing() && bubble.classList.contains('show') && isPerson(speaker) ? speaker : null);
