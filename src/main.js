@@ -1112,7 +1112,7 @@ function updateSteam(dt) {
 // letter：德叔放在吧台上、還沒讀的信；cinematic：讀完信後看德叔擦琺瑯杯的鏡頭
 // scene：正在演的熟客里程碑；choice：畫面下方的選項開著
 // 等客人（承峰 11/3 回饋，D179）：line＝提示列現在的等待句子、approach＝有人快走到門口、quietFrom＝上次有人走進來的時間
-const waiting = { line: '', approach: null, quietFrom: 0 };
+const waiting = { line: '', approach: null, quietFrom: 0, visit: null }; // visit＝等來訪段落的倒數（visitWaitLine()）
 // 店裡的小事（承峰 11/3 第二輪回饋，moments.js）：busy＝正在演一件（這時不交信、不演熟客場景）；quietFrom＝店裡從什麼時候開始沒事；
 // gap＝這次要安靜多久才來一件小事件；recent＝最近兩件；log＝演過的（測試用）
 const moments = { busy: false, quietFrom: performance.now(), gap: 0, recent: [], log: [] };
@@ -2283,7 +2283,7 @@ function updateUI() {
     : tut === 'gift' || tut === 'choose' ? ''
     : cl && !brewing && !placing ? ''
     : !over
-    ? (brewing ? (state.hold ? '時間走快了一點……' : '按住畫面可以讓時間走快一點') : g ? '' : waiting.line || '左右拖曳環顧四周，點人物可以搭話')
+    ? (brewing ? (state.hold ? '時間走快了一點……' : '按住畫面可以讓時間走快一點') : g ? '' : visitWaitLine() || waiting.line || '左右拖曳環顧四周，點人物可以搭話')
     : !placing ? (waiting.approach ? S.WAIT_HINT.approach : '點座位坐下，用客人的角度看看這間店')
     : sel ? `已選：${state.selected.userData.name}，點地板放到那裡`
     : placingHint();
@@ -4248,7 +4248,7 @@ function reservedMilestones(w, d) {
   }
   return n;
 }
-const VISIT_QUIET_MS = 8000; // 店裡安靜這麼久（遊戲時間）之後，才開始來訪段落（熟客剛坐下、剛說完話時不馬上開始）
+const VISIT_QUIET_MS = VS.VISIT_QUIET_MS; // 店裡安靜這麼久（遊戲時間）之後，才開始來訪段落（visits.js）
 // 現在可以演的來訪段落：人在店裡、坐在自己的位子上，這位熟客今天沒有里程碑要演
 function visitCandidate(d) {
   if (!VISITS_ON || keeper() || F.inFarewell(save) || state.guest || state.closing) return null;
@@ -4416,7 +4416,15 @@ function waitTick() {
   const here = PEOPLE_IDS.some((w) => PEOPLE[w].visible);
   const idleMs = (performance.now() - Math.max(state.satAt || 0, sayEnds, waiting.quietFrom)) * DEV_SPEED;
   const line = S.waitHint({ approaching: !!waiting.approach, nextMs: next, idleMs, here });
-  if (line !== waiting.line) { waiting.line = line; updateUI(); }
+  const visit = visitWaitLine();
+  if (line !== waiting.line || visit !== waiting.visit) { waiting.line = line; waiting.visit = visit; updateUI(); }
+}
+// 坐著、有來訪段落在等店裡安靜 VISIT_QUIET_MS 時，提示列倒數「等待新的故事發生（N 秒）」（承峰 11/8，D224 方案 1）；
+// N 是剩下的遊戲時間（開發者倍率換算過）。店裡又有事時 moments.quietFrom 會重設，倒數跟著重來（storyTick 的計時照舊）
+function visitWaitLine() {
+  if (state.mode !== 'seat' || state.scene || !live.day || live.day !== today() || !visitCandidate(live.day)) return null;
+  const elapsed = moments.quietFrom ? (performance.now() - moments.quietFrom) * DEV_SPEED : 0;
+  return VS.visitWaitHint(true, VISIT_QUIET_MS - elapsed);
 }
 setInterval(waitTick, 500);
 

@@ -31,6 +31,15 @@ export const REL_IDS = ['yuan', 'zhe', 'kevin'];
 export const DAY_CAP = 2; // 全店一天最多兩段（含在場的里程碑）
 export const SEAT_HINT = SCRIPT.lines.seatHint; // 開場原句（德叔），閒聊要老闆坐著時提一次
 export const YUAN_STRANGER = SCRIPT.regulars.yuan.stranger.name; // 予安說出名字以前，泡泡上的名字【待定】（提案原則 4）
+export const VISIT_QUIET_MS = 8000; // 店裡安靜這麼久（遊戲時間）之後，才開始來訪段落（熟客剛坐下、剛說完話時不馬上開始）
+export const VISIT_WAIT = SCRIPT.lines.visitWait; // 坐下後等來訪段落開始時的提示（承峰 11/8 定稿）
+// 等來訪段落的提示列：pending＝現在有沒有待演的 visit／reconnect；remainingMs＝離開始還有幾毫秒遊戲時間。
+// 秒數無條件進位，最少 1 秒（時間到了、還在等店裡安靜下來時也寫 1 秒）；沒有要等的段落是 null
+export function visitWaitHint(pending, remainingMs) {
+  if (!pending) return null;
+  const sec = Math.max(1, Math.ceil(Math.max(0, remainingMs) / 1000));
+  return `${VISIT_WAIT}（${sec} 秒）`;
+}
 
 // 段落：id、who、kind（with＝里程碑當天的擴寫；visit＝里程碑之間；reconnect＝離線發生之後的接回）
 //   with：取代哪一個里程碑的場景（id）；after／before：窗口（第幾個里程碑發生之後、第幾個發生之前）；of：接回哪一個里程碑

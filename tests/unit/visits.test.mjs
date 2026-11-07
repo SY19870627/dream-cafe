@@ -523,3 +523,16 @@ test('選項：括號開頭的是動作（不出老闆的泡泡）；每個 choi
   }
   assert.equal(VS.SEAT_HINT, '先坐。', '站著時德叔提一次：開場原句');
 });
+
+test('等來訪段落的倒數提示：「等待新的故事發生（N 秒）」，N 無條件進位、最少 1 秒（承峰 11/8）', async () => {
+  const { SCRIPT } = await import('../../src/script.js');
+  assert.equal(SCRIPT.lines.visitWait, '等待新的故事發生');
+  assert.equal(VS.VISIT_WAIT, '等待新的故事發生');
+  assert.equal(VS.VISIT_QUIET_MS, 8000);
+  assert.equal(VS.visitWaitHint(false, 8000), null, '沒有待演的段落：照舊的提示');
+  assert.equal(VS.visitWaitHint(true, 8000), '等待新的故事發生（8 秒）');
+  assert.equal(VS.visitWaitHint(true, 8001), '等待新的故事發生（9 秒）');
+  assert.equal(VS.visitWaitHint(true, 1), '等待新的故事發生（1 秒）');
+  assert.equal(VS.visitWaitHint(true, 0), '等待新的故事發生（1 秒）');
+  assert.equal(VS.visitWaitHint(true, -500), '等待新的故事發生（1 秒）', '時間到了還在等：1 秒');
+});

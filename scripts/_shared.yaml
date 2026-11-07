@@ -36,6 +36,8 @@ lines:
   seatHint:               # 閒聊要老闆坐著；站著時德叔提一次（沒重寫，照舊）
     text: 先坐。
     tag: 原句
+  visitWait:              # 坐下後等來訪段落開始（承峰 11/8）
+    text: 等待新的故事發生
 
 # 客人註冊表：加新客人時，在這裡加一列，再加一個 scripts/<id>.yaml（里程碑的條件與排程在 src/story.js）
 #   name 全名、short 短名（相簿、記事本）、first 開店第幾天第一次來、rate 平常日子來店的機率、salt 每天來不來的亂數種子
