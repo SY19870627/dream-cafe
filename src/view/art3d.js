@@ -9,10 +9,17 @@ const ART = './assets/art/';
 // 數字照第一版 art.js 的 ART_SPEC／ROOM_SPEC
 export const PAPER_SPEC = {
   char_deshu_stand: { h: 1.67 }, char_deshu_brew: { h: 1.67 }, char_deshu_smile: { h: 1.67 },
-  char_kevin_stand: { h: 1.61 }, char_kevin_sit: { h: 1.28, ax: 0.78 },
-  char_yuan_stand: { h: 1.56 }, char_yuan_sit: { h: 1.22, ax: 0.8 },
+  char_kevin_stand: { h: 1.61 }, char_kevin_sit: { h: 1.28, ax: 0.78, seat: 0.48 },
+  char_yuan_stand: { h: 1.56 }, char_yuan_sit: { h: 1.22, ax: 0.8, seat: 0.5 },
   char_zhe_stand: { h: 1.62 },
-  char_grandpa_stand: { h: 1.5 }, char_grandpa_sit: { h: 1.2 },
+  char_grandpa_stand: { h: 1.5 }, char_grandpa_sit: { h: 1.2, seat: 0.43 },
+  // v2b 坐姿（assets/art/previews/v2b_manifest_v2b.json）：正面／背面跟同一個人的側面坐姿同高，腳底貼地。
+  // seat：屁股落在腳底以上幾公尺（照圖目測：背面看屁股底、正面看大腿底、側面看坐的那條線）；
+  // 比椅面低就整張往上抬（shop3d.js 的 sitLift），比椅面高的不往下沉（腳會插進地板）
+  char_grandpa_sit_front: { h: 1.2, seat: 0.45 }, char_grandpa_sit_back: { h: 1.2, seat: 0.36 },
+  char_yuan_sit_front: { h: 1.22, seat: 0.45 }, char_yuan_sit_back: { h: 1.22, seat: 0.42 },
+  char_kevin_sit_front: { h: 1.28, seat: 0.45 }, char_kevin_sit_back: { h: 1.28, seat: 0.4 },
+  char_zhe_sit: { h: 1.28, ax: 0.84, seat: 0.5 }, char_zhe_sit_front: { h: 1.28, seat: 0.45 }, char_zhe_sit_back: { h: 1.28, seat: 0.38 },
   cat_longan_sleep: { h: 0.28 }, cat_longan_sit: { h: 0.4 }, cat_longan_walk: { h: 0.34 },
   stool: { size: [0.45, 0.8] }, chair: { size: [0.5, 0.95] }, rattanChair: { size: [0.8, 1.2] },
   bookshelf: { size: [1, 1.9] }, plant: { size: [0.8, 1.4] }, framedNapkin: { size: [0.5, 0.95] },
@@ -27,8 +34,9 @@ export const PAPER_SPEC = {
   showcase_wood: { size: [2.2, 2.2] }, showcase_white: { size: [2.2, 2.2] },
   goods_beans: { size: [1.6, 1.6] }, goods_cups: { size: [1.6, 1.6] }, goods_craft: { size: [1.6, 1.6] },
   sofa_single: { size: [1.1, 1.1] }, low_cabinet: { size: [1.4, 1.4] }, bookshelf_low: { size: [1.0, 1.0] },
-  wall_shelf_plants: { size: [0.9, 0.9] }, rug_tile: { size: [1.6, 1.6] },
+  wall_shelf_plants: { size: [0.9, 0.9] }, rug_tile: { size: [1.6, 1.6] }, rug_tile_square: { size: [1.6, 1.6] },
   chair_wood_back: { size: [0.85, 0.85] }, chair_rattan_back: { size: [1.0, 1.0] },
+  stool_back: { size: [0.85, 0.85] }, sofa_single_back: { size: [1.1, 1.1] }, // 背面圖照側面圖的高度縮（chairFacing），這裡給量級
   // 掛在牆上的（整張用、不裁）
   backbar: { size: [2.8, 1.8], keep: true }, thermometer_frame: { size: [0.36, 0.9], keep: true },
   pendant_lamp: { size: [0.36, 0.9], keep: true }, window_frame: { size: [1.6, 1.3], keep: true },
@@ -250,16 +258,27 @@ const fwd = new THREE.Vector3();
 // 椅子背對鏡頭（坐在桌子靠鏡頭這一側）時換成椅背圖、正對鏡頭；其他角度照舊用 3/4 側面圖＋flip／yawOff。
 const SIDE_TILT = 0.5;
 const BACK_DOT = -0.6; // 朝向和「往鏡頭」的夾角 cos 小於這個就算背對
+const FRONT_DOT = 0.6; // 大於這個就算正對鏡頭（坐著的客人換正面坐姿）
+
+// 朝 face（[ux, uz]，坐的人看的方向）的東西，從鏡頭看是 'front'（正對）／'back'（背對）／'side'。
+// over（俯視）看鏡頭方向、座位視角看鏡頭位置；wp：這個東西的世界座標。椅子換椅背、客人換正背面坐姿共用
+export function facingOf(face, camera, over, wp) {
+  let tx;
+  let tz;
+  if (over) {
+    camera.getWorldDirection(fwd);
+    tx = -fwd.x; tz = -fwd.z;
+  } else { tx = camera.position.x - wp.x; tz = camera.position.z - wp.z; }
+  const len = Math.hypot(tx, tz) || 1;
+  const dot = (face[0] * tx + face[1] * tz) / len;
+  return dot < BACK_DOT ? 'back' : dot > FRONT_DOT ? 'front' : 'side';
+}
+
 function chairFacing(p, camera, over, wp) {
   const c = p.userData.chair;
   if (!c.back || !p.userData.size) return;
   if (!c.h) c.h = p.userData.size.h; // 側面圖載好時的高度：椅背圖照這個高度
-  let tx;
-  let tz;
-  if (over) { tx = -fwd.x; tz = -fwd.z; } else { tx = camera.position.x - wp.x; tz = camera.position.z - wp.z; }
-  const len = Math.hypot(tx, tz) || 1;
-  const away = (c.face[0] * tx + c.face[1] * tz) / len < BACK_DOT;
-  if (away) {
+  if (facingOf(c.face, camera, over, wp) === 'back') {
     setPaperArt(p, c.back, { height: c.h, fit: c.fit });
     p.userData.yawOff = 0;
   } else {

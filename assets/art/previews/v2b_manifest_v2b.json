@@ -1,0 +1,158 @@
+[
+  {
+    "file": "char_grandpa_sit_front.webp",
+    "width": 1024,
+    "height": 2048,
+    "bytes": 840652,
+    "visible_bbox": [
+      133,
+      98,
+      891,
+      2007
+    ],
+    "feet_or_bottom_y": 2006
+  },
+  {
+    "file": "char_grandpa_sit_back.webp",
+    "width": 1024,
+    "height": 2048,
+    "bytes": 662820,
+    "visible_bbox": [
+      140,
+      98,
+      884,
+      2007
+    ],
+    "feet_or_bottom_y": 2006
+  },
+  {
+    "file": "char_yuan_sit_front.webp",
+    "width": 1024,
+    "height": 1728,
+    "bytes": 361446,
+    "visible_bbox": [
+      264,
+      69,
+      760,
+      1693
+    ],
+    "feet_or_bottom_y": 1692
+  },
+  {
+    "file": "char_yuan_sit_back.webp",
+    "width": 1024,
+    "height": 1728,
+    "bytes": 312462,
+    "visible_bbox": [
+      250,
+      69,
+      774,
+      1693
+    ],
+    "feet_or_bottom_y": 1692
+  },
+  {
+    "file": "char_kevin_sit_front.webp",
+    "width": 1024,
+    "height": 1800,
+    "bytes": 448768,
+    "visible_bbox": [
+      206,
+      72,
+      818,
+      1764
+    ],
+    "feet_or_bottom_y": 1763
+  },
+  {
+    "file": "char_kevin_sit_back.webp",
+    "width": 1024,
+    "height": 1800,
+    "bytes": 431342,
+    "visible_bbox": [
+      174,
+      72,
+      849,
+      1764
+    ],
+    "feet_or_bottom_y": 1763
+  },
+  {
+    "file": "char_zhe_sit.webp",
+    "width": 1024,
+    "height": 2048,
+    "bytes": 668110,
+    "visible_bbox": [
+      57,
+      237,
+      967,
+      2007
+    ],
+    "feet_or_bottom_y": 2006
+  },
+  {
+    "file": "char_zhe_sit_front.webp",
+    "width": 1024,
+    "height": 2048,
+    "bytes": 701266,
+    "visible_bbox": [
+      164,
+      237,
+      860,
+      2007
+    ],
+    "feet_or_bottom_y": 2006
+  },
+  {
+    "file": "char_zhe_sit_back.webp",
+    "width": 1024,
+    "height": 2048,
+    "bytes": 568528,
+    "visible_bbox": [
+      154,
+      237,
+      870,
+      2007
+    ],
+    "feet_or_bottom_y": 2006
+  },
+  {
+    "file": "stool_back.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 83776,
+    "visible_bbox": [
+      122,
+      16,
+      389,
+      496
+    ],
+    "feet_or_bottom_y": 495
+  },
+  {
+    "file": "sofa_single_back.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 130716,
+    "visible_bbox": [
+      20,
+      69,
+      492,
+      496
+    ],
+    "feet_or_bottom_y": 495
+  },
+  {
+    "file": "rug_tile_square.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 290804,
+    "visible_bbox": [
+      8,
+      8,
+      504,
+      504
+    ],
+    "feet_or_bottom_y": 503
+  }
+]

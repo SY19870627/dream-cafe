@@ -117,7 +117,7 @@ export const DECOR = {
   lamp: { name: '小燈', art: 'floorLamp_on', stock: 2 },
   catbed: { name: '貓窩', art: 'catCushion', stock: 1 },
   cattree: { name: '貓跳台', art: 'catTree', stock: 1, need: 'wall' },
-  rug: { name: '地毯', art: 'rug_tile', color: '#b5523b', w: 2, h: 2, layer: 'rug', stock: 1 },
+  rug: { name: '地毯', art: 'rug_tile_square',color: '#b5523b', w: 2, h: 2, layer: 'rug', stock: 1 },
   greenwall: { name: '綠植牆', art: 'wall_shelf_plants', layer: 'wall', stock: 2 },
   board: { name: '留言板', art: 'noticeBoard', layer: 'wall', stock: 1 },
   map: { name: '台灣地圖', art: 'map_taiwan', layer: 'wall', stock: 1 },

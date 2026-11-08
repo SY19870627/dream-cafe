@@ -189,7 +189,10 @@ const LEG_COLOR = { wood: '#6b4a33', rattan: '#8a6a45', marble: '#3a3330', iron:
 const PULL = 0.45; // 椅子從格子中心往桌子拉近的比例（一格 75 公分 → 拉近約 34 公分，椅面塞進桌緣底下一點）
 const MAX_YAW = 0.6; // 椅子朝桌子最多偏轉多少（再多從俯視看就太窄）
 const TOP_ART = { coaster: ['prop_coaster_menu', 0.1], succulent: ['succulent', 0.2], book: ['bookStack', 0.13] };
-const CHAIR_BACK = { chair: 'chair_wood_back', rattanChair: 'chair_rattan_back' }; // 背對鏡頭時換的圖（圓凳、沙發這批還沒有）
+const CHAIR_BACK = { chair: 'chair_wood_back', rattanChair: 'chair_rattan_back', stool: 'stool_back', sofa: 'sofa_single_back' }; // 背對鏡頭時換的圖
+// 椅面離地幾公尺（照畫師的圖、乘上 CHAIR_FIT 縮過以後的大小目測）：坐下的客人屁股要落在這裡（shop3d.js 的 sitLift）
+// 木椅 0.42、藤搖椅 0.33（坐墊低）、圓凳／高腳椅 0.64、單人沙發 0.32
+export const SEAT_H = { chair: 0.42, rattanChair: 0.33, stool: 0.64, sofa: 0.32 };
 
 // 大理石桌面：畫師的圖還沒確認能無縫拼接，不重複貼——整張只用一次，長桌取中間一條（不拉長、不出接縫），再帶一點點暖色
 function marbleMat(w, d) {
@@ -336,6 +339,7 @@ export function buildCorner(it) {
   const spots = seatSpots(it);
   const chairArt = TUNE.chair.opts[o.chair]?.art || 'stool';
   spots.forEach((s, i) => {
+    s.seatH = SEAT_H[o.chair] ?? SEAT_H.stool;
     const fit = CHAIR_FIT[o.chair] || CELL * 0.9;
     const p = paper(chairArt, { uid, flip: s.flip, fit });
     p.userData.yawOff = s.yawOff;
@@ -438,8 +442,9 @@ export function buildDecor(d) {
   return { group: p, papers: [p], lamps, occluders: OCCLUDE.has(d.type) ? [p] : [] };
 }
 
-// 地毯：畫師的整張地毯圖（rug_tile，不是可拼接的磚），裁掉留白後整張鋪一次、不重複。
-// 圖是橫長的（約 1.6:1），佔地是 2×2 的正方形：照圖的比例塞進佔地裡（寬貼滿、前後留空），不拉成正方形
+// 地毯：畫師的方形整張地毯圖（rug_tile_square，約 496×496，不是可拼接的磚），裁掉留白後整張鋪一次、不重複。
+// 佔地 2×2 的正方形：照圖的比例塞進去（圖幾乎是正方形，前後左右都貼滿，只留四周 8 公分）。
+// 舊的 rug_tile.webp（橫長 1.64:1，前後會空一大條）留著沒刪
 function buildRug(d) {
   const s = size(d);
   const W = s.w * CELL - 0.16;
@@ -450,7 +455,7 @@ function buildRug(d) {
   m.position.set(cx(d.x) + ((s.w - 1) * CELL) / 2, 0.004, cz(d.y) + ((s.h - 1) * CELL) / 2);
   m.userData.uid = d.uid;
   m.visible = false;
-  loadPaper('rug_tile').then((a) => {
+  loadPaper('rug_tile_square').then((a) => {
     if (!a) return;
     const k = Math.min(W / a.w, D / a.h);
     m.scale.set(a.w * k, a.h * k, 1);
@@ -496,7 +501,7 @@ export function buildLayout(layout, cat, opt = {}) {
     }
     if (it.type === 'bar') {
       // 吧台座：三張高腳椅，貼近吧台
-      const spots = seatSpots(BAR_ITEM);
+      const spots = seatSpots(BAR_ITEM).map((s) => ({ ...s, seatH: SEAT_H.stool }));
       const chairs = spots.map((s) => {
         const p = paper('stool', { uid: 'bar', fit: CELL * 0.75 });
         p.position.set(s.x, 0, s.z);

@@ -7,22 +7,48 @@ import {
 } from '../grid.js';
 import { GUESTS, ACTIONS } from '../sim.js';
 import { buildRoom, buildLayout, disposeGroup, CELL, RW, RD, cx, cz, toCell, styleOf } from './room3d.js';
-import { paper, setPaperArt, faceCamera } from './art3d.js';
+import { paper, setPaperArt, faceCamera, facingOf, PAPER_SPEC } from './art3d.js';
 
 export { styleOf };
 
 // 一般客人沒有專用的圖：先借既有的人物圖（規格書：美術能用既有的就用）。對應：
 //   小鎮居民 → 阿公（grandpa）　　獨坐的人 → 予安（yuan）　　帶筆電的人 → 凱文（kevin）
 //   觀光客 → 阿哲（zhe）　　結伴來的人 → 阿哲＋予安（第二位左右翻）　　愛貓的人 → 凱文（左右翻，和帶筆電的分開）
-// 阿哲沒有坐姿圖：坐下時用站姿，站在位子旁邊。熟客的故事節點做出來以後，一般客人要換成自己的圖，免得認錯人。
-const GUEST_ART = {
-  resident: [{ stand: 'char_grandpa_stand', sit: 'char_grandpa_sit' }],
-  solo: [{ stand: 'char_yuan_stand', sit: 'char_yuan_sit' }],
-  laptop: [{ stand: 'char_kevin_stand', sit: 'char_kevin_sit' }],
-  tourist: [{ stand: 'char_zhe_stand', sit: 'char_zhe_stand' }],
-  pair: [{ stand: 'char_zhe_stand', sit: 'char_zhe_stand' }, { stand: 'char_yuan_stand', sit: 'char_yuan_sit', flip: true }],
-  catlover: [{ stand: 'char_kevin_stand', sit: 'char_kevin_sit', flip: true }],
+// 熟客的故事節點做出來以後，一般客人要換成自己的圖，免得認錯人。
+// 坐姿三張：sit（3/4 側面，面向畫面左邊）、sitFront（正對鏡頭）、sitBack（背對鏡頭）；照椅子朝哪邊挑（pickSit）
+const SIT = {
+  grandpa: { sit: 'char_grandpa_sit', sitFront: 'char_grandpa_sit_front', sitBack: 'char_grandpa_sit_back' },
+  yuan: { sit: 'char_yuan_sit', sitFront: 'char_yuan_sit_front', sitBack: 'char_yuan_sit_back' },
+  kevin: { sit: 'char_kevin_sit', sitFront: 'char_kevin_sit_front', sitBack: 'char_kevin_sit_back' },
+  zhe: { sit: 'char_zhe_sit', sitFront: 'char_zhe_sit_front', sitBack: 'char_zhe_sit_back' },
 };
+const GUEST_ART = {
+  resident: [{ stand: 'char_grandpa_stand', ...SIT.grandpa }],
+  solo: [{ stand: 'char_yuan_stand', ...SIT.yuan }],
+  laptop: [{ stand: 'char_kevin_stand', ...SIT.kevin }],
+  tourist: [{ stand: 'char_zhe_stand', ...SIT.zhe }],
+  pair: [{ stand: 'char_zhe_stand', ...SIT.zhe }, { stand: 'char_yuan_stand', ...SIT.yuan, flip: true }],
+  catlover: [{ stand: 'char_kevin_stand', ...SIT.kevin, flip: true }],
+};
+
+// 坐下時用哪張、往哪偏、離椅子多遠：
+// 正對鏡頭 → sitFront，站在椅子前面一點（蓋住椅面）；背對鏡頭 → sitBack，往桌子那邊縮一點、躲在椅背後面（椅背蓋住屁股）；
+// 其他 → 側面 sit，照椅子的 flip／yawOff。吧台（沒有 face）照舊用側面、面向吧台
+function pickSit(art, spot, camera, onStool) {
+  const side = { name: art.sit, flip: spot && !onStool ? spot.flip : !!art.flip, yawOff: spot && !onStool ? spot.yawOff : 0, dx: 0, dz: onStool ? 0.12 : 0.1 };
+  if (!spot?.face || onStool) return side;
+  const f = facingOf(spot.face, camera, true);
+  if (f === 'front' && art.sitFront) return { name: art.sitFront, flip: !!art.flip, yawOff: 0, dx: spot.face[0] * 0.1, dz: spot.face[1] * 0.1 };
+  if (f === 'back' && art.sitBack) return { name: art.sitBack, flip: !!art.flip, yawOff: 0, dx: spot.face[0] * 0.05, dz: spot.face[1] * 0.05 };
+  return side;
+}
+
+// 坐下時整張往上抬多少：圖裡屁股的高度（PAPER_SPEC.seat）比椅面低才抬；比椅面高就不動（往下沉腳會插進地板）
+function sitLift(name, spot) {
+  const seat = PAPER_SPEC[name]?.seat;
+  if (!seat || !spot?.seatH) return 0;
+  return Math.max(0, spot.seatH - seat);
+}
 
 const ELEV = THREE.MathUtils.degToRad(54); // 鏡頭仰角
 const FOV = 30; // 低 fov：接近正投影，格子不會前大後小得太誇張
@@ -503,16 +529,16 @@ export class ShopView {
       if (!sit && Math.abs(pos.x - v.lastX) > 0.01) v.face = pos.x > v.lastX ? !v.art.flip : !!v.art.flip;
       v.lastX = pos.x;
       const onStool = sit && g.cornerType === 'bar';
-      // 坐下：坐在拉近桌子的那張椅子上、跟椅子朝同一邊（吧台照舊面向吧台）
+      // 坐下：坐在拉近桌子的那張椅子上；照椅子從鏡頭看是正對、背對還是側面，挑正面／背面／側面坐姿（吧台照舊側面、面向吧台）
       const spot = sit ? this.furniture?.spotsOf.get(g.corner)?.[g.seatIndex] : null;
-      const flip = sit ? (spot && !onStool ? spot.flip : !!v.art.flip) : v.face;
-      setPaperArt(v.paper, sit ? v.art.sit : v.art.stand, { flip });
-      v.paper.userData.yawOff = spot && !onStool ? spot.yawOff : 0;
-      const standing = sit && v.art.sit === v.art.stand; // 沒有坐姿圖的：站在位子旁邊
+      const pose = sit ? pickSit(v.art, spot, this.camera, onStool) : { name: v.art.stand, flip: v.face, yawOff: 0, dx: 0, dz: 0 };
+      setPaperArt(v.paper, pose.name, { flip: pose.flip });
+      v.paper.userData.yawOff = pose.yawOff;
+      v.paper.userData.pose = sit ? pose.name : ''; // 驗收腳本看客人用了哪張坐姿
       const bx = spot ? spot.x : cx(pos.x);
       const bz = spot ? spot.z : cz(pos.y);
-      v.paper.position.set(bx + (standing ? CELL * 0.32 : 0), 0, bz + (sit ? (onStool ? 0.12 : 0.1) : 0));
-      v.paper.userData.mesh.position.y = onStool && !standing ? 0.2 : 0;
+      v.paper.position.set(bx + pose.dx, 0, bz + pose.dz);
+      v.paper.userData.mesh.position.y = sit ? sitLift(pose.name, spot) : 0;
       // 頭上的小圖示（點了什麼、在做什麼）
       const bub = v.el.querySelector('.bub');
       let icon = '';
