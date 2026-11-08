@@ -12,7 +12,7 @@ import { newSave, loadSave, writeSave, clearSave } from './save.js';
 import { runOpening } from './opening.js';
 import { DESHU_ENTER, FIRST_CUP } from './letters.js';
 import { JOURNAL_TITLE, CHAPTER_LINES, HINTS, PROTO_END } from './lines/journal.js';
-import { ShopView } from './view/shop3d.js';
+import { ShopView } from './view/shop2d.js';
 import { openSeatView } from './view/seat3d.js';
 import { openMenuSheet } from './view/menuSheet.js';
 import { say, hideSay, toast, esc } from './view/ui.js';

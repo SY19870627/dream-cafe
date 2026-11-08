@@ -180,3 +180,10 @@ button.on { background: #e9d6b8; border-color: #7a4f2e; }
 .op-road { justify-content: flex-end; min-height: 100dvh; }
 .op-road .op-bg { opacity: 1; }
 .op-road-ui { background: #15110ecc; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
+
+/* ---------- 俯視店面（2D 平面圖，shop2d.js）：客人是圓形頭像標記 ---------- */
+.s2d .guest { border-radius: 50%; background: var(--c, #8c6b4f); border: 2px solid #fffaf1; box-shadow: 0 2px 4px #0006; }
+.s2d .guest .tag { bottom: 50%; transform: translate(-50%, 50%); background: transparent; font-size: 14px; font-weight: 700; }
+.s2d .guest.sig { box-shadow: 0 0 0 3px #e3a85b, 0 2px 4px #0006; }
+.s2d .guest.sig .tag { background: transparent; color: #fff8ee; }
+.s2d .guest.walk { opacity: .9; }
