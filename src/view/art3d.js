@@ -26,9 +26,13 @@ export const PAPER_SPEC = {
 const MAX_PX = 1024; // 手機記憶體：長邊最多 1024
 const cache = new Map(); // 檔名 → Promise<{ tex, w, h }>（整頁共用，不 dispose）
 
+// crossOrigin 一定要在 src 之前設：raw.githack 等跨網域預覽少了它，canvas 會被污染，
+// getImageData 丟 SecurityError、CanvasTexture 也上傳不了 WebGL（紙片家具全消失）
 function loadImage(url) {
   return new Promise((res, rej) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.decoding = 'async';
     img.onload = () => res(img);
     img.onerror = () => rej(new Error(url));
     img.src = url;
@@ -44,7 +48,12 @@ function bbox(img) {
   m.width = mw; m.height = mh;
   const g = m.getContext('2d', { willReadFrequently: true });
   g.drawImage(img, 0, 0, mw, mh);
-  const d = g.getImageData(0, 0, mw, mh).data;
+  let d;
+  try {
+    d = g.getImageData(0, 0, mw, mh).data;
+  } catch {
+    return { x0: 0, y0: 0, x1: img.naturalWidth, y1: img.naturalHeight }; // 讀不到像素就整張用、不裁
+  }
   let top = mh; let bottom = -1; let left = mw; let right = -1;
   for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
     if (d[(y * mw + x) * 4 + 3] <= 24) continue;
@@ -88,7 +97,10 @@ async function decode(name) {
 }
 
 export function loadPaper(name) {
-  if (!cache.has(name)) cache.set(name, decode(name).catch(() => null)); // 載不到就不畫，遊戲照常
+  if (!cache.has(name)) {
+    // 載不到就這次不畫、遊戲照常；失敗不留在快取裡，下次要用再重試
+    cache.set(name, decode(name).catch(() => { cache.delete(name); return null; }));
+  }
   return cache.get(name);
 }
 
