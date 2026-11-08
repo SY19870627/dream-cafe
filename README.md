@@ -19,10 +19,12 @@
 
 ## 目前狀態
 
-第二版雛形尚未實作（規格書「第一個雛形」：序章～第 2 章）。  
-根目錄的 `assets/art/`（畫師美術）與 `vendor/`（Three.js）保留給新版沿用。
+**雛形在 `feat/v2-prototype` 分支**：規格書「第一個雛形」的序章～第 2 章（開場四幕 → 空店佈置 → 營業 → 德叔的日誌 → 咖啡三步設計與招牌）。根目錄 `index.html` 就是遊戲入口。
 
-線上 GitHub Pages 目前仍從 **main** 根目錄發布第一版試玩。本分支（`chore/cleanup-v2`）若合併進 main，根目錄將不再有可玩的第一版（已移到 `legacy/`），Pages 會變成下面的重建說明頁，除非另外處理。
+- 程式：`src/grid.js`（格子、碰撞、BFS 留路）、`src/sim.js`（營業模擬，固定種子）、`src/menu.js`、`src/chapters.js`、`src/journal.js`、`src/lines/`（台詞）、`src/view/`（俯視店面、Three.js 座位視角）、`src/main.js`（一天的循環）
+- 開發用網址參數：`?ch=1`／`?ch=2` 跳章、`?speed=16` 超快轉、`?skipOpening=1` 略過開場、`?reset=1` 清存檔
+
+線上 GitHub Pages 目前仍從 **main** 根目錄發布；本分支沒有合併進 main。
 
 ## 本機
 
@@ -31,7 +33,11 @@ npm install
 npm run serve   # http://127.0.0.1:8000
 ```
 
-第一版可玩複本在 `legacy/`（需自行用靜態伺服器指到該目錄或暫時改路徑）。第二版測試會依規格書重建（Node 測 grid／sim；Playwright 390×844 截圖）。
+```bash
+npm run test:unit   # grid／sim／menu 單元測試
+```
+
+第一版可玩複本在 `legacy/`（需自行用靜態伺服器指到該目錄或暫時改路徑）。
 
 ## 授權
 

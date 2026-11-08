@@ -1,7 +1,7 @@
 {
   "name": "dream-cafe",
   "private": true,
-  "description": "夢想咖啡店（v2 一小時短篇；規格見 docs/規格書.md）",
+  "description": "夢想咖啡店（v2 一小時短篇雛形：序章～第 2 章；規格見 docs/規格書.md）",
   "license": "CC-BY-NC-ND-4.0",
   "type": "module",
   "scripts": {
