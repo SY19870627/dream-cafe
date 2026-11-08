@@ -69,9 +69,12 @@ export function buildJournal({ chapter, layout, menu, result, goalMet }) {
     else if (!goalMet) {
       const n = result.stats.signatureOrders;
       lines.push(n ? fill(J.sig_some, { name: sig.name, num: num(n) }) : fill(J.sig_none, { name: sig.name }));
-      // 線索：進門的人多半想喝什麼
-      const top = mostCommon(gs.map((g) => g.type));
-      if (top) lines.push(J[`taste_${top}`]);
+      // 線索：進門的人多半想喝什麼。街坊和自己來的人，德叔那杯已經是他們最合的；
+      // 找貓的人不挑。只提「還能用自己那杯對上」的客人，今天沒來就看店裡擺了什麼
+      const open = gs.filter((g) => !g.fit && ['laptop', 'pair', 'tourist'].includes(g.type)).map((g) => g.type);
+      const hasWork = layout.items.some((i) => i.type === 'worktable');
+      const top = mostCommon(open) || (hasWork ? 'laptop' : 'pair');
+      lines.push(J[`taste_${top}`]);
     }
   }
 

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { simulateDay, daySeed, mulberry32 } from '../../src/sim.js';
+import { simulateDay, daySeed, mulberry32, GUESTS, beatsDeshu } from '../../src/sim.js';
 import { emptyLayout, seatCells, BAR_ITEM } from '../../src/grid.js';
-import { initialMenu, makeRecipe, setSlot, setSignature } from '../../src/menu.js';
+import { initialMenu, makeRecipe, setSlot, setSignature, matchScore, DESHU_CUP } from '../../src/menu.js';
 import { goalDone } from '../../src/chapters.js';
 import { validate } from '../../src/grid.js';
 import { buildJournal } from '../../src/journal.js';
@@ -82,18 +82,49 @@ test('貓窩決定龍眼睡哪裡', () => {
   assert.equal(simulateDay({ layout: emptyLayout(), menu: initialMenu() }).cat.place, 'window');
 });
 
-test('第 2 章：玩家設計、對口味的招牌，大多數日子能被 3 位以上點到', () => {
-  let menu = setSlot(initialMenu(), 1, makeRecipe('dongshan', 'pour', 'none', '窗外的山'));
-  menu = setSignature(menu, 1);
+const sigMenu = (bean, brew, add, name) => setSignature(setSlot(initialMenu(), 1, makeRecipe(bean, brew, add, name)), 1);
+const ch2Hits = (menu, days = 10) => {
   let hit = 0;
-  for (let day = 1; day <= 10; day++) {
+  for (let day = 1; day <= days; day++) {
     const r = simulateDay({ layout: shop(), menu, day });
     if (goalDone(2, { layout: shop(), validation: validate(shop()), result: r, menu })) hit++;
   }
-  assert.ok(hit >= 6, `只有 ${hit}/10 天達成`);
-  // 德叔那杯當招牌不算
+  return hit;
+};
+
+test('點餐看口味：招牌沒有盲目加分，客人一定點菜單上最合口味的那幾杯之一', () => {
+  // 招牌只在口味一樣合時稍微佔便宜；差一個口味，招牌加分＋亂數也翻不過去
+  const menu = sigMenu('gukeng', 'cold', 'milk', '不合街坊的');
+  for (let day = 1; day <= 10; day++) {
+    const r = simulateDay({ layout: shop(), menu, day });
+    for (const g of r.guests) {
+      const taste = GUESTS[g.type].taste;
+      const best = Math.max(...menu.slots.filter(Boolean).map((x) => matchScore(x, taste)));
+      assert.equal(matchScore(menu.slots[g.order], taste), best, `第 ${day} 天 ${g.type} 點了不合口味的「${g.orderName}」`);
+    }
+  }
+});
+
+test('第 2 章：抄一杯跟德叔一樣的當招牌，永遠不算', () => {
+  // 舊版：招牌 +0.9，這樣 10 天裡大多數日子第一天就過關
+  assert.equal(ch2Hits(sigMenu('dongshan', 'pour', 'none', '窗外的山')), 0);
+  // 德叔那杯當招牌也不算
   const r = simulateDay({ layout: shop(), menu: initialMenu(), day: 1 });
   assert.equal(goalDone(2, { layout: shop(), validation: validate(shop()), result: r, menu: initialMenu() }), false);
+});
+
+test('第 2 章：配給德叔照顧不到的客人（筆電、結伴、觀光）的招牌，幾天內能過關', () => {
+  // 冰滴＋龍眼蜜：帶筆電的（冰、清爽）、結伴的（甜）、觀光客（在地）都比德叔那杯合
+  const hit = ch2Hits(sigMenu('dongshan', 'cold', 'honey', '冰的蜜'));
+  assert.ok(hit >= 3, `只有 ${hit}/10 天達成`);
+});
+
+test('哪幾種客人覺得這杯比德叔那杯合', () => {
+  assert.deepEqual(beatsDeshu(DESHU_CUP), []);
+  assert.deepEqual(beatsDeshu(makeRecipe('dongshan', 'pour', 'none')), []);
+  const t = beatsDeshu(makeRecipe('dongshan', 'cold', 'honey'));
+  for (const k of ['laptop', 'pair', 'tourist']) assert.ok(t.includes(k), k);
+  assert.ok(!t.includes('resident') && !t.includes('solo'));
 });
 
 test('日誌：寫出誰坐哪、龍眼睡哪', () => {

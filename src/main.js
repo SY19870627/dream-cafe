@@ -1,16 +1,17 @@
 // 入口：串起一天的循環（開店前佈置 → 營業 → 打烊看日誌 → 調整），以及序章的開場四幕。
 // 邏輯在 grid／sim／menu／chapters／journal；畫面在 view/。
 import {
-  CORNERS, DECOR, W, H, placeProblem, validate, remaining, size, seatCells, BAR_ITEM, REASONS, cornersOf,
+  CORNERS, DECOR, W, H, placeProblem, validate, remaining, size, seatCells, BAR_ITEM, REASONS, cornersOf, footprint,
 } from './grid.js';
-import { simulateDay, catSpot, GUESTS, ACTIONS } from './sim.js';
+import { simulateDay, catSpot, GUESTS, ACTIONS, beatsDeshu } from './sim.js';
+import { signatureRecipe, signatureIsPlayers } from './menu.js';
 import { CHAPTERS, LAST_CHAPTER, START_TEMP, chapter, unlocks, goalDone } from './chapters.js';
 import { buildJournal } from './journal.js';
 import { newSave, loadSave, writeSave, clearSave } from './save.js';
 import { runOpening } from './opening.js';
 import { DESHU_ENTER, FIRST_CUP } from './letters.js';
 import { JOURNAL_TITLE, CHAPTER_LINES, HINTS, PROTO_END } from './lines/journal.js';
-import { ShopView } from './view/shop.js';
+import { ShopView } from './view/shop3d.js';
 import { openSeatView } from './view/seat3d.js';
 import { openMenuSheet } from './view/menuSheet.js';
 import { say, hideSay, toast, esc } from './view/ui.js';
@@ -36,7 +37,9 @@ if (JUMP) {
 
 const state = {
   mode: 'setup', // opening | intro | setup | business | journal | seat | ending
-  selected: null,
+  selected: null, // 點選中的角落／擺飾 uid
+  spot: null, // 點到的空地 { x, y }：下方列出這裡放得下的整組擺法
+  dragging: null,
   validation: validate(save.layout),
   result: null,
   simT: 0,
@@ -50,7 +53,7 @@ const newUid = (p) => `${p}${(uidSeq++).toString(36)}`;
 /* ---------- 版面配置 ---------- */
 function fit() {
   const st = $('stage');
-  shop.fit(st.clientWidth - 20, st.clientHeight - 20); // 扣掉店面的外框
+  shop.fit(st.clientWidth, st.clientHeight);
   render();
 }
 window.addEventListener('resize', fit);
@@ -64,16 +67,20 @@ function render() {
   $('temp').textContent = `${save.temp.toFixed(1)}°C`;
   $('thermo-fill').style.height = `${Math.min(100, Math.max(6, (save.temp - 19.5) * 12))}%`;
   $('goal').textContent = save.chapter >= 1 && ch.goal && !save.finished ? `這一章：${ch.goal}` : '';
+  const setup = state.mode === 'setup';
+  if (!setup) state.spot = null;
   shop.render({
     layout: save.layout,
     validation: state.validation,
     selected: state.selected,
+    spot: state.spot,
+    dragging: state.dragging,
     mode: ['business', 'intro', 'opening'].includes(state.mode) ? 'business' : 'setup', // 開場裡也不畫格線
     cat: state.mode === 'business' && state.result ? state.result.cat : catSpot(save.layout),
   });
-  const setup = state.mode === 'setup';
-  $('tray').hidden = !setup || !!state.selected;
-  $('sel').hidden = !setup || !state.selected;
+  const picking = !!(state.selected || state.spot);
+  $('tray').hidden = !setup || picking;
+  $('sel').hidden = !setup || !picking;
   $('speed').hidden = state.mode !== 'business';
   $('actions').hidden = !setup;
   if (setup) {
@@ -98,8 +105,56 @@ function setupStatus() {
   if (v.stuck.length) return [HINTS.stuck, false];
   if (save.chapter === 1 && !save.layout.items.some((i) => i.kind === 'corner')) return [HINTS.ch1, false];
   if (save.chapter === 2 && !save.menu.slots.some((r) => r?.by === 'player')) return [HINTS.ch2, false];
-  if (save.layout.items.length && save.day <= 2) return [HINTS.tap, false];
+  if (save.chapter === 2 && signatureIsPlayers(save.menu) && !beatsDeshu(signatureRecipe(save.menu)).length) return [HINTS.sigLikeDeshu, false];
+  if (state.spot) return [HINTS.pickHere, false];
+  if (save.day <= 2) return [HINTS.pickCorner, false];
   return [HINTS.ready, false];
+}
+
+/* ---------- 點店裡的空地：這裡放得下的整組擺法 ---------- */
+// 每種還有庫存的角落：找一個蓋住這一格、合法、最好路也通的擺法（轉向、往旁邊挪都試），每個款式一張卡；
+// 擺飾只看這一格。放不下的寫原因。
+function optionsAt(cell) {
+  const u = unlocks(save.chapter);
+  const out = [];
+  for (const type of u.corners) {
+    const c = CORNERS[type];
+    if (remaining(save.layout, 'corner', type) <= 0) continue;
+    let best = null;
+    let firstReason = null;
+    for (let rot = 0; rot < 4; rot++) {
+      const s = size({ kind: 'corner', type, rot });
+      for (let x = cell.x - s.w + 1; x <= cell.x; x++) for (let y = cell.y - s.h + 1; y <= cell.y; y++) {
+        const cand = { kind: 'corner', type, x, y, rot, style: c.styles[0].id, uid: '__new' };
+        const p = placeProblem(save.layout, cand, '__new');
+        if (p) { firstReason ||= p; continue; }
+        const ok = validate({ items: [...save.layout.items, cand] }).ok;
+        const fx = x + s.w / 2 - 0.5 - cell.x;
+        const fy = y + s.h / 2 - 0.5 - cell.y;
+        const score = (ok ? 0 : 10) + (rot ? 0.5 : 0) + Math.hypot(fx, fy) * 0.1;
+        if (!best || score < best.score) best = { cand, score };
+      }
+    }
+    if (!best) { out.push({ kind: 'corner', type, name: c.name, reason: REASONS[firstReason] || '' }); continue; }
+    for (const st of c.styles) {
+      out.push({ kind: 'corner', type, name: `${c.name}・${st.name}`, art: st.chair || 'stool', item: { ...best.cand, style: st.id } });
+    }
+  }
+  for (const type of u.decor) {
+    if (remaining(save.layout, 'decor', type) <= 0) continue;
+    const cand = { kind: 'decor', type, x: cell.x, y: cell.y, rot: 0, uid: '__new' };
+    const p = placeProblem(save.layout, cand, '__new');
+    out.push(p ? { kind: 'decor', type, name: DECOR[type].name, reason: REASONS[p] } : { kind: 'decor', type, name: DECOR[type].name, art: DECOR[type].art, item: cand });
+  }
+  return out;
+}
+
+function placeOption(o) {
+  const uid = newUid(o.kind === 'corner' ? 'c' : 'd');
+  save.layout = { items: [...save.layout.items, { ...o.item, uid }] };
+  state.spot = null;
+  state.selected = o.kind === 'corner' ? uid : null; // 角落放好接著可以換款式、轉向
+  render();
 }
 
 /* ---------- 下方角落列 ---------- */
@@ -110,7 +165,7 @@ function renderTray() {
     const c = CORNERS[type];
     const left = remaining(save.layout, 'corner', type);
     chips.push(`<button type="button" class="chip corner" data-kind="corner" data-type="${type}" ${left <= 0 ? 'disabled' : ''}>
-      <span class="sw" style="background:${c.styles[0].color}"></span><b>${c.name}</b><small>${c.w}×${c.h}・剩 ${left}</small></button>`);
+      <img src="./assets/art/${c.styles[0].chair || 'stool'}.webp" alt="" draggable="false"><b>${c.name}</b><small>${c.w}×${c.h}・剩 ${left}</small></button>`);
   }
   for (const type of u.decor) {
     const d = DECOR[type];
@@ -133,19 +188,37 @@ function renderTray() {
 
 /* ---------- 點一下已放的東西：轉向、換款式、坐下來、收起 ---------- */
 function renderSel() {
+  if (state.spot) { renderSpot(); return; }
   const it = findItem(state.selected);
   if (!it) { $('sel').innerHTML = ''; return; }
   const name = it.kind === 'corner' ? CORNERS[it.type].name : DECOR[it.type].name;
-  let btns = '';
-  if (it.kind === 'corner' && !it.fixed) {
-    btns += '<button type="button" data-a="rot">轉 90°</button>';
-    if (CORNERS[it.type].styles.length > 1) btns += '<button type="button" data-a="style">換款式</button>';
+  let styles = '';
+  if (it.kind === 'corner' && !it.fixed && CORNERS[it.type].styles.length > 1) {
+    // 款式：整組換掉（佔地不變），點了店裡馬上換
+    styles = `<div class="opt-row">${CORNERS[it.type].styles.map((s) => `<button type="button" class="opt ${s.id === it.style ? 'on' : ''}" data-style="${s.id}">
+      <img src="./assets/art/${s.chair || 'stool'}.webp" alt="" draggable="false"><b>${esc(s.name)}</b></button>`).join('')}</div>`;
   }
+  let btns = '';
+  if (it.kind === 'corner' && !it.fixed) btns += '<button type="button" data-a="rot">轉 90°</button>';
   if (it.kind === 'corner') btns += '<button type="button" data-a="sit">坐下來看看</button>';
   if (!it.fixed) btns += '<button type="button" data-a="stow">收起</button>';
   btns += '<button type="button" data-a="done" class="primary">好</button>';
-  $('sel').innerHTML = `<p class="sel-name">${esc(name)}</p><div class="sel-btns">${btns}</div>`;
-  for (const b of $('sel').querySelectorAll('button')) b.onclick = () => selAction(b.dataset.a, it);
+  $('sel').innerHTML = `<p class="sel-name">${esc(name)}</p>${styles}<div class="sel-btns">${btns}</div>`;
+  for (const b of $('sel').querySelectorAll('[data-a]')) b.onclick = () => selAction(b.dataset.a, it);
+  for (const b of $('sel').querySelectorAll('[data-style]')) b.onclick = () => { replaceItem({ ...it, style: b.dataset.style }); render(); };
+}
+
+function renderSpot() {
+  const opts = optionsAt(state.spot);
+  const can = opts.filter((o) => o.item);
+  const cant = opts.filter((o) => !o.item);
+  const cards = can.map((o, i) => `<button type="button" class="opt" data-o="${i}">
+    <img src="./assets/art/${o.art}.webp" alt="" draggable="false"><b>${esc(o.name)}</b></button>`).join('');
+  const why = cant.length ? `<p class="note">${cant.map((o) => `${esc(o.name)}：${esc(o.reason)}`).join('　')}</p>` : '';
+  $('sel').innerHTML = `<div class="opt-row scroll">${cards || '<p class="note">這一格放不下東西。</p>'}</div>${why}
+    <div class="sel-btns"><button type="button" data-a="cancel">算了</button></div>`;
+  for (const b of $('sel').querySelectorAll('[data-o]')) b.onclick = () => placeOption(can[Number(b.dataset.o)]);
+  $('sel').querySelector('[data-a="cancel"]').onclick = () => { state.spot = null; render(); };
 }
 
 function findItem(uid) {
@@ -208,7 +281,7 @@ function onDragMove(e) {
   const lift = drag.pointerType === 'touch' && !drag.fromUid ? 0.9 : 0; // 從角落列拖出來時手指會擋住：影子往上提一點
   const p = shop.pointToCell(e.clientX, e.clientY);
   const fl = $('drag-chip');
-  if (drag.fromUid) shop.el.querySelector(`[data-uid="${drag.fromUid}"]`)?.classList.add('dragging');
+  if (drag.fromUid && state.dragging !== drag.fromUid) { state.dragging = drag.fromUid; state.selected = null; render(); }
   if (!p) {
     drag.cand = null;
     shop.hideGhost();
@@ -232,6 +305,7 @@ function endDragListeners() {
   window.removeEventListener('pointerup', onDragEnd);
   window.removeEventListener('pointercancel', onDragCancel);
   $('drag-chip').hidden = true;
+  state.dragging = null;
   shop.hideGhost();
 }
 
@@ -247,8 +321,8 @@ function onDragEnd(e) {
   drag = null;
   endDragListeners();
   if (!d.moved) {
-    // 點一下：選取已放的東西
-    if (d.fromUid) state.selected = d.fromUid;
+    // 點一下：選取已放的東西；點下方角落列的卡片只提示怎麼放
+    if (d.fromUid) { state.selected = d.fromUid; state.spot = null; } else toast(HINTS.pickCorner, 2600);
     render();
     return;
   }
@@ -269,27 +343,39 @@ function onDragEnd(e) {
   render();
 }
 
-// 在店面上按下：已放的東西可以拖、可以點
+// 在店面上按下：點已放的東西選它（也可以拖著搬）；點空地列出這裡放得下的整組擺法
 $('stage').addEventListener('pointerdown', (e) => {
+  if (e.target.closest('.guest')) return; // 營業中點客人：交給客人自己的按鈕
+  const hit = shop.pick(e.clientX, e.clientY, save.layout);
   if (state.mode === 'intro') {
-    const stool = e.target.closest('[data-uid="bar"], .sh-bar');
-    if (stool && introSit) introSit();
+    // 「先坐。」：點吧台那一帶（吧台、高腳椅、吧台前）都算
+    if (introSit && hit?.cell && hit.cell.x >= 3 && hit.cell.y <= 3) introSit();
+    else if (introSit && hit?.uid === 'bar') introSit();
     return;
   }
-  if (state.mode !== 'setup') return;
-  const el = e.target.closest('.it');
-  if (!el) {
-    if (state.selected) { state.selected = null; render(); }
+  if (state.mode !== 'setup' || !hit) return;
+  if (hit.uid === 'bar') { state.selected = 'bar'; state.spot = null; render(); return; }
+  const it = hit.uid ? findItem(hit.uid) : null;
+  if (!it) {
+    if (!hit.cell) return;
+    // 空地：放開時沒有拖動才算點
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const up = (ev) => {
+      window.removeEventListener('pointerup', up);
+      if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) return;
+      state.selected = null;
+      state.spot = state.spot && state.spot.x === hit.cell.x && state.spot.y === hit.cell.y ? null : hit.cell;
+      render();
+    };
+    window.addEventListener('pointerup', up);
     return;
   }
-  const uid = el.dataset.uid;
-  if (uid === 'bar') { state.selected = 'bar'; render(); return; }
-  const it = findItem(uid);
-  if (!it) return;
-  const p = shop.pointToCell(e.clientX, e.clientY);
+  const p = shop.pointToCell(e.clientX, e.clientY, true) || { fx: it.x + 0.5, fy: it.y + 0.5 };
+  const s = size(it);
   startDrag(e, {
-    item: { ...it }, fromUid: uid,
-    grab: { dx: p.fx - it.x, dy: p.fy - it.y },
+    item: { ...it }, fromUid: it.uid,
+    grab: { dx: Math.min(s.w - 0.01, Math.max(0, p.fx - it.x)), dy: Math.min(s.h - 0.01, Math.max(0, p.fy - it.y)) },
     label: it.kind === 'corner' ? CORNERS[it.type].name : DECOR[it.type].name,
   });
 });
@@ -509,9 +595,11 @@ async function shopIntro() {
   // 「先坐。」：點吧台前的高腳椅
   say(FIRST_CUP.sit, { ms: 600000 });
   status(HINTS.sitFirst);
-  shop.el.querySelector('[data-uid="bar"]')?.classList.add('pulse');
+  shop.setPulse('bar');
+  render();
   await new Promise((res) => { introSit = res; });
   introSit = null;
+  shop.setPulse(null);
   if (!alive()) return;
   hideSay();
   const seat = sitDown(BAR_ITEM, 1, { returnMode: 'intro' });
@@ -540,6 +628,7 @@ let seatCloseWait = null;
 function finishOpening() {
   introToken++;
   introSit = null;
+  shop.setPulse(null);
   hideSay();
   $('intro-skip').hidden = true;
   $('thermo').classList.remove('rise');
@@ -567,4 +656,4 @@ else {
 }
 
 // 除錯與自動化截圖用（不影響遊戲）
-window.__cafe = { save: () => save, state, W, H, cornersOf };
+window.__cafe = { save: () => save, state, W, H, cornersOf, shop, footprint };

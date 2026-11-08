@@ -1,7 +1,7 @@
 // 營業模擬：誰來、坐哪、點什麼、做什麼。純邏輯，不開畫面就能跑完一天。
 // 固定亂數種子：同樣的佈置＋菜單＋同一天，永遠得到同樣的結果（種子由這三樣算出來）。
 import { DOOR, WINDOW_ROWS, cornersOf, seatCells, walkMap, nearestEntrance, pathTo, layoutKey, nearItem, blockedSet } from './grid.js';
-import { menuItems, matchScore, keysOf, weirdness, menuKey } from './menu.js';
+import { menuItems, matchScore, keysOf, weirdness, menuKey, DESHU_CUP } from './menu.js';
 
 export const DAY_LEN = 90; // 營業約 90 秒（1×）
 const WALK = 0.45; // 走一格幾秒
@@ -15,6 +15,9 @@ export const GUESTS = {
   catlover: { name: '愛貓的人', short: '貓', color: '#c58b3a', likes: 'catbed', taste: [] },
   tourist: { name: '觀光客', short: '觀', color: '#5d8a62', likes: null, taste: ['在地'] },
 };
+
+// 這杯比德叔那杯更合哪幾種客人的口味（第 2 章的提示用）
+export const beatsDeshu = (recipe) => Object.keys(GUESTS).filter((t) => matchScore(recipe, GUESTS[t].taste) > matchScore(DESHU_CUP, GUESTS[t].taste));
 
 export function hashString(s) {
   let h = 2166136261 >>> 0;
@@ -126,6 +129,8 @@ export function simulateDay({ layout: raw, menu, day = 1, seed }) {
       const leaveAt = sitAt + stay;
       seat.freeAt = leaveAt + 0.5;
       const order = chooseOrder(items, def.taste, menu.signature, rng);
+      // 這杯比德叔那杯更合他的口味：第 2 章「德叔那杯給不了的」才算數（抄一杯一樣的不算）
+      const fit = order ? matchScore(order.recipe, def.taste) > matchScore(DESHU_CUP, def.taste) : false;
       guests.push({
         gid: gid++, groupId, type, size,
         corner: seat.corner.uid, cornerType: seat.corner.type, seatIndex: seat.index,
@@ -136,6 +141,7 @@ export function simulateDay({ layout: raw, menu, day = 1, seed }) {
         order: order?.slot ?? null,
         orderName: order?.recipe.name ?? null,
         signature: order ? order.slot === menu.signature : false,
+        fit,
         weird: order ? !!weirdness(order.recipe) : false,
         action: chooseAction(type, seat, decor, cat, rng),
       });
@@ -184,11 +190,15 @@ function chooseSeats({ seats, type, size, arrive, rng, cat }) {
   return { seats: best.free, at: best.at };
 }
 
+// 點餐：看口味。招牌只在口味一樣合的時候稍微佔便宜（德叔會推薦黑板上那杯），
+// 不會讓不合口味的客人盲目點它；第 2 章因此要真的配出「來店的人想喝的」那一杯。
+const SIG_NUDGE = 0.15;
+const ORDER_NOISE = 0.5;
 function chooseOrder(items, taste, signature, rng) {
   if (!items.length) return null;
   let best = null;
   for (const it of items) {
-    const score = matchScore(it.recipe, taste) + (it.slot === signature ? 0.9 : 0) + rng() * 0.8;
+    const score = matchScore(it.recipe, taste) + (it.slot === signature ? SIG_NUDGE : 0) + rng() * ORDER_NOISE;
     if (!best || score > best.score) best = { ...it, score };
   }
   return best;
@@ -231,7 +241,7 @@ function summarize(guests, menu) {
     byCorner,
     orders,
     signatureOrders: guests.filter((g) => g.signature).length,
-    weirdOrders: guests.filter((g) => g.weird).length,
+    signatureFits: guests.filter((g) => g.signature && g.fit).length, // 招牌被「德叔那杯給不了」的客人點    weirdOrders: guests.filter((g) => g.weird).length,
     waited: guests.filter((g) => g.waited).length,
     liked: guests.filter((g) => g.liked).length,
     types: guests.reduce((m, g) => ((m[g.type] = (m[g.type] || 0) + 1), m), {}),

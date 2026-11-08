@@ -15,11 +15,13 @@ export const CHAPTERS = [
     done: ({ validation, layout }) => validation.ok && playerCorners(layout).length >= 1,
   },
   {
-    id: 2, title: '第一杯', goal: '自己設計的招牌被 3 位客人點',
+    id: 2, title: '第一杯', goal: '自己設計的招牌，對上 3 位客人的口味（德叔那杯給不了的）',
     // 規格書的工作桌在第 5 章解鎖；雛形要試三組角落，先在第 2 章給
     unlock: { corners: ['worktable'], decor: [], design: true },
     temp: 23.5,
-    done: ({ menu, result }) => signatureIsPlayers(menu) && result.stats.signatureOrders >= 3,
+    // 只算「這杯比德叔那杯更合他口味」的客人（sim.js 的 fit）：抄德叔那杯、或招牌靠運氣被點，都不算。
+    // 要看日誌知道今天來的是誰、想喝什麼，再配出那一杯，必要時擺角落把那種客人找來。
+    done: ({ menu, result }) => signatureIsPlayers(menu) && result.stats.signatureFits >= 3,
   },
 ];
 
