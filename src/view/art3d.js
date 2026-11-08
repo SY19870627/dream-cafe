@@ -15,8 +15,9 @@ export const PAPER_SPEC = {
   char_grandpa_stand: { h: 1.5 }, char_grandpa_sit: { h: 1.2, seat: 0.43 },
   // v2b 坐姿（assets/art/previews/v2b_manifest_v2b.json）：正面／背面跟同一個人的側面坐姿同高，腳底貼地。
   // seat：屁股落在腳底以上幾公尺（照圖目測：背面看屁股底、正面看大腿底、側面看坐的那條線）；
-  // 比椅面低就整張往上抬（shop3d.js 的 sitLift），比椅面高的不往下沉（腳會插進地板）
-  char_grandpa_sit_front: { h: 1.2, seat: 0.45 }, char_grandpa_sit_back: { h: 1.2, seat: 0.36 },
+  // 坐下時整張抬／沉到 seat 對齊椅面（shop3d.js 的 sitLift）；背面圖另外從 seat 以下裁掉（只剩頭肩上背從椅背露出來）
+  // 阿公正面：v2f 無凳版（manifest_v2f.json：腳底 y2006、屁股線 y1465、畫到的範圍 y525–2007 → seat = 541／1482 × 1.2）
+  char_grandpa_sit_front_nostool: { h: 1.2, seat: 0.44 }, char_grandpa_sit_back: { h: 1.2, seat: 0.36 },
   char_yuan_sit_front: { h: 1.22, seat: 0.45 }, char_yuan_sit_back: { h: 1.22, seat: 0.42 },
   char_kevin_sit_front: { h: 1.28, seat: 0.45 }, char_kevin_sit_back: { h: 1.28, seat: 0.4 },
   char_zhe_sit: { h: 1.28, ax: 0.84, seat: 0.5 }, char_zhe_sit_front: { h: 1.28, seat: 0.45 }, char_zhe_sit_back: { h: 1.28, seat: 0.38 },
@@ -37,6 +38,8 @@ export const PAPER_SPEC = {
   wall_shelf_plants: { size: [0.9, 0.9] }, rug_tile: { size: [1.6, 1.6] }, rug_tile_square: { size: [1.6, 1.6] },
   chair_wood_back: { size: [0.85, 0.85] }, chair_rattan_back: { size: [1.0, 1.0] },
   stool_back: { size: [0.85, 0.85] }, sofa_single_back: { size: [1.1, 1.1] }, // 背面圖照側面圖的高度縮（chairFacing），這裡給量級
+  // v2f 角落矮凳（manifest_v2f.json）：腳底 y495、椅面中心 y116，379px 定成 0.42 公尺（跟木椅同檔）→ 畫布 512px ＝ 0.567 公尺
+  stool_low: { size: [0.567, 0.567] }, stool_low_back: { size: [0.567, 0.567] },
   // 掛在牆上的（整張用、不裁）
   backbar: { size: [2.8, 1.8], keep: true }, thermometer_frame: { size: [0.36, 0.9], keep: true },
   pendant_lamp: { size: [0.36, 0.9], keep: true }, window_frame: { size: [1.6, 1.3], keep: true },
@@ -222,7 +225,19 @@ export function overlay(parent, name, { u = 0, v = 0, w = 0.5, z = 0.01, flip = 
   return m;
 }
 
-// 換一張圖（客人坐下／站起來、椅子轉成椅背）：沿用同一個紙片，大小跟著換。opt：{ flip, scale, height, fit }（同 paper()）
+// 紙片從底下裁掉 frac（0～1，佔整張高度的比例）：幾何與 UV 一起裁，圖不變形、只是下面那截不畫。
+// 平面是 PlaneGeometry(1, 1) 往上平移過的，第 2、3 個頂點是底邊
+function cropBottom(mesh, frac) {
+  const pos = mesh.geometry.attributes.position;
+  const uv = mesh.geometry.attributes.uv;
+  for (const i of [2, 3]) { pos.setY(i, frac); uv.setY(i, frac); }
+  pos.needsUpdate = true;
+  uv.needsUpdate = true;
+  mesh.geometry.computeBoundingSphere();
+}
+
+// 換一張圖（客人坐下／站起來、椅子轉成椅背）：沿用同一個紙片，大小跟著換。opt：{ flip, scale, height, fit }（同 paper()）、
+// crop：底下裁掉幾公尺（背對鏡頭的坐姿裁在屁股線）；同一張圖的 crop 要固定（同圖同 flip 不會重設）
 export function setPaperArt(group, name, opt = {}) {
   if (group.userData.art === name && !!group.userData.flipNow === !!opt.flip) return;
   group.userData.art = name;
@@ -237,6 +252,8 @@ export function setPaperArt(group, name, opt = {}) {
     group.userData.flip = opt.flip ? -1 : 1;
     group.userData.size = { w: a.w * k, h: a.h * k };
     group.userData.baseScaleY = a.h * k;
+    group.userData.crop = opt.crop || 0;
+    cropBottom(m, Math.min(0.9, (opt.crop || 0) / (a.h * k)));
     m.scale.set(a.w * k * group.userData.flip, a.h * k, 1);
     m.visible = true;
   });

@@ -17,7 +17,7 @@ export { styleOf };
 // 熟客的故事節點做出來以後，一般客人要換成自己的圖，免得認錯人。
 // 坐姿三張：sit（3/4 側面，面向畫面左邊）、sitFront（正對鏡頭）、sitBack（背對鏡頭）；照椅子朝哪邊挑（pickSit）
 const SIT = {
-  grandpa: { sit: 'char_grandpa_sit', sitFront: 'char_grandpa_sit_front', sitBack: 'char_grandpa_sit_back' },
+  grandpa: { sit: 'char_grandpa_sit', sitFront: 'char_grandpa_sit_front_nostool', sitBack: 'char_grandpa_sit_back' },
   yuan: { sit: 'char_yuan_sit', sitFront: 'char_yuan_sit_front', sitBack: 'char_yuan_sit_back' },
   kevin: { sit: 'char_kevin_sit', sitFront: 'char_kevin_sit_front', sitBack: 'char_kevin_sit_back' },
   zhe: { sit: 'char_zhe_sit', sitFront: 'char_zhe_sit_front', sitBack: 'char_zhe_sit_back' },
@@ -32,22 +32,29 @@ const GUEST_ART = {
 };
 
 // 坐下時用哪張、往哪偏、離椅子多遠：
-// 正對鏡頭 → sitFront，站在椅子前面一點（蓋住椅面）；背對鏡頭 → sitBack，往桌子那邊縮一點、躲在椅背後面（椅背蓋住屁股）；
+// 正對鏡頭 → sitFront，全身不裁，站在椅子前面一點（蓋住椅面，腿腳交給桌子／沙發前緣遮）；
+// 背對鏡頭 → sitBack，屁股線（PAPER_SPEC.seat）以下裁掉、往桌子那邊縮一點，只剩頭肩上背從椅背上方露出來；
 // 其他 → 側面 sit，照椅子的 flip／yawOff。吧台（沒有 face）照舊用側面、面向吧台
 function pickSit(art, spot, camera, onStool) {
-  const side = { name: art.sit, flip: spot && !onStool ? spot.flip : !!art.flip, yawOff: spot && !onStool ? spot.yawOff : 0, dx: 0, dz: onStool ? 0.12 : 0.1 };
+  const side = { name: art.sit, flip: spot && !onStool ? spot.flip : !!art.flip, yawOff: spot && !onStool ? spot.yawOff : 0, dx: 0, dz: onStool ? 0.12 : 0.1, facing: 'side' };
   if (!spot?.face || onStool) return side;
   const f = facingOf(spot.face, camera, true);
-  if (f === 'front' && art.sitFront) return { name: art.sitFront, flip: !!art.flip, yawOff: 0, dx: spot.face[0] * 0.1, dz: spot.face[1] * 0.1 };
-  if (f === 'back' && art.sitBack) return { name: art.sitBack, flip: !!art.flip, yawOff: 0, dx: spot.face[0] * 0.05, dz: spot.face[1] * 0.05 };
+  if (f === 'front' && art.sitFront) return { name: art.sitFront, flip: !!art.flip, yawOff: 0, dx: spot.face[0] * 0.1, dz: spot.face[1] * 0.1, facing: 'front' };
+  if (f === 'back' && art.sitBack) {
+    return { name: art.sitBack, flip: !!art.flip, yawOff: 0, dx: spot.face[0] * 0.05, dz: spot.face[1] * 0.05, facing: 'back', crop: PAPER_SPEC[art.sitBack]?.seat || 0 };
+  }
   return side;
 }
 
-// 坐下時整張往上抬多少：圖裡屁股的高度（PAPER_SPEC.seat）比椅面低才抬；比椅面高就不動（往下沉腳會插進地板）
-function sitLift(name, spot) {
-  const seat = PAPER_SPEC[name]?.seat;
+// 坐下時整張抬／沉多少：圖裡屁股的高度（PAPER_SPEC.seat）對齊椅面（seatH − seat，有正有負）。
+// 側面腳看得到，最多沉 0.10（腳踝進地板）；正面腳被桌子遮、背面裁掉了，直接沉到椅面；吧台高腳椅只抬不沉
+const SIDE_SINK = -0.1;
+function sitLift(pose, spot, onStool) {
+  const seat = PAPER_SPEC[pose.name]?.seat;
   if (!seat || !spot?.seatH) return 0;
-  return Math.max(0, spot.seatH - seat);
+  const d = spot.seatH - seat;
+  if (onStool) return Math.max(0, d);
+  return pose.facing === 'side' ? Math.max(SIDE_SINK, d) : d;
 }
 
 const ELEV = THREE.MathUtils.degToRad(54); // 鏡頭仰角
@@ -532,13 +539,13 @@ export class ShopView {
       // 坐下：坐在拉近桌子的那張椅子上；照椅子從鏡頭看是正對、背對還是側面，挑正面／背面／側面坐姿（吧台照舊側面、面向吧台）
       const spot = sit ? this.furniture?.spotsOf.get(g.corner)?.[g.seatIndex] : null;
       const pose = sit ? pickSit(v.art, spot, this.camera, onStool) : { name: v.art.stand, flip: v.face, yawOff: 0, dx: 0, dz: 0 };
-      setPaperArt(v.paper, pose.name, { flip: pose.flip });
+      setPaperArt(v.paper, pose.name, { flip: pose.flip, crop: pose.crop });
       v.paper.userData.yawOff = pose.yawOff;
       v.paper.userData.pose = sit ? pose.name : ''; // 驗收腳本看客人用了哪張坐姿
       const bx = spot ? spot.x : cx(pos.x);
       const bz = spot ? spot.z : cz(pos.y);
       v.paper.position.set(bx + pose.dx, 0, bz + pose.dz);
-      v.paper.userData.mesh.position.y = sit ? sitLift(pose.name, spot) : 0;
+      v.paper.userData.mesh.position.y = sit ? sitLift(pose, spot, onStool) : 0;
       // 頭上的小圖示（點了什麼、在做什麼）
       const bub = v.el.querySelector('.bub');
       let icon = '';

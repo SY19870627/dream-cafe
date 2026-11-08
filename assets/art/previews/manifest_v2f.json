@@ -1,0 +1,58 @@
+{
+  "assets": [
+    {
+      "file": "char_grandpa_sit_front_nostool.webp",
+      "width": 1024,
+      "height": 2048,
+      "bytes": 560332,
+      "feet_y": 2006,
+      "seat_y": 1465,
+      "seat_definition": "buttock support line",
+      "visible_bbox": [
+        227,
+        525,
+        797,
+        2007
+      ],
+      "source_seat_y_estimate": 806,
+      "source_scale": 1.2610722610722611
+    },
+    {
+      "file": "stool_low.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 109188,
+      "feet_y": 495,
+      "seat_y": 116,
+      "seat_definition": "seat top plane center",
+      "visible_bbox": [
+        78,
+        60,
+        433,
+        496
+      ],
+      "source_seat_y_estimate": 250,
+      "source_scale": 0.5606508875739645
+    },
+    {
+      "file": "stool_low_back.webp",
+      "width": 512,
+      "height": 512,
+      "bytes": 96208,
+      "feet_y": 495,
+      "seat_y": 116,
+      "seat_definition": "seat top plane center",
+      "visible_bbox": [
+        76,
+        56,
+        435,
+        496
+      ],
+      "source_seat_y_estimate": 250,
+      "source_scale": 0.6006339144215531
+    }
+  ],
+  "character_scale_note": "Standing reference alpha height 1925px = 1.6m. 0.45m = 541.4px. Feet y2006; seat y1465. Seated body not stretched to fill full canvas.",
+  "stool_scale_note": "Feet y495; seat-plane center y116; delta379px corresponds to 0.45m. Seat center is nominal integration anchor, not an extra drawn line.",
+  "review_note": "Seat anchors visually estimated, physical world dimensions require integration verification. No gameplay code modified."
+}

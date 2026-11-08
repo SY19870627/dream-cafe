@@ -28,7 +28,7 @@ export const TUNE = {
   },
   chair: {
     label: '椅子',
-    opts: { chair: { name: '木椅', art: 'chair' }, rattanChair: { name: '藤椅', art: 'rattanChair' }, stool: { name: '圓凳', art: 'stool' }, sofa: { name: '沙發', art: 'sofa_single' } },
+    opts: { chair: { name: '木椅', art: 'chair' }, rattanChair: { name: '藤椅', art: 'rattanChair' }, stool: { name: '圓凳', art: 'stool_low' }, sofa: { name: '沙發', art: 'sofa_single' } },
   },
   seats: { label: '張數', opts: { 1: { name: '一張' }, 2: { name: '兩張' } } },
   top: {
