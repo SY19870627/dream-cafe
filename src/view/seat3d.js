@@ -2,7 +2,7 @@
 // 房間、角落、紙片都用 room3d.js 蓋，跟俯視店面是同一間店、同一套畫師的紙片；這裡多了前牆和天花板。
 // 紙片各自轉向鏡頭（第一版座位視角的做法），從側面看才不會變成一條線。
 import * as THREE from 'three';
-import { seatCells, footprint } from '../grid.js';
+import { seatCells, DOOR } from '../grid.js';
 import { buildRoom, buildLayout, disposeGroup, cx, cz } from './room3d.js';
 import { faceCamera } from './art3d.js';
 
@@ -35,7 +35,8 @@ export function openSeatView(root, { layout, item, seatIndex = 0, cat, onClose }
   const ownChairs = furn.chairsOf.get(item.uid) || [];
   const papers = [...roomPapers, ...furn.papers];
 
-  /* 鏡頭：坐在座位上，先看向角落的中心（吧台座看吧台） */
+  /* 鏡頭：坐在座位上。吧台座看吧台；其他座位先看向吧台前那一帶（德叔、吧台、店中間），一坐下就看得到自己的店，
+     不會像以前看向角落中心那樣常常只看到牆和窗框。左右滑可以轉頭。 */
   let seat = seatIndex;
   let yaw = 0;
   const pitch = -0.1;
@@ -47,10 +48,9 @@ export function openSeatView(root, { layout, item, seatIndex = 0, cat, onClose }
     let tx;
     let tz;
     if (item.type === 'bar') { tx = cx(s.x); tz = cz(0); } else {
-      const fp = footprint(item);
-      tx = fp.reduce((a, q) => a + cx(q.x), 0) / fp.length;
-      tz = fp.reduce((a, q) => a + cz(q.y), 0) / fp.length;
-      if (Math.hypot(tx - p.x, tz - p.z) < 0.25) { tx = 0; tz = 0; }
+      tx = cx(4.5);
+      tz = cz(2.5);
+      if (Math.hypot(tx - p.x, tz - p.z) < 1) { tx = cx(DOOR.x); tz = cz(DOOR.y); } // 就坐在吧台旁邊：改看門口
     }
     yaw = Math.atan2(-(tx - p.x), -(tz - p.z));
     camera.rotation.set(pitch, yaw, 0, 'YXZ');

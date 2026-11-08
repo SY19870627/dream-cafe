@@ -3,7 +3,7 @@
 // 這裡只負責畫與「點到了什麼」，佈置、拖放、狀態都在 main.js。
 import * as THREE from 'three';
 import {
-  W, H, DOOR, WINDOW_ROWS, OUTLETS, KEEP_CLEAR, BAR_CELLS, STOOL_CELLS, CORNERS, BAR_ITEM, footprint, size,
+  W, H, DOOR, WINDOW_ROWS, OUTLETS, KEEP_CLEAR, BAR_CELLS, STOOL_CELLS, CORNERS, DECOR, BAR_ITEM, footprint, size, pieceCells,
 } from '../grid.js';
 import { GUESTS, ACTIONS } from '../sim.js';
 import { buildRoom, buildLayout, disposeGroup, CELL, RW, RD, cx, cz, toCell, styleOf } from './room3d.js';import { paper, setPaperArt, faceCamera } from './art3d.js';
@@ -34,6 +34,62 @@ function cellPlane(x, y, w, h, color, opacity, inset = 0.06, lift = 0.012) {
   m.rotation.x = -Math.PI / 2;
   m.position.set(cx(x) + ((w - 1) * CELL) / 2, lift, cz(y) + ((h - 1) * CELL) / 2);
   m.renderOrder = 1;
+  return m;
+}
+
+// 佔地的外框：四條細邊，不被家具擋住（畫在最上層）
+function cellOutline(x, y, w, h, color) {
+  const g = new THREE.Group();
+  const t = 0.06;
+  const x0 = cx(x) - CELL / 2;
+  const z0 = cz(y) - CELL / 2;
+  const ww = w * CELL;
+  const hh = h * CELL;
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false, depthTest: false });
+  for (const [px, pz, sx, sz] of [[x0 + ww / 2, z0 + t / 2, ww, t], [x0 + ww / 2, z0 + hh - t / 2, ww, t], [x0 + t / 2, z0 + hh / 2, t, hh], [x0 + ww - t / 2, z0 + hh / 2, t, hh]]) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz), mat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(px, 0.02, pz);
+    m.renderOrder = 6;
+    g.add(m);
+  }
+  return g;
+}
+
+// 角落每一格放什麼的小圓牌（椅／桌／書架）：選取時畫在最上層，轉向後一眼看得出換了邊
+const PIECE_TEXT = { seat: '椅', table: '桌', shelf: '書架' };
+const PIECE_BG = { seat: '#fffaf1', table: '#7a4f2e', shelf: '#3f6b5a' };
+const PIECE_FG = { seat: '#3a2d22', table: '#fff8ee', shelf: '#fff8ee' };
+const badgeTex = new Map();
+function pieceBadge(x, y, piece) {
+  if (!badgeTex.has(piece)) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d');
+    g.fillStyle = PIECE_BG[piece];
+    g.strokeStyle = '#e3a85b';
+    g.lineWidth = 10;
+    g.beginPath();
+    g.arc(64, 64, 56, 0, Math.PI * 2);
+    g.fill();
+    g.stroke();
+    g.fillStyle = PIECE_FG[piece];
+    const t = PIECE_TEXT[piece];
+    g.font = `700 ${t.length > 1 ? 40 : 58}px "Noto Sans TC", "Microsoft JhengHei", sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(t, 64, 68);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    badgeTex.set(piece, tex);
+  }
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(CELL * 0.46, CELL * 0.46),
+    new THREE.MeshBasicMaterial({ map: badgeTex.get(piece), transparent: true, depthWrite: false, depthTest: false }),
+  );
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(cx(x), 0.03, cz(y) + CELL * 0.18); // 往門口那側挪一點：不跟紙片的腳疊在一起
+  m.renderOrder = 7;
   return m;
 }
 
@@ -94,6 +150,14 @@ export class ShopView {
       if (this.furniture) faceCamera(this.furniture.papers, this.camera, true);
       faceCamera([...this.guests.values()].map((g) => g.paper), this.camera, true);
       if (this.pulse) this.pulse.material.opacity = 0.18 + 0.22 * (0.5 + 0.5 * Math.sin(now / 160));
+      // 選取中的佔地：慢慢呼吸；剛放下、剛轉向時快閃一陣，整組一眼找得到
+      if (this.selFill) {
+        const flashing = now < this.flashUntil;
+        const k = 0.5 + 0.5 * Math.sin(now / (flashing ? 90 : 420));
+        this.selFill.material.opacity = flashing ? 0.3 + 0.55 * k : 0.42 + 0.18 * k;
+        const s = flashing ? 1 + 0.06 * k : 1;
+        this.selFill.scale.set(s, s, 1);
+      }
       renderer.render(this.scene, this.camera);
       this.placeLabels();
     };
@@ -171,8 +235,14 @@ export class ShopView {
   }
 
   /* ---------- 畫店面 ---------- */
-  // state：{ layout, validation, selected, spot, mode, cat, dragging }
-  render({ layout, validation, selected, spot, mode, cat, dragging }) {
+  // 剛放下、剛轉向：選取的佔地快閃一陣
+  flash(ms = 1400) {
+    this.flashUntil = performance.now() + ms;
+  }
+
+  // state：{ layout, validation, selected, spot, hint, mode, cat, dragging }
+  // hint：點了下方角落列時，這種東西放得下的格子
+  render({ layout, validation, selected, spot, hint, mode, cat, dragging }) {
     this.mode = mode;
     const key = JSON.stringify([layout.items, cat]);
     if (key !== this.furnKey) {
@@ -207,6 +277,7 @@ export class ShopView {
       if (m !== this.ghost) disposeGroup(m); // 拖曳的影子下面會再放回去
     }
     this.pulse = null;
+    this.selFill = null;
     if (setup) {
       for (const c of validation?.stuck || []) this.marks.add(cellPlane(c.x, c.y, 1, 1, '#d2402c', 0.4, 0.04));
       const bad = new Set([...(validation?.problems || []).map((p) => p.uid), ...(validation?.unreachable || [])]);
@@ -215,12 +286,20 @@ export class ShopView {
         const s = size(it);
         this.marks.add(cellPlane(it.x, it.y, s.w, s.h, '#d2402c', 0.42, 0.04, 0.014));
       }
+      for (const c of hint || []) this.marks.add(cellPlane(c.x, c.y, 1, 1, '#8fe08a', 0.42, 0.12, 0.015));
       const sel = selected === 'bar' ? BAR_ITEM : layout.items.find((i) => i.uid === selected);
       if (sel) {
+        // 琥珀色的佔地＋不會被家具擋住的外框＋每格放什麼
         const s = size(sel);
-        this.marks.add(cellPlane(sel.x, sel.y, s.w, s.h, '#e3a85b', 0.42, 0.02, 0.016));
+        this.selFill = cellPlane(sel.x, sel.y, s.w, s.h, '#ffbf4d', 0.5, 0.02, 0.016);
+        this.marks.add(this.selFill);
+        this.marks.add(cellOutline(sel.x, sel.y, s.w, s.h, '#ffcf6b'));
+        for (const p of pieceCells(sel)) this.marks.add(pieceBadge(p.x, p.y, p.piece));
       }
-      if (spot) this.marks.add(cellPlane(spot.x, spot.y, 1, 1, '#e3a85b', 0.6, 0.02, 0.016));
+      if (spot) {
+        this.marks.add(cellPlane(spot.x, spot.y, 1, 1, '#e3a85b', 0.6, 0.02, 0.016));
+        this.marks.add(cellOutline(spot.x, spot.y, 1, 1, '#ffcf6b'));
+      }
     }
     if (this.pulseUid === 'bar') {
       this.pulse = cellPlane(4, 0, 3, 3, '#e3a85b', 0.3, 0.02, 0.016);
@@ -230,21 +309,23 @@ export class ShopView {
     this.renderLabels(setup ? layout : null, selected);
   }
 
-  // 佈置時，每個角落上方一個小名牌（角落・款式）
+  // 佈置時的小名牌：每個角落（角落・款式）一直都有；擺飾只在選取時有。
+  // 貼在佔地靠門口那一邊的地上，不蓋在家具上；名牌不吃點擊（.s3d-labels 是 pointer-events: none）
   renderLabels(layout, selected) {
     this.labelsEl.innerHTML = '';
     this.labels = [];
     if (!layout) return;
     for (const it of layout.items) {
-      if (it.kind !== 'corner') continue;
+      const isSel = selected === it.uid;
+      if (it.kind !== 'corner' && !isSel) continue;
       const fp = footprint(it);
       const pos = new THREE.Vector3(
-        fp.reduce((a, q) => a + cx(q.x), 0) / fp.length, 1.25,
-        fp.reduce((a, q) => a + cz(q.y), 0) / fp.length,
+        fp.reduce((a, q) => a + cx(q.x), 0) / fp.length, 0,
+        cz(Math.max(...fp.map((q) => q.y))) + CELL / 2,
       );
       const el = document.createElement('span');
-      el.className = `s3d-label${selected === it.uid ? ' sel' : ''}`;
-      el.textContent = `${CORNERS[it.type].name}・${styleOf(it).name}`;
+      el.className = `s3d-label${isSel ? ' sel' : ''}`;
+      el.textContent = it.kind === 'corner' ? `${CORNERS[it.type].name}・${styleOf(it).name}` : DECOR[it.type].name;
       this.labelsEl.appendChild(el);
       this.labels.push({ el, pos });
     }
@@ -258,7 +339,7 @@ export class ShopView {
   placeLabels() {
     for (const l of this.labels) {
       const p = this.project(l.pos);
-      l.el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -100%)`;
+      l.el.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, 2px)`;
     }
     for (const g of this.guests.values()) {
       if (g.el.hidden || !g.paper.userData.size) continue;

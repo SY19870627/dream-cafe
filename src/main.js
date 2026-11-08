@@ -2,6 +2,7 @@
 // 邏輯在 grid／sim／menu／chapters／journal；畫面在 view/。
 import {
   CORNERS, DECOR, W, H, placeProblem, validate, remaining, size, seatCells, BAR_ITEM, REASONS, cornersOf, footprint,
+  bestPlacementAt, placeableCells, playerCorners, pieceCells,
 } from './grid.js';
 import { simulateDay, catSpot, GUESTS, ACTIONS, beatsDeshu } from './sim.js';
 import { signatureRecipe, signatureIsPlayers } from './menu.js';
@@ -39,6 +40,7 @@ const state = {
   mode: 'setup', // opening | intro | setup | business | journal | seat | ending
   selected: null, // 點選中的角落／擺飾 uid
   spot: null, // 點到的空地 { x, y }：下方列出這裡放得下的整組擺法
+  armed: null, // 點了下方角落列的某一張（沒拖）：{ kind, type, cells }，接著點店裡淡綠色的格子就放
   dragging: null,
   validation: validate(save.layout),
   result: null,
@@ -68,12 +70,14 @@ function render() {
   $('thermo-fill').style.height = `${Math.min(100, Math.max(6, (save.temp - 19.5) * 12))}%`;
   $('goal').textContent = save.chapter >= 1 && ch.goal && !save.finished ? `這一章：${ch.goal}` : '';
   const setup = state.mode === 'setup';
-  if (!setup) state.spot = null;
+  if (!setup) { state.spot = null; state.armed = null; }
+  if (state.armed) state.armed.cells = placeableCells(save.layout, state.armed.kind, state.armed.type);
   shop.render({
     layout: save.layout,
     validation: state.validation,
     selected: state.selected,
     spot: state.spot,
+    hint: state.armed?.cells,
     dragging: state.dragging,
     mode: ['business', 'intro', 'opening'].includes(state.mode) ? 'business' : 'setup', // 開場裡也不畫格線
     cat: state.mode === 'business' && state.result ? state.result.cat : catSpot(save.layout),
@@ -86,7 +90,7 @@ function render() {
   if (setup) {
     renderTray();
     renderSel();
-    $('btn-open').disabled = !state.validation.ok;
+    $('btn-open').disabled = !canOpen();
     $('btn-menu').classList.toggle('ping', unlocks(save.chapter).design && save.menu.slots.every((r) => !r || r.by !== 'player'));
     const [text, bad] = setupStatus();
     status(text, bad);
@@ -98,8 +102,19 @@ function status(text, bad = false) {
   $('status').classList.toggle('bad', bad);
 }
 
+// 路要通；第 1 章還要至少擺一組自己的角落（空店開了也一無所獲）
+function canOpen() {
+  if (!state.validation.ok) return false;
+  if (save.chapter === 1 && !playerCorners(save.layout).length) return false;
+  return true;
+}
+
 function setupStatus() {
   const v = state.validation;
+  if (state.armed) {
+    const name = state.armed.kind === 'corner' ? CORNERS[state.armed.type].name : DECOR[state.armed.type].name;
+    return [state.armed.cells.length ? HINTS.armed.replace('{name}', name) : HINTS.armedNone.replace('{name}', name), !state.armed.cells.length];
+  }
   if (!v.barOk) return [HINTS.blockedBar, true];
   if (v.unreachable.length) return [HINTS.blockedCorner, true];
   if (v.stuck.length) return [HINTS.stuck, false];
@@ -120,57 +135,70 @@ function optionsAt(cell) {
   for (const type of u.corners) {
     const c = CORNERS[type];
     if (remaining(save.layout, 'corner', type) <= 0) continue;
-    let best = null;
-    let firstReason = null;
-    for (let rot = 0; rot < 4; rot++) {
-      const s = size({ kind: 'corner', type, rot });
-      for (let x = cell.x - s.w + 1; x <= cell.x; x++) for (let y = cell.y - s.h + 1; y <= cell.y; y++) {
-        const cand = { kind: 'corner', type, x, y, rot, style: c.styles[0].id, uid: '__new' };
-        const p = placeProblem(save.layout, cand, '__new');
-        if (p) { firstReason ||= p; continue; }
-        const ok = validate({ items: [...save.layout.items, cand] }).ok;
-        const fx = x + s.w / 2 - 0.5 - cell.x;
-        const fy = y + s.h / 2 - 0.5 - cell.y;
-        const score = (ok ? 0 : 10) + (rot ? 0.5 : 0) + Math.hypot(fx, fy) * 0.1;
-        if (!best || score < best.score) best = { cand, score };
-      }
-    }
-    if (!best) { out.push({ kind: 'corner', type, name: c.name, reason: REASONS[firstReason] || '' }); continue; }
+    const best = bestPlacementAt(save.layout, 'corner', type, cell);
+    if (!best.item) { out.push({ kind: 'corner', type, name: c.name, reason: REASONS[best.reason] || '' }); continue; }
     for (const st of c.styles) {
-      out.push({ kind: 'corner', type, name: `${c.name}・${st.name}`, art: st.chair || 'stool', item: { ...best.cand, style: st.id } });
+      out.push({ kind: 'corner', type, name: `${c.name}・${st.name}`, art: st.chair || 'stool', item: { ...best.item, style: st.id } });
     }
   }
   for (const type of u.decor) {
     if (remaining(save.layout, 'decor', type) <= 0) continue;
-    const cand = { kind: 'decor', type, x: cell.x, y: cell.y, rot: 0, uid: '__new' };
-    const p = placeProblem(save.layout, cand, '__new');
-    out.push(p ? { kind: 'decor', type, name: DECOR[type].name, reason: REASONS[p] } : { kind: 'decor', type, name: DECOR[type].name, art: DECOR[type].art, item: cand });
+    const best = bestPlacementAt(save.layout, 'decor', type, cell);
+    out.push(best.item ? { kind: 'decor', type, name: DECOR[type].name, art: DECOR[type].art, item: best.item } : { kind: 'decor', type, name: DECOR[type].name, reason: REASONS[best.reason] });
   }
   return out;
 }
 
-function placeOption(o) {
-  const uid = newUid(o.kind === 'corner' ? 'c' : 'd');
-  save.layout = { items: [...save.layout.items, { ...o.item, uid }] };
+// 放下一件：角落、擺飾都保持選取（看得到琥珀色佔地與名牌），整組閃一下
+function placeNew(item) {
+  const uid = newUid(item.kind === 'corner' ? 'c' : 'd');
+  save.layout = { items: [...save.layout.items, { ...item, uid }] };
   state.spot = null;
-  state.selected = o.kind === 'corner' ? uid : null; // 角落放好接著可以換款式、轉向
+  state.armed = null;
+  state.selected = uid;
+  shop.flash();
   render();
 }
 
+function placeOption(o) {
+  placeNew(o.item);
+}
+
+/* ---------- 點了下方角落列（沒拖）：準備擺這種，店裡放得下的格子淡淡標出來 ---------- */
+function armTray(kind, type) {
+  if (state.armed && state.armed.kind === kind && state.armed.type === type) { state.armed = null; render(); return; }
+  state.armed = { kind, type, cells: [] };
+  state.selected = null;
+  state.spot = null;
+  render();
+  const name = kind === 'corner' ? CORNERS[type].name : DECOR[type].name;
+  toast(state.armed?.cells.length ? HINTS.armed.replace('{name}', name) : HINTS.armedNone.replace('{name}', name), 2600);
+}
+
+// 準備擺的狀態下點了店裡的一格
+function placeArmed(cell) {
+  const a = state.armed;
+  const best = bestPlacementAt(save.layout, a.kind, a.type, cell);
+  if (!best.item) { toast(`這裡放不下：${REASONS[best.reason] || ''}。點淡綠色的格子。`, 2400); return; }
+  placeNew(best.item);
+}
+
 /* ---------- 下方角落列 ---------- */
+const armedIs = (kind, type) => !!state.armed && state.armed.kind === kind && state.armed.type === type;
+
 function renderTray() {
   const u = unlocks(save.chapter);
   const chips = [];
   for (const type of u.corners) {
     const c = CORNERS[type];
     const left = remaining(save.layout, 'corner', type);
-    chips.push(`<button type="button" class="chip corner" data-kind="corner" data-type="${type}" ${left <= 0 ? 'disabled' : ''}>
+    chips.push(`<button type="button" class="chip corner${armedIs('corner', type) ? ' on' : ''}" data-kind="corner" data-type="${type}" ${left <= 0 ? 'disabled' : ''}>
       <img src="./assets/art/${c.styles[0].chair || 'stool'}.webp" alt="" draggable="false"><b>${c.name}</b><small>${c.w}×${c.h}・剩 ${left}</small></button>`);
   }
   for (const type of u.decor) {
     const d = DECOR[type];
     const left = remaining(save.layout, 'decor', type);
-    chips.push(`<button type="button" class="chip decor" data-kind="decor" data-type="${type}" ${left <= 0 ? 'disabled' : ''}>
+    chips.push(`<button type="button" class="chip decor${armedIs('decor', type) ? ' on' : ''}" data-kind="decor" data-type="${type}" ${left <= 0 ? 'disabled' : ''}>
       <img src="./assets/art/${d.art}.webp" alt="" draggable="false"><b>${d.name}</b><small>剩 ${left}</small></button>`);
   }
   $('tray').innerHTML = chips.join('') || '<p class="note">還沒有可以擺的東西。</p>';
@@ -194,16 +222,16 @@ function renderSel() {
   const name = it.kind === 'corner' ? CORNERS[it.type].name : DECOR[it.type].name;
   let styles = '';
   if (it.kind === 'corner' && !it.fixed && CORNERS[it.type].styles.length > 1) {
-    // 款式：整組換掉（佔地不變），點了店裡馬上換
-    styles = `<div class="opt-row">${CORNERS[it.type].styles.map((s) => `<button type="button" class="opt ${s.id === it.style ? 'on' : ''}" data-style="${s.id}">
-      <img src="./assets/art/${s.chair || 'stool'}.webp" alt="" draggable="false"><b>${esc(s.name)}</b></button>`).join('')}</div>`;
+    // 款式：整組換掉（佔地不變），點了店裡馬上換；跟名字擠在同一列，店面才不會被壓矮
+    styles = CORNERS[it.type].styles.map((s) => `<button type="button" class="opt mini ${s.id === it.style ? 'on' : ''}" data-style="${s.id}">
+      <img src="./assets/art/${s.chair || 'stool'}.webp" alt="" draggable="false"><b>${esc(s.name)}</b></button>`).join('');
   }
   let btns = '';
   if (it.kind === 'corner' && !it.fixed) btns += '<button type="button" data-a="rot">轉 90°</button>';
   if (it.kind === 'corner') btns += '<button type="button" data-a="sit">坐下來看看</button>';
   if (!it.fixed) btns += '<button type="button" data-a="stow">收起</button>';
   btns += '<button type="button" data-a="done" class="primary">好</button>';
-  $('sel').innerHTML = `<p class="sel-name">${esc(name)}</p>${styles}<div class="sel-btns">${btns}</div>`;
+  $('sel').innerHTML = `<div class="sel-head"><b class="sel-name">${esc(name)}</b>${styles}</div><div class="sel-btns">${btns}</div>`;
   for (const b of $('sel').querySelectorAll('[data-a]')) b.onclick = () => selAction(b.dataset.a, it);
   for (const b of $('sel').querySelectorAll('[data-style]')) b.onclick = () => { replaceItem({ ...it, style: b.dataset.style }); render(); };
 }
@@ -253,10 +281,16 @@ function selAction(a, it) {
     for (const [dx, dy] of [[0, 0], [-1, 0], [0, -1], [-1, -1], [1, 0], [0, 1], [1, 1], [-1, 1], [1, -1], [-2, 0], [0, -2]]) {
       const cand = { ...it, rot, x: it.x + dx, y: it.y + dy };
       const p = placeProblem(save.layout, cand);
-      if (!p) { replaceItem(cand); render(); return; }
+      if (!p) {
+        replaceItem(cand);
+        shop.flash();
+        render();
+        toast(dx || dy ? '已轉向（往旁邊挪了一點才轉得過去）' : '已轉向', 1600);
+        return;
+      }
       firstReason ||= p;
     }
-    toast(`轉不過去：${REASONS[firstReason] || ''}`);
+    toast(`轉不過去：${REASONS[firstReason] || '旁邊太擠'}。先拖到空一點的地方再轉。`, 2600);
     return;
   }
   if (a === 'sit') sitDown(it, 0);
@@ -321,18 +355,19 @@ function onDragEnd(e) {
   drag = null;
   endDragListeners();
   if (!d.moved) {
-    // 點一下：選取已放的東西；點下方角落列的卡片只提示怎麼放
-    if (d.fromUid) { state.selected = d.fromUid; state.spot = null; } else toast(HINTS.pickCorner, 2600);
-    render();
+    // 點一下：選取已放的東西；點下方角落列的卡片＝準備擺這種（店裡放得下的格子標出來）
+    if (d.fromUid) { state.selected = d.fromUid; state.spot = null; state.armed = null; render(); } else armTray(d.item.kind, d.item.type);
     return;
   }
   const inside = !!shop.pointToCell(e.clientX, e.clientY);
   if (inside && d.cand && d.ok) {
-    if (d.fromUid) replaceItem({ ...d.item, ...d.cand, uid: d.fromUid });
-    else {
-      const uid = newUid(d.item.kind === 'corner' ? 'c' : 'd');
-      save.layout = { items: [...save.layout.items, { ...d.cand, uid }] };
-      if (d.item.kind === 'corner') state.selected = null;
+    if (d.fromUid) {
+      replaceItem({ ...d.item, ...d.cand, uid: d.fromUid });
+      state.selected = d.fromUid; // 搬完保持選取，看得到搬到哪
+      shop.flash();
+    } else {
+      placeNew(d.cand);
+      return;
     }
   } else if (!inside && d.fromUid) {
     save.layout = { items: save.layout.items.filter((i) => i.uid !== d.fromUid) }; // 拖回下方就收起來
@@ -354,7 +389,7 @@ $('stage').addEventListener('pointerdown', (e) => {
     return;
   }
   if (state.mode !== 'setup' || !hit) return;
-  if (hit.uid === 'bar') { state.selected = 'bar'; state.spot = null; render(); return; }
+  if (hit.uid === 'bar') { state.selected = 'bar'; state.spot = null; state.armed = null; render(); return; }
   const it = hit.uid ? findItem(hit.uid) : null;
   if (!it) {
     if (!hit.cell) return;
@@ -364,6 +399,7 @@ $('stage').addEventListener('pointerdown', (e) => {
     const up = (ev) => {
       window.removeEventListener('pointerup', up);
       if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) return;
+      if (state.armed) { placeArmed(hit.cell); return; }
       state.selected = null;
       state.spot = state.spot && state.spot.x === hit.cell.x && state.spot.y === hit.cell.y ? null : hit.cell;
       render();
@@ -411,6 +447,7 @@ $('btn-menu').onclick = () => {
 /* ---------- 營業 ---------- */
 $('btn-open').onclick = () => {
   if (!state.validation.ok) { toast('路不通，不能開店。'); return; }
+  if (!canOpen()) { toast(HINTS.ch1); return; }
   startBusiness();
 };
 
@@ -656,4 +693,4 @@ else {
 }
 
 // 除錯與自動化截圖用（不影響遊戲）
-window.__cafe = { save: () => save, state, W, H, cornersOf, shop, footprint };
+window.__cafe = { save: () => save, state, W, H, cornersOf, shop, footprint, pieceCells };

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   W, H, DOOR, emptyLayout, placeProblem, validate, footprint, seatCells, size, walkMap, pathTo, nearestEntrance, layoutKey, remaining,
+  bestPlacementAt, placeableCells, pieceCells,
 } from '../../src/grid.js';
 
 let n = 0;
@@ -95,4 +96,40 @@ test('庫存與版面字串與 uid、順序無關', () => {
   assert.equal(layoutKey(lay(a, b)), layoutKey(lay({ ...b, uid: 'x' }, { ...a, uid: 'y' })));
   assert.equal(remaining(lay(a), 'corner', 'window'), 1);
   assert.equal(remaining(lay(a), 'corner', 'worktable'), 1);
+});
+
+test('點一格：找蓋住這一格的合法擺法；放不下回原因', () => {
+  const r = bestPlacementAt(emptyLayout(), 'corner', 'window', { x: 0, y: 2 });
+  assert.ok(r.item);
+  assert.ok(footprint(r.item).some((c) => c.x === 0 && c.y === 2));
+  assert.equal(placeProblem(emptyLayout(), r.item, '__new'), null);
+  assert.equal(bestPlacementAt(emptyLayout(), 'corner', 'window', { x: 5, y: 6 }).reason, 'window');
+  assert.equal(bestPlacementAt(emptyLayout(), 'decor', 'plant', DOOR).reason, 'clear');
+  assert.ok(bestPlacementAt(emptyLayout(), 'decor', 'plant', { x: 2, y: 5 }).item);
+});
+
+test('放得下的格子：窗邊雙人座只在靠窗那一帶，擺飾避開門口與吧台', () => {
+  const win = placeableCells(emptyLayout(), 'corner', 'window');
+  assert.ok(win.length > 0);
+  assert.ok(win.every((c) => c.x <= 1));
+  const plant = placeableCells(emptyLayout(), 'decor', 'plant');
+  assert.ok(!plant.some((c) => c.x === DOOR.x && c.y === DOOR.y));
+  assert.ok(!plant.some((c) => c.x >= 4 && c.y <= 3));
+});
+
+test('轉向後，桌子、書架、椅子換到別格', () => {
+  const at = (it) => pieceCells(it).map((p) => `${p.piece}@${p.x - it.x},${p.y - it.y}`).sort().join(' ');
+  const w0 = corner('window', 0, 1, 0);
+  const w1 = { ...w0, rot: 1 };
+  const w2 = { ...w0, rot: 2 };
+  assert.notEqual(at(w0), at(w1));
+  assert.notEqual(at(w0), at(w2));
+  assert.notEqual(at(w1), at(w2));
+  // 工作桌：長桌從橫的一排變成直的一列
+  const t0 = pieceCells(corner('worktable', 4, 6, 0)).filter((p) => p.piece === 'table');
+  const t1 = pieceCells(corner('worktable', 5, 6, 1)).filter((p) => p.piece === 'table');
+  assert.equal(t0.length, 3);
+  assert.equal(t1.length, 3);
+  assert.equal(new Set(t0.map((p) => p.y)).size, 1);
+  assert.equal(new Set(t1.map((p) => p.x)).size, 1);
 });

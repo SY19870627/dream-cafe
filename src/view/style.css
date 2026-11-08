@@ -27,9 +27,16 @@ button.on { background: #e9d6b8; border-color: #7a4f2e; }
 .chip .sw { width: 28px; height: 14px; border-radius: 3px; }
 .chip b { font-size: 12px; font-weight: 600; }
 .chip small { font-size: 10px; color: #806a55; }
+/* 選取面板壓扁：名字＋款式一列（橫滑）、按鈕一列，店面不被擠矮 */
 #sel { text-align: center; }
-.sel-name { margin: 2px 0 6px; font-weight: 700; }
-.sel-btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.sel-head { display: flex; align-items: center; gap: 6px; overflow-x: auto; margin-bottom: 6px; justify-content: safe center; }
+.sel-name { flex: 0 0 auto; margin: 0 4px; font-weight: 700; font-size: 15px; }
+.sel-btns { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: center; }
+.sel-btns button { flex: 1 1 auto; min-height: 42px; padding: 0 8px; font-size: 14px; white-space: nowrap; }
+.opt.mini { flex-direction: row; width: auto; height: 40px; min-height: 40px; padding: 0 10px; gap: 4px; }
+.opt.mini img { height: 26px; }
+.opt.mini b { font-size: 13px; }
+.chip.on { background: #e9d6b8; border-color: #7a4f2e; box-shadow: 0 0 0 3px #8fe08a; }
 #speed .sp-row { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 4px 0 8px; }
 #speed .bar { flex: 1; height: 8px; background: #e2d4bf; border-radius: 4px; overflow: hidden; }
 #speed .bar i { display: block; height: 100%; width: 0; background: #7a4f2e; }
@@ -55,8 +62,8 @@ button.on { background: #e9d6b8; border-color: #7a4f2e; }
 /* 點空地：這裡放得下的整組擺法；點已放的角落：款式 */
 .opt-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 6px; }
 .opt-row.scroll { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; padding-bottom: 2px; }
-.opt { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 92px; height: 64px; padding: 2px 4px; gap: 1px; }
-.opt img { height: 30px; pointer-events: none; }
+.opt { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 92px; height: 54px; padding: 2px 4px; gap: 1px; }
+.opt img { height: 24px; pointer-events: none; }
 .opt b { font-size: 11px; font-weight: 600; line-height: 1.2; }
 #sel .note { margin: 2px 0 6px; font-size: 12px; text-align: center; }
 

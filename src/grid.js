@@ -114,6 +114,23 @@ export function pieceCell(item, piece) {
   return { x: item.x + dx, y: item.y + dy };
 }
 
+// 角落每一格放的是什麼（seat／table／shelf，空的那格不列）；選取時畫在地上，轉向後一眼看得出換了邊
+// 工作桌的長桌佔 table 那一整排（沒轉向時是第一排三格）
+export function pieceCells(item) {
+  const c = CORNERS[item.type];
+  if (!c || item.kind === 'decor') return [];
+  const out = seatCells(item).map((s) => ({ ...s, piece: 'seat' }));
+  const table = pieceCell(item, 'table');
+  if (table) {
+    const fp = footprint(item);
+    const line = item.type === 'worktable' ? fp.filter((q) => (item.rot % 2 ? q.x === table.x : q.y === table.y)) : [table];
+    for (const q of line) out.push({ ...q, piece: 'table' });
+  }
+  const shelf = pieceCell(item, 'shelf');
+  if (shelf) out.push({ ...shelf, piece: 'shelf' });
+  return out;
+}
+
 // 吧台座是固定的角落，不放進 layout，但模擬與畫面都當成一個角落
 export const BAR_ITEM = Object.freeze({ uid: 'bar', kind: 'corner', type: 'bar', x: 4, y: 2, rot: 0, style: 'stool', fixed: true });
 
@@ -234,6 +251,47 @@ export function validate(layout) {
   const barOk = BAR_FRONT.some((c) => map.dist.has(key(c)));
   const unreachable = playerCorners(layout).filter((it) => !nearestEntrance(layout, it, map)).map((it) => it.uid);
   return { ok: problems.length === 0 && barOk && unreachable.length === 0, problems, stuck, barOk, unreachable, map };
+}
+
+// 點了某一格：這種角落／擺飾蓋住這一格、最好的擺法（轉向、往旁邊挪都試；路通的優先、不轉的優先、離這一格近的優先）
+// 回傳 { item } 或 { reason }（放不下的原因代碼）
+export function bestPlacementAt(layout, kind, type, cell, style) {
+  if (kind === 'decor') {
+    const item = { kind, type, x: cell.x, y: cell.y, rot: 0, uid: '__new' };
+    const p = placeProblem(layout, item, '__new');
+    return p ? { reason: p } : { item };
+  }
+  let best = null;
+  let firstReason = null;
+  for (let rot = 0; rot < 4; rot++) {
+    const s = size({ kind, type, rot });
+    for (let x = cell.x - s.w + 1; x <= cell.x; x++) for (let y = cell.y - s.h + 1; y <= cell.y; y++) {
+      const cand = { kind, type, x, y, rot, style: style || CORNERS[type].styles[0].id, uid: '__new' };
+      const p = placeProblem(layout, cand, '__new');
+      if (p) { firstReason ||= p; continue; }
+      const ok = validate({ items: [...layout.items, cand] }).ok;
+      const fx = x + s.w / 2 - 0.5 - cell.x;
+      const fy = y + s.h / 2 - 0.5 - cell.y;
+      const score = (ok ? 0 : 10) + (rot ? 0.5 : 0) + Math.hypot(fx, fy) * 0.1;
+      if (!best || score < best.score) best = { item: cand, score };
+    }
+  }
+  return best ? { item: best.item } : { reason: firstReason || 'out' };
+}
+
+// 這種角落／擺飾在店裡哪些空格放得下（點下方角落列時，把這些格子淡淡標出來）
+// （跟 bestPlacementAt 同一套規則：只要有一個合法擺法蓋住這一格就算；這裡不跑 BFS，每次畫面更新都算得起）
+export function placeableCells(layout, kind, type) {
+  const ok = new Set();
+  for (let rot = 0; rot < (kind === 'corner' ? 4 : 1); rot++) {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const cand = { kind, type, x, y, rot, uid: '__new' };
+      if (!placeProblem(layout, cand, '__new')) for (const c of footprint(cand)) ok.add(key(c));
+    }
+  }
+  const out = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (ok.has(`${x},${y}`)) out.push({ x, y });
+  return out;
 }
 
 // 庫存：每種角落／擺飾還能拿幾個出來
