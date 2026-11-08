@@ -1,15 +1,13 @@
 {
   "name": "dream-cafe",
   "private": true,
-  "description": "我單方面辭退老闆後，開了一間夢想中的咖啡店",
+  "description": "夢想咖啡店（v2 一小時短篇；規格見 docs/規格書.md）",
   "license": "CC-BY-NC-ND-4.0",
   "type": "module",
   "scripts": {
-    "test": "node --test tests/unit/*.test.mjs && node tests/smoke.mjs",
     "serve": "node tests/serve.mjs",
-    "test:unit": "node --test tests/unit/*.test.mjs",
-    "playthrough": "node tests/playthrough.mjs",
-    "pending": "node tests/pending.mjs"
+    "test": "node --test tests/unit/*.test.mjs",
+    "test:unit": "node --test tests/unit/*.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.50.0"
