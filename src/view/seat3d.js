@@ -43,7 +43,8 @@ export function openSeatView(root, { layout, item, seatIndex = 0, cat, onClose }
   function placeCamera() {
     const s = seatCells(item)[seat] || seatCells(item)[0];
     ownChairs.forEach((m, i) => { if (m) m.visible = i !== seat; }); // 自己坐的那張椅子不畫（鏡頭就在椅子上）
-    const p = new THREE.Vector3(cx(s.x), EYE, cz(s.y));
+    const sp = furn.spotsOf.get(item.uid)?.[seat]; // 椅子拉近桌子了：鏡頭跟著坐在椅子上
+    const p = new THREE.Vector3(sp ? sp.x : cx(s.x), EYE, sp ? sp.z : cz(s.y));
     camera.position.copy(p);
     let tx;
     let tz;

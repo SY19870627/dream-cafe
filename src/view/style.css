@@ -20,9 +20,11 @@ button.on { background: #e9d6b8; border-color: #7a4f2e; }
 #status { margin: 2px 12px; min-height: 36px; font-size: 13px; line-height: 1.4; color: #5d4a39; }
 #status.bad { color: #b3392a; }
 #panel { padding: 0 8px; min-height: 120px; }
-#tray { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+/* 下方角落列：東西多了，一排橫滑（main.js 自己處理橫滑，卡片本身 touch-action: none 才能往上拖出來） */
+#tray { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: flex-start; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+#tray .chip { flex: 0 0 auto; }
 .chip { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 64px; height: 56px; padding: 2px; gap: 1px; touch-action: none; user-select: none; -webkit-user-select: none; }
-.chip.corner { width: 96px; }
+.chip.corner { width: 108px; }
 .chip img { height: 22px; pointer-events: none; }
 .chip .sw { width: 28px; height: 14px; border-radius: 3px; }
 .chip b { font-size: 12px; font-weight: 600; }
@@ -66,6 +68,18 @@ button.on { background: #e9d6b8; border-color: #7a4f2e; }
 .opt img { height: 24px; pointer-events: none; }
 .opt b { font-size: 11px; font-weight: 600; line-height: 1.2; }
 #sel .note { margin: 2px 0 6px; font-size: 12px; text-align: center; }
+/* 細調：項目分頁（上面大字是項目、下面小字是現在選的）＋選項列 */
+.tab { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 52px; height: 44px; padding: 0 8px; line-height: 1.1; }
+.tab b { font-size: 13px; font-weight: 600; }
+.tab small { font-size: 10px; color: #806a55; }
+.tab.on { background: #e9d6b8; border-color: #7a4f2e; box-shadow: inset 0 -3px 0 #e3a85b; }
+.opt-row.tune { margin-bottom: 6px; }
+.opt-row.tune .opt.mini { height: 44px; min-height: 44px; }
+.opt-row.tune .note { margin: 0 4px; align-self: center; }
+.opt.mini .sw { display: inline-block; width: 22px; height: 22px; border-radius: 5px; border: 1px solid #0002; }
+.chip .sw, .opt .sw { display: inline-block; border: 1px solid #0002; }
+.opt:not(.mini) .sw { width: 28px; height: 18px; border-radius: 3px; }
+.chip .sw { height: 20px; }
 
 /* ---------- 對話框、提示 ---------- */
 #say { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(400px, calc(100% - 20px)); z-index: 60; background: #fffaf1f2; border: 1px solid #b9a58c; border-radius: 12px; padding: 10px 14px 12px; box-shadow: 0 6px 18px #0005; cursor: pointer; }

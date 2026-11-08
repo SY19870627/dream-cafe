@@ -18,6 +18,11 @@ export const PAPER_SPEC = {
   bookshelf: { size: [1, 1.9] }, plant: { size: [0.8, 1.4] }, framedNapkin: { size: [0.5, 0.95] },
   floorLamp_on: { size: [0.6, 1.7] }, catCushion: { size: [0.7, 0.3] }, kettleSet: { size: [0.7, 0.45] },
   longanJar: { size: [0.5, 0.95] }, menuBoard: { size: [0.6, 1] }, cabinet: { size: [0.9, 1.6] },
+  // 第 2 輪新擺設用到的圖：大小多半用 paper() 的 height 指定，這裡只給個量級
+  sofa: { size: [1.6, 1.0] }, recordPlayer: { size: [0.6, 0.5] }, catTree: { size: [0.8, 1.4] }, succulent: { size: [0.4, 0.4] },
+  noticeBoard: { size: [0.8, 0.7] }, map_taiwan: { size: [0.6, 0.8] }, bookWall: { size: [1.2, 1.0] }, bookStack: { size: [0.4, 0.3] },
+  beanBag: { size: [0.4, 0.5] }, coffeeSack: { size: [0.6, 0.7] }, longanBag: { size: [0.4, 0.5] }, radio: { size: [0.5, 0.4] },
+  prop_cup: { size: [0.25, 0.25] }, prop_cup_daily: { size: [0.25, 0.25] }, prop_coaster_menu: { size: [0.3, 0.3] }, floorLamp_off: { size: [0.6, 1.7] },
   // 掛在牆上的（整張用、不裁）
   backbar: { size: [2.8, 1.8], keep: true }, thermometer_frame: { size: [0.36, 0.9], keep: true },
   pendant_lamp: { size: [0.36, 0.9], keep: true }, window_frame: { size: [1.6, 1.3], keep: true },
@@ -136,7 +141,9 @@ export function blobTex() {
 }
 
 // 紙片：一個 Group（原點在落地點），裡面是貼圖的平面（userData.mesh）與地上的影子。
-// opt：{ fit：寬度上限（公尺，超過就整張等比縮小）、scale、flip（左右翻）、lift（離地）、shadow、uid（點選用）、tint、onReady }
+// opt：{ fit：寬度上限（公尺，超過就整張等比縮小）、height：直接指定高度（公尺）、maxH：高度上限、scale、flip（左右翻）、
+//        lift（離地）、shadow、uid（點選用）、tint、onReady }
+// 掛在牆上的另外設 group.userData.wall（後牆，不轉）或 wallFace（側牆，見 faceCamera）；userData.yawOff：朝桌子等方向偏轉
 export function paper(name, opt = {}) {
   const group = new THREE.Group();
   const geo = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0);
@@ -157,7 +164,7 @@ export function paper(name, opt = {}) {
   }
   loadPaper(name).then((a) => {
     if (!a) return;
-    let k = opt.scale || 1;
+    let k = opt.height ? opt.height / a.h : (opt.scale || 1);
     if (opt.fit && a.w * k > opt.fit) k = opt.fit / a.w;
     if (opt.maxH && a.h * k > opt.maxH) k = opt.maxH / a.h;
     mat.map = a.tex;
@@ -200,18 +207,43 @@ const fwd = new THREE.Vector3();
 // 紙片轉向鏡頭（第一版 faceCamera() 的做法）。
 // over（俯視）：不靠牆的紙片只繞垂直軸轉到和畫面平行，往後仰一點，剩下看不到的高度用往上拉長補回來，
 // 才不會從斜上方看成扁扁一條；座位視角：各自轉向鏡頭的位置、不仰。
+//
+// 側牆上的東西（userData.wallFace = { side: 'left'|'right', x, z, hung }）：俯視時側牆幾乎是一條線，
+// 貼平了看不到，所以轉到斜斜朝著鏡頭（往牆那邊偏 0.5 弧度），整張往房間裡推、不插進牆裡；座位視角就平貼在牆上。
+// hung（掛著的）不往後仰、不拉長。userData.yawOff：在「朝鏡頭」之外再偏一點（椅子朝桌子）。
+const SIDE_TILT = 0.5;
 export function faceCamera(papers, camera, over) {
   camera.getWorldDirection(fwd);
   const screenYaw = Math.atan2(-fwd.x, -fwd.z);
   for (const p of papers) {
-    if (p.userData.wall) continue; // 貼牆的不轉
+    const wf = p.userData.wallFace;
+    if (p.userData.wall && !wf) continue; // 貼後牆的不轉
     const m = p.userData.mesh;
-    const wp = p.getWorldPosition(new THREE.Vector3());
-    p.rotation.y = over ? screenYaw : wrapAngle(Math.atan2(camera.position.x - wp.x, camera.position.z - wp.z));
+    if (wf) {
+      const inward = wf.side === 'left' ? 1 : -1;
+      if (over) {
+        const tilt = SIDE_TILT * inward;
+        p.rotation.y = screenYaw + tilt;
+        const half = (p.userData.size?.w || 0) / 2;
+        p.position.set(wf.x + inward * (half * Math.cos(tilt) + 0.03), 0, wf.z);
+      } else {
+        p.rotation.y = inward * Math.PI / 2;
+        p.position.set(wf.x + inward * 0.03, 0, wf.z);
+      }
+    } else {
+      const wp = p.getWorldPosition(new THREE.Vector3());
+      p.rotation.y = (over ? screenYaw : wrapAngle(Math.atan2(camera.position.x - wp.x, camera.position.z - wp.z))) + (p.userData.yawOff || 0);
+    }
     const shadow = p.children[1];
     if (shadow) shadow.rotation.z = -p.rotation.y;
     const baseY = p.userData.baseScaleY;
     if (!baseY) continue;
+    if (wf?.hung) {
+      m.rotation.x = 0;
+      m.scale.y = baseY;
+      continue;
+    }
+    const wp = p.getWorldPosition(new THREE.Vector3());
     if (over) {
       const elev = Math.atan2(camera.position.y - baseY / 2, Math.hypot(camera.position.x - wp.x, camera.position.z - wp.z));
       const lean = Math.min(0.47, Math.max(0, (elev - 0.5) * 0.6));

@@ -1,8 +1,8 @@
 // 入口：串起一天的循環（開店前佈置 → 營業 → 打烊看日誌 → 調整），以及序章的開場四幕。
 // 邏輯在 grid／sim／menu／chapters／journal；畫面在 view/。
 import {
-  CORNERS, DECOR, W, H, placeProblem, validate, remaining, size, seatCells, BAR_ITEM, REASONS, cornersOf, footprint,
-  bestPlacementAt, placeableCells, playerCorners, pieceCells,
+  CORNERS, DECOR, TUNE, W, H, placeProblem, validate, remaining, size, seatCells, BAR_ITEM, REASONS, cornersOf, footprint,
+  bestPlacementAt, placeableCells, seatingCorners, pieceCells, cornerOpts, cornerWallSpot, tuneLabel, tuneName,
 } from './grid.js';
 import { simulateDay, catSpot, GUESTS, ACTIONS, beatsDeshu } from './sim.js';
 import { signatureRecipe, signatureIsPlayers } from './menu.js';
@@ -41,6 +41,7 @@ const state = {
   selected: null, // 點選中的角落／擺飾 uid
   spot: null, // 點到的空地 { x, y }：下方列出這裡放得下的整組擺法
   armed: null, // 點了下方角落列的某一張（沒拖）：{ kind, type, cells }，接著點店裡淡綠色的格子就放
+  tune: null, // 選取角落時正在調哪一項（table／chair／seats／top／lamp／wall／goods）
   dragging: null,
   validation: validate(save.layout),
   result: null,
@@ -105,7 +106,7 @@ function status(text, bad = false) {
 // 路要通；第 1 章還要至少擺一組自己的角落（空店開了也一無所獲）
 function canOpen() {
   if (!state.validation.ok) return false;
-  if (save.chapter === 1 && !playerCorners(save.layout).length) return false;
+  if (save.chapter === 1 && !seatingCorners(save.layout).length) return false;
   return true;
 }
 
@@ -118,7 +119,7 @@ function setupStatus() {
   if (!v.barOk) return [HINTS.blockedBar, true];
   if (v.unreachable.length) return [HINTS.blockedCorner, true];
   if (v.stuck.length) return [HINTS.stuck, false];
-  if (save.chapter === 1 && !save.layout.items.some((i) => i.kind === 'corner')) return [HINTS.ch1, false];
+  if (save.chapter === 1 && !seatingCorners(save.layout).length) return [HINTS.ch1, false];
   if (save.chapter === 2 && !save.menu.slots.some((r) => r?.by === 'player')) return [HINTS.ch2, false];
   if (save.chapter === 2 && signatureIsPlayers(save.menu) && !beatsDeshu(signatureRecipe(save.menu)).length) return [HINTS.sigLikeDeshu, false];
   if (state.spot) return [HINTS.pickHere, false];
@@ -138,16 +139,20 @@ function optionsAt(cell) {
     const best = bestPlacementAt(save.layout, 'corner', type, cell);
     if (!best.item) { out.push({ kind: 'corner', type, name: c.name, reason: REASONS[best.reason] || '' }); continue; }
     for (const st of c.styles) {
-      out.push({ kind: 'corner', type, name: `${c.name}・${st.name}`, art: st.chair || 'stool', item: { ...best.item, style: st.id } });
+      out.push({ kind: 'corner', type, name: `${c.name}・${st.name}`, art: c.art || st.chair || 'stool', color: st.color, item: { ...best.item, style: st.id } });
     }
   }
   for (const type of u.decor) {
     if (remaining(save.layout, 'decor', type) <= 0) continue;
+    const d = DECOR[type];
     const best = bestPlacementAt(save.layout, 'decor', type, cell);
-    out.push(best.item ? { kind: 'decor', type, name: DECOR[type].name, art: DECOR[type].art, item: best.item } : { kind: 'decor', type, name: DECOR[type].name, reason: REASONS[best.reason] });
+    out.push(best.item ? { kind: 'decor', type, name: d.name, art: d.art, color: d.color, item: best.item } : { kind: 'decor', type, name: d.name, reason: REASONS[best.reason] });
   }
   return out;
 }
+
+// 卡片上的小圖：有畫師的圖用圖，沒有（地毯、桌面顏色）就畫一塊色票
+const icon = (art, color) => (art ? `<img src="./assets/art/${art}.webp" alt="" draggable="false">` : `<i class="sw" style="background:${color || '#ccc'}"></i>`);
 
 // 放下一件：角落、擺飾都保持選取（看得到琥珀色佔地與名牌），整組閃一下
 function placeNew(item) {
@@ -186,6 +191,8 @@ function placeArmed(cell) {
 /* ---------- 下方角落列 ---------- */
 const armedIs = (kind, type) => !!state.armed && state.armed.kind === kind && state.armed.type === type;
 
+// 卡片上的小字：佔地與位置限制
+const NEED_TEXT = { window: '靠窗', outlet: '靠插座', wall: '靠牆', flush: '貼牆' };
 function renderTray() {
   const u = unlocks(save.chapter);
   const chips = [];
@@ -193,15 +200,18 @@ function renderTray() {
     const c = CORNERS[type];
     const left = remaining(save.layout, 'corner', type);
     chips.push(`<button type="button" class="chip corner${armedIs('corner', type) ? ' on' : ''}" data-kind="corner" data-type="${type}" ${left <= 0 ? 'disabled' : ''}>
-      <img src="./assets/art/${c.styles[0].chair || 'stool'}.webp" alt="" draggable="false"><b>${c.name}</b><small>${c.w}×${c.h}・剩 ${left}</small></button>`);
+      ${icon(c.art || c.styles[0].chair || 'stool')}<b>${c.name}</b><small>${c.w}×${c.h}・${NEED_TEXT[c.need] || '自由'}・剩 ${left}</small></button>`);
   }
   for (const type of u.decor) {
     const d = DECOR[type];
     const left = remaining(save.layout, 'decor', type);
+    const where = d.layer === 'wall' ? '掛牆' : d.layer === 'rug' ? `${d.w}×${d.h}` : NEED_TEXT[d.need] || '';
     chips.push(`<button type="button" class="chip decor${armedIs('decor', type) ? ' on' : ''}" data-kind="decor" data-type="${type}" ${left <= 0 ? 'disabled' : ''}>
-      <img src="./assets/art/${d.art}.webp" alt="" draggable="false"><b>${d.name}</b><small>剩 ${left}</small></button>`);
+      ${icon(d.art, d.color)}<b>${d.name}</b><small>${where ? `${where}・` : ''}剩 ${left}</small></button>`);
   }
+  const keep = $('tray').scrollLeft; // 重畫不要把橫滑的位置歸零
   $('tray').innerHTML = chips.join('') || '<p class="note">還沒有可以擺的東西。</p>';
+  $('tray').scrollLeft = keep;
   for (const b of $('tray').querySelectorAll('.chip')) {
     b.onpointerdown = (e) => {
       if (b.disabled) return;
@@ -214,26 +224,46 @@ function renderTray() {
   }
 }
 
-/* ---------- 點一下已放的東西：轉向、換款式、坐下來、收起 ---------- */
+/* ---------- 點一下已放的東西：細調、轉向、坐下來、收起 ---------- */
+// 角落的細調：名字後面一排是項目（桌子／椅子／張數／桌上／燈／牆上…，小字是現在選的），
+// 下面一排是這一項的選項（橫滑），點了店裡馬上換；不開彈窗，店面不被壓矮太多
 function renderSel() {
   if (state.spot) { renderSpot(); return; }
   const it = findItem(state.selected);
   if (!it) { $('sel').innerHTML = ''; return; }
-  const name = it.kind === 'corner' ? CORNERS[it.type].name : DECOR[it.type].name;
-  let styles = '';
-  if (it.kind === 'corner' && !it.fixed && CORNERS[it.type].styles.length > 1) {
-    // 款式：整組換掉（佔地不變），點了店裡馬上換；跟名字擠在同一列，店面才不會被壓矮
-    styles = CORNERS[it.type].styles.map((s) => `<button type="button" class="opt mini ${s.id === it.style ? 'on' : ''}" data-style="${s.id}">
-      <img src="./assets/art/${s.chair || 'stool'}.webp" alt="" draggable="false"><b>${esc(s.name)}</b></button>`).join('');
+  const c = it.kind === 'corner' ? CORNERS[it.type] : null;
+  const name = c ? c.name : DECOR[it.type].name;
+  let tabs = '';
+  let row = '';
+  if (c?.tune && !it.fixed) {
+    const keys = Object.keys(c.tune);
+    if (!keys.includes(state.tune)) state.tune = keys[0];
+    const o = cornerOpts(it);
+    tabs = keys.map((k) => `<button type="button" class="tab${k === state.tune ? ' on' : ''}" data-tab="${k}"><b>${esc(tuneLabel(it.type, k))}</b><small>${esc(tuneName(k, o[k]))}</small></button>`).join('');
+    const k = state.tune;
+    const noWall = k === 'wall' && !c.pieces?.shelf && !cornerWallSpot(it); // 窗邊座的「旁邊」放在自己的格子裡，不用靠牆
+    row = c.tune[k].map((v) => {
+      const t = TUNE[k].opts[v];
+      return `<button type="button" class="opt mini${o[k] === v ? ' on' : ''}" data-k="${k}" data-v="${v}" ${noWall && v !== 'none' ? 'disabled' : ''}>
+        ${t.art || t.color ? icon(t.art, t.color) : ''}<b>${esc(t.name)}</b></button>`;
+    }).join('');
+    if (noWall) row += '<p class="note">這組沒有靠牆，掛不了。拖到牆邊再試。</p>';
   }
   let btns = '';
-  if (it.kind === 'corner' && !it.fixed) btns += '<button type="button" data-a="rot">轉 90°</button>';
-  if (it.kind === 'corner') btns += '<button type="button" data-a="sit">坐下來看看</button>';
+  if (c && !it.fixed) btns += '<button type="button" data-a="rot">轉 90°</button>';
+  if (c && seatCells(it).length) btns += '<button type="button" data-a="sit">坐下來看看</button>';
   if (!it.fixed) btns += '<button type="button" data-a="stow">收起</button>';
   btns += '<button type="button" data-a="done" class="primary">好</button>';
-  $('sel').innerHTML = `<div class="sel-head"><b class="sel-name">${esc(name)}</b>${styles}</div><div class="sel-btns">${btns}</div>`;
+  $('sel').innerHTML = `<div class="sel-head"><b class="sel-name">${esc(name)}</b>${tabs}</div>
+    ${row ? `<div class="opt-row scroll tune">${row}</div>` : ''}<div class="sel-btns">${btns}</div>`;
   for (const b of $('sel').querySelectorAll('[data-a]')) b.onclick = () => selAction(b.dataset.a, it);
-  for (const b of $('sel').querySelectorAll('[data-style]')) b.onclick = () => { replaceItem({ ...it, style: b.dataset.style }); render(); };
+  for (const b of $('sel').querySelectorAll('[data-tab]')) b.onclick = () => { state.tune = b.dataset.tab; render(); };
+  for (const b of $('sel').querySelectorAll('[data-k]')) b.onclick = () => {
+    const k = b.dataset.k;
+    const v = k === 'seats' ? Number(b.dataset.v) : b.dataset.v;
+    replaceItem({ ...it, opts: { ...cornerOpts(it), [k]: v } });
+    render();
+  };
 }
 
 function renderSpot() {
@@ -241,7 +271,7 @@ function renderSpot() {
   const can = opts.filter((o) => o.item);
   const cant = opts.filter((o) => !o.item);
   const cards = can.map((o, i) => `<button type="button" class="opt" data-o="${i}">
-    <img src="./assets/art/${o.art}.webp" alt="" draggable="false"><b>${esc(o.name)}</b></button>`).join('');
+    ${icon(o.art, o.color)}<b>${esc(o.name)}</b></button>`).join('');
   const why = cant.length ? `<p class="note">${cant.map((o) => `${esc(o.name)}：${esc(o.reason)}`).join('　')}</p>` : '';
   $('sel').innerHTML = `<div class="opt-row scroll">${cards || '<p class="note">這一格放不下東西。</p>'}</div>${why}
     <div class="sel-btns"><button type="button" data-a="cancel">算了</button></div>`;
@@ -310,8 +340,15 @@ function startDrag(e, src) {
 
 function onDragMove(e) {
   if (!drag) return;
-  if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 7) return;
+  if (!drag.moved) {
+    const dx = e.clientX - drag.x0;
+    const dy = e.clientY - drag.y0;
+    if (Math.hypot(dx, dy) < 7) return;
+    // 下方角落列：橫著滑是捲動（東西多了一排放不下），往上拖才是拿出來擺
+    if (!drag.fromUid && Math.abs(dx) > Math.abs(dy) * 1.2) drag.scroll = $('tray').scrollLeft;
+  }
   drag.moved = true;
+  if (drag.scroll !== undefined) { $('tray').scrollLeft = drag.scroll - (e.clientX - drag.x0); return; }
   const lift = drag.pointerType === 'touch' && !drag.fromUid ? 0.9 : 0; // 從角落列拖出來時手指會擋住：影子往上提一點
   const p = shop.pointToCell(e.clientX, e.clientY);
   const fl = $('drag-chip');
@@ -354,6 +391,7 @@ function onDragEnd(e) {
   const d = drag;
   drag = null;
   endDragListeners();
+  if (d.scroll !== undefined) return; // 只是在捲下方角落列
   if (!d.moved) {
     // 點一下：選取已放的東西；點下方角落列的卡片＝準備擺這種（店裡放得下的格子標出來）
     if (d.fromUid) { state.selected = d.fromUid; state.spot = null; state.armed = null; render(); } else armTray(d.item.kind, d.item.type);
@@ -407,6 +445,8 @@ $('stage').addEventListener('pointerdown', (e) => {
     window.addEventListener('pointerup', up);
     return;
   }
+  // 手上拿著要擺的：點到已放的家具也以格子為準去擺，不要開始拖那件
+  if (state.armed && hit.cell) { placeArmed(hit.cell); return; }
   const p = shop.pointToCell(e.clientX, e.clientY, true) || { fx: it.x + 0.5, fy: it.y + 0.5 };
   const s = size(it);
   startDrag(e, {
@@ -493,7 +533,8 @@ $('btn-skipday').onclick = () => { if (state.mode === 'business') state.simT = s
 function tapGuest(g) {
   const sig = g.signature ? '（招牌）' : '';
   const act = ACTIONS[g.action]?.text || '';
-  toast(`${GUESTS[g.type].name}：點了「${g.orderName || '水'}」${sig}${act ? `，${act}` : ''}`, 2600);
+  // 為什麼坐這（sim.js 的 why）：角落、細調、旁邊擺了什麼
+  toast(`${GUESTS[g.type].name}：點了「${g.orderName || '水'}」${sig}${act ? `，${act}` : ''}。坐這裡是因為${g.why || '剛好有空位'}。`, 3200);
 }
 
 /* ---------- 打烊：德叔的營業日誌 ---------- */
@@ -693,4 +734,4 @@ else {
 }
 
 // 除錯與自動化截圖用（不影響遊戲）
-window.__cafe = { save: () => save, state, W, H, cornersOf, shop, footprint, pieceCells };
+window.__cafe = { save: () => save, state, W, H, cornersOf, shop, footprint, pieceCells, seatCells, cornerOpts };

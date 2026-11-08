@@ -1,8 +1,8 @@
 // 打烊時德叔的營業日誌：把一天的模擬結果寫成幾句話。純邏輯。
 // 寫今天來了誰、坐在哪個角落、發生了什麼；不寫來客數、營收、滿意度。
-import { CORNERS, DECOR, cornersOf } from './grid.js';
+import { CORNERS, DECOR, cornersOf, seatCells, seatingCorners } from './grid.js';
 import { signatureRecipe, signatureIsPlayers } from './menu.js';
-import { GUESTS } from './sim.js';
+import { GUESTS, FAN } from './sim.js';
 import { J } from './lines/journal.js';
 
 const NUM = ['零', '一', '兩', '三', '四', '五', '六', '七', '八', '九', '十'];
@@ -33,12 +33,17 @@ export function buildJournal({ chapter, layout, menu, result, goalMet }) {
   for (const c of cornersOf(layout)) {
     const here = gs.filter((g) => g.corner === c.uid);
     const label = CORNERS[c.type].name;
+    if (!seatCells(c).length) {
+      // 展示櫃：沒有座位，寫有沒有人停下來看
+      lines.push(gs.some((g) => g.action === 'browse') ? J.showcase_browse : J.showcase_quiet);
+      continue;
+    }
     if (!here.length) {
       if (!c.fixed) lines.push(fill(J.corner_empty, { corner: label }));
       continue;
     }
     const drink = mostCommon(here.map((g) => g.orderName).filter(Boolean)) || '水';
-    const likeType = { bar: 'resident', window: 'solo', worktable: 'laptop' }[c.type];
+    const likeType = FAN[c.type];
     const fans = here.filter((g) => g.type === likeType);
     if (fans.length && fans.length >= here.length / 2) {
       lines.push(fill(J[`${c.type}_${likeType}`], { num: num(fans.length), drink }));
@@ -82,7 +87,7 @@ export function buildJournal({ chapter, layout, menu, result, goalMet }) {
   lines.push(J[`cat_${result.cat.place}`]);
 
   // 章節
-  if (chapter === 1 && !layout.items.some((i) => i.kind === 'corner')) lines.push(J.ch1_empty);
+  if (chapter === 1 && !seatingCorners(layout).length) lines.push(J.ch1_empty);
   if (goalMet && chapter === 1) lines.push(J.ch1_done);
   if (goalMet && chapter === 2) lines.push(fill(J.ch2_done, { num: num(result.stats.signatureOrders) }));
   return lines;

@@ -1,6 +1,6 @@
 // 章節目標與解鎖（資料）。雛形只做序章～第 2 章。
 // 目標檢查是純函式：ctx = { layout, validation, result, menu }
-import { playerCorners } from './grid.js';
+import { seatingCorners } from './grid.js';
 import { signatureIsPlayers } from './menu.js';
 
 export const START_TEMP = 20.5; // 開場第一杯之後牆上的老溫度計
@@ -10,14 +10,17 @@ export const CHAPTERS = [
   { id: 0, title: '序章', goal: null },
   {
     id: 1, title: '空店', goal: '擺出一間路是通的店，開第一天',
-    unlock: { corners: ['window'], decor: ['plant', 'frame', 'lamp', 'catbed'], design: false },
+    // 展示櫃、地毯、綠植牆、留言板、貓跳台也在第 1 章給：佈置是核心，一開始就要有東西可以玩
+    unlock: { corners: ['window', 'showcase'], decor: ['plant', 'frame', 'lamp', 'catbed', 'rug', 'greenwall', 'board', 'cattree'], design: false },
     temp: 22.0,
-    done: ({ validation, layout }) => validation.ok && playerCorners(layout).length >= 1,
+    // 要有座位的角落才算（只擺展示櫃不算「開店」）
+    done: ({ validation, layout }) => validation.ok && seatingCorners(layout).length >= 1,
   },
   {
     id: 2, title: '第一杯', goal: '自己設計的招牌，對上 3 位客人的口味（德叔那杯給不了的）',
     // 規格書的工作桌在第 5 章解鎖；雛形要試三組角落，先在第 2 章給
-    unlock: { corners: ['worktable'], decor: [], design: true },
+    // 唱片角、台灣地圖、書牆：第 2 章（結伴、觀光、自己來的客人各多一個理由進門）
+    unlock: { corners: ['worktable', 'record'], decor: ['map', 'bookwall'], design: true },
     temp: 23.5,
     // 只算「這杯比德叔那杯更合他口味」的客人（sim.js 的 fit）：抄德叔那杯、或招牌靠運氣被點，都不算。
     // 要看日誌知道今天來的是誰、想喝什麼，再配出那一杯，必要時擺角落把那種客人找來。

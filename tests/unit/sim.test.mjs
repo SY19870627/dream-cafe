@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { simulateDay, daySeed, mulberry32, GUESTS, beatsDeshu } from '../../src/sim.js';
+import { simulateDay, daySeed, mulberry32, GUESTS, beatsDeshu, guestWeights, catSpot } from '../../src/sim.js';
 import { emptyLayout, seatCells, BAR_ITEM } from '../../src/grid.js';
 import { initialMenu, makeRecipe, setSlot, setSignature, matchScore, DESHU_CUP } from '../../src/menu.js';
 import { goalDone } from '../../src/chapters.js';
@@ -137,4 +137,82 @@ test('日誌：寫出誰坐哪、龍眼睡哪', () => {
 
 test('吧台座是固定角落：三張高腳椅', () => {
   assert.equal(seatCells(BAR_ITEM).length, 3);
+});
+
+/* ---------- 擺設大改：新擺設與細調接上客人偏好 ---------- */
+const win = (opts) => ({ uid: 'w1', kind: 'corner', type: 'window', x: 0, y: 1, rot: 0, style: 'wood', ...(opts ? { opts } : {}) });
+const showcase = { uid: 's1', kind: 'corner', type: 'showcase', x: 0, y: 0, rot: 0, style: 'wood' }; // 後牆，緊挨著窗邊座
+const record = { uid: 'r1', kind: 'corner', type: 'record', x: 5, y: 5, rot: 0, style: 'wood' };
+const days = (layout, n = 20, menu = initialMenu()) => Array.from({ length: n }, (_, i) => simulateDay({ layout, menu, day: i + 1 }));
+
+test('展示櫃：觀光客、街坊變多，有人停在櫃子前面看；只擺展示櫃不算第 1 章', () => {
+  const base = guestWeights({ items: [win()] }, initialMenu());
+  const w = guestWeights({ items: [win(), showcase] }, initialMenu());
+  assert.ok(w.tourist > base.tourist + 0.5);
+  assert.ok(w.resident > base.resident);
+  const browse = days({ items: [win(), showcase] }).flatMap((r) => r.guests).filter((g) => g.action === 'browse');
+  assert.ok(browse.length > 0);
+  assert.ok(days({ items: [win(), showcase] }, 5).flatMap((r) => r.guests).every((g) => g.corner !== 's1')); // 展示櫃沒有座位
+  const only = { items: [showcase] };
+  const r = simulateDay({ layout: only, menu: initialMenu(), day: 1 });
+  assert.equal(goalDone(1, { layout: only, validation: validate(only), result: r, menu: initialMenu() }), false);
+  const lines = buildJournal({ chapter: 1, layout: only, menu: initialMenu(), result: r, goalMet: false });
+  assert.ok(lines.some((l) => l.includes('櫃子')));
+  assert.ok(lines.every((l) => !l.includes('{')));
+});
+
+test('唱片角：結伴來的人比較多、會挑唱片角坐', () => {
+  const base = guestWeights({ items: [win()] }, initialMenu());
+  const w = guestWeights({ items: [win(), record] }, initialMenu());
+  assert.ok(w.pair > base.pair + 1);
+  const gs = days({ items: [win(), record] }).flatMap((r) => r.guests);
+  const pairs = gs.filter((g) => g.type === 'pair');
+  assert.ok(pairs.length > 0);
+  assert.ok(pairs.filter((g) => g.cornerType === 'record').length >= pairs.length / 2);
+  assert.ok(gs.some((g) => g.cornerType === 'record' && g.action === 'music'));
+  assert.ok(pairs.some((g) => g.cornerType === 'record' && g.why.includes('唱片')));
+});
+
+test('細調：窗邊座放燈、放書、改成一張椅子，自己來的人變多；一張椅子結伴的就坐不進去', () => {
+  const base = guestWeights({ items: [win()] }, initialMenu());
+  const tuned = guestWeights({ items: [win({ lamp: 'on', top: 'book', seats: 1 })] }, initialMenu());
+  assert.ok(tuned.solo > base.solo + 1);
+  for (const r of days({ items: [win({ seats: 1 })] })) {
+    for (const g of r.guests) {
+      if (g.corner === 'w1') assert.equal(g.seatIndex, 0);
+      if (g.corner === 'w1') assert.notEqual(g.type, 'pair');
+    }
+  }
+  // 工作桌把燈拿掉：帶筆電的少一點
+  const k = { uid: 'k1', kind: 'corner', type: 'worktable', x: 5, y: 5, rot: 1, style: 'wood' };
+  assert.ok(guestWeights({ items: [{ ...k, opts: { lamp: 'off' } }] }, initialMenu()).laptop < guestWeights({ items: [k] }, initialMenu()).laptop);
+});
+
+test('細調全是預設值：跟沒調過的舊佈置同一天結果一樣', () => {
+  const a = simulateDay({ layout: shop(), menu: initialMenu(), day: 4 });
+  const l = shop();
+  l.items[0] = { ...l.items[0], opts: { table: 'wood', chair: 'chair', seats: 2, top: 'none', lamp: 'off', wall: 'shelf' } };
+  const b = simulateDay({ layout: l, menu: initialMenu(), day: 4 });
+  assert.equal(a.seed, b.seed);
+  assert.deepEqual(a.guests.map((g) => [g.type, g.corner, g.seatIndex, g.action]), b.guests.map((g) => [g.type, g.corner, g.seatIndex, g.action]));
+});
+
+test('每位客人都說得出為什麼坐這裡', () => {
+  for (const r of days({ items: [win({ lamp: 'on' }), showcase, record, { uid: 'g1', kind: 'decor', type: 'greenwall', x: 0, y: 7, rot: 0 }] }, 10)) {
+    for (const g of r.guests) assert.ok(typeof g.why === 'string' && g.why.length > 0, `${g.type} 沒有理由`);
+  }
+  const gs = days({ items: [win()] }).flatMap((r) => r.guests);
+  assert.ok(gs.some((g) => g.type === 'solo' && g.corner === 'w1' && g.why.includes('窗邊')));
+});
+
+test('貓跳台：龍眼待在貓跳台、找貓的人會來；地毯、綠植牆、書牆不擋路也有人喜歡', () => {
+  const tree = { uid: 't1', kind: 'decor', type: 'cattree', x: 0, y: 6, rot: 0 };
+  const l = { items: [win(), tree] };
+  assert.equal(catSpot(l).place, 'cattree');
+  assert.ok(guestWeights(l, initialMenu()).catlover > 0);
+  const lines = buildJournal({ chapter: 1, layout: l, menu: initialMenu(), result: simulateDay({ layout: l, menu: initialMenu() }), goalMet: true });
+  assert.ok(lines.some((x) => x.includes('貓跳台')));
+  const deco = { items: [win(), { uid: 'rg', kind: 'decor', type: 'rug', x: 1, y: 3, rot: 0 }, { uid: 'bw', kind: 'decor', type: 'bookwall', x: 2, y: 0, rot: 0 }] };
+  assert.ok(guestWeights(deco, initialMenu()).solo > guestWeights({ items: [win()] }, initialMenu()).solo);
+  assert.equal(validate(deco).ok, true);
 });

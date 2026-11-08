@@ -3,10 +3,11 @@
 // 這裡只負責畫與「點到了什麼」，佈置、拖放、狀態都在 main.js。
 import * as THREE from 'three';
 import {
-  W, H, DOOR, WINDOW_ROWS, OUTLETS, KEEP_CLEAR, BAR_CELLS, STOOL_CELLS, CORNERS, DECOR, BAR_ITEM, footprint, size, pieceCells,
+  W, H, DOOR, WINDOW_ROWS, OUTLETS, KEEP_CLEAR, BAR_CELLS, STOOL_CELLS, DECOR, BAR_ITEM, footprint, size, pieceCells, layerOf, cornerLabel,
 } from '../grid.js';
 import { GUESTS, ACTIONS } from '../sim.js';
-import { buildRoom, buildLayout, disposeGroup, CELL, RW, RD, cx, cz, toCell, styleOf } from './room3d.js';import { paper, setPaperArt, faceCamera } from './art3d.js';
+import { buildRoom, buildLayout, disposeGroup, CELL, RW, RD, cx, cz, toCell, styleOf } from './room3d.js';
+import { paper, setPaperArt, faceCamera } from './art3d.js';
 
 export { styleOf };
 
@@ -57,9 +58,9 @@ function cellOutline(x, y, w, h, color) {
 }
 
 // 角落每一格放什麼的小圓牌（椅／桌／書架）：選取時畫在最上層，轉向後一眼看得出換了邊
-const PIECE_TEXT = { seat: '椅', table: '桌', shelf: '書架' };
-const PIECE_BG = { seat: '#fffaf1', table: '#7a4f2e', shelf: '#3f6b5a' };
-const PIECE_FG = { seat: '#3a2d22', table: '#fff8ee', shelf: '#fff8ee' };
+const PIECE_TEXT = { seat: '椅', table: '桌', shelf: '書架', plant: '綠', player: '唱盤', goods: '櫃' };
+const PIECE_BG = { seat: '#fffaf1', table: '#7a4f2e', shelf: '#3f6b5a', plant: '#4f7a45', player: '#2f2a33', goods: '#8a5a3b' };
+const PIECE_FG = { seat: '#3a2d22', table: '#fff8ee', shelf: '#fff8ee', plant: '#fff8ee', player: '#fff8ee', goods: '#fff8ee' };
 const badgeTex = new Map();
 function pieceBadge(x, y, piece) {
   if (!badgeTex.has(piece)) {
@@ -149,6 +150,7 @@ export class ShopView {
       faceCamera(this.roomPapers, this.camera, true);
       if (this.furniture) faceCamera(this.furniture.papers, this.camera, true);
       faceCamera([...this.guests.values()].map((g) => g.paper), this.camera, true);
+      this.fadeOccluders();
       if (this.pulse) this.pulse.material.opacity = 0.18 + 0.22 * (0.5 + 0.5 * Math.sin(now / 160));
       // 選取中的佔地：慢慢呼吸；剛放下、剛轉向時快閃一陣，整組一眼找得到
       if (this.selFill) {
@@ -162,6 +164,37 @@ export class ShopView {
       this.placeLabels();
     };
     requestAnimationFrame(loop);
+  }
+
+  // 高的紙片（盆栽、小燈、書架、貓跳台…）在俯視時擋到後面的椅子或客人：那一張慢慢變半透明，沒擋到就慢慢回來
+  fadeOccluders() {
+    const occ = this.furniture?.occluders;
+    if (!occ?.length) return;
+    const targets = [];
+    for (const list of this.furniture.chairsOf.values()) for (const c of list) if (c?.userData.size) targets.push(c);
+    for (const g of this.guests.values()) if (g.paper.visible && g.paper.userData.size) targets.push(g.paper);
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    for (const o of occ) {
+      const s = o.userData.size;
+      const m = o.userData.mesh.material;
+      if (!s || m.userData.faded) continue; // 拖曳中的那件另外處理
+      o.getWorldPosition(a);
+      const foot = this.project(a);
+      const top = this.project(b.set(a.x, s.h * 1.15, a.z));
+      const left = this.project(b.set(a.x - s.w / 2, 0, a.z)).x;
+      const right = this.project(b.set(a.x + s.w / 2, 0, a.z)).x;
+      let hide = false;
+      for (const t of targets) {
+        t.getWorldPosition(b);
+        if (b.z >= a.z - 0.05) continue; // 在它前面（離鏡頭比較近）的不算
+        const p = this.project(b.setY((t.userData.size.h || 0.8) * 0.5));
+        if (p.x > left && p.x < right && p.y > top.y && p.y < foot.y) { hide = true; break; }
+      }
+      const want = hide ? 0.5 : 1;
+      if (Math.abs(m.opacity - want) > 0.01) m.opacity += (want - m.opacity) * 0.2;
+      else m.opacity = want;
+    }
   }
 
   /* ---------- 版面 ---------- */
@@ -325,7 +358,7 @@ export class ShopView {
       );
       const el = document.createElement('span');
       el.className = `s3d-label${isSel ? ' sel' : ''}`;
-      el.textContent = it.kind === 'corner' ? `${CORNERS[it.type].name}・${styleOf(it).name}` : DECOR[it.type].name;
+      el.textContent = it.kind === 'corner' ? cornerLabel(it) : DECOR[it.type].name;
       this.labelsEl.appendChild(el);
       this.labels.push({ el, pos });
     }
@@ -408,7 +441,9 @@ export class ShopView {
       const cell = { x: Math.floor(p.fx), y: Math.floor(p.fy) };
       const on = (list) => list.some((q) => q.x === cell.x && q.y === cell.y);
       if (on(BAR_CELLS) || on(STOOL_CELLS)) return { uid: 'bar', cell };
-      const it = layout.items.find((i) => on(footprint(i)));
+      // 同一格可能疊著：家具優先，再來掛牆上的，地毯最後
+      const order = { solid: 0, wall: 1, rug: 2 };
+      const it = layout.items.filter((i) => on(footprint(i))).sort((p, q) => order[layerOf(p)] - order[layerOf(q)])[0];
       if (it) return { uid: it.uid, cell };
     }
     // 地板上沒有東西：看是不是點到立著的紙片（椅背、書架、德叔）
@@ -467,14 +502,16 @@ export class ShopView {
       // 走路時看往哪邊走：圖是面向畫面左邊的，往右走就左右翻
       if (!sit && Math.abs(pos.x - v.lastX) > 0.01) v.face = pos.x > v.lastX ? !v.art.flip : !!v.art.flip;
       v.lastX = pos.x;
-      setPaperArt(v.paper, sit ? v.art.sit : v.art.stand, { flip: sit ? !!v.art.flip : v.face });
       const onStool = sit && g.cornerType === 'bar';
+      // 坐下：坐在拉近桌子的那張椅子上、跟椅子朝同一邊（吧台照舊面向吧台）
+      const spot = sit ? this.furniture?.spotsOf.get(g.corner)?.[g.seatIndex] : null;
+      const flip = sit ? (spot && !onStool ? spot.flip : !!v.art.flip) : v.face;
+      setPaperArt(v.paper, sit ? v.art.sit : v.art.stand, { flip });
+      v.paper.userData.yawOff = spot && !onStool ? spot.yawOff : 0;
       const standing = sit && v.art.sit === v.art.stand; // 沒有坐姿圖的：站在位子旁邊
-      v.paper.position.set(
-        cx(pos.x) + (standing ? CELL * 0.32 : 0),
-        0,
-        cz(pos.y) + (sit ? 0.1 : 0) + (onStool ? -0.05 : 0),
-      );
+      const bx = spot ? spot.x : cx(pos.x);
+      const bz = spot ? spot.z : cz(pos.y);
+      v.paper.position.set(bx + (standing ? CELL * 0.32 : 0), 0, bz + (sit ? (onStool ? 0.12 : 0.1) : 0));
       v.paper.userData.mesh.position.y = onStool && !standing ? 0.2 : 0;
       // 頭上的小圖示（點了什麼、在做什麼）
       const bub = v.el.querySelector('.bub');

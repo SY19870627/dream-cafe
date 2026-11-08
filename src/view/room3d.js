@@ -5,7 +5,8 @@
 // 座標：1 格 = CELL 公尺。格子 (x, y) 的中心 → 世界 (cx(x), ·, cz(y))；x 往右、y 往門口（+z）。
 import * as THREE from 'three';
 import {
-  W, H, DOOR, WINDOW_ROWS, OUTLETS, BAR_CELLS, STOOL_CELLS, CORNERS, DECOR, BAR_ITEM, seatCells, pieceCell, footprint,
+  W, H, DOOR, WINDOW_ROWS, OUTLETS, BAR_CELLS, STOOL_CELLS, CORNERS, DECOR, TUNE, BAR_ITEM, seatCells, pieceCell, footprint, size,
+  tableLine, cornerOpts, cornerWallSpot, flushSide, physicalSideOf, wallSideOf,
 } from '../grid.js';
 import { paper, loadTex } from './art3d.js';
 
@@ -181,33 +182,45 @@ export function buildRoom(opt = {}) {
 }
 
 /* ---------- 角落、擺飾、龍眼（隨佈置改變的部分） ---------- */
-const CHAIR_ART = { chair: 'chair', rattanChair: 'rattanChair', stool: 'stool' };
+const CHAIR_FIT = { chair: CELL * 0.9, rattanChair: CELL * 0.9, stool: CELL * 0.75, sofa: CELL * 0.98 };
+const TABLE_TINT = { wood: '#ffffff', rattan: '#f2dfb8', iron: '#b7b2aa' };
+const TABLE_PLAIN = { marble: '#ece8e1', white: '#f3eee6' }; // 不用木紋的桌面
+const LEG_COLOR = { wood: '#6b4a33', rattan: '#8a6a45', marble: '#3a3330', iron: '#2f3236', white: '#d8d2c8' };
+const PULL = 0.45; // 椅子從格子中心往桌子拉近的比例（一格 75 公分 → 拉近約 34 公分，椅面塞進桌緣底下一點）
+const MAX_YAW = 0.6; // 椅子朝桌子最多偏轉多少（再多從俯視看就太窄）
+const TOP_ART = { coaster: ['prop_coaster_menu', 0.1], succulent: ['succulent', 0.2], book: ['bookStack', 0.13] };
 
-// 圓桌（第一版 table()）：木頭桌面＋一根桌腳
-function roundTable(st) {
+function topMat(table, w, d) {
+  if (TABLE_PLAIN[table]) return lambert({ color: TABLE_PLAIN[table] });
+  return lambert({ map: loadTex('tex_wood_top', [w, d]), color: TABLE_TINT[table] || '#ffffff' });
+}
+
+// 圓桌（第一版 table()）：桌面＋一根桌腳；low：唱片角的矮茶几。回傳 { g, h：桌面高度 }
+function roundTable(table, low) {
   const g = new THREE.Group();
-  const face = lambert({ map: loadTex('tex_wood_top', [0.7, 0.7]), color: st.id === 'rattan' ? '#f2dfb8' : '#ffffff' });
-  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.04, 28), [lambert({ color: '#8a5a3b' }), face, face]);
-  top.position.y = 0.74;
-  const legMat = lambert({ color: '#3a3330' });
-  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.74, 10), legMat);
-  leg.position.y = 0.37;
+  const h = low ? 0.45 : 0.74;
+  const r = low ? 0.3 : 0.32;
+  const face = topMat(table, 0.7, 0.7);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.04, 28), [lambert({ color: table === 'marble' ? '#cfc8bd' : '#8a5a3b' }), face, face]);
+  top.position.y = h;
+  const legMat = lambert({ color: LEG_COLOR[table] || '#3a3330' });
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, h, 10), legMat);
+  leg.position.y = h / 2;
   const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.03, 20), legMat);
   foot.position.y = 0.015;
   g.add(top, leg, foot);
-  return g;
+  return { g, h: h + 0.02 };
 }
 
-// 長桌（工作桌）：一整排三格；鐵件款桌面偏灰、桌腳是黑鐵
-function longTable(len, alongX, st) {
+// 長桌（工作桌）：一整排三格
+function longTable(len, alongX, table) {
   const g = new THREE.Group();
-  const iron = st.id === 'iron';
   const w = alongX ? len : 0.62;
   const d = alongX ? 0.62 : len;
-  const top = new THREE.Mesh(new THREE.BoxGeometry(w, 0.05, d), lambert({ map: loadTex('tex_wood_top', [w, d]), color: iron ? '#b7b2aa' : '#ffffff' }));
+  const top = new THREE.Mesh(new THREE.BoxGeometry(w, 0.05, d), topMat(table, w, d));
   top.position.y = 0.74;
   g.add(top);
-  const legMat = lambert({ color: iron ? '#2f3236' : '#6b4a33' });
+  const legMat = lambert({ color: LEG_COLOR[table] || '#6b4a33' });
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.72, 0.05), legMat);
     leg.position.set(sx * (w / 2 - 0.06), 0.36, sz * (d / 2 - 0.06));
@@ -216,99 +229,324 @@ function longTable(len, alongX, st) {
   return g;
 }
 
-// 一個角落的家具。回傳 { group, papers, chairs：[座位 index → 紙片], lamps：[世界座標] }
+// 角落每個座位的椅子（也是坐下的客人）放在哪、朝哪：從格子中心往最近的桌格拉近 PULL，
+// 椅子的圖是 3/4 側面、面向畫面左邊：桌子在右邊就左右翻；桌子在前後時再偏轉 yawOff（最多 MAX_YAW），看起來是朝著桌子坐
+// 回傳 [{ x, z, flip, yawOff }]（世界座標）
+export function seatSpots(it) {
+  if (it.type === 'bar') return STOOL_CELLS.map((s) => ({ x: cx(s.x), z: cz(s.y) - 0.16, flip: false, yawOff: 0 })); // 高腳椅貼近吧台
+  const tables = tableLine(it).map((q) => ({ x: cx(q.x), z: cz(q.y) }));
+  const midX = tables.reduce((a, q) => a + q.x, 0) / (tables.length || 1);
+  return seatCells(it).map((s) => {
+    const x0 = cx(s.x);
+    const z0 = cz(s.y);
+    if (!tables.length) return { x: x0, z: z0, flip: false, yawOff: 0 };
+    const t = tables.reduce((a, b) => (Math.hypot(b.x - x0, b.z - z0) < Math.hypot(a.x - x0, a.z - z0) ? b : a));
+    const dx = t.x - x0;
+    const dz = t.z - z0;
+    const len = Math.hypot(dx, dz) || 1;
+    const ux = dx / len;
+    const uz = dz / len;
+    // 桌子正前／正後方：看整張桌子的中間在哪邊（工作桌兩頭的椅子朝內）
+    const flip = Math.abs(ux) > 0.05 ? ux > 0 : midX > x0 + 0.05;
+    // rotation.y = θ 時，沒翻的圖面向 (-cosθ, sinθ)、翻過的面向 (cosθ, -sinθ)
+    const raw = flip ? Math.atan2(-uz, ux) : Math.atan2(uz, -ux);
+    return { x: x0 + dx * PULL, z: z0 + dz * PULL, flip, yawOff: Math.max(-MAX_YAW, Math.min(MAX_YAW, raw)) };
+  });
+}
+
+// 掛在牆上的紙片。side：back（後牆，貼平不轉）／left、right（側牆，俯視時斜斜朝鏡頭，見 faceCamera 的 wallFace）
+// along：沿著牆的位置（後牆是 x，側牆是 z）
+function wallPaper(name, side, along, opt) {
+  const p = paper(name, { shadow: false, ...opt });
+  if (side === 'back') {
+    p.userData.wall = true;
+    p.position.set(along, 0, -RD / 2 + 0.05);
+  } else {
+    const x = side === 'left' ? -RW / 2 : RW / 2;
+    p.userData.wallFace = { side, x, z: along, hung: !!opt.lift };
+    p.position.set(x, 0, along);
+  }
+  return p;
+}
+
+// 一個角落的家具。回傳 { group, papers, chairs：[座位 index → 紙片], lamps：[世界座標], spots：seatSpots, occluders：會擋住後面的高紙片 }
 export function buildCorner(it) {
   const group = new THREE.Group();
   const papers = [];
   const chairs = [];
   const lamps = [];
-  const st = styleOf(it);
+  const occluders = [];
+  const c = CORNERS[it.type];
+  const o = cornerOpts(it);
   const uid = it.uid;
-  const tag = (o) => { o.traverse((m) => { m.userData.uid = uid; }); return o; };
-  const table = pieceCell(it, 'table');
-  let tableC = null;
-  if (table) {
-    if (it.type === 'worktable') {
-      const fp = footprint(it);
-      const line = it.rot % 2 ? fp.filter((q) => q.x === table.x) : fp.filter((q) => q.y === table.y);
-      const xs = line.map((q) => q.x);
-      const ys = line.map((q) => q.y);
-      tableC = { x: (cx(Math.min(...xs)) + cx(Math.max(...xs))) / 2, z: (cz(Math.min(...ys)) + cz(Math.max(...ys))) / 2 };
-      const t = longTable(line.length * CELL - 0.12, !(it.rot % 2), st);
-      t.position.set(tableC.x, 0, tableC.z);
-      group.add(tag(t));
-      // 檯燈：落地燈的圖縮小，放在桌上
-      const lamp = paper('floorLamp_on', { shadow: false, lift: 0.76, maxH: 0.55, uid });
-      lamp.position.set(cx(table.x), 0, cz(table.y) - 0.1);
-      group.add(lamp); papers.push(lamp);
-      lamps.push(new THREE.Vector3(cx(table.x), 1.15, cz(table.y)));
-    } else {
-      tableC = { x: cx(table.x), z: cz(table.y) };
-      const t = roundTable(st);
-      t.position.set(tableC.x, 0, tableC.z);
-      group.add(tag(t));
-    }
+  const tag = (m) => { m.traverse((q) => { q.userData.uid = uid; }); return m; };
+  const add = (p, x, z, occ = false) => {
+    if (x !== undefined) p.position.set(x, 0, z);
+    group.add(p);
+    papers.push(p);
+    if (occ) occluders.push(p);
+    return p;
+  };
+  if (it.type === 'showcase') {
+    buildShowcase(it, o, { group, add, tag, uid });
+    return { group, papers, chairs, lamps, spots: [], occluders };
   }
-  const chairArt = CHAIR_ART[st.chair] || 'stool';
-  seatCells(it).forEach((s, i) => {
-    const pos = { x: cx(s.x), z: cz(s.y) };
-    // 椅子的圖是 3/4 側面、面向畫面左邊：桌子在右邊就左右翻，看起來是朝著桌子坐
-    const flip = tableC ? tableC.x > pos.x + 0.05 : false;
-    const p = paper(chairArt, { uid, flip, fit: CELL * 0.9 });
-    p.position.set(pos.x, 0, pos.z);
-    group.add(p); papers.push(p);
+
+  // 桌子＋桌上的燈與小物
+  const line = tableLine(it);
+  if (line.length) {
+    const xs = line.map((q) => cx(q.x));
+    const zs = line.map((q) => cz(q.y));
+    const tc = { x: (Math.min(...xs) + Math.max(...xs)) / 2, z: (Math.min(...zs) + Math.max(...zs)) / 2 };
+    let topY;
+    if (c.longTable) {
+      const t = longTable(line.length * CELL - 0.12, !(it.rot % 2), o.table);
+      t.position.set(tc.x, 0, tc.z);
+      group.add(tag(t));
+      topY = 0.77;
+    } else {
+      const { g, h } = roundTable(o.table, c.lowTable);
+      g.position.set(tc.x, 0, tc.z);
+      group.add(tag(g));
+      topY = h;
+    }
+    // 沿著桌子的方向：燈放一頭、小物放另一頭
+    const ax = c.longTable && it.rot % 2 ? 0 : 1;
+    const az = 1 - ax;
+    const reach = c.longTable ? 0.35 : 0.11;
+    if (o.lamp === 'on') {
+      const lx = tc.x - ax * reach;
+      const lz = tc.z - az * reach - 0.08;
+      add(paper('floorLamp_on', { shadow: false, lift: topY, maxH: c.longTable ? 0.55 : 0.42, uid }), lx, lz);
+      lamps.push(new THREE.Vector3(lx, topY + 0.4, lz));
+    }
+    const top = TOP_ART[o.top];
+    if (top) add(paper(top[0], { shadow: false, lift: topY, height: top[1], fit: 0.24, uid }), tc.x + ax * reach, tc.z + az * reach + 0.02);
+  }
+
+  // 椅子：往桌子拉近、朝著桌子
+  const spots = seatSpots(it);
+  const chairArt = TUNE.chair.opts[o.chair]?.art || 'stool';
+  spots.forEach((s, i) => {
+    const p = paper(chairArt, { uid, flip: s.flip, fit: CHAIR_FIT[o.chair] || CELL * 0.9 });
+    p.userData.yawOff = s.yawOff;
+    add(p, s.x, s.z);
     chairs[i] = p;
   });
+
+  // 窗邊座的書架／盆栽：貼著牆放（窗也是牆）、矮一點，不再整張對著鏡頭擋住後面的椅子；不貼牆時（轉到裡側）才立著
   const shelf = pieceCell(it, 'shelf');
-  if (shelf) {
-    const p = paper('bookshelf', { uid, fit: CELL * 0.92 });
-    p.position.set(cx(shelf.x), 0, cz(shelf.y) - 0.15);
-    group.add(p); papers.push(p);
+  if (shelf && o.wall !== 'none') {
+    const isShelf = o.wall !== 'plant';
+    const opt = { uid, height: isShelf ? 0.95 : 0.85, fit: CELL * 0.8 };
+    const side = physicalSideOf(shelf);
+    if (side === 'left' || side === 'right') {
+      const p = paper(isShelf ? 'bookshelf' : 'plant', opt);
+      p.userData.wallFace = { side, x: side === 'left' ? -RW / 2 : RW / 2, z: cz(shelf.y) };
+      add(p, p.userData.wallFace.x, cz(shelf.y), true);
+    } else if (side === 'back' && isShelf) {
+      const p = paper('bookshelf', opt);
+      p.userData.wall = true;
+      add(p, cx(shelf.x), -RD / 2 + 0.12, true);
+    } else {
+      add(paper(isShelf ? 'bookshelf' : 'plant', { ...opt, height: isShelf ? 0.8 : 0.85 }), cx(shelf.x), cz(shelf.y) - 0.15, true);
+    }
   }
-  return { group, papers, chairs, lamps, tableC };
+
+  // 唱片角：矮櫃＋唱盤
+  const player = pieceCell(it, 'player');
+  if (player) {
+    const px = cx(player.x);
+    const pz = cz(player.y);
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(CELL * 0.8, 0.5, CELL * 0.55), lambert({ map: loadTex('tex_counter_front', [0.6, 0.5]) }));
+    cab.position.set(px, 0.25, pz);
+    group.add(tag(cab));
+    add(paper('recordPlayer', { uid, lift: 0.5, height: 0.3, fit: CELL * 0.7, shadow: false }), px, pz);
+  }
+
+  // 牆上：留言板／台灣地圖，掛在這組靠的那面牆
+  if (o.wall === 'board' || o.wall === 'map') {
+    const spot = cornerWallSpot(it);
+    if (spot) {
+      const along = spot.cells.reduce((a, q) => a + (spot.side === 'back' ? cx(q.x) : cz(q.y)), 0) / spot.cells.length;
+      add(wallPaper(o.wall === 'board' ? 'noticeBoard' : 'map_taiwan', spot.side, along, { uid, lift: 1.2, height: 0.6, fit: 0.9 }));
+    }
+  }
+  return { group, papers, chairs, lamps, spots, occluders };
+}
+
+// 商品展示櫃：靠牆的三階層架（靠牆最高、往外一階一階低，俯視才看得到每一層的東西）＋背板＋一塊小黑板。
+// 陳列的東西都是畫師現有的小圖：咖啡豆（豆袋、麻布袋、龍眼乾）、杯具（杯子、手沖壺組、杯墊）、文創（書、多肉、相框、收音機）
+const GOODS = {
+  beans: [['beanBag', 0.3], ['coffeeSack', 0.34], ['longanBag', 0.26], ['longanJar', 0.28]],
+  cups: [['prop_cup', 0.15], ['kettleSet', 0.24], ['prop_cup_daily', 0.15], ['prop_coaster_menu', 0.14]],
+  craft: [['bookStack', 0.16], ['succulent', 0.22], ['framedNapkin', 0.28], ['radio', 0.2]],
+};
+const TIERS = [{ v: 0.1, h: 1.0 }, { v: 0.3, h: 0.68 }, { v: 0.5, h: 0.36 }];
+
+function buildShowcase(it, o, { group, add, tag, uid }) {
+  const side = flushSide(it) || 'back';
+  const fp = footprint(it);
+  const mx = fp.reduce((a, q) => a + cx(q.x), 0) / fp.length;
+  const mz = fp.reduce((a, q) => a + cz(q.y), 0) / fp.length;
+  const len = fp.length * CELL - 0.08;
+  // 以牆為準的座標：u 沿著牆、v 從牆往房間裡；ry 讓 body 的 x 軸對到 u、z 軸對到 v
+  const f = {
+    back: { o: [mx, -RD / 2], u: [1, 0], v: [0, 1], ry: 0 },
+    left: { o: [-RW / 2, mz], u: [0, -1], v: [1, 0], ry: Math.PI / 2 },
+    right: { o: [RW / 2, mz], u: [0, 1], v: [-1, 0], ry: -Math.PI / 2 },
+  }[side];
+  const at = (u, v) => ({ x: f.o[0] + f.u[0] * u + f.v[0] * v, z: f.o[1] + f.u[1] * u + f.v[1] * v });
+  const white = o.table === 'white';
+  const face = white ? lambert({ color: '#f1ece3' }) : lambert({ map: loadTex('tex_wood_top', [len, 0.6]), color: '#ead6b8' });
+  const edge = lambert({ color: white ? '#d9d2c6' : '#7a5236' });
+  const body = new THREE.Group();
+  body.rotation.y = f.ry;
+  body.position.set(f.o[0], 0, f.o[1]);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(len, 1.5, 0.03), edge);
+  back.position.set(0, 0.75, 0.015);
+  body.add(back);
+  for (const t of TIERS) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(len, t.h, 0.2), [edge, edge, face, edge, face, edge]);
+    b.position.set(0, t.h / 2, t.v);
+    body.add(b);
+  }
+  group.add(tag(body));
+  const list = GOODS[o.goods] || GOODS.beans;
+  const n = 4;
+  TIERS.forEach((t, ti) => {
+    for (let j = 0; j < n; j++) {
+      const [name, h] = list[(j + ti) % list.length];
+      const w = at(-len / 2 + (len * (j + 0.5)) / n, t.v);
+      add(paper(name, { uid, lift: t.h, height: h, fit: len / n - 0.05, shadow: false }), w.x, w.z);
+    }
+  });
+  // 背板上方一塊小黑板（菜單黑板的圖縮小）
+  add(wallPaper('menuBoard', side, side === 'back' ? mx : mz, { uid, lift: 1.12, height: 0.34 }));
 }
 
 const DECOR_OPT = {
-  plant: { fit: CELL * 0.85 },
+  plant: { fit: CELL * 0.8, maxH: 1.0 },
   frame: { fit: CELL * 0.6 },
-  lamp: { fit: CELL * 0.7 },
+  lamp: { fit: CELL * 0.6, maxH: 1.3 },
   catbed: { fit: CELL * 0.95 },
+  cattree: { height: 1.2, fit: CELL * 0.95 },
 };
+const OCCLUDE = new Set(['plant', 'lamp', 'frame', 'cattree']); // 俯視時可能擋住後面椅子、客人的
 
+// 擺飾。回傳 { group, papers, lamps, occluders }
 export function buildDecor(d) {
-  const p = paper(DECOR[d.type].art, { uid: d.uid, ...DECOR_OPT[d.type] });
+  const def = DECOR[d.type];
+  if (d.type === 'rug') return buildRug(d);
+  if (def.layer === 'wall') return buildWallDecor(d);
+  const p = paper(def.art, { uid: d.uid, ...DECOR_OPT[d.type] });
   p.position.set(cx(d.x), 0, cz(d.y));
-  const lamps = d.type === 'lamp' ? [new THREE.Vector3(cx(d.x), 1.3, cz(d.y))] : [];
-  return { group: p, papers: [p], lamps };
+  const lamps = d.type === 'lamp' ? [new THREE.Vector3(cx(d.x), 1.2, cz(d.y))] : [];
+  return { group: p, papers: [p], lamps, occluders: OCCLUDE.has(d.type) ? [p] : [] };
 }
 
-// 整組佈置＋龍眼：回傳 { group, papers, chairsOf：uid → 椅子紙片陣列 }
+// 地毯：程式畫的編織花紋（暖紅底、米白邊、菱格），鋪在地上不擋路
+let rugTexture = null;
+function rugTex() {
+  if (rugTexture) return rugTexture;
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#a8442f';
+  g.fillRect(0, 0, 256, 256);
+  g.strokeStyle = '#efe2c4';
+  g.lineWidth = 10;
+  g.strokeRect(14, 14, 228, 228);
+  g.strokeStyle = '#d98a52';
+  g.lineWidth = 4;
+  g.strokeRect(30, 30, 196, 196);
+  g.fillStyle = '#e9d6b0';
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+    const px = 56 + x * 48;
+    const py = 56 + y * 48;
+    g.beginPath();
+    g.moveTo(px, py - 14); g.lineTo(px + 14, py); g.lineTo(px, py + 14); g.lineTo(px - 14, py);
+    g.closePath();
+    g.fill();
+  }
+  rugTexture = new THREE.CanvasTexture(c);
+  rugTexture.colorSpace = THREE.SRGBColorSpace;
+  rugTexture.anisotropy = 4;
+  return rugTexture;
+}
+
+function buildRug(d) {
+  const s = size(d);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(s.w * CELL - 0.16, s.h * CELL - 0.16), lambert({ map: rugTex() }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(cx(d.x) + ((s.w - 1) * CELL) / 2, 0.004, cz(d.y) + ((s.h - 1) * CELL) / 2);
+  m.userData.uid = d.uid;
+  return { group: m, papers: [], lamps: [], occluders: [] };
+}
+
+// 掛牆上的：留言板、台灣地圖、書牆、綠植牆（兩塊木板上放多肉和一盆大的）
+const WALL_ART = {
+  board: { art: 'noticeBoard', height: 0.62, lift: 1.15 },
+  map: { art: 'map_taiwan', height: 0.72, lift: 1.08 },
+  bookwall: { art: 'bookWall', height: 0.9, lift: 0.95 },
+};
+function buildWallDecor(d) {
+  const side = wallSideOf(d) || 'back';
+  const along = side === 'back' ? cx(d.x) : cz(d.y);
+  const group = new THREE.Group();
+  const papers = [];
+  const put = (p) => { group.add(p); papers.push(p); };
+  if (d.type === 'greenwall') {
+    const mat = lambert({ map: loadTex('tex_wood_top', [0.7, 0.16]) });
+    for (const h of [0.98, 1.38]) {
+      const plank = new THREE.Mesh(side === 'back' ? new THREE.BoxGeometry(CELL * 0.9, 0.04, 0.16) : new THREE.BoxGeometry(0.16, 0.04, CELL * 0.9), mat);
+      if (side === 'back') plank.position.set(along, h, -RD / 2 + 0.08);
+      else plank.position.set(side === 'left' ? -RW / 2 + 0.08 : RW / 2 - 0.08, h, along);
+      plank.userData.uid = d.uid;
+      group.add(plank);
+    }
+    for (const [name, h, lift, du] of [['succulent', 0.22, 1.0, -0.2], ['plant', 0.42, 1.0, 0.14], ['succulent', 0.2, 1.4, 0.12], ['succulent', 0.18, 1.4, -0.16]]) {
+      put(wallPaper(name, side, along + du, { uid: d.uid, height: h, lift, fit: 0.36 }));
+    }
+  } else {
+    const a = WALL_ART[d.type];
+    put(wallPaper(a.art, side, along, { uid: d.uid, height: a.height, lift: a.lift, fit: CELL * 1.1 }));
+  }
+  return { group, papers, lamps: [], occluders: [] };
+}
+
+// 整組佈置＋龍眼：回傳 { group, papers, chairsOf：uid → 椅子紙片陣列, spotsOf：uid → seatSpots, occluders }
 // opt.catScale：俯視時龍眼放大一點（第一版 OVER_BIG 的意思）
 export function buildLayout(layout, cat, opt = {}) {
   const group = new THREE.Group();
   const papers = [];
   const chairsOf = new Map();
+  const spotsOf = new Map();
+  const occluders = [];
   const lampPos = [];
   for (const it of [BAR_ITEM, ...layout.items]) {
     if (it.kind === 'decor') {
       const d = buildDecor(it);
-      group.add(d.group); papers.push(...d.papers); lampPos.push(...d.lamps);
+      group.add(d.group); papers.push(...d.papers); lampPos.push(...d.lamps); occluders.push(...d.occluders);
       continue;
     }
     if (it.type === 'bar') {
-      // 吧台座：三張高腳椅
-      const chairs = STOOL_CELLS.map((s) => {
+      // 吧台座：三張高腳椅，貼近吧台
+      const spots = seatSpots(BAR_ITEM);
+      const chairs = spots.map((s) => {
         const p = paper('stool', { uid: 'bar', fit: CELL * 0.75 });
-        p.position.set(cx(s.x), 0, cz(s.y) - 0.1);
+        p.position.set(s.x, 0, s.z);
         group.add(p); papers.push(p);
         return p;
       });
       chairsOf.set('bar', chairs);
+      spotsOf.set('bar', spots);
       continue;
     }
     const c = buildCorner(it);
-    group.add(c.group); papers.push(...c.papers); lampPos.push(...c.lamps);
+    group.add(c.group); papers.push(...c.papers); lampPos.push(...c.lamps); occluders.push(...c.occluders);
     chairsOf.set(it.uid, c.chairs);
+    spotsOf.set(it.uid, c.spots);
   }
   // 小燈、檯燈：真的會亮（暖光），最多四盞
   for (const p of lampPos.slice(0, 4)) {
@@ -318,11 +556,13 @@ export function buildLayout(layout, cat, opt = {}) {
   }
   if (cat) {
     const k = opt.catScale || 1;
-    const p = paper('cat_longan_sleep', { scale: k, lift: cat.place === 'catbed' ? 0.08 : 0, shadow: cat.place !== 'catbed' });
-    p.position.set(cx(cat.x), 0, cz(cat.y) + 0.06);
+    const p = cat.place === 'cattree'
+      ? paper('cat_longan_sit', { scale: k })
+      : paper('cat_longan_sleep', { scale: k, lift: cat.place === 'catbed' ? 0.08 : 0, shadow: cat.place !== 'catbed' });
+    p.position.set(cx(cat.x) + (cat.place === 'cattree' ? 0.2 : 0), 0, cz(cat.y) + (cat.place === 'cattree' ? 0.14 : 0.06));
     group.add(p); papers.push(p);
   }
-  return { group, papers, chairsOf };
+  return { group, papers, chairsOf, spotsOf, occluders };
 }
 
 // 丟掉一組東西的幾何與材質（貼圖是共用快取，不丟）
