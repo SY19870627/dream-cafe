@@ -28,7 +28,7 @@ export const TUNE = {
   },
   chair: {
     label: '椅子',
-    opts: { chair: { name: '木椅', art: 'chair' }, rattanChair: { name: '藤椅', art: 'rattanChair' }, stool: { name: '圓凳', art: 'stool' }, sofa: { name: '沙發', art: 'sofa' } },
+    opts: { chair: { name: '木椅', art: 'chair' }, rattanChair: { name: '藤椅', art: 'rattanChair' }, stool: { name: '圓凳', art: 'stool' }, sofa: { name: '沙發', art: 'sofa_single' } },
   },
   seats: { label: '張數', opts: { 1: { name: '一張' }, 2: { name: '兩張' } } },
   top: {
@@ -39,11 +39,11 @@ export const TUNE = {
   wall: {
     label: '牆上',
     opts: {
-      none: { name: '不放' }, shelf: { name: '小書架', art: 'bookshelf' }, plant: { name: '盆栽', art: 'plant' },
+      none: { name: '不放' }, shelf: { name: '小書架', art: 'bookshelf_low' }, plant: { name: '盆栽', art: 'plant' },
       board: { name: '留言板', art: 'noticeBoard' }, map: { name: '台灣地圖', art: 'map_taiwan' },
     },
   },
-  goods: { label: '陳列', opts: { beans: { name: '咖啡豆', art: 'beanBag' }, cups: { name: '杯具', art: 'prop_cup' }, craft: { name: '文創小物', art: 'bookStack' } } },
+  goods: { label: '陳列', opts: { beans: { name: '咖啡豆', art: 'goods_beans' }, cups: { name: '杯具', art: 'goods_cups' }, craft: { name: '文創小物', art: 'goods_craft' } } },
 };
 
 // 角落。cells／seats 都是「沒轉向」時、相對左上角的格子
@@ -97,7 +97,7 @@ export const CORNERS = {
   },
   // 整面牆的商品展示櫃：1×3、整排貼著牆（窗前、吧台除外），沒有座位；客人會停下來看（觀光客、街坊）
   showcase: {
-    name: '商品展示櫃', w: 3, h: 1, need: 'flush', stock: 1, art: 'cabinet', tall: true,
+    name: '商品展示櫃', w: 3, h: 1, need: 'flush', stock: 1, art: 'showcase_wood', tall: true,
     seats: [],
     styles: [
       { id: 'wood', name: '原木櫃', color: '#a87b52', table: 'wood' },
@@ -117,8 +117,8 @@ export const DECOR = {
   lamp: { name: '小燈', art: 'floorLamp_on', stock: 2 },
   catbed: { name: '貓窩', art: 'catCushion', stock: 1 },
   cattree: { name: '貓跳台', art: 'catTree', stock: 1, need: 'wall' },
-  rug: { name: '地毯', color: '#b5523b', w: 2, h: 2, layer: 'rug', stock: 1 },
-  greenwall: { name: '綠植牆', art: 'succulent', layer: 'wall', stock: 2 },
+  rug: { name: '地毯', art: 'rug_tile', color: '#b5523b', w: 2, h: 2, layer: 'rug', stock: 1 },
+  greenwall: { name: '綠植牆', art: 'wall_shelf_plants', layer: 'wall', stock: 2 },
   board: { name: '留言板', art: 'noticeBoard', layer: 'wall', stock: 1 },
   map: { name: '台灣地圖', art: 'map_taiwan', layer: 'wall', stock: 1 },
   bookwall: { name: '書牆', art: 'bookWall', layer: 'wall', stock: 1 },

@@ -23,6 +23,12 @@ export const PAPER_SPEC = {
   noticeBoard: { size: [0.8, 0.7] }, map_taiwan: { size: [0.6, 0.8] }, bookWall: { size: [1.2, 1.0] }, bookStack: { size: [0.4, 0.3] },
   beanBag: { size: [0.4, 0.5] }, coffeeSack: { size: [0.6, 0.7] }, longanBag: { size: [0.4, 0.5] }, radio: { size: [0.5, 0.4] },
   prop_cup: { size: [0.25, 0.25] }, prop_cup_daily: { size: [0.25, 0.25] }, prop_coaster_menu: { size: [0.3, 0.3] }, floorLamp_off: { size: [0.6, 1.7] },
+  // v2 第一批正式美術（assets/art/previews/manifest_v2.json）：多半也用 height／fit 指定，這裡給量級
+  showcase_wood: { size: [2.2, 2.2] }, showcase_white: { size: [2.2, 2.2] },
+  goods_beans: { size: [1.6, 1.6] }, goods_cups: { size: [1.6, 1.6] }, goods_craft: { size: [1.6, 1.6] },
+  sofa_single: { size: [1.1, 1.1] }, low_cabinet: { size: [1.4, 1.4] }, bookshelf_low: { size: [1.0, 1.0] },
+  wall_shelf_plants: { size: [0.9, 0.9] }, rug_tile: { size: [1.6, 1.6] },
+  chair_wood_back: { size: [0.85, 0.85] }, chair_rattan_back: { size: [1.0, 1.0] },
   // 掛在牆上的（整張用、不裁）
   backbar: { size: [2.8, 1.8], keep: true }, thermometer_frame: { size: [0.36, 0.9], keep: true },
   pendant_lamp: { size: [0.36, 0.9], keep: true }, window_frame: { size: [1.6, 1.3], keep: true },
@@ -96,6 +102,7 @@ async function decode(name) {
   // 每公尺幾個原圖像素：人物照身高、家具照畫布寬
   const ppm = spec.h ? (y1 - y0) / spec.h : W / spec.size[0];
   const tex = new THREE.CanvasTexture(c);
+  tex.name = name; // 驗收腳本認圖用
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
   return { tex, w: (x1 - x0) / ppm, h: (y1 - y0) / ppm };
@@ -115,6 +122,7 @@ export function loadTex(name, repeat = [1, 1]) {
   const k = `${name}@${repeat.join('x')}`;
   if (!texCache.has(k)) {
     const t = new THREE.TextureLoader().load(`${ART}${name}.webp`);
+    t.name = name;
     t.colorSpace = THREE.SRGBColorSpace;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(repeat[0], repeat[1]);
@@ -182,14 +190,39 @@ export function paper(name, opt = {}) {
   return group;
 }
 
-// 換一張圖（客人坐下／站起來）：沿用同一個紙片，大小跟著換
+// 疊在紙片上的另一張圖（展示櫃上的陳列、矮櫃上的唱盤）：掛在 parent 的 mesh 底下，跟著一起轉、一起仰、一起拉長。
+// u：中心在 parent 寬度的哪裡（-0.5～0.5）、v：底邊在 parent 高度的哪裡（0～1）、w：寬度佔 parent 寬的幾成、z：往前浮多少（公尺，防 z-fighting）
+// parent 要先載好（在它的 onReady 裡叫）。回傳 mesh（載好前不顯示）
+export function overlay(parent, name, { u = 0, v = 0, w = 0.5, z = 0.01, flip = false, uid } = {}) {
+  const pm = parent.userData.mesh;
+  const ps = parent.userData.size;
+  const mat = new THREE.MeshLambertMaterial({ transparent: true, alphaTest: 0.35, side: THREE.DoubleSide });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0), mat);
+  m.visible = false;
+  m.userData.uid = uid;
+  m.userData.overlay = name;
+  pm.add(m);
+  loadPaper(name).then((a) => {
+    if (!a || !ps) return;
+    mat.map = a.tex;
+    mat.needsUpdate = true;
+    const hm = (w * ps.w * a.h) / a.w; // 等比：公尺高
+    m.scale.set(w * (flip ? -1 : 1), hm / ps.h, 1);
+    m.position.set(u, v, z);
+    m.visible = true;
+  });
+  return m;
+}
+
+// 換一張圖（客人坐下／站起來、椅子轉成椅背）：沿用同一個紙片，大小跟著換。opt：{ flip, scale, height, fit }（同 paper()）
 export function setPaperArt(group, name, opt = {}) {
   if (group.userData.art === name && !!group.userData.flipNow === !!opt.flip) return;
   group.userData.art = name;
   group.userData.flipNow = !!opt.flip;
   loadPaper(name).then((a) => {
     if (!a || group.userData.art !== name) return;
-    const k = opt.scale || 1;
+    let k = opt.height ? opt.height / a.h : (opt.scale || 1);
+    if (opt.fit && a.w * k > opt.fit) k = opt.fit / a.w;
     const m = group.userData.mesh;
     m.material.map = a.tex;
     m.material.needsUpdate = true;
@@ -211,7 +244,30 @@ const fwd = new THREE.Vector3();
 // 側牆上的東西（userData.wallFace = { side: 'left'|'right', x, z, hung }）：俯視時側牆幾乎是一條線，
 // 貼平了看不到，所以轉到斜斜朝著鏡頭（往牆那邊偏 0.5 弧度），整張往房間裡推、不插進牆裡；座位視角就平貼在牆上。
 // hung（掛著的）不往後仰、不拉長。userData.yawOff：在「朝鏡頭」之外再偏一點（椅子朝桌子）。
+// wallFace.tilt：很寬的東西（整面的展示櫃）偏多一點，才不會從牆邊一路伸到房間中間。
+//
+// 椅子（userData.chair = { side, back, flip, yawOff, face：[ux, uz] 朝桌子的方向, fit }）：
+// 椅子背對鏡頭（坐在桌子靠鏡頭這一側）時換成椅背圖、正對鏡頭；其他角度照舊用 3/4 側面圖＋flip／yawOff。
 const SIDE_TILT = 0.5;
+const BACK_DOT = -0.6; // 朝向和「往鏡頭」的夾角 cos 小於這個就算背對
+function chairFacing(p, camera, over, wp) {
+  const c = p.userData.chair;
+  if (!c.back || !p.userData.size) return;
+  if (!c.h) c.h = p.userData.size.h; // 側面圖載好時的高度：椅背圖照這個高度
+  let tx;
+  let tz;
+  if (over) { tx = -fwd.x; tz = -fwd.z; } else { tx = camera.position.x - wp.x; tz = camera.position.z - wp.z; }
+  const len = Math.hypot(tx, tz) || 1;
+  const away = (c.face[0] * tx + c.face[1] * tz) / len < BACK_DOT;
+  if (away) {
+    setPaperArt(p, c.back, { height: c.h, fit: c.fit });
+    p.userData.yawOff = 0;
+  } else {
+    setPaperArt(p, c.side, { flip: c.flip, fit: c.fit });
+    p.userData.yawOff = c.yawOff;
+  }
+}
+
 export function faceCamera(papers, camera, over) {
   camera.getWorldDirection(fwd);
   const screenYaw = Math.atan2(-fwd.x, -fwd.z);
@@ -219,10 +275,11 @@ export function faceCamera(papers, camera, over) {
     const wf = p.userData.wallFace;
     if (p.userData.wall && !wf) continue; // 貼後牆的不轉
     const m = p.userData.mesh;
+    if (p.userData.chair) chairFacing(p, camera, over, p.getWorldPosition(new THREE.Vector3()));
     if (wf) {
       const inward = wf.side === 'left' ? 1 : -1;
       if (over) {
-        const tilt = SIDE_TILT * inward;
+        const tilt = (wf.tilt ?? SIDE_TILT) * inward;
         p.rotation.y = screenYaw + tilt;
         const half = (p.userData.size?.w || 0) / 2;
         p.position.set(wf.x + inward * (half * Math.cos(tilt) + 0.03), 0, wf.z);

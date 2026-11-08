@@ -1,0 +1,80 @@
+[
+  {
+    "file": "showcase_wood.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 66990
+  },
+  {
+    "file": "showcase_white.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 57054
+  },
+  {
+    "file": "sofa_single.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 59478
+  },
+  {
+    "file": "low_cabinet.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 64060
+  },
+  {
+    "file": "goods_beans.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 47100
+  },
+  {
+    "file": "goods_cups.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 29380
+  },
+  {
+    "file": "goods_craft.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 37970
+  },
+  {
+    "file": "bookshelf_low.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 97832
+  },
+  {
+    "file": "wall_shelf_plants.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 72098
+  },
+  {
+    "file": "rug_tile.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 129540
+  },
+  {
+    "file": "chair_wood_back.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 69230
+  },
+  {
+    "file": "chair_rattan_back.webp",
+    "width": 512,
+    "height": 512,
+    "bytes": 79718
+  },
+  {
+    "file": "tex_marble_top.webp",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 112316
+  }
+]
