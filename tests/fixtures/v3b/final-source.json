@@ -1,0 +1,1672 @@
+{
+  "model": "claude-fable-5-2",
+  "reasoning": "預設",
+  "days": [
+    {
+      "day": 1,
+      "title": "【待定】第一天　我今天只想把它看完",
+      "scenes": [
+        {
+          "id": "d1-s1-shop",
+          "title": "【待定】本子上的一行",
+          "background": "shopMorning",
+          "portrait": "deshu",
+          "ambient": "radio_low",
+          "stage": "接在原開場之後的第一個早上。固定鏡頭，靠窗座位與吧台同框。杯子已在桌上，不演製作過程。",
+          "nodes": [
+            {
+              "id": "d1-s1-01",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】早上，店裡只有電台的聲音。她的杯子已經在靠窗的位子上。",
+              "stage": "美術交代：杯把朝向她坐下後順手的一側，不用轉就拿得起來。只由圖演，不出任何文字或鏡頭提示。"
+            },
+            {
+              "id": "d1-s1-02",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "notebook",
+              "text": "【待定】杯子旁邊有一本本子，封面的角磨圓了。她翻開，停在有字的一頁。"
+            },
+            {
+              "id": "d1-s1-03",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "notebook",
+              "stage": "本子特寫，只露這一行，不露筆跡細節。",
+              "text": "【待定】那一頁只有一行：「下雨天，在被窩裡看電視，聽雨聲。」"
+            },
+            {
+              "id": "d1-s1-04",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "text": "【待定】她看窗外。對面的屋瓦是乾的，貓在台階上曬肚子。"
+            },
+            {
+              "id": "d1-s1-05",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】店裡有電視嗎。"
+            },
+            {
+              "id": "d1-s1-06",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】沒有。"
+            },
+            {
+              "id": "d1-s1-07",
+              "type": "line",
+              "speaker": "deshu",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】收音機有一台。"
+            },
+            {
+              "id": "d1-s1-08",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "電台音量實際降一格。",
+              "text": "【待定】他說完，把電台的聲音轉小了一格。"
+            },
+            {
+              "id": "d1-s1-09",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】我出去一下。想找個地方看電視。"
+            },
+            {
+              "id": "d1-s1-10",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】嗯。"
+            },
+            {
+              "id": "d1-s1-11",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "風鈴一聲，響到尾音時雨聲疊進來，色溫淡出轉場。不加任何說明字。",
+              "text": "【待定】她把本子闔上，留在杯子旁邊，去推門。風鈴響了一聲。門外的地是濕的。"
+            }
+          ]
+        },
+        {
+          "id": "d1-s2-rainroom",
+          "title": "【待定】別處的雨",
+          "background": "rainRoom",
+          "portrait": "none",
+          "ambient": "rain_tin_roof_close, drip_slow",
+          "stage": "固定鏡頭，從床的位置看電視與窗。窗外對面騎樓下有一位撐傘老太太的遠景，從本場到 d1-s4 都在，不特寫、不可點、不移動鏡頭提示，文字完全不提。",
+          "nodes": [
+            {
+              "id": "d1-s2-01",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】雨聲很近，打在鐵皮上。門裡是一個房間，她沒來過。"
+            },
+            {
+              "id": "d1-s2-02",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】她敲了兩下門板。沒有人應。她在門口站到鞋尖濕了，才把鞋脫掉，鞋頭朝外擺在門邊。"
+            },
+            {
+              "id": "d1-s2-03",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "basin",
+              "text": "【待定】床尾放著一床摺好的被子，電視對著床。牆角有個鋁盆在接天花板的水，滴一下，要等好幾秒才有下一下。",
+              "stage": "滴水聲單獨聽得見一次。"
+            },
+            {
+              "id": "d1-s2-05",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "quilt",
+              "stage": "可選手勢：往上拖被子。不拖也能直接推頁，不解鎖任何東西。",
+              "text": "【待定】她坐上床，把被子拉到腰。被子有曬過的味道，腳底那一頭比較涼。"
+            },
+            {
+              "id": "d1-s2-06",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "stage": "電視亮起，劇的聲音很小，壓在雨聲下面。",
+              "text": "【待定】遙控器在枕頭旁邊。她按了電源。"
+            },
+            {
+              "id": "d1-s2-07",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】是重播的連續劇，演到一半。一個女人提著行李坐在客運站，一個男人在路上跑。"
+            },
+            {
+              "id": "d1-s2-09",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "廣告音樂進來，雨聲不降。",
+              "text": "【待定】進廣告了。她把枕頭墊高，雨聲從廣告的音樂底下透上來。"
+            }
+          ]
+        },
+        {
+          "id": "d1-s3-phone",
+          "title": "【待定】在忙嗎",
+          "background": "rainRoom",
+          "portrait": "none",
+          "ambient": "rain_tin_roof_close, tv_low",
+          "stage": "手機訊息用畫面內的訊息框，後輩的訊息標 junior。手機特寫時電視仍在背景發光、有聲。",
+          "nodes": [
+            {
+              "id": "d1-s3-01",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "phone",
+              "stage": "震動聲一次。",
+              "text": "【待定】廣告結束，男人還在跑。手機在被子上震了一下。"
+            },
+            {
+              "id": "d1-s3-02",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "phone",
+              "text": "【待定】怡君姊，不好意思吵妳。交接那本文件放哪裡？我翻了妳桌上，沒看到。"
+            },
+            {
+              "id": "d1-s3-03",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "phone",
+              "stage": "與上一則同框累加。",
+              "text": "【待定】妳在忙嗎？"
+            },
+            {
+              "id": "d1-s3-04",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "stage": "電視裡一聲喊，音量比前面大一點。",
+              "text": "【待定】電視裡有人喊了一個名字。她抬頭，只看到男人停在路口，不知道是誰喊的。"
+            },
+            {
+              "id": "d1-s3-05",
+              "type": "choice",
+              "key": "share_tv",
+              "options": [
+                {
+                  "value": "location",
+                  "label": "【待定】只回文件在哪裡",
+                  "nodes": [
+                    {
+                      "id": "d1-s3-loc-01",
+                      "type": "line",
+                      "speaker": "me",
+                      "focus": "phone",
+                      "text": "【待定】右邊第二格抽屜，藍色那本。電子檔在共用槽的「交接」資料夾。"
+                    },
+                    {
+                      "id": "d1-s3-loc-02",
+                      "type": "line",
+                      "speaker": "junior",
+                      "focus": "phone",
+                      "text": "【待定】收到！我去翻。"
+                    },
+                    {
+                      "id": "d1-s3-loc-03",
+                      "type": "line",
+                      "speaker": "junior",
+                      "focus": "phone",
+                      "stage": "同框累加。",
+                      "text": "【待定】不吵妳了。"
+                    }
+                  ]
+                },
+                {
+                  "value": "tv",
+                  "label": "【待定】也說自己在看電視",
+                  "nodes": [
+                    {
+                      "id": "d1-s3-tv-01",
+                      "type": "line",
+                      "speaker": "me",
+                      "focus": "phone",
+                      "text": "【待定】右邊第二格抽屜，藍色那本。電子檔在共用槽的「交接」資料夾。"
+                    },
+                    {
+                      "id": "d1-s3-tv-02",
+                      "type": "line",
+                      "speaker": "me",
+                      "focus": "phone",
+                      "stage": "同框累加。",
+                      "text": "【待定】不算忙。我在看電視。"
+                    },
+                    {
+                      "id": "d1-s3-tv-03",
+                      "type": "line",
+                      "speaker": "junior",
+                      "focus": "phone",
+                      "text": "【待定】看電視？？現在嗎"
+                    },
+                    {
+                      "id": "d1-s3-tv-04",
+                      "type": "line",
+                      "speaker": "junior",
+                      "focus": "phone",
+                      "stage": "同框累加。",
+                      "text": "【待定】演什麼"
+                    },
+                    {
+                      "id": "d1-s3-tv-05",
+                      "type": "line",
+                      "speaker": "me",
+                      "focus": "phone",
+                      "text": "【待定】不知道片名。有個人在追客運。"
+                    },
+                    {
+                      "id": "d1-s3-tv-06",
+                      "type": "line",
+                      "speaker": "junior",
+                      "focus": "phone",
+                      "text": "【待定】好好喔。追到跟我說。我先去翻抽屜。"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "d1-s3-06",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "text": "【待定】再抬頭的時候，女人已經站在月台上，行李換到另一隻手。中間那一段，她沒看到。"
+            },
+            {
+              "id": "d1-s3-07",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "phone",
+              "stage": "手機螢幕的光消失，畫面只剩電視的光。",
+              "text": "【待定】她把手機翻過去，螢幕朝下，壓在被子上。"
+            }
+          ]
+        },
+        {
+          "id": "d1-s4-credits",
+          "title": "【待定】片尾",
+          "background": "rainRoom",
+          "portrait": "none",
+          "ambient": "rain_heavier_then_ease, tv_low, drip_faster",
+          "stage": "不做真實等待，玩家推頁即前進。雨聲在本場開頭變大，片尾曲時回到原本大小。老太太仍在窗外遠景，不提示。",
+          "nodes": [
+            {
+              "id": "d1-s4-01",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "basin",
+              "text": "【待定】雨大了一陣，鋁盆裡滴得比剛才快。她把電視的聲音按大了一格。"
+            },
+            {
+              "id": "d1-s4-02",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "text": "【待定】男人跑進客運站。車位是空的，地上有一道剛開走的水痕。"
+            },
+            {
+              "id": "d1-s4-03",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "phone",
+              "stage": "震動聲一次。手機維持螢幕朝下，不亮。",
+              "text": "【待定】手機在被子上又震了一下。她的手伸過去，碰到機殼，又收回被子裡。"
+            },
+            {
+              "id": "d1-s4-04",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "text": "【待定】鏡頭轉到候車椅。女人坐在那裡，行李放在腳邊，車票還在手上。他還沒看到她，畫面就停住了。"
+            },
+            {
+              "id": "d1-s4-05",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "片尾曲進，雨聲回到原本大小。",
+              "text": "【待定】片尾曲出來。演員的名字一排一排往上走，她一個都不認得。"
+            },
+            {
+              "id": "d1-s4-06",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】後面是下集預告，再後面是贊助的醬油和一家傢俱行。她都看完了。"
+            },
+            {
+              "id": "d1-s4-07",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "phone",
+              "text": "【待定】電視開始播下一個節目。她這才把手機翻過來。"
+            },
+            {
+              "id": "d1-s4-08",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "phone",
+              "text": "【待定】找到了！藍色那本，在抽屜最下面。"
+            },
+            {
+              "id": "d1-s4-09",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "phone",
+              "stage": "同框累加。",
+              "text": "【待定】標籤好多。我慢慢看，謝謝怡君姊。"
+            },
+            {
+              "id": "d1-s4-10",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "phone",
+              "text": "【待定】訊息是二十分鐘前的。後面沒有別的。"
+            },
+            {
+              "id": "d1-s4-11",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "quilt",
+              "stage": "雨聲持續到轉場，不停雨。",
+              "text": "【待定】她回了一個「好」，把被子摺回床尾，遙控器放回枕頭旁邊。雨還在下。"
+            }
+          ]
+        },
+        {
+          "id": "d1-s5-return",
+          "title": "【待定】鞋子濕了",
+          "background": "shopEvening",
+          "portrait": "deshu",
+          "ambient": "radio_low, evening",
+          "stage": "不自動上架、不出現取得物提示。結尾由玩家推頁進第 2 天，不自動淡走。",
+          "nodes": [
+            {
+              "id": "d1-s5-01",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "風鈴一聲，雨聲在門關上時切斷。",
+              "text": "【待定】風鈴響。店裡的光已經斜到吧台底下，電台還是早上那個音量。"
+            },
+            {
+              "id": "d1-s5-02",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】龍眼在書架最上層，看了她一眼，沒下來。"
+            },
+            {
+              "id": "d1-s5-03",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】演什麼。"
+            },
+            {
+              "id": "d1-s5-04",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】不知道片名。我從中間開始看的。"
+            },
+            {
+              "id": "d1-s5-05",
+              "type": "line",
+              "speaker": "me",
+              "stage": "同框累加。",
+              "text": "【待定】有個人去追客運，沒追到。可是她沒上車。"
+            },
+            {
+              "id": "d1-s5-06",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】哦。"
+            },
+            {
+              "id": "d1-s5-07",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】中間有一段我沒看到。他為什麼跑，我不知道。"
+            },
+            {
+              "id": "d1-s5-08",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】收音機的我也都從中間聽。"
+            },
+            {
+              "id": "d1-s5-09",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】她的鞋尖還是濕的，在地板上留了兩個印子。"
+            },
+            {
+              "id": "d1-s5-10",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】門邊有報紙。"
+            },
+            {
+              "id": "d1-s5-11",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】她把報紙塞進鞋裡，穿著襪子走回位子。本子還在原來的地方。"
+            },
+            {
+              "id": "d1-s5-12",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "notebook",
+              "text": "【待定】她翻開，那一行還在。她的手指在頁角停了一下，翻到下一頁。"
+            },
+            {
+              "id": "d1-s5-13",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "notebook",
+              "stage": "本子特寫但不顯示下一頁的字，內容留給第 2 天開場。停在這一頁等玩家推進。",
+              "text": "【待定】下一頁也只有一行。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "day": 2,
+      "title": "【待定】第二天　我只是來暖手",
+      "scenes": [
+        {
+          "id": "d2-s1-shop",
+          "title": "【待定】下一頁",
+          "background": "shopMorning",
+          "portrait": "deshu",
+          "ambient": "radio_low",
+          "stage": "固定鏡頭，靠窗座位與吧台同框。杯子已在桌上，不演製作。本子停在第 1 天結尾翻到的那一頁。",
+          "nodes": [
+            {
+              "id": "d2-s1-01",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "notebook",
+              "text": "【待定】早上，電台在報氣象。她把本子翻到昨天停下來的那一頁。"
+            },
+            {
+              "id": "d2-s1-02",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "notebook",
+              "stage": "本子特寫，只露這一行。",
+              "text": "【待定】那一行寫：「冬天，到山上的小屋，把手烤暖。」"
+            },
+            {
+              "id": "d2-s1-03",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "text": "【待定】她把兩隻手攤在桌上看了看。店裡不冷，杯子是溫的。"
+            },
+            {
+              "id": "d2-s1-04",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】今天去山上。"
+            },
+            {
+              "id": "d2-s1-05",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】山上的公車，末班都早。"
+            },
+            {
+              "id": "d2-s1-06",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】我烤完手就下來。"
+            },
+            {
+              "id": "d2-s1-07",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】車上要投零錢。"
+            },
+            {
+              "id": "d2-s1-08",
+              "type": "line",
+              "speaker": "me",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】我有。"
+            },
+            {
+              "id": "d2-s1-09",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "風鈴一聲，尾音接風聲，色溫轉冷淡出。不加說明字。",
+              "text": "【待定】她闔上本子，背起包包去推門。風鈴響了一聲，門縫進來的風是冷的。"
+            }
+          ]
+        },
+        {
+          "id": "d2-s2-hut",
+          "title": "【待定】妳是他們隊的嗎",
+          "background": "hut",
+          "portrait": "gui",
+          "ambient": "wind_high, gas_heater_hum_far",
+          "stage": "前兩頁可用山屋外觀的局部裁切，之後固定在屋內：瓦斯暖爐、長板凳、爐邊一個鼓鼓的米袋。窗外步道邊的木椅上有一位穿厚外套的老太太遠景，背對山屋看山，本場與下一場都在，不特寫、不可點、文字不提。阿桂立繪在 d2-s2-03 才出現。",
+          "nodes": [
+            {
+              "id": "d2-s2-01",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】風從領口灌進去。眼前是一條碎石路，路底有一間鐵皮搭的小屋，煙囪口上面的空氣在晃。"
+            },
+            {
+              "id": "d2-s2-02",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】她把手縮進袖子裡走過去。門開著一半，裡面有人在講電話。"
+            },
+            {
+              "id": "d2-s2-03",
+              "type": "line",
+              "speaker": "gui",
+              "stage": "阿桂側身講電話，話筒夾在肩膀上。",
+              "text": "【待定】對，還在我這。米袋裝的，一整袋。你們上次說下次上來拿，上上次也說下次。"
+            },
+            {
+              "id": "d2-s2-04",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】等一下，好像有人來了。欸，妳是他們隊的嗎？來拿旗子的？"
+            },
+            {
+              "id": "d2-s2-05",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】不是。我一個人來的。"
+            },
+            {
+              "id": "d2-s2-06",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】一個人喔。那不是。"
+            },
+            {
+              "id": "d2-s2-07",
+              "type": "line",
+              "speaker": "gui",
+              "stage": "與上一句同框累加。她對著話筒講。",
+              "text": "【待定】沒有啦，不是你們的人。那你們到底哪一天。好，好，你問完再打給我。"
+            },
+            {
+              "id": "d2-s2-08",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】她掛了電話才又看怡君，從頭看到鞋子。"
+            },
+            {
+              "id": "d2-s2-09",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】妳穿這樣上來？要住還是路過？住的話要登記，路過的話水在那邊。"
+            },
+            {
+              "id": "d2-s2-10",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】不住。想借爐子烤一下手。"
+            },
+            {
+              "id": "d2-s2-11",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】烤手。"
+            },
+            {
+              "id": "d2-s2-12",
+              "type": "line",
+              "speaker": "gui",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】爐子在裡面，早上就點了。進來門要帶上，不然我的瓦斯都在燒山。"
+            },
+            {
+              "id": "d2-s2-13",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "風聲降下來，爐聲變近。",
+              "text": "【待定】怡君進去，把門帶上。風聲小了，剩爐子的聲音。"
+            }
+          ]
+        },
+        {
+          "id": "d2-s3-stove",
+          "title": "【待定】爐邊",
+          "background": "hut",
+          "portrait": "gui",
+          "ambient": "gas_heater_hum_close, wind_low",
+          "stage": "固定鏡頭，爐子在畫面一側，長板凳橫過中間。老太太仍在窗外遠景，不提示。阿桂整場手上都有事，不看鏡頭的時間比看的多。",
+          "nodes": [
+            {
+              "id": "d2-s3-01",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "bag",
+              "text": "【待定】爐子前面只有一張長板凳，一半被一個鼓鼓的米袋佔著，袋口露出幾條紅色的布。"
+            },
+            {
+              "id": "d2-s3-02",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】那袋我的。不是我的，是人家的，放我這。"
+            },
+            {
+              "id": "d2-s3-03",
+              "type": "line",
+              "speaker": "gui",
+              "stage": "與上一句同框累加。她把米袋拖到自己腳邊。",
+              "text": "【待定】我移一下。妳坐靠爐子那頭，那頭比較熱，可是會燻眼睛。那妳坐中間好了。"
+            },
+            {
+              "id": "d2-s3-04",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "stage": "可選手勢：把手往爐口方向拖近。不拖也能直接推頁，不解鎖任何東西。",
+              "text": "【待定】怡君坐下，把手從袖子裡伸出來，掌心朝著爐口。先熱的是指甲，手背還是冰的。"
+            },
+            {
+              "id": "d2-s3-05",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "cloth",
+              "text": "【待定】阿桂坐在板凳另一頭，把袋裡的布旗一面一面拿出來。每面都印著同一個隊名，綁帶打了死結，她用指甲摳。"
+            },
+            {
+              "id": "d2-s3-06",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】他們上次辦活動沿路綁的。下山自己拆了，算有良心，拆完整袋忘在我這。"
+            },
+            {
+              "id": "d2-s3-07",
+              "type": "line",
+              "speaker": "gui",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】也不算忘。有打電話來，說下次上來拿。後來上來三次了，三次都說背包滿了。"
+            },
+            {
+              "id": "d2-s3-08",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】十六，十七。妳手會癢嗎？凍過再烤都會癢，不要抓。我剛剛數到幾。"
+            },
+            {
+              "id": "d2-s3-09",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】十七。"
+            },
+            {
+              "id": "d2-s3-10",
+              "type": "line",
+              "speaker": "gui",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】十七。妳有在聽喔。"
+            },
+            {
+              "id": "d2-s3-11",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "cloth",
+              "text": "【待定】一面旗子從阿桂膝蓋上滑下來，落在怡君腳邊。怡君撿起來，順手對摺。"
+            },
+            {
+              "id": "d2-s3-12",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】欸放著放著。妳那樣摺不對，綁帶要朝外，不然到時候又纏在一起。"
+            },
+            {
+              "id": "d2-s3-13",
+              "type": "line",
+              "speaker": "gui",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】我不是嫌妳。我是說我講完怎麼摺，自己都摺好三面了。妳烤妳的。"
+            },
+            {
+              "id": "d2-s3-14",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "text": "【待定】怡君把那面旗子攤開，放回她膝上，手伸回爐口。手背也熱了，指節開始癢。她沒有抓。"
+            },
+            {
+              "id": "d2-s3-15",
+              "type": "line",
+              "speaker": "gui",
+              "focus": "thermos",
+              "text": "【待定】熱水那邊有，杯子自己拿。茶葉沒有。有啦，我這罐有泡，可是泡一早上了很苦。妳要就倒。"
+            },
+            {
+              "id": "d2-s3-16",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "thermos",
+              "text": "【待定】怡君倒了半杯。真的很苦。她兩手包著杯子，喝完了。"
+            },
+            {
+              "id": "d2-s3-17",
+              "type": "line",
+              "speaker": "gui",
+              "focus": "cloth",
+              "text": "【待定】四十一。少一面。算了，少一面也是他們的事，我幹嘛替他們數。"
+            },
+            {
+              "id": "d2-s3-18",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "text": "【待定】她把那疊旗子翻過來，又從頭數了一次。"
+            },
+            {
+              "id": "d2-s3-19",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】怡君把手從爐口收回來，翻過來看了看，指節是紅的。空杯子她放回熱水瓶旁邊，把外套拉鍊拉到領口。",
+              "focus": "none"
+            }
+          ]
+        },
+        {
+          "id": "d2-s4-bus",
+          "title": "【待定】末班車",
+          "background": "road",
+          "portrait": "gui",
+          "ambient": "wind_mid, bus_engine_from_d2-s4-04",
+          "stage": "站牌與候車亭的固定鏡頭。候車亭最遠那一頭坐著同一位老太太遠景，不特寫、不可點、文字不提。公車誤點不做任何等待或倒數，玩家推頁即過。車內不另開背景，用同一張圖加車窗框與引擎聲交代。",
+          "nodes": [
+            {
+              "id": "d2-s4-01",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】阿桂鎖了山屋的門，米袋扛在肩上，跟她走同一條碎石路下去。站牌上的末班車寫四點四十。"
+            },
+            {
+              "id": "d2-s4-02",
+              "type": "line",
+              "speaker": "gui",
+              "focus": "bag",
+              "text": "【待定】我要趕郵局，這袋今天寄掉。運費他們出，我講好了。還沒講好，我是打算這樣講。"
+            },
+            {
+              "id": "d2-s4-03",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "stage": "引擎聲由遠到近。",
+              "text": "【待定】車來的時候天色已經變了。阿桂把郵局五點關門這件事講了兩遍，第二遍比較小聲。"
+            },
+            {
+              "id": "d2-s4-04",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "badge",
+              "stage": "車內。皮夾特寫。",
+              "text": "【待定】上車要投零錢。怡君翻皮夾的零錢格，手指先碰到一張硬卡。"
+            },
+            {
+              "id": "d2-s4-05",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "badge",
+              "text": "【待定】是公司的識別證，掛繩纏在卡上。最後一天沒有人跟她收。"
+            },
+            {
+              "id": "d2-s4-06",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】妳在那裡上班喔。"
+            },
+            {
+              "id": "d2-s4-07",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】之前。這個要還。"
+            },
+            {
+              "id": "d2-s4-08",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】要還的喔。那妳的比我好，妳的放得進皮夾。"
+            },
+            {
+              "id": "d2-s4-09",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "badge",
+              "text": "【待定】怡君投了零錢。識別證她沒有塞回去，拿在手上，一路坐到站。"
+            }
+          ]
+        },
+        {
+          "id": "d2-s5-return",
+          "title": "【待定】寄放一晚",
+          "background": "shopEvening",
+          "portrait": "gui",
+          "ambient": "radio_low, evening",
+          "stage": "阿桂立繪為主，德叔只出聲與手部動作。麥茶由圖交代，不演沖泡。不出現取得物提示。結尾由玩家推頁進第 3 天。",
+          "nodes": [
+            {
+              "id": "d2-s5-01",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "風鈴一聲。",
+              "text": "【待定】阿桂跟她同一站下車，米袋換了三次肩，一路跟到店門口。風鈴響。"
+            },
+            {
+              "id": "d2-s5-02",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】郵局五點就關。公車誤點它不管。"
+            },
+            {
+              "id": "d2-s5-03",
+              "type": "line",
+              "speaker": "gui",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】這間有賣喝的嗎。咖啡我不行，喝了晚上睡不著。"
+            },
+            {
+              "id": "d2-s5-04",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】德叔端來一杯麥茶。阿桂把杯把轉了半圈才拿起來。"
+            },
+            {
+              "id": "d2-s5-05",
+              "type": "line",
+              "speaker": "gui",
+              "focus": "bag",
+              "text": "【待定】老闆，這袋可以放你們這一晚嗎。我住我表姊那，拎回去她又要問一輪。"
+            },
+            {
+              "id": "d2-s5-06",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】問她。"
+            },
+            {
+              "id": "d2-s5-07",
+              "type": "line",
+              "speaker": "gui",
+              "focus": "none",
+              "text": "【待定】問妳喔。妳是老闆？妳在山上怎麼不講。"
+            },
+            {
+              "id": "d2-s5-08",
+              "type": "line",
+              "speaker": "gui",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】可以嗎。就一晚。"
+            },
+            {
+              "id": "d2-s5-09",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】可以。"
+            },
+            {
+              "id": "d2-s5-10",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】吧台下面有空位。"
+            },
+            {
+              "id": "d2-s5-11",
+              "type": "line",
+              "speaker": "gui",
+              "focus": "bag",
+              "text": "【待定】我自己放。明天八點來拿，我自己拿去寄，寄件寫山屋的地址，不寫你們的。"
+            },
+            {
+              "id": "d2-s5-12",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "text": "【待定】她把袋子推進吧台下面，回來把麥茶喝掉半杯，才轉向怡君。"
+            },
+            {
+              "id": "d2-s5-13",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】妳今天上去到底幹嘛的。烤完手就下來，連山頂都沒去。"
+            },
+            {
+              "id": "d2-s5-14",
+              "type": "choice",
+              "key": "note_share",
+              "options": [
+                {
+                  "value": "note",
+                  "label": "【待定】說本子上那一行",
+                  "nodes": [
+                    {
+                      "id": "d2-s5-note-01",
+                      "type": "line",
+                      "speaker": "me",
+                      "text": "【待定】本子上有一行。冬天到山上的小屋，把手烤暖。"
+                    },
+                    {
+                      "id": "d2-s5-note-02",
+                      "type": "line",
+                      "speaker": "gui",
+                      "text": "【待定】寫下來喔。我都寫手背，洗碗就沒了。"
+                    },
+                    {
+                      "id": "d2-s5-note-03",
+                      "type": "line",
+                      "speaker": "me",
+                      "text": "【待定】這行在紙上。"
+                    },
+                    {
+                      "id": "d2-s5-note-04",
+                      "type": "line",
+                      "speaker": "gui",
+                      "stage": "與上一句同框累加。",
+                      "text": "【待定】那賴皮。"
+                    }
+                  ]
+                },
+                {
+                  "value": "warm",
+                  "label": "【待定】只說來暖手",
+                  "nodes": [
+                    {
+                      "id": "d2-s5-warm-01",
+                      "type": "line",
+                      "speaker": "me",
+                      "text": "【待定】暖手。"
+                    },
+                    {
+                      "id": "d2-s5-warm-02",
+                      "type": "line",
+                      "speaker": "gui",
+                      "stage": "與上一句同框累加。",
+                      "text": "【待定】專程。"
+                    },
+                    {
+                      "id": "d2-s5-warm-03",
+                      "type": "line",
+                      "speaker": "me",
+                      "stage": "同框累加。",
+                      "text": "【待定】專程。"
+                    },
+                    {
+                      "id": "d2-s5-warm-04",
+                      "type": "line",
+                      "speaker": "gui",
+                      "text": "【待定】那瓦斯錢妳要分我。開玩笑的，妳不要真的拿出來。"
+                    },
+                    {
+                      "id": "d2-s5-warm-05",
+                      "type": "line",
+                      "speaker": "narrator",
+                      "text": "【待定】怡君的手已經在包包裡了。"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "d2-s5-15",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "bag",
+              "text": "【待定】龍眼從書架上下來，繞過怡君的腳，去聞吧台下面那個米袋。"
+            },
+            {
+              "id": "d2-s5-16",
+              "type": "line",
+              "speaker": "gui",
+              "text": "【待定】不要抓。那要還人家的。"
+            },
+            {
+              "id": "d2-s5-17",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "badge",
+              "stage": "阿桂立繪退場，風鈴一聲。停在這一頁等玩家推進。",
+              "text": "【待定】阿桂走了以後，怡君把識別證從口袋拿出來，放在本子旁邊。掛繩還是纏著的。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "day": 3,
+      "title": "【待定】第三天　今天我是訪客",
+      "scenes": [
+        {
+          "id": "d3-s1-shop",
+          "title": "【待定】八點",
+          "background": "shopMorning",
+          "portrait": "gui",
+          "ambient": "radio_low",
+          "stage": "前半立繪阿桂；d3-s1-11 風鈴後阿桂退場，d3-s1-12 起立繪換德叔。不泡咖啡、不裝壺、不備餐。帶 when 的 node 條件不符就跳過。",
+          "nodes": [
+            {
+              "id": "d3-s1-01",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "風鈴一聲。",
+              "text": "【待定】八點，風鈴響。阿桂進來，頭髮還是濕的，直接走到吧台下面拖米袋。"
+            },
+            {
+              "id": "d3-s1-02",
+              "type": "line",
+              "speaker": "gui",
+              "focus": "bag",
+              "text": "【待定】我自己來。昨天怎麼塞的我自己知道。"
+            },
+            {
+              "id": "d3-s1-03",
+              "type": "line",
+              "speaker": "gui",
+              "focus": "none",
+              "when": {
+                "key": "note_share",
+                "value": "note"
+              },
+              "text": "【待定】欸，妳那本，下一行寫什麼。"
+            },
+            {
+              "id": "d3-s1-04",
+              "type": "line",
+              "speaker": "me",
+              "when": {
+                "key": "note_share",
+                "value": "note"
+              },
+              "text": "【待定】還沒翻。"
+            },
+            {
+              "id": "d3-s1-05",
+              "type": "line",
+              "speaker": "gui",
+              "when": {
+                "key": "note_share",
+                "value": "note"
+              },
+              "text": "【待定】那翻了不要跟我講。我聽了會想管，我自己這袋都還沒管完。"
+            },
+            {
+              "id": "d3-s1-06",
+              "type": "line",
+              "speaker": "gui",
+              "focus": "none",
+              "when": {
+                "key": "note_share",
+                "value": "warm"
+              },
+              "text": "【待定】下次要暖手先打電話。我不一定在，瓦斯也不一定在。"
+            },
+            {
+              "id": "d3-s1-07",
+              "type": "line",
+              "speaker": "me",
+              "when": {
+                "key": "note_share",
+                "value": "warm"
+              },
+              "text": "【待定】我沒有妳的電話。"
+            },
+            {
+              "id": "d3-s1-08",
+              "type": "line",
+              "speaker": "gui",
+              "when": {
+                "key": "note_share",
+                "value": "warm"
+              },
+              "text": "【待定】山屋門上有貼。妳昨天沒看喔。也對，妳昨天手都縮在袖子裡。"
+            },
+            {
+              "id": "d3-s1-09",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "cloth",
+              "text": "【待定】她把米袋甩上肩。袋口那條已經鬆掉的綁帶滑下來，掉在門邊。"
+            },
+            {
+              "id": "d3-s1-10",
+              "type": "line",
+              "speaker": "gui",
+              "focus": "cloth",
+              "text": "【待定】那條不是旗子的，是袋子的，本來就快斷了。給貓玩。不行，貓會亂吞。妳收著，丟掉也可以。"
+            },
+            {
+              "id": "d3-s1-11",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "cloth",
+              "stage": "風鈴一聲，阿桂退場。不出現取得物提示。",
+              "text": "【待定】風鈴又響。怡君把綁帶撿起來，打了一個結，放在窗台上。"
+            },
+            {
+              "id": "d3-s1-12",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "badge",
+              "stage": "立繪換德叔。",
+              "text": "【待定】識別證還在本子旁邊。她拿起來，掛繩鬆開，垂到桌子下面。"
+            },
+            {
+              "id": "d3-s1-13",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】我今天去還這個。"
+            },
+            {
+              "id": "d3-s1-14",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】遠嗎。"
+            },
+            {
+              "id": "d3-s1-15",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】坐車四十分鐘。以前每天坐。"
+            },
+            {
+              "id": "d3-s1-16",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "badge",
+              "text": "【待定】德叔伸手把掛繩拉上來，在卡上繞了三圈，尾巴塞進去，推回她手邊。"
+            },
+            {
+              "id": "d3-s1-17",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】這樣不會勾到。"
+            },
+            {
+              "id": "d3-s1-18",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "stage": "風鈴一聲，尾音接大廳的空調聲，色溫轉白淡出。",
+              "text": "【待定】她把識別證放進口袋，另一邊口袋放手機和零錢，去推門。"
+            }
+          ]
+        },
+        {
+          "id": "d3-s2-lobby",
+          "title": "【待定】訪客單",
+          "background": "companyLobby",
+          "portrait": "none",
+          "ambient": "lobby_aircon, elevator_ding_far, copier_far",
+          "stage": "固定鏡頭，閘門與櫃台在左，訪客沙發在右。最裡面那組沙發坐著一位看報的老太太遠景，d3-s2 到 d3-s4 都在，不特寫、不可點、文字不提。櫃台人員不出立繪、不設台詞，由旁白轉述。手機訊息用畫面內訊息框。",
+          "nodes": [
+            {
+              "id": "d3-s2-01",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】大廳的冷氣跟以前一樣冷。她走到閘門前，手已經伸進口袋，才想起這張卡刷不過了。"
+            },
+            {
+              "id": "d3-s2-02",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】櫃台換了人，不認得她。對方說識別證要原部門的人下來簽收，請她先填訪客單。"
+            },
+            {
+              "id": "d3-s2-03",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "訪客單特寫可用既有 UI 合成，只露這三格。",
+              "text": "【待定】來訪者，陳怡君。受訪人，她寫了宜蓁的名字。事由那一格很小，她寫「還識別證」。"
+            },
+            {
+              "id": "d3-s2-04",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】櫃台給她一張印著「訪客」的貼紙，說要貼在看得到的地方。她貼在外套左胸。"
+            },
+            {
+              "id": "d3-s2-05",
+              "type": "line",
+              "speaker": "me",
+              "focus": "phone",
+              "text": "【待定】我在一樓大廳。來還識別證，櫃台說要妳簽收。"
+            },
+            {
+              "id": "d3-s2-06",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "phone",
+              "text": "【待定】？？？妳在樓下"
+            },
+            {
+              "id": "d3-s2-07",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "phone",
+              "stage": "與上一則同框累加。",
+              "text": "【待定】等我 我拿個東西就下去"
+            },
+            {
+              "id": "d3-s2-08",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "text": "【待定】她在沙發坐下。這組沙發她以前只有帶廠商經過的時候看過，坐下去比想的還要低。"
+            }
+          ]
+        },
+        {
+          "id": "d3-s3-junior",
+          "title": "【待定】藍色那本",
+          "background": "companyLobby",
+          "portrait": "junior",
+          "ambient": "lobby_aircon, elevator_ding_close",
+          "stage": "後輩半身立繪，懷裡抱資料夾。老太太仍在遠景。帶 when 的 node 條件不符就跳過；兩線之後接同一段。",
+          "nodes": [
+            {
+              "id": "d3-s3-01",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "handover",
+              "stage": "電梯提示音一聲。",
+              "text": "【待定】電梯開了。宜蓁小跑出來，懷裡抱著一本藍色的資料夾，側邊的標籤多到合不起來。"
+            },
+            {
+              "id": "d3-s3-02",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "none",
+              "when": {
+                "key": "share_tv",
+                "value": "tv"
+              },
+              "text": "【待定】怡君姊！等一下，我先問，後來有追到嗎？客運那個。"
+            },
+            {
+              "id": "d3-s3-03",
+              "type": "line",
+              "speaker": "me",
+              "when": {
+                "key": "share_tv",
+                "value": "tv"
+              },
+              "text": "【待定】沒追到，車開走了。可是她沒上車，坐在候車椅上。"
+            },
+            {
+              "id": "d3-s3-04",
+              "type": "line",
+              "speaker": "junior",
+              "when": {
+                "key": "share_tv",
+                "value": "tv"
+              },
+              "text": "【待定】蛤，那他有看到她嗎？"
+            },
+            {
+              "id": "d3-s3-05",
+              "type": "line",
+              "speaker": "me",
+              "when": {
+                "key": "share_tv",
+                "value": "tv"
+              },
+              "text": "【待定】還沒看到就演完了。"
+            },
+            {
+              "id": "d3-s3-06",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "handover",
+              "when": {
+                "key": "share_tv",
+                "value": "location"
+              },
+              "text": "【待定】怡君姊！藍色那本，我帶下來給妳看。它在抽屜最下面，被妳的計算機壓著。"
+            },
+            {
+              "id": "d3-s3-07",
+              "type": "line",
+              "speaker": "me",
+              "when": {
+                "key": "share_tv",
+                "value": "location"
+              },
+              "text": "【待定】計算機還在。"
+            },
+            {
+              "id": "d3-s3-08",
+              "type": "line",
+              "speaker": "junior",
+              "when": {
+                "key": "share_tv",
+                "value": "location"
+              },
+              "text": "【待定】在啊，我在用了。妳又沒說要帶走。"
+            },
+            {
+              "id": "d3-s3-09",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "handover",
+              "stage": "資料夾特寫，黃色與粉紅標籤交錯。",
+              "text": "【待定】妳看這本。黃的是妳原本的，粉紅的是我貼的。我看不懂的就貼一張。"
+            },
+            {
+              "id": "d3-s3-10",
+              "type": "line",
+              "speaker": "me",
+              "focus": "handover",
+              "text": "【待定】粉紅的很多。"
+            },
+            {
+              "id": "d3-s3-11",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "handover",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】對啊！可是有變少，上禮拜更多。"
+            },
+            {
+              "id": "d3-s3-12",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "handover",
+              "text": "【待定】然後二組上禮拜借去影印，印整本喔，印了一個下午。還回來少一張標籤，我自己補，補在哪我也不確定。"
+            },
+            {
+              "id": "d3-s3-12a",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】宜蓁把資料夾攤開往後翻，要找她補的那一張。翻過第二十頁，頁邊留著一小塊撕過的膠痕。她沒停，又翻了兩頁。",
+              "focus": "handover"
+            },
+            {
+              "id": "d3-s3-13",
+              "type": "line",
+              "speaker": "me",
+              "focus": "none",
+              "text": "【待定】少的是第二十頁那張。黃的。"
+            },
+            {
+              "id": "d3-s3-14",
+              "type": "line",
+              "speaker": "junior",
+              "text": "【待定】有嗎，我翻太快。那妳怎麼知道是黃的。"
+            },
+            {
+              "id": "d3-s3-15",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】那張是我貼的。"
+            },
+            {
+              "id": "d3-s3-16",
+              "type": "line",
+              "speaker": "junior",
+              "text": "【待定】好，我回去補。本子我還是放右邊第二格喔，他們要借都自己去開那個抽屜。"
+            },
+            {
+              "id": "d3-s3-17",
+              "type": "line",
+              "speaker": "junior",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】電子檔也是。交接資料夾現在一堆人在開，我每次點進去都有人佔著。"
+            },
+            {
+              "id": "d3-s3-18",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "handover",
+              "text": "【待定】宜蓁把資料夾墊在膝蓋上，在簽收單上簽了名。"
+            }
+          ]
+        },
+        {
+          "id": "d3-s4-manager",
+          "title": "【待定】順便",
+          "background": "companyLobby",
+          "portrait": "none",
+          "ambient": "lobby_aircon, gate_beep",
+          "stage": "主管不出立繪，只有畫面邊緣走過的背影與聲音。後輩這場不換立繪，用名牌區分。老太太仍在遠景。怡君離開後不補任何人的反應鏡頭。",
+          "nodes": [
+            {
+              "id": "d3-s4-01",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "閘門提示音一聲。",
+              "text": "【待定】閘門響了一聲。有人拿著手機走出來，走過沙發兩步，又退回來。"
+            },
+            {
+              "id": "d3-s4-02",
+              "type": "line",
+              "speaker": "manager",
+              "text": "【待定】怡君？剛好。上個月對帳的表，妳是歸在哪裡，我找了兩天。"
+            },
+            {
+              "id": "d3-s4-03",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】藍色那本，第十二頁。電子檔在「交接」資料夾，檔名有月份。"
+            },
+            {
+              "id": "d3-s4-04",
+              "type": "line",
+              "speaker": "manager",
+              "text": "【待定】好。那妳等一下順便印一份給我，下午開會要用。"
+            },
+            {
+              "id": "d3-s4-05",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】我今天是訪客。"
+            },
+            {
+              "id": "d3-s4-06",
+              "type": "line",
+              "speaker": "narrator",
+              "text": "【待定】她胸口那張貼紙有一個角翹起來了。主管看了貼紙，又看她。"
+            },
+            {
+              "id": "d3-s4-07",
+              "type": "line",
+              "speaker": "manager",
+              "text": "【待定】對。對，妳離職了。我講習慣了。"
+            },
+            {
+              "id": "d3-s4-08",
+              "type": "line",
+              "speaker": "manager",
+              "focus": "handover",
+              "text": "【待定】宜蓁，那本等一下借我。"
+            },
+            {
+              "id": "d3-s4-09",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "handover",
+              "text": "【待定】下午二組還要來拿欸。中午前可以嗎？"
+            },
+            {
+              "id": "d3-s4-10",
+              "type": "line",
+              "speaker": "manager",
+              "focus": "handover",
+              "text": "【待定】那我現在拿，中午前還妳。"
+            },
+            {
+              "id": "d3-s4-11",
+              "type": "line",
+              "speaker": "manager",
+              "focus": "none",
+              "text": "【待定】怡君，改天回來，大家吃個飯。"
+            },
+            {
+              "id": "d3-s4-12",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】我先把這個還了。"
+            },
+            {
+              "id": "d3-s4-13",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "badge",
+              "text": "【待定】她站起來，把識別證放上櫃台，掛繩還是早上繞好的三圈。訪客貼紙撕下來，貼回櫃台給的那張底紙上。"
+            },
+            {
+              "id": "d3-s4-14",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "stage": "自動門聲，大廳聲音在門關上時切斷。不回頭拍大廳。",
+              "text": "【待定】自動門開的時候，後面主管還在問第十二頁是哪個顏色的標籤，宜蓁說綠的。門外的太陽很大。"
+            }
+          ]
+        },
+        {
+          "id": "d3-s5-return",
+          "title": "【待定】整本",
+          "background": "shopEvening",
+          "portrait": "deshu",
+          "ambient": "radio_news_low, evening",
+          "stage": "龍眼用 sit 姿勢放在窗台、她的座位旁，是三天裡離她最近的位置。綁帶只露出打結的一頭，不演啃咬。不出現取得物提示。結尾停在最後一頁等玩家推進；這是第 3 天收尾，不是全篇結局，不加片尾或總結字。",
+          "nodes": [
+            {
+              "id": "d3-s5-01",
+              "type": "line",
+              "speaker": "narrator",
+              "stage": "風鈴一聲。",
+              "text": "【待定】風鈴響。電台在播整點新聞。龍眼不在書架上。"
+            },
+            {
+              "id": "d3-s5-02",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "cloth",
+              "text": "【待定】龍眼在窗台，她的位子旁邊，肚子底下壓著早上那條綁帶，只露出打結的那一頭。"
+            },
+            {
+              "id": "d3-s5-03",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "none",
+              "text": "【待定】她坐下。龍眼沒有走，尾巴掃過她的手肘一次。"
+            },
+            {
+              "id": "d3-s5-04",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】他們把我留的那本文件借去影印了。整本。"
+            },
+            {
+              "id": "d3-s5-05",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】厚嗎。"
+            },
+            {
+              "id": "d3-s5-06",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】四十幾頁。標籤貼太多，印了一個下午。"
+            },
+            {
+              "id": "d3-s5-07",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】卡紙了吧。"
+            },
+            {
+              "id": "d3-s5-08",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】應該有。我沒問。"
+            },
+            {
+              "id": "d3-s5-09",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "phone",
+              "stage": "震動聲一次。",
+              "text": "【待定】手機在口袋裡震了一下。"
+            },
+            {
+              "id": "d3-s5-10",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "phone",
+              "text": "【待定】怡君姊 忘了問 妳的店在哪"
+            },
+            {
+              "id": "d3-s5-11",
+              "type": "line",
+              "speaker": "junior",
+              "focus": "phone",
+              "stage": "與上一則同框累加。",
+              "text": "【待定】我禮拜六想去 有賣吃的嗎"
+            },
+            {
+              "id": "d3-s5-12",
+              "type": "line",
+              "speaker": "me",
+              "focus": "none",
+              "text": "【待定】禮拜六有人要來。問有沒有吃的。"
+            },
+            {
+              "id": "d3-s5-13",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】幾個人。"
+            },
+            {
+              "id": "d3-s5-14",
+              "type": "line",
+              "speaker": "me",
+              "stage": "與上一句同框累加。",
+              "text": "【待定】一個。"
+            },
+            {
+              "id": "d3-s5-15",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "phone",
+              "text": "【待定】德叔去翻吧台後面的櫃子。她低頭打地址，打到門牌停住了。"
+            },
+            {
+              "id": "d3-s5-16",
+              "type": "line",
+              "speaker": "me",
+              "text": "【待定】這裡是幾號。"
+            },
+            {
+              "id": "d3-s5-17",
+              "type": "line",
+              "speaker": "deshu",
+              "text": "【待定】十七。"
+            },
+            {
+              "id": "d3-s5-18",
+              "type": "line",
+              "speaker": "narrator",
+              "focus": "phone",
+              "stage": "停在這一頁等玩家推進，接第 4 天。",
+              "text": "【待定】她打完，按了送出。龍眼翻了個身，綁帶整條露出來。"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

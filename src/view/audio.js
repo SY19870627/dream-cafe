@@ -82,6 +82,11 @@ export function play(name) {
     case 'tap': tone(660, { dur: 0.12, gain: 0.05 }); break;
     case 'memory': tone(523, { dur: 1.6, gain: 0.05 }); tone(784, { at: 0.2, dur: 1.6, gain: 0.04 }); break;
     case 'copier': noise({ dur: 1.6, gain: 0.05, freq: 500, q: 1.5 }); break;
+    // v3b 演出用
+    case 'buzz': for (let i = 0; i < 2; i++) tone(140, { at: i * 0.32, dur: 0.22, gain: 0.08, type: 'sawtooth' }); break; // 手機震動
+    case 'drip': tone(900, { dur: 0.18, gain: 0.08, to: 420 }); break; // 鋁盆滴水
+    case 'ding': tone(1046, { dur: 0.9, gain: 0.06 }); tone(784, { at: 0.35, dur: 1.2, gain: 0.05 }); break; // 電梯
+    case 'beep': tone(1480, { dur: 0.12, gain: 0.05, type: 'square' }); break; // 閘門
     default: break;
   }
 }
@@ -143,6 +148,8 @@ export function setAmbient(name, level = 1) {
   else if (name === 'fan') { loopNoise(350, 0.4, 0.03, 'lowpass'); hum(4, 0.004); }
   else if (name === 'grinder') { loopNoise(700, 0.4, 0.02); loopNoise(2600, 4, 0.012); }
   else if (name === 'hum') { hum(120, 0.02, 'sawtooth'); loopNoise(3000, 1, 0.006); }
+  else if (name === 'wind') { loopNoise(380, 0.4, 0.05, 'lowpass'); loopNoise(1200, 0.6, 0.012); }
+  else if (name === 'lobby') { loopNoise(300, 0.4, 0.025, 'lowpass'); hum(100, 0.004); }
   else if (name === 'scooter') { hum(70, 0.05, 'sawtooth'); loopNoise(300, 0.5, 0.05, 'lowpass'); }
   ambient = {
     name,

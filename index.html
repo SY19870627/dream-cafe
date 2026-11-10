@@ -6,71 +6,93 @@
 <meta name="theme-color" content="#3b2a20">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/art/app_icon_192.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/art/app_icon_180.png">
-<title>我單方面辭退老闆後，開了一間夢想中的咖啡店｜v3.0 驗證版</title>
+<title>我單方面辭退老闆後，開了一間夢想中的咖啡店｜v3b 三天故事驗證版</title>
 <style>
-  :root { --ink: #3b2a20; --paper: #f6efe2; }
+  :root { --ink: #3b2a20; --paper: #f6efe2; --wood: #7a5638; --box-h: 31%; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; height: 100%; background: #1a1612; overflow: hidden;
     font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; color: var(--ink); line-break: strict;
     -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
   /* 手機直立：寬螢幕上也維持直式比例 */
   #app { position: relative; height: 100%; max-width: calc(100vh * 9 / 19.5); margin: 0 auto; overflow: hidden; background: #2a1d16; }
-  #pano, #fx { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
-  #fx { z-index: 2; }
+  #pano { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+  /* 閱讀時店面只畫在閱讀框上方，吧台和桌上的杯子不會被框蓋住 */
+  #pano.reading { height: calc(100% - var(--box-h) + 14px); }
   [hidden] { display: none !important; }
   button { font: inherit; min-height: 44px; min-width: 44px; border-radius: 12px; border: 0; padding: 10px 16px; cursor: pointer;
     background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.25); }
 
-  /* 說話：一次一句 */
+  /* 開場推門後德叔的三句、「先坐。」：沿用 v3a 的說話框與點一下換句 */
   .say { position: absolute; left: 16px; right: 16px; top: 64px; z-index: 6; padding: 12px 16px; border-radius: 16px;
     background: rgba(246,239,226,.95); color: var(--ink); font-size: 16px; line-height: 1.65; box-shadow: 0 4px 16px rgba(0,0,0,.3);
     pointer-events: none; animation: rise .35s ease-out both; }
   .say .who { display: block; font-size: 12px; letter-spacing: 2px; opacity: .6; margin-bottom: 2px; }
-  .say-me { top: auto; bottom: 120px; left: 56px; background: #fffaf0; border: 1px solid #e3d6bd; }
-  .say-colleague { right: 56px; }
   @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  /* 點下一句：整個畫面都是按鈕（右下角一個小三角） */
   #next { position: absolute; inset: 0; z-index: 7; background: transparent; box-shadow: none; border-radius: 0; }
   #next::after { content: "▸"; position: absolute; right: 22px; bottom: 28px; font-size: 22px; color: #f6efe2; text-shadow: 0 1px 4px rgba(0,0,0,.6);
     animation: blink 1.4s ease-in-out infinite; }
   @keyframes blink { 50% { opacity: .3; } }
 
-  /* 物件的一行字 */
-  .line { position: absolute; left: 20px; right: 20px; bottom: 28px; z-index: 5; padding: 12px 16px; border-radius: 14px; text-align: center;
-    background: rgba(30,24,20,.78); color: #f6efe2; font-size: 16px; line-height: 1.6; pointer-events: none; }
-  .line.in { animation: rise .5s ease-out both; }
-
-  /* 托盤：桌上的東西（菜單、杯子、筆記本、帶回物） */
-  #tray { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; justify-content: center; align-items: flex-end;
-    padding: 0 16px calc(18px + env(safe-area-inset-bottom)); pointer-events: none; }
-  #tray > * { pointer-events: auto; }
-  .menu { display: flex; flex-direction: column; gap: 8px; width: min(320px, 100%); padding: 16px; border-radius: 6px;
-    background: #fbf6ea; box-shadow: 0 8px 24px rgba(0,0,0,.35); transform: rotate(-1.2deg); }
-  .menu button { width: 100%; text-align: left; font-size: 18px; min-height: 52px; background: transparent; box-shadow: none;
-    border-bottom: 1px dashed #c9b796; border-radius: 0; font-family: "Kaiti TC", "KaiTi", "DFKai-SB", "BiauKai", serif; }
-  .menu button:last-child { border-bottom: 0; }
-  .cup { background: transparent; box-shadow: none; padding: 0; width: 160px; height: 120px; margin-bottom: 8px; }
-  .cup img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
-  .cup.sip { animation: sip 1.5s ease-in-out both; }
-  @keyframes sip { 40% { transform: translateY(-40px) rotate(-12deg) scale(1.1); } 100% { transform: translateY(0); opacity: .55; } }
-  .notebook { width: 132px; height: 96px; padding: 0; margin-bottom: 14px; border-radius: 4px 10px 10px 4px;
-    background: linear-gradient(90deg, #3e2a1e 0 10px, #6b4a33 10px); box-shadow: 0 6px 16px rgba(0,0,0,.4); transform: rotate(4deg); }
-  .notebook span { display: block; margin: 10px 10px 10px 22px; height: calc(100% - 20px); border: 1px solid rgba(255,240,210,.35); border-radius: 3px; }
-  .takeaway { display: flex; flex-direction: column; align-items: center; gap: 6px; background: rgba(246,239,226,.92); padding: 12px 16px; margin-bottom: 8px;
-    font-size: 15px; animation: float 2.4s ease-in-out infinite; }
-  .takeaway canvas { pointer-events: none; }
-  .takeaway.placed { animation: place .5s ease-in both; }
-  @keyframes float { 50% { transform: translateY(-5px); } }
-  @keyframes place { to { transform: translate(-90px, -320px) scale(.2); opacity: 0; } }
-  .deshu-brew { height: 30vh; max-height: 260px; margin-right: auto; filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)); }
-
-  /* 筆記本翻開的一頁 */
-  #page { position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; background: rgba(20,14,10,.55); }
-  .page-paper { width: min(300px, 80%); min-height: 380px; padding: 40px 26px; border-radius: 4px; background: #f8f1e1;
-    background-image: repeating-linear-gradient(transparent 0 31px, rgba(120,150,180,.35) 31px 32px); box-shadow: 0 10px 30px rgba(0,0,0,.45);
-    animation: turn .8s ease-out both; transform-origin: 0 50%; }
-  .page-paper p { margin: 0; font-family: "Kaiti TC", "KaiTi", "DFKai-SB", "BiauKai", serif; font-size: 21px; line-height: 32px; color: #3b3a5a; }
-  @keyframes turn { from { transform: perspective(900px) rotateY(-80deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  /* ---------- v3b 故事閱讀層（背景、立繪、特寫、名牌、閱讀框、選項） ---------- */
+  #story { position: absolute; inset: 0; z-index: 5; overflow: hidden; cursor: pointer; }
+  .st-bg { position: absolute; inset: 0; overflow: hidden; }
+  .st-bg-in { position: absolute; inset: 0; transition: transform .7s ease; transform-origin: 50% 50%; }
+  .st-bg-in.enter { animation: bgin .6s ease-out both; }
+  @keyframes bgin { from { opacity: 0; } to { opacity: 1; } }
+  .st-bg-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; }
+  .st-lady { position: absolute; width: auto; transform: translateX(-50%); pointer-events: none; opacity: .95; }
+  .st-portrait { position: absolute; inset: 0; pointer-events: none; }
+  .st-portrait img { position: absolute; left: 50%; transform: translateX(-50%); width: auto; filter: drop-shadow(0 6px 14px rgba(40,20,10,.35)); }
+  .st-portrait img.enter { animation: pin .45s ease-out both; }
+  @keyframes pin { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  .st-focus { position: absolute; left: 0; right: 0; display: flex; justify-content: center; pointer-events: none; }
+  .st-card { padding: 10px; border-radius: 8px; background: #fbf5e8; box-shadow: 0 10px 28px rgba(30,15,5,.45);
+    border: 1px solid #e2d3b6; animation: rise .4s ease-out both; }
+  .st-card img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  /* 手機沒有原圖：中性外形，螢幕只有光，不畫訊息（字在閱讀框） */
+  .st-phone { position: relative; aspect-ratio: 9 / 18; border-radius: 18px; border: 6px solid #2c2622; box-shadow: 0 10px 28px rgba(0,0,0,.5);
+    background: radial-gradient(120% 70% at 50% 30%, #fbf7ee, #d8dfe3 70%, #b9c3c9); animation: rise .4s ease-out both; }
+  .st-phone::before { content: ""; position: absolute; top: 6px; left: 50%; width: 26%; height: 4px; border-radius: 2px; background: #2c2622; transform: translateX(-50%); }
+  .st-phone.off { background: #141210; }
+  .st-top { position: absolute; left: 0; right: 0; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px;
+    padding: calc(8px + env(safe-area-inset-top)) 10px 8px 14px; background: linear-gradient(rgba(30,20,12,.62), rgba(30,20,12,0)); }
+  .st-scene { flex: 1; min-width: 0; font-size: 13px; color: #f6efe2; text-shadow: 0 1px 3px rgba(0,0,0,.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .st-top button { font-size: 15px; padding: 8px 14px; background: rgba(251,245,232,.9); }
+  /* 閱讀框：下方約 31%，字多往上長；紙感、木色邊 */
+  .st-box { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; min-height: var(--box-h); max-height: 64%; overflow-y: auto;
+    padding: 24px 22px calc(22px + env(safe-area-inset-bottom)); background: #fbf5e8;
+    background-image: linear-gradient(rgba(122,86,56,.06) 1px, transparent 1px); background-size: 100% 30px;
+    border-top: 5px solid var(--wood); box-shadow: 0 -6px 20px rgba(30,15,5,.35); font-size: 19px; line-height: 1.6; }
+  .st-line { margin: 0 0 10px; animation: rise .3s ease-out both; }
+  .st-line:last-child { margin-bottom: 0; }
+  .st-name { display: inline-block; margin: 0 0 4px; padding: 2px 12px; border-radius: 6px; background: var(--wood); color: #fbf5e8;
+    font-size: 15px; letter-spacing: 2px; line-height: 1.6; }
+  .st-text { display: block; }
+  .st-line.narrator .st-text { color: #4b3a2e; }
+  .st-tag { font-size: 12px; color: #a08c76; margin-right: 2px; vertical-align: 2px; }
+  .st-more { display: block; text-align: right; font-size: 16px; line-height: 1; color: var(--wood); animation: blink 1.4s ease-in-out infinite; }
+  .st-box.dim .st-line { opacity: .55; }
+  .st-daytitle { margin: 22px 0 8px; text-align: center; font-size: 20px; letter-spacing: 2px; animation: rise .5s ease-out both; }
+  .st-choices { position: absolute; left: 16px; right: 16px; z-index: 4; display: flex; flex-direction: column; gap: 12px; cursor: default; }
+  .st-choices button { min-height: 56px; font-size: 18px; line-height: 1.5; text-align: left; padding: 12px 18px; background: #fbf5e8;
+    border: 2px solid var(--wood); box-shadow: 0 6px 18px rgba(30,15,5,.4); animation: rise .35s ease-out both; }
+  /* 環視（店內可選）：故事層收起，只留回到故事與回顧 */
+  #look { position: absolute; left: 0; right: 0; top: 0; z-index: 6; display: flex; justify-content: flex-end; gap: 8px;
+    padding: calc(8px + env(safe-area-inset-top)) 10px 8px; pointer-events: none; }
+  #look > * { pointer-events: auto; }
+  #look .hint { margin-right: auto; align-self: center; font-size: 13px; color: #f6efe2; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; }
+  #look button { font-size: 15px; padding: 8px 14px; background: rgba(251,245,232,.92); }
+  /* 回顧：蓋住整個畫面，點不穿 */
+  #log { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; background: rgba(28,20,14,.72); cursor: default; }
+  .log-paper { flex: 1; margin: calc(12px + env(safe-area-inset-top)) 12px 0; padding: 18px 18px 8px; overflow-y: auto; border-radius: 10px 10px 0 0;
+    background: #fbf5e8; font-size: 17px; line-height: 1.6; touch-action: pan-y; }
+  .log-item { margin: 0 0 12px; }
+  .log-item .st-name { font-size: 13px; padding: 0 8px; margin-right: 6px; }
+  .log-day { margin: 18px 0 12px; padding-top: 10px; border-top: 1px dashed #c9b796; font-weight: 600; }
+  .log-day:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+  .log-choice { color: #7a5638; font-weight: 600; }
+  .log-bar { display: flex; justify-content: center; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); background: #fbf5e8; margin: 0 12px; border-top: 1px solid #e2d3b6; }
+  .log-bar button { min-width: 160px; background: var(--wood); color: #fbf5e8; }
 
   #fade { position: absolute; inset: 0; z-index: 30; opacity: 0; pointer-events: none; transition: opacity .6s; }
   #fade.on { opacity: 1; pointer-events: auto; }
@@ -141,13 +163,19 @@
 </head>
 <body>
 <div id="app">
-  <canvas id="pano" aria-label="環視：左右拖曳"></canvas>
-  <canvas id="fx" hidden></canvas>
+  <canvas id="pano" aria-label="店內"></canvas>
   <div id="say" class="say" hidden aria-live="polite"></div>
-  <div id="line" class="line" hidden aria-live="polite"></div>
-  <div id="tray"></div>
   <button id="next" hidden aria-label="下一句"></button>
-  <div id="page" hidden></div>
+  <section id="story" hidden>
+    <div class="st-bg" id="st-bg"></div>
+    <div class="st-portrait" id="st-portrait"></div>
+    <div class="st-focus" id="st-focus"></div>
+    <div class="st-top" id="st-top"><span class="st-scene" id="st-scene"></span><button id="st-look" type="button" hidden>環視</button><button id="st-log" type="button">回顧</button></div>
+    <div class="st-choices" id="st-choices" hidden></div>
+    <div class="st-box" id="st-box" aria-live="polite"></div>
+  </section>
+  <section id="look" hidden><span class="hint">左右拖曳看看店裡</span><button id="look-back" type="button">回到故事</button><button id="look-log" type="button">回顧</button></section>
+  <section id="log" hidden role="dialog" aria-label="回顧"><div class="log-paper" id="log-list"></div><div class="log-bar"><button id="log-close" type="button">回到原頁</button></div></section>
   <section id="opening" hidden></section>
   <div id="fade"></div>
   <div id="boot"></div>

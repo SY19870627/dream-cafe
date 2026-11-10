@@ -14,6 +14,7 @@ import { INTERACTIONS, recognize, ambientLevel } from '../../src/dreams/interact
 import { ROUTE, START, DURATION, SOUND_EVENTS, drawMachine, progress } from '../../src/machine.js';
 import { dreamScene, shopScene, EXIT_LABEL } from '../../src/view/scenes.js';
 import { MIN_HIT, TAP_SLOP } from '../../src/view/pano.js';
+import { sequence } from '../../src/story/script.js';
 import { drawShape, ASPECT } from '../../src/view/draft.js';
 import { RIDE_MS, drawRide, drawCounter, drawSleeve, drawLeave, talkBeats } from '../../src/view/company.js';
 
@@ -195,7 +196,7 @@ test('公司：舞台動作只演不出字、不多要點擊；同事的笑在�
   assert.doesNotMatch(read('src/main.js'), /act: '/);
 });
 
-test('開場第四幕兩句原文：出現在第 1 天第一杯前後的實際路徑上，且與第一版一字不差', () => {
+test('開場第四幕兩句原文與第一版一字不差：v3b 接在坐下之後、第一天之前（legacy：v3a deshuLines／day.js 的第一杯流程仍保留作回歸）', () => {
   const legacyMain = read('legacy/src/main.js');
   const legacyMenu = read('legacy/src/menu.js');
   const script = read('legacy/docs/第一站劇本.md');
@@ -211,9 +212,12 @@ test('開場第四幕兩句原文：出現在第 1 天第一杯前後的實際�
     assert.deepEqual(deshuLines('notebook', day), []);
   }
   for (const p of ['order', 'return', 'rest']) assert.deepEqual(deshuLines(p, 1), []);
-  // 店裡每一步都經過 deshuLines（不需要點），且一定會走到第 1 天的 drink、notebook
-  const main = read('src/main.js');
-  assert.match(main, /deshuSays\(deshuLines\(p, state\.day\)\)/);
+  // v3b：泡咖啡流程已從執行畫面拿掉，這兩句改接在坐下之後、第一天之前（閱讀框，杯子已在桌上），原字不變。
+  // （v3a 原本斷言 main.js 原始碼裡的 deshuSays(deshuLines(...)) 呼叫；該 UI 已整段移除，改驗 v3b 劇本順序）
+  const story = sequence(JSON.parse(read('src/story/final-source.json')), {});
+  assert.deepEqual(story.slice(0, 2).map((p) => p.lines[0].text), [OP.ACT4_CUP, OP.ACT4_EMPTY]);
+  assert.equal(story[2].id, 'd1-title');
+  // v3a 的純邏輯（day.js 仍保留作回歸）照舊走得到第 1 天的 drink、notebook
   const s = D.newState();
   for (const act of D.OPENING_ACTS.slice(1)) D.setOpeningAct(s, act);
   D.finishOpening(s);
@@ -225,31 +229,23 @@ test('開場第四幕兩句原文：出現在第 1 天第一杯前後的實際�
   assert.equal(s.phase, 'notebook');
 });
 
-test('第 1 天喝之前一定先聽到「今天的，請慢用。」：杯子跟著最後一句才上桌（回歸：快速點杯子漏掉供餐句）', () => {
+test('v3b 執行畫面沒有端杯／喝杯流程，杯子只是道具（legacy：v3a deshuLines 供餐句順序仍保留）', () => {
   // 每天 drink 的最後一句都是規格書的供餐句；第 1 天第一版那句在它前面
   for (let day = 1; day <= 5; day++) assert.equal(deshuLines('drink', day).at(-1), SERVE);
   assert.deepEqual(deshuLines('drink', 1), [OP.ACT4_CUP, SERVE], '第一版兩句仍保留');
+  // v3b：執行畫面沒有端杯、喝杯（原本斷言 v3a main.js 的 serveCup／deshuSays 原始碼，該段已移除）。
+  // 杯子只是畫在桌上的道具：沒有可點的杯子按鈕、沒有 drink／brew 的流程呼叫。
   const main = read('src/main.js');
-  // deshuSays 說到最後一句才回傳 true；中途畫面換掉回傳 false
-  const says = main.slice(main.indexOf('async function deshuSays'), main.indexOf('// 桌上的杯子'));
-  assert.match(says, /if \(my !== token\) return false;/);
-  assert.match(says, /return true;\s*\}\s*$/);
-  // drink 分支：杯子只在 deshuSays 說完之後放上桌，分支裡沒有直接放杯子
-  const drink = main.slice(main.indexOf("if (p === 'drink') {"), main.indexOf("} else if (p === 'notebook') {"));
-  assert.match(drink, /said\.then\(\(ok\) => \{ if \(ok\) serveCup\(\); \}\)/);
-  assert.doesNotMatch(drink, /class="cup"|tray\(/);
-  // 整個檔案只有 serveCup 會放杯子，且 serveCup 只從 said.then 呼叫
-  assert.equal(main.match(/class="cup"/g).length, 1);
-  assert.equal(main.match(/serveCup\(\)/g).length, 2, '定義一次、呼叫一次');
+  assert.doesNotMatch(main, /serveCup|class="cup"|D\.drink|brewDone|drawMachine/);
 });
 
-test('回店不需要額外確認：帶回物停一下就自己上架，沒有按鈕', () => {
+test('v3b 執行畫面不自動上架、不用計時器推頁或換天（legacy：v3a RETURN_SHOW_MS 範圍仍保留）', () => {
   assert.ok(D.RETURN_SHOW_MS >= 1500 && D.RETURN_SHOW_MS <= 6000, '短暫展示帶回物');
+  // v3b：原本斷言 v3a main.js「回店計時自動上架、再自動淡到隔天」的原始碼；v3b 改成玩家讀完才跨天，
+  // 所以改驗執行畫面不呼叫 placeTakeaway，也沒有用計時器推頁或換天（推頁只經過 tryAdvance／選項按鈕）。
   const main = read('src/main.js');
-  const block = main.slice(main.indexOf("} else if (p === 'return') {"), main.indexOf('// rest：'));
-  assert.ok(block.length > 0);
-  assert.doesNotMatch(block, /onclick|<button|addEventListener/, '回店那段沒有要玩家點的東西');
-  assert.match(block, /setTimeout\([\s\S]*D\.placeTakeaway\(state\)[\s\S]*D\.RETURN_SHOW_MS\)/, '時間到自己放上架');
+  assert.doesNotMatch(main, /placeTakeaway|RETURN_SHOW_MS/);
+  for (const m of main.matchAll(/setTimeout\(([^;]*)/g)) assert.doesNotMatch(m[1], /advance|choose|render/, '計時器不推頁');
 });
 
 test('夢想互動：每條恰好一個、對上 fable 稿的目標物件，與轉頭手勢分開', () => {
