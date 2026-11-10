@@ -1,20 +1,157 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>夢想咖啡店 — 重建中</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 36rem; margin: 3rem auto; padding: 0 1.25rem; line-height: 1.6; color: #222; }
-    h1 { font-size: 1.35rem; }
-    code { background: #f4f1ea; padding: 0.1em 0.35em; border-radius: 4px; }
-    a { color: #6b4f2a; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#3b2a20">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/art/app_icon_192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/art/app_icon_180.png">
+<title>我單方面辭退老闆後，開了一間夢想中的咖啡店｜v3.0 驗證版</title>
+<style>
+  :root { --ink: #3b2a20; --paper: #f6efe2; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #1a1612; overflow: hidden;
+    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; color: var(--ink); line-break: strict;
+    -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
+  /* 手機直立：寬螢幕上也維持直式比例 */
+  #app { position: relative; height: 100%; max-width: calc(100vh * 9 / 19.5); margin: 0 auto; overflow: hidden; background: #2a1d16; }
+  #pano, #fx { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+  #fx { z-index: 2; }
+  [hidden] { display: none !important; }
+  button { font: inherit; min-height: 44px; min-width: 44px; border-radius: 12px; border: 0; padding: 10px 16px; cursor: pointer;
+    background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+
+  /* 說話：一次一句 */
+  .say { position: absolute; left: 16px; right: 16px; top: 64px; z-index: 6; padding: 12px 16px; border-radius: 16px;
+    background: rgba(246,239,226,.95); color: var(--ink); font-size: 16px; line-height: 1.65; box-shadow: 0 4px 16px rgba(0,0,0,.3);
+    pointer-events: none; animation: rise .35s ease-out both; }
+  .say .who { display: block; font-size: 12px; letter-spacing: 2px; opacity: .6; margin-bottom: 2px; }
+  .say-me { top: auto; bottom: 120px; left: 56px; background: #fffaf0; border: 1px solid #e3d6bd; }
+  .say-colleague { right: 56px; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  /* 點下一句：整個畫面都是按鈕（右下角一個小三角） */
+  #next { position: absolute; inset: 0; z-index: 7; background: transparent; box-shadow: none; border-radius: 0; }
+  #next::after { content: "▸"; position: absolute; right: 22px; bottom: 28px; font-size: 22px; color: #f6efe2; text-shadow: 0 1px 4px rgba(0,0,0,.6);
+    animation: blink 1.4s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+
+  /* 物件的一行字 */
+  .line { position: absolute; left: 20px; right: 20px; bottom: 28px; z-index: 5; padding: 12px 16px; border-radius: 14px; text-align: center;
+    background: rgba(30,24,20,.78); color: #f6efe2; font-size: 16px; line-height: 1.6; pointer-events: none; }
+  .line.in { animation: rise .5s ease-out both; }
+
+  /* 托盤：桌上的東西（菜單、杯子、筆記本、帶回物） */
+  #tray { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; display: flex; justify-content: center; align-items: flex-end;
+    padding: 0 16px calc(18px + env(safe-area-inset-bottom)); pointer-events: none; }
+  #tray > * { pointer-events: auto; }
+  .menu { display: flex; flex-direction: column; gap: 8px; width: min(320px, 100%); padding: 16px; border-radius: 6px;
+    background: #fbf6ea; box-shadow: 0 8px 24px rgba(0,0,0,.35); transform: rotate(-1.2deg); }
+  .menu button { width: 100%; text-align: left; font-size: 18px; min-height: 52px; background: transparent; box-shadow: none;
+    border-bottom: 1px dashed #c9b796; border-radius: 0; font-family: "Kaiti TC", "KaiTi", "DFKai-SB", "BiauKai", serif; }
+  .menu button:last-child { border-bottom: 0; }
+  .cup { background: transparent; box-shadow: none; padding: 0; width: 160px; height: 120px; margin-bottom: 8px; }
+  .cup img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+  .cup.sip { animation: sip 1.5s ease-in-out both; }
+  @keyframes sip { 40% { transform: translateY(-40px) rotate(-12deg) scale(1.1); } 100% { transform: translateY(0); opacity: .55; } }
+  .notebook { width: 132px; height: 96px; padding: 0; margin-bottom: 14px; border-radius: 4px 10px 10px 4px;
+    background: linear-gradient(90deg, #3e2a1e 0 10px, #6b4a33 10px); box-shadow: 0 6px 16px rgba(0,0,0,.4); transform: rotate(4deg); }
+  .notebook span { display: block; margin: 10px 10px 10px 22px; height: calc(100% - 20px); border: 1px solid rgba(255,240,210,.35); border-radius: 3px; }
+  .takeaway { display: flex; flex-direction: column; align-items: center; gap: 6px; background: rgba(246,239,226,.92); padding: 12px 16px; margin-bottom: 8px;
+    font-size: 15px; animation: float 2.4s ease-in-out infinite; }
+  .takeaway canvas { pointer-events: none; }
+  .takeaway.placed { animation: place .5s ease-in both; }
+  @keyframes float { 50% { transform: translateY(-5px); } }
+  @keyframes place { to { transform: translate(-90px, -320px) scale(.2); opacity: 0; } }
+  .deshu-brew { height: 30vh; max-height: 260px; margin-right: auto; filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)); }
+
+  /* 筆記本翻開的一頁 */
+  #page { position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; background: rgba(20,14,10,.55); }
+  .page-paper { width: min(300px, 80%); min-height: 380px; padding: 40px 26px; border-radius: 4px; background: #f8f1e1;
+    background-image: repeating-linear-gradient(transparent 0 31px, rgba(120,150,180,.35) 31px 32px); box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    animation: turn .8s ease-out both; transform-origin: 0 50%; }
+  .page-paper p { margin: 0; font-family: "Kaiti TC", "KaiTi", "DFKai-SB", "BiauKai", serif; font-size: 21px; line-height: 32px; color: #3b3a5a; }
+  @keyframes turn { from { transform: perspective(900px) rotateY(-80deg); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  #fade { position: absolute; inset: 0; z-index: 30; opacity: 0; pointer-events: none; transition: opacity .6s; }
+  #fade.on { opacity: 1; pointer-events: auto; }
+  #boot { position: absolute; inset: 0; z-index: 40; background: #1a1612; }
+
+  /* ---------- 開場（版面沿用第一版 legacy/index.html 的 #opening 樣式） ---------- */
+  #opening { position: absolute; inset: 0; z-index: 20; background: #15171c; color: #f1ece2; overflow: hidden; }
+  .op-stage { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 64px 18px 18px; gap: 12px; overflow-y: auto;
+    opacity: 0; transition: opacity .7s; touch-action: pan-y; }
+  .op-stage.on { opacity: 1; }
+  .op-caption { margin: 0; font-size: 15px; line-height: 1.7; opacity: .9; text-align: center; }
+  .op-office, .op-mailbox.reading { background: url(assets/art/scene_office_night.webp) 50% 100% / cover no-repeat, linear-gradient(#2c3340, #1b1f27 70%); }
+  .op-clock { position: absolute; top: 14px; left: 18px; font: 600 26px/44px ui-monospace, "Consolas", monospace; letter-spacing: 2px; color: #ffcf8a; }
+  .op-clock.flip { animation: flip .6s ease-out; }
+  @keyframes flip { 0% { transform: scaleY(1); } 45% { transform: scaleY(.1); } 100% { transform: scaleY(1); } }
+  .op-monitor { background: #0f1218; border: 10px solid #3d4350; border-radius: 12px; box-shadow: 0 0 40px rgba(120,160,220,.15); flex: none; }
+  .op-mail { background: #f5f6f8; color: #2b2f36; padding: 12px 14px; font-size: 14.5px; line-height: 1.6; border-radius: 2px; }
+  .op-mail-head { display: flex; flex-direction: column; font-size: 12.5px; color: #5f6672; border-bottom: 1px solid #d6d9de; padding-bottom: 6px; margin-bottom: 6px; }
+  .op-mail p { margin: 0 0 4px; }
+  .op-ending { min-height: 1.6em; font-weight: 600; color: #1f3f6e; }
+  .caret { display: inline-block; width: 2px; height: 1.1em; background: #2b2f36; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+  .op-sign { display: flex; align-items: center; justify-content: flex-end; gap: 6px; font-size: 14px; margin-top: 4px; }
+  .op-sign input { font: inherit; font-size: 16px; width: 9em; min-height: 44px; padding: 6px 10px; border: 1px solid #b9bec7; border-radius: 8px; background: #fff; color: #2b2f36; user-select: text; -webkit-user-select: text; }
+  .op-q { margin: 2px 0 0; font-size: 14px; opacity: .8; }
+  .op-choices { display: flex; flex-direction: column; gap: 8px; }
+  .op-choices button { text-align: left; background: rgba(246,239,226,.1); color: #f1ece2; border: 1px solid rgba(246,239,226,.35); box-shadow: none; font-weight: 500; }
+  .op-choices button[aria-pressed="true"] { background: #f1ece2; color: #1b1f27; border-color: #f1ece2; }
+  .op-keys { align-self: center; font-size: 13px; color: #f1ece2; text-align: center; letter-spacing: 3px; padding: 2px 10px; border-radius: 10px;
+    background: rgba(15,18,24,.55); animation: keys 2.4s ease-in-out infinite; }
+  @keyframes keys { 0%, 100% { opacity: .8; } 50% { opacity: 1; } }
+  .op-stage button.primary { background: #f1ece2; color: #1b1f27; flex: none; }
+  .op-stage button.primary:disabled { opacity: .45; }
+  .op-title { background: #0b0c0f; justify-content: center; align-items: center; text-align: center; }
+  .op-title h1 { margin: 0 0 6px; font-size: 25px; line-height: 1.5; font-weight: 700; letter-spacing: 1px; animation: floatin 2.4s ease-out both; }
+  .op-title .sub { margin: 0 0 28px; font-size: 13px; opacity: .65; animation: floatin 2.4s .6s ease-out both; }
+  .op-title button.primary { min-width: 160px; animation: floatin 2s 1.2s ease-out both; }
+  @keyframes floatin { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .op-credit { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 2px; font-size: 12px; opacity: .6; }
+  .op-credit a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; justify-content: center; padding: 0 8px; color: inherit; }
+  .op-mailbox { background: #23262d; transition: opacity .7s, background .9s; }
+  .op-office::before, .op-mailbox::before { content: ""; margin-top: auto; }
+  .op-office::after, .op-mailbox::after { content: ""; margin-bottom: auto; }
+  .op-box-btn { padding: 0; background: none; box-shadow: none; border-radius: 0; overflow: hidden; flex: none; margin: 0 -18px; }
+  .op-box-btn img { display: block; width: 100%; aspect-ratio: 1 / 1; height: auto; max-height: 56vh; object-fit: cover; object-position: 66% 60%; }
+  .op-box-btn.shake { animation: shake .22s ease-in-out 5; }
+  @keyframes shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-1.6deg) translateX(-3px); } 75% { transform: rotate(1.6deg) translateX(3px); } }
+  .op-lawyer { background: #fbf8f1; color: #2a2622; border: 1px solid #d9ccb3; border-radius: 6px; padding: 18px 16px 14px; font-family: "PMingLiU", "MingLiU", "Songti TC", "Noto Serif TC", serif;
+    font-size: 15px; line-height: 1.75; box-shadow: 0 8px 28px rgba(0,0,0,.4); animation: unfold .8s ease-out both; flex: none; transform-origin: 50% 0; }
+  .op-lawyer h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: 6px; text-align: center; color: #6c5f50; border-bottom: 3px double #b9ab95; padding-bottom: 6px; font-weight: 600; }
+  .op-lawyer p { margin: 0 0 8px; }
+  .op-lawyer .key { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6c5f50; margin-top: 6px; }
+  @keyframes unfold { from { transform: scaleY(.82) translateY(-12px); } to { transform: none; } }
+  .op-road { background: #1f1a22; padding: 0; justify-content: flex-end; }
+  .op-road-art { position: absolute; inset: 0; width: 100%; height: 100%; font-family: "PingFang TC", "Noto Sans TC", sans-serif; }
+  .op-road-ui { position: relative; padding: 40px 18px 22px; display: flex; flex-direction: column; align-items: center; gap: 14px;
+    background: linear-gradient(rgba(20,16,22,0), rgba(20,16,22,.78) 45%); }
+  /* 拖曳推門 */
+  .op-door { width: 150px; height: 190px; border-radius: 6px 6px 0 0; background: #f3dfb8; box-shadow: inset 0 0 30px rgba(255,190,90,.8), 0 0 30px rgba(255,200,120,.35);
+    touch-action: none; cursor: grab; outline: none; }
+  .op-door-panel { position: relative; width: 100%; height: 100%; border-radius: 6px 6px 0 0; background: linear-gradient(90deg, #6b4528, #7b4f2f);
+    transform-origin: 0 50%; transition: transform .5s cubic-bezier(.3,1.4,.5,1); display: flex; align-items: center; justify-content: center;
+    border: 3px solid #4a2f1a; }
+  .op-door-knob { position: absolute; right: 14px; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: #d9a84a; }
+  .op-door-text { color: #f6efe2; font-size: 16px; font-weight: 600; letter-spacing: 2px; writing-mode: vertical-rl; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+  .op-door.nudge .op-door-panel { animation: nudge .5s ease-in-out; }
+  @keyframes nudge { 30% { transform: perspective(600px) rotateY(-14deg); } 60% { transform: perspective(600px) rotateY(-4deg); } }
+</style>
 </head>
 <body>
-  <h1>夢想咖啡店（第二版重建中）</h1>
-  <p>第一版試玩已收進倉庫的 <code>legacy/</code>，不再作為現行規格。</p>
-  <p>現行規格是 <code>docs/規格書.md</code>：一小時、佈置為核心的短篇。雛形尚未上線。</p>
-  <p>開發說明見倉庫 <a href="https://github.com/SY19870627/dream-cafe">SY19870627/dream-cafe</a> 的 <code>README.md</code> 與 <code>AGENTS.md</code>。</p>
+<div id="app">
+  <canvas id="pano" aria-label="環視：左右拖曳"></canvas>
+  <canvas id="fx" hidden></canvas>
+  <div id="say" class="say" hidden aria-live="polite"></div>
+  <div id="line" class="line" hidden aria-live="polite"></div>
+  <div id="tray"></div>
+  <button id="next" hidden aria-label="下一句"></button>
+  <div id="page" hidden></div>
+  <section id="opening" hidden></section>
+  <div id="fade"></div>
+  <div id="boot"></div>
+</div>
+<script type="module" src="src/main.js"></script>
 </body>
 </html>
