@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import * as OP from '../../src/lines/opening.js';
 import * as S from '../../src/story/state.js';
 import { load, persist, SAVE_KEY } from '../../src/story/save.js';
@@ -357,19 +358,89 @@ test('音效全部用 WebAudio 合成且都有定義；沒有外部音檔', () =
   for (const f of ['src/main.js', 'src/view/opening.js']) assert.doesNotMatch(read(f), /\.(mp3|ogg|wav|m4a)\b/);
 });
 
-test('美術：用到的原圖都在 assets/art 且有預載；缺圖的畫面標明「佔位：…」；不再疊「175」', () => {
+test('美術：用到的原圖都在 assets/art 且有預載；不再疊「175」', () => {
   const files = new Set(readdirSync(root('assets/art')));
   const view = read('src/view/opening.js');
   const main = read('src/main.js');
   const used = new Set([...OPENING_ART, ...SHOP_ART]);
-  for (const m of (view + main).matchAll(/art\('([\w]+)'\)|img: '([\w]+)'|img\('([\w]+)'\)/g)) used.add(m[1] || m[2] || m[3]);
-  for (const m of main.matchAll(/char_deshu_\$\{d\.pose\}/g)) void m;
+  for (const m of (view + main).matchAll(/art\('([\w]+)'\)|img: '([\w]+)'|img\('([\w]+)'\)|src: '([\w]+)'/g)) used.add(m[1] || m[2] || m[3] || m[4]);
   for (const pose of ['stand', 'brew', 'serve']) used.add(`char_deshu_${pose}`);
   for (const n of used) assert.ok(files.has(`${n}.webp`), `缺 ${n}.webp`);
-  for (const n of ['envelope', 'key', 'cat_longan_walk', 'window_night_clear', 'cabinet', 'scene_county_road']) assert.ok(OPENING_ART.includes(n) || SHOP_ART.includes(n), `${n} 沒有預載`);
+  for (const n of ['envelope', 'key', 'cat_longan_walk', 'window_night_clear', 'cat_longan_sleep', 'cat_longan_sit']) assert.ok(OPENING_ART.includes(n) || SHOP_ART.includes(n), `${n} 沒有預載`);
   assert.doesNotMatch(view, />175</, '三合院外不再疊 175');
-  for (const ph of ['三合院外觀（傍晚）', '三合院外觀（晚上）', '機車', '鐵皮工寮', '土地公廟', '庭埕（晚上）', '護龍的房間']) assert.ok(view.includes(`'${ph}'`), `缺佔位標示：${ph}`);
-  assert.match(view, /佔位：\$\{esc\(what\)\}/);
-  // 待補美術清單只在 _agent（不 commit）；程式裡不新增假原圖
-  assert.doesNotMatch(view + main, /assets\/art\/(scene_sanheyuan|scooter|room_|hut_|temple_)/);
+});
+
+// 畫師 v3b 第一批原圖（開場第一～四幕）：檔名 → 原圖尺寸（只讀，不縮圖、不重新壓縮）
+const V3B_ART = {
+  scene_v3b_sanheyuan_dusk: [1170, 2532], scene_v3b_sanheyuan_night: [1170, 2532],
+  prop_v3b_scooter_off: [800, 520], prop_v3b_scooter_on: [800, 520], prop_v3b_scooter_beam: [800, 520],
+  scene_v3b_room_night: [1170, 2532], scene_v3b_courtyard_night: [1170, 2532],
+  prop_v3b_iron_shed_night: [1024, 768], prop_v3b_tudigong_night: [1024, 1024],
+};
+// 讀 WebP 檔頭的寬高（VP8／VP8L／VP8X）
+function webpSize(buf) {
+  assert.equal(buf.toString('ascii', 0, 4), 'RIFF');
+  assert.equal(buf.toString('ascii', 8, 12), 'WEBP');
+  const kind = buf.toString('ascii', 12, 16);
+  if (kind === 'VP8X') return [1 + buf.readUIntLE(24, 3), 1 + buf.readUIntLE(27, 3)];
+  if (kind === 'VP8L') { const b = buf.readUInt32LE(21); return [1 + (b & 0x3fff), 1 + ((b >> 14) & 0x3fff)]; }
+  if (kind === 'VP8 ') return [buf.readUInt16LE(26) & 0x3fff, buf.readUInt16LE(28) & 0x3fff];
+  throw new Error(`不認得的 WebP：${kind}`);
+}
+
+test('v3b 原圖接進開場：七類畫面都用原圖、有預載、原圖尺寸沒動；不再有「佔位：…」', () => {
+  const view = read('src/view/opening.js');
+  const prog = code('src/view/opening.js');
+  for (const [n, size] of Object.entries(V3B_ART)) {
+    assert.ok(existsSync(root(`assets/art/${n}.webp`)), `缺 ${n}.webp`);
+    assert.deepEqual(webpSize(readFileSync(root(`assets/art/${n}.webp`))), size, `${n} 尺寸不對（原圖不可縮放）`);
+    assert.ok(OPENING_ART.includes(n), `${n} 沒有預載`);
+    assert.ok(view.includes(`'${n}'`), `${n} 沒接進開場`);
+  }
+  // 七類佔位都拿掉
+  assert.doesNotMatch(view, /佔位/);
+  for (const ph of ['三合院外觀（傍晚）', '三合院外觀（晚上）', '鐵皮工寮\'', '土地公廟\'', '庭埕（晚上）', '護龍的房間']) assert.ok(!view.includes(`'${ph}`), `還有佔位：${ph}`);
+  assert.doesNotMatch(read('index.html'), /\.op-ph\b|op-yn-roof|op-yn-floor|op-rm-wall|op-rm-window|op-rm-lamp|op-rm-cabinet|\.quilt/, '自繪的屋頂地板、牆窗櫃燈被子都拿掉');
+  // 三合院外：傍晚 dusk、晚上 night；不再拿縣道圖當三合院、不再壓暗夜景
+  assert.match(prog, /art\(night \? 'scene_v3b_sanheyuan_night' : 'scene_v3b_sanheyuan_dusk'\)/);
+  assert.doesNotMatch(prog, /scene_county_road|cabinet|scooterSvg|<svg class="op-scooter"/);
+  assert.ok(!OPENING_ART.includes('scene_county_road') && !OPENING_ART.includes('cabinet'), '開場不再預載佔位用的縣道圖與櫃子');
+  const css = read('index.html');
+  assert.doesNotMatch(css, /\.op-yard\.night[^{]*\.op-art-img\s*\{[^}]*filter/, '夜景原圖不再套壓暗濾鏡');
+  assert.match(css, /\.op-art-img \{[^}]*transform-origin: 58\.5% 63\.3%/, '推近對準新門中心');
+  // 機車：三張原圖都在三合院外；off 每一幕都有（停在原位），發動才有 on 與 beam
+  assert.match(prog, /<img class="off" src="\$\{art\('prop_v3b_scooter_off'\)\}"/);
+  assert.match(prog, /act === 'depart' \? `<img class="on" src="\$\{art\('prop_v3b_scooter_on'\)\}" alt=""><img class="beam" src="\$\{art\('prop_v3b_scooter_beam'\)\}"/);
+  assert.match(css, /\.op-yard\.beam \.op-scooter \.on, \.op-yard\.beam \.op-scooter \.beam \{ opacity: 1; \}/);
+  // 夜路：工寮與廟畫原圖（車燈照到才淡入），沒有 canvas 剪影
+  assert.match(prog, /hut: \{ src: 'prop_v3b_iron_shed_night'/);
+  assert.match(prog, /temple: \{ src: 'prop_v3b_tudigong_night'/);
+  assert.match(prog, /g\.drawImage\(lit,/);
+  assert.doesNotMatch(prog, /燕尾|波浪鐵皮/);
+  // 庭埕、房間：原圖當背景；龍眼疊在庭埕；鑰匙疊在枕頭旁；床仍是可點熱點（至少 44px）
+  assert.match(prog, /art\('scene_v3b_courtyard_night'\)[\s\S]*class="op-yn-cat" src="\$\{art\('cat_longan_sit'\)\}"/);
+  assert.match(prog, /art\('scene_v3b_room_night'\)[\s\S]*class="op-rm-key" src="\$\{art\('key'\)\}"[\s\S]*id="op-bed"/);
+  assert.match(css, /\.op-rm-bed \{[^}]*min-width: 44px; min-height: 44px;/);
+  assert.match(prog, /ctl\.lieDown = \(\) => \{ el\.classList\.add\('lying'\); play\('creak'\);/);
+});
+
+test('推門疊圖對齊畫師給的門板座標 (594,1484)–(776,1720)／1170×2532；熱區至少 44px', () => {
+  const css = read('index.html');
+  const m = css.match(/\.op-door-wrap \{ position: absolute; left: ([\d.]+)%; top: ([\d.]+)%; width: ([\d.]+)%; height: ([\d.]+)%;/);
+  assert.ok(m, '找不到門板位置');
+  const [left, top, width, height] = m.slice(1).map(Number);
+  const near = (a, b) => Math.abs(a - b) < 0.01;
+  assert.ok(near(left, (594 / 1170) * 100), `left ${left}`);
+  assert.ok(near(top, (1484 / 2532) * 100), `top ${top}`);
+  assert.ok(near(width, (182 / 1170) * 100), `width ${width}`);
+  assert.ok(near(height, (236 / 2532) * 100), `height ${height}`);
+  assert.ok(near(top + height, (1720 / 2532) * 100), '門底對在 y=1720');
+  assert.match(css, /\.op-yard \.op-door \{[^}]*min-width: 44px; min-height: 44px;/);
+});
+
+test('不改既有的 assets/art 原圖（git 有追蹤的檔沒有被改動或刪除）', (t) => {
+  let out;
+  try { out = execFileSync('git', ['status', '--porcelain', '--', 'assets/art'], { cwd: root('.'), encoding: 'utf8' }); } catch { t.skip('沒有 git'); return; }
+  const changed = out.split('\n').filter((l) => l && !l.startsWith('??'));
+  assert.deepEqual(changed, [], `既有原圖被改動：${changed.join(', ')}`);
 });

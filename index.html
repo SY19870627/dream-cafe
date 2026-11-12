@@ -174,40 +174,42 @@
   .opr-hotspot:disabled { animation: none; opacity: 0; pointer-events: none; }
   @keyframes hotglow { 0%, 100% { box-shadow: inset 0 0 10px rgba(255,236,190,.15), 0 0 0 0 rgba(255,236,190,0); }
     50% { box-shadow: inset 0 0 18px rgba(255,236,190,.4), 0 0 22px 4px rgba(255,236,190,.45); } }
-  /* 沒有原圖的畫面：角落標明佔位 */
-  .op-ph { position: absolute; right: 8px; top: calc(8px + env(safe-area-inset-top)); z-index: 4; padding: 3px 9px; border-radius: 6px; font-size: 11px; letter-spacing: 1px;
-    color: #f6efe2; background: rgba(150,40,30,.78); pointer-events: none; }
-  .op-ph-2 { top: calc(36px + env(safe-area-inset-top)); }
-
   /* 三合院外（傍晚／晚上） */
   .op-yard { padding: 0; background: #1f1a22; }
   .op-art { position: absolute; left: 50%; top: -9%; height: 100%; aspect-ratio: 1170 / 2532; transform: translateX(-50%); overflow: hidden; }
   .op-yard.no-box .op-art { top: 0; }
-  .op-art-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: filter 1.2s, transform 1.4s ease; transform-origin: 63% 62%; }
+  .op-art-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 1.4s ease; transform-origin: 58.5% 63.3%; }
+  /* 夜景原圖本身有燈光：不再套濾鏡壓暗；推門後只加門口的暖光、往門口推近 */
   .op-glow { position: absolute; border-radius: 50%; opacity: 0; transition: opacity 1s; pointer-events: none; mix-blend-mode: screen; }
-  .op-glow.win { left: 19%; top: 53%; width: 30%; height: 16%; background: radial-gradient(closest-side, rgba(255,205,120,.75), rgba(255,190,100,0)); }
-  .op-glow.door { left: 46%; top: 52%; width: 38%; height: 22%; background: radial-gradient(closest-side, rgba(255,214,140,.9), rgba(255,200,120,0)); }
-  .op-yard.night .op-art-img { filter: brightness(.38) saturate(.7) hue-rotate(-12deg) contrast(1.05); }
-  .op-yard.night .op-glow.win { opacity: 1; }
+  .op-glow.door { left: 39.5%; top: 52.2%; width: 38%; height: 22%; background: radial-gradient(closest-side, rgba(255,214,140,.9), rgba(255,200,120,0)); }
   .op-yard.lit .op-glow.door { opacity: 1; }
   .op-yard.lit .op-art-img { transform: scale(1.06); }
   .op-card { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: #0d0b0a; transition: opacity .8s; }
   .op-card p { margin: 0; font-size: 21px; letter-spacing: 6px; color: #f1ece2; animation: floatin 1.6s ease-out both; }
   .op-card.out { opacity: 0; }
   /* 推門：門板疊在畫裡那扇門上（拖夠才開；門後是暖光） */
-  .op-door-wrap { position: absolute; left: 55.2%; top: 57.4%; width: 15.8%; height: 11.4%; z-index: 2; }
+  /* 畫師門板座標（原圖 1170×2532）：(594,1484)–(776,1720) */
+  .op-door-wrap { position: absolute; left: 50.769%; top: 58.610%; width: 15.556%; height: 9.321%; z-index: 2; }
   .op-yard .op-door { width: 100%; height: 100%; min-width: 44px; min-height: 44px; border-radius: 3px 3px 0 0; animation: doorcall 2.2s ease-in-out infinite; }
   .op-yard .op-door.open { animation: none; }
   .op-yard .op-door-panel { border-width: 2px; border-radius: 3px 3px 0 0; background: linear-gradient(90deg, #4f3220, #5e3c25 55%, #4a2f1d); }
   .op-yard .op-door-knob { right: 8px; width: 7px; height: 7px; }
   .op-yard .op-door-text { font-size: 13px; letter-spacing: 3px; }
   @keyframes doorcall { 0%, 100% { box-shadow: inset 0 0 20px rgba(255,190,90,.6), 0 0 6px rgba(255,214,140,.25); } 50% { box-shadow: inset 0 0 20px rgba(255,190,90,.6), 0 0 18px 4px rgba(255,214,140,.65); } }
-  .op-scooter { position: absolute; left: 4%; top: 66%; width: 50%; overflow: visible; filter: drop-shadow(0 6px 10px rgba(0,0,0,.6)); }
-  .op-scooter .beam { opacity: 0; transition: opacity .6s; }
-  .op-scooter .lamp { transition: fill .3s; }
-  .op-yard.beam .op-scooter .beam { opacity: 1; }
-  .op-yard.beam .op-scooter .lamp { fill: #fff6d8; }
-  .op-yard.night.beam .op-art-img { filter: brightness(.5) saturate(.75) hue-rotate(-12deg); }
+  /* 機車（畫師原圖 800×520，off／on／beam 三張對齊）：停在門前小路右邊的草地上，車頭朝左，不擋門和台階 */
+  .op-scooter { position: absolute; left: 62.7%; top: 64.6%; width: 45.6%; aspect-ratio: 800 / 520; z-index: 1; pointer-events: none; }
+  .op-scooter img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .op-scooter .off, .op-scooter .on { filter: brightness(.86) sepia(.12) drop-shadow(0 4px 5px rgba(0,0,0,.45)); }
+  .op-yard.night .op-scooter .off, .op-yard.night .op-scooter .on { filter: brightness(.58) saturate(.8) drop-shadow(0 4px 5px rgba(0,0,0,.55)); }
+  .op-scooter .on, .op-scooter .beam { opacity: 0; transition: opacity .35s; }
+  .op-scooter .beam { mix-blend-mode: screen; transition-duration: .6s; }
+  .op-yard.beam .op-scooter .on, .op-yard.beam .op-scooter .beam { opacity: 1; }
+  .op-yard.beam .op-scooter .off { opacity: 0; transition: opacity .35s; }
+  /* 台階上睡著的龍眼（原圖無貓，疊 cat_longan_sleep）；回來時換了一邊睡；門一開就鑽進去 */
+  .op-step-cat { position: absolute; left: 44.4%; top: 65.8%; width: 11%; z-index: 3; pointer-events: none; transition: opacity .8s .3s; filter: brightness(.8) saturate(.85) drop-shadow(0 3px 3px rgba(0,0,0,.45)); }
+  .op-yard.night .op-step-cat { filter: brightness(.6) saturate(.8) drop-shadow(0 3px 3px rgba(0,0,0,.5)); }
+  .op-step-cat.flip { transform: scaleX(-1); }
+  .op-yard.lit .op-step-cat { opacity: 0; }
   .op-start { position: absolute; left: 50%; bottom: calc(7% + env(safe-area-inset-bottom)); transform: translateX(-50%); min-width: 160px; z-index: 3; letter-spacing: 4px; }
 
   /* 黑路、岔路、工寮與土地公廟 */
@@ -230,37 +232,19 @@
   .op-fork.picked:disabled { opacity: .5; }
   .op-turnback { position: absolute; left: 50%; bottom: calc(var(--box-h) + 22px); transform: translateX(-50%); min-width: 160px; z-index: 3; letter-spacing: 2px; animation: floatin .8s ease-out both; }
 
-  /* 庭埕（晚上）→ 護龍的房間（沒有原圖：程式繪製佔位） */
+  /* 庭埕（晚上）→ 護龍的房間（畫師原圖 1170×2532） */
   .op-room-act { padding: 0; background: #0d0f16; }
   .op-yardnight, .op-room { position: absolute; inset: 0; transition: opacity 1.1s; }
+  .op-room-act .op-art { top: 0; }
   .op-room { opacity: 0; }
   .op-room-act.in-room .op-yardnight { opacity: 0; }
   .op-room-act.in-room .op-room { opacity: 1; }
-  .op-yn-sky { position: absolute; inset: 0 0 50% 0; background: linear-gradient(#0a0e1c, #1b2236); }
-  .op-yn-roof { position: absolute; top: 18%; width: 34%; height: 40%; background: linear-gradient(#141210, #1e1a17); }
-  .op-yn-roof.l { left: 0; clip-path: polygon(0 0, 100% 22%, 100% 100%, 0 100%); }
-  .op-yn-roof.r { right: 0; clip-path: polygon(0 22%, 100% 0, 100% 100%, 0 100%); }
-  .op-yn-floor { position: absolute; left: 0; right: 0; top: 50%; bottom: 0; background: repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 1px, transparent 1px 44px),
-    repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 30px), linear-gradient(#3a2a22, #5a3c2c); }
-  .op-yn-light { position: absolute; left: -20%; right: -20%; bottom: -10%; height: 70%; background: radial-gradient(closest-side, rgba(255,200,120,.55), rgba(255,190,110,0)); }
-  .op-yn-cat { position: absolute; left: 50%; top: 47%; width: 22%; transform: translateX(-50%); filter: brightness(.75) drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
-  .op-rm-wall { position: absolute; inset: 0 0 34% 0; background: linear-gradient(#2a2420, #3a2f27); }
-  .op-rm-floor { position: absolute; left: 0; right: 0; bottom: 0; height: 34%; background: linear-gradient(#3b2a1f, #24190f); }
-  .op-rm-window { position: absolute; left: 10%; top: 16%; width: 34%; height: 20%; border: 6px solid #4a3424; background: linear-gradient(#0c1222, #1d263b); box-shadow: inset 0 0 18px rgba(0,0,0,.6); }
-  .op-rm-window span { position: absolute; left: 50%; top: 0; bottom: 0; width: 5px; background: #4a3424; transform: translateX(-50%); }
-  .op-rm-window::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40%; background: radial-gradient(closest-side, rgba(255,200,120,.35), rgba(255,200,120,0)); }
-  .op-rm-cabinet { position: absolute; right: 4%; top: 22%; height: 40%; filter: brightness(.7) sepia(.2); }
-  .op-rm-lamp { position: absolute; left: 4%; top: 38%; width: 12%; height: 9%; z-index: 2; }
-  .op-rm-lamp .shade { position: absolute; left: 0; right: 0; top: 0; height: 60%; background: #e9d4a8; clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%); box-shadow: 0 0 20px rgba(255,220,150,.9); }
-  .op-rm-lamp::after { content: ""; position: absolute; left: 46%; top: 60%; width: 8%; height: 40%; background: #4a3424; }
-  .op-rm-lamp .glow { position: absolute; left: -260%; top: -220%; width: 620%; height: 620%; border-radius: 50%; background: radial-gradient(closest-side, rgba(255,214,150,.42), rgba(255,214,150,0)); pointer-events: none; }
-  .op-rm-bed { position: absolute; left: 6%; right: 26%; top: 47%; height: 16%; z-index: 1; }
-  .op-rm-bed .frame { position: absolute; inset: 30% 0 0 0; background: linear-gradient(#5a3d28, #3a2718); border-radius: 4px; }
-  .op-rm-bed .quilt { position: absolute; left: 22%; right: 2%; top: 8%; height: 46%; background: linear-gradient(#b9a684, #8c7a5e); border-radius: 10px 10px 4px 4px; transition: transform .8s; }
-  .op-rm-bed .pillow { position: absolute; left: 3%; width: 20%; top: 14%; height: 34%; background: #e8dcc4; border-radius: 12px; }
-  .op-rm-bed .key { position: absolute; left: 20%; top: 26%; width: 9%; transform: rotate(-20deg); filter: brightness(.9); }
+  /* 庭埕原圖無貓：龍眼跟到一半，坐在庭埕中間那片燈光裡 */
+  .op-yn-cat { position: absolute; left: 38.7%; top: 54.2%; width: 24%; pointer-events: none; filter: brightness(.82) sepia(.15) drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+  /* 房間原圖已有床、衣櫃、窗、床頭燈（燈一直亮）；鑰匙放在枕頭旁邊（疊 key）；床是可點的熱點 */
+  .op-rm-key { position: absolute; left: 52%; top: 37.6%; width: 12%; transform: rotate(-12deg); pointer-events: none; filter: brightness(.85) sepia(.2) drop-shadow(0 2px 2px rgba(0,0,0,.4)); }
+  .op-rm-bed { position: absolute; left: 33%; top: 34%; width: 66%; height: 28%; min-width: 44px; min-height: 44px; z-index: 1; }
   .op-room-act.lying .op-room { transform: scale(1.04) rotate(-1.5deg); transition: transform 1.2s ease, filter 1.2s, opacity 1.1s; filter: brightness(.82); }
-  .op-room-act.lying .op-rm-bed .quilt { transform: translateY(-6%) scaleY(1.12); }
 
   /* 待續 */
   .op-end { background: radial-gradient(120% 80% at 50% 38%, #2a1f18, #0d0b0a 70%); justify-content: center; align-items: center; text-align: center; }

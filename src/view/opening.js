@@ -2,15 +2,14 @@
 //   showOpening()：16:49 的辦公室 → 標題 → 信箱 → 信（整幕自己處理，換幕時呼叫 api.go）
 //   showScene()：三合院外（傍晚／晚上）、黑路、岔路、工寮與土地公廟、庭埕與護龍房間、待續。
 //     這些畫面的字由閱讀框（view/reader.js）一句一句出；畫面只負責「第 i 句時長什麼樣子」與互動關卡（推門、發動、按住騎、岔路、掉頭、點床）。
-// 字全部來自 src/lines/opening.js。畫師原圖只讀不改；沒有原圖的地方是標明「佔位：…」的程式繪製畫面。
+// 字全部來自 src/lines/opening.js。畫師原圖只讀不改（不重新壓縮、不縮圖）；夜路的路面是程式繪製，路上照到的東西用畫師原圖。
 import { RESIGNATIONS, RESIGNATION_MAIL, LETTER, OFFICE, TITLE, MAILBOX, ROAD, DEPART, TEMPLE } from '../lines/opening.js';
 import { play, setEngine } from './audio.js';
+import { img, ready } from './art.js';
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const art = (name) => `assets/art/${name}.webp`;
-// 沒有原圖的畫面：角落標明「佔位：…」
-const ph = (what) => `<span class="op-ph" aria-hidden="true">佔位：${esc(what)}</span>`;
 
 export const HOLD_MS = 1500; // 按住騎多久翻到下一句
 export const DOOR_DRAG = 140; // 推門：拖多遠算推到底（推到 75% 才開）
@@ -166,17 +165,19 @@ export function showScene(root, act, api) {
     const night = act !== 'road';
     const el = stage(`yard${night ? ' night' : ''}${act === 'depart' ? ' no-box' : ''}`, `
       <div class="op-art">
-        <img class="op-art-img" src="${art('scene_county_road')}" alt="">
-        <div class="op-glow win"></div><div class="op-glow door"></div>
-        ${act === 'depart' ? scooterSvg() : ''}
+        <img class="op-art-img" src="${art(night ? 'scene_v3b_sanheyuan_night' : 'scene_v3b_sanheyuan_dusk')}" alt="">
+        <div class="op-glow door"></div>
+        <div class="op-scooter" aria-hidden="true">
+          <img class="off" src="${art('prop_v3b_scooter_off')}" alt="">
+          ${act === 'depart' ? `<img class="on" src="${art('prop_v3b_scooter_on')}" alt=""><img class="beam" src="${art('prop_v3b_scooter_beam')}" alt="">` : ''}
+        </div>
+        ${act === 'depart' ? '' : `<img class="op-step-cat${act === 'return' ? ' flip' : ''}" src="${art('cat_longan_sleep')}" alt="">`}
         <div class="op-door-wrap" hidden>
           <div class="op-door" id="op-door" role="button" tabindex="0" aria-label="${ROAD.door}">
             <div class="op-door-panel"><span class="op-door-knob"></span><span class="op-door-text">${ROAD.door}</span></div>
           </div>
         </div>
       </div>
-      ${ph(night ? '三合院外觀（晚上）' : '三合院外觀（傍晚）')}
-      ${act === 'depart' ? ph('機車').replace('op-ph', 'op-ph op-ph-2') : ''}
       <div class="op-card" ${act === 'road' && api.state.opening.line === 0 && !api.resumed ? '' : 'hidden'}><p>${esc(ROAD.card)}</p></div>
       ${act === 'depart' ? `<button type="button" class="primary op-start" id="op-start">${DEPART.start}</button>` : ''}
 `);
@@ -231,7 +232,6 @@ export function showScene(root, act, api) {
   if (act === 'ride' || act === 'fork' || act === 'temple') {
     const el = stage('night-road', `
       <canvas class="op-road-cv" aria-hidden="true"></canvas>
-      <div class="op-ph-slot"></div>
       <div class="op-hold" hidden aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" class="bg"/><circle cx="32" cy="32" r="26" class="fg"/><path d="M26 22 L40 32 L26 42" class="arrow"/></svg></div>
       <button type="button" class="op-fork left" hidden aria-label="左邊的路"><span aria-hidden="true">‹</span></button>
       <button type="button" class="op-fork right" hidden aria-label="右邊的路"><span aria-hidden="true">›</span></button>
@@ -241,11 +241,7 @@ export function showScene(root, act, api) {
     // 遠處的狗叫，偶爾一聲
     const bark = () => { play('dog'); later(bark, 7000 + Math.random() * 9000); };
     later(bark, 2500 + Math.random() * 3000);
-    const slot = el.querySelector('.op-ph-slot');
-    ctl.beat = (i, look) => {
-      road.sight(look.sight || null);
-      slot.innerHTML = look.sight === 'hut' ? ph('鐵皮工寮') : look.sight === 'temple' ? ph('土地公廟') : '';
-    };
+    ctl.beat = (i, look) => { road.sight(look.sight || null); };
     ctl.gate = (name) => {
       if (name === 'hold') return holdToRide(el, road, stopFns);
       if (name === 'fork') {
@@ -287,21 +283,15 @@ export function showScene(root, act, api) {
   /* ---------- 庭埕（晚上）→ 護龍的房間 ---------- */
   if (act === 'room') {
     const el = stage('room-act', `
-      <div class="op-yardnight">
-        <div class="op-yn-sky"></div><div class="op-yn-roof l"></div><div class="op-yn-roof r"></div>
-        <div class="op-yn-floor"></div><div class="op-yn-light"></div>
+      <div class="op-yardnight"><div class="op-art">
+        <img class="op-art-img" src="${art('scene_v3b_courtyard_night')}" alt="">
         <img class="op-yn-cat" src="${art('cat_longan_sit')}" alt="">
-        ${ph('庭埕（晚上）')}
-      </div>
-      <div class="op-room">
-        <div class="op-rm-wall"></div>
-        <div class="op-rm-window"><span></span></div>
-        <img class="op-rm-cabinet" src="${art('cabinet')}" alt="">
-        <div class="op-rm-lamp"><span class="shade"></span><span class="glow"></span></div>
-        <div class="op-rm-bed" id="op-bed"><span class="frame"></span><span class="quilt"></span><span class="pillow"></span><img class="key" src="${art('key')}" alt=""></div>
-        <div class="op-rm-floor"></div>
-        ${ph('護龍的房間')}
-      </div>`);
+      </div></div>
+      <div class="op-room"><div class="op-art">
+        <img class="op-art-img" src="${art('scene_v3b_room_night')}" alt="">
+        <img class="op-rm-key" src="${art('key')}" alt="">
+        <div class="op-rm-bed" id="op-bed"></div>
+      </div></div>`);
     ctl.beat = (i, look) => {
       el.classList.toggle('in-room', look.place === 'room');
       if (look.lying) el.classList.add('lying');
@@ -321,23 +311,6 @@ export function showScene(root, act, api) {
     return ctl;
   }
   return ctl;
-}
-
-// 機車（沒有原圖：簡單的剪影，標佔位）
-function scooterSvg() {
-  return `<svg class="op-scooter" viewBox="0 0 200 130" aria-hidden="true">
-    <defs><radialGradient id="beamg" cx="0" cy="0.5" r="1"><stop offset="0" stop-color="#fff3c8" stop-opacity=".95"/><stop offset="1" stop-color="#fff3c8" stop-opacity="0"/></radialGradient></defs>
-    <path class="beam" d="M168 52 L330 10 L330 120 Z" fill="url(#beamg)"/>
-    <circle cx="45" cy="104" r="20" fill="#14110f" stroke="#3a332d" stroke-width="5"/>
-    <circle cx="150" cy="104" r="20" fill="#14110f" stroke="#3a332d" stroke-width="5"/>
-    <path d="M30 92 Q38 66 74 64 L118 64 Q130 64 134 78 L140 92 Z" fill="#5d6f7a"/>
-    <path d="M62 62 Q66 46 92 46 L112 46 Q120 46 118 58 L116 64 L64 64 Z" fill="#2b2522"/>
-    <path d="M134 80 L150 36 L160 36 L146 84 Z" fill="#5d6f7a"/>
-    <path d="M144 34 L176 30" stroke="#2b2522" stroke-width="6" stroke-linecap="round"/>
-    <circle class="lamp" cx="164" cy="50" r="7" fill="#4a4036"/>
-    <path d="M150 30 l4 -10" stroke="#2b2522" stroke-width="3"/><ellipse cx="156" cy="18" rx="9" ry="5" fill="#2b2522"/>
-    <ellipse cx="96" cy="40" rx="18" ry="13" fill="#c7b9a3"/>
-  </svg>`;
 }
 
 // 進門：拖曳推門，門推開才有門聲與風鈴（與第一次相同）。點一下門只會晃一下，不會開。門沒有鎖。
@@ -438,7 +411,35 @@ function holdToRide(el, road, stopFns) {
   });
 }
 
-// 夜路（程式繪製）：黑底、車燈照出的一小塊柏油、中線、路邊的草；fork＝前面分成左右兩條；sight＝車燈照到的東西（佔位剪影）
+// 車燈照到的東西（畫師透明底原圖）：z＝站在路上多遠（0 腳下～1 遠處）；w＝寬佔畫面寬；dx＝離路中線（佔畫面寬）；
+// ax、ay＝圖上哪一點落在路面上（底部中心，依原圖的不透明範圍）
+const SIGHTS = {
+  hut: { src: 'prop_v3b_iron_shed_night', z: 0.42, w: 0.56, dx: 0, ax: 0.5, ay: 727 / 768 }, // 路的盡頭，正面被車燈照到
+  temple: { src: 'prop_v3b_tudigong_night', z: 0.5, w: 0.4, dx: 0.2, ax: 525 / 1024, ay: 945 / 1024 }, // 路邊的小廟
+};
+// 原圖不改：畫到另一張畫布上，再把上半部壓暗一點（車燈從下面照上去，越高越暗）
+const litCache = new Map();
+function litSprite(name) {
+  if (litCache.has(name)) return litCache.get(name);
+  const im = img(SIGHTS[name].src);
+  if (!ready(im)) return null;
+  const c = document.createElement('canvas');
+  c.width = im.naturalWidth;
+  c.height = im.naturalHeight;
+  const g = c.getContext('2d');
+  g.drawImage(im, 0, 0);
+  g.globalCompositeOperation = 'source-atop';
+  const dim = g.createLinearGradient(0, 0, 0, c.height);
+  dim.addColorStop(0, 'rgba(4,6,10,.5)');
+  dim.addColorStop(0.55, 'rgba(4,6,10,.12)');
+  dim.addColorStop(1, 'rgba(4,6,10,0)');
+  g.fillStyle = dim;
+  g.fillRect(0, 0, c.width, c.height);
+  litCache.set(name, c);
+  return c;
+}
+
+// 夜路（程式繪製）：黑底、車燈照出的一小塊柏油、中線、路邊的草；fork＝前面分成左右兩條；sight＝車燈照到的東西（畫師原圖）
 function nightRoad(cv, { fork = false, side = null } = {}) {
   const g = cv.getContext('2d');
   let W = 0;
@@ -453,6 +454,7 @@ function nightRoad(cv, { fork = false, side = null } = {}) {
   let sightA = 0;
   let raf = 0;
   let stopped = false;
+  for (const k of Object.keys(SIGHTS)) img(SIGHTS[k].src); // 先開始載入
   let lastT = performance.now();
   const tufts = Array.from({ length: 40 }, (_, i) => ({ z: i / 40, side: i % 2 ? 1 : -1, r: Math.random() }));
   const resize = () => {
@@ -578,52 +580,24 @@ function nightRoad(cv, { fork = false, side = null } = {}) {
     dark.addColorStop(1, 'rgba(0,0,0,.97)');
     g.fillStyle = dark;
     g.fillRect(-W, 0, W * 3, H);
-    // 車燈照到的東西（佔位剪影；車燈掃到才看得見）
-    if (sightA > 0.02 && sightName) {
-      const p = roadAt(0.42);
-      const u = W * 0.9;
-      g.save();
-      g.globalAlpha = sightA * 0.92;
-      g.translate(p.x + (sightName === 'hut' ? 0 : W * 0.12), p.y);
-      if (sightName === 'hut') { // 鐵皮工寮：波浪鐵皮牆、斜屋頂
-        g.fillStyle = '#4a4c4f';
-        g.fillRect(-u * 0.22, -u * 0.17, u * 0.44, u * 0.17);
-        g.fillStyle = '#5b5e61';
-        g.beginPath(); g.moveTo(-u * 0.25, -u * 0.16); g.lineTo(u * 0.25, -u * 0.2); g.lineTo(u * 0.25, -u * 0.23); g.lineTo(-u * 0.25, -u * 0.19); g.closePath(); g.fill();
-        g.strokeStyle = 'rgba(0,0,0,.4)';
-        g.lineWidth = 1;
-        for (let x = -u * 0.22; x < u * 0.22; x += 5) { g.beginPath(); g.moveTo(x, -u * 0.17); g.lineTo(x, 0); g.stroke(); }
-        g.fillStyle = 'rgba(20,20,22,.9)';
-        g.fillRect(-u * 0.05, -u * 0.12, u * 0.1, u * 0.12); // 門
-      } else { // 土地公廟：小廟、燕尾屋脊、兩盞紅燈
-        g.fillStyle = '#3b2620';
-        g.fillRect(-u * 0.11, -u * 0.015, u * 0.22, u * 0.015); // 台基
-        g.fillStyle = '#6a2f24';
-        g.fillRect(-u * 0.085, -u * 0.105, u * 0.17, u * 0.09);
-        g.fillStyle = '#2a1714';
-        g.fillRect(-u * 0.035, -u * 0.085, u * 0.07, u * 0.07); // 神龕
-        g.fillStyle = '#7d3a2a';
+    // 車燈照到的東西（畫師原圖；車燈掃到才看得見）：鐵皮工寮擋在路的盡頭，土地公廟在路邊
+    if (sightA > 0.02 && sightName && SIGHTS[sightName]) {
+      const S = SIGHTS[sightName];
+      const lit = litSprite(sightName);
+      if (lit) {
+        const p = roadAt(S.z);
+        const w = W * S.w;
+        const h = (w * lit.height) / lit.width;
+        g.save();
+        g.globalAlpha = sightA;
+        // 地上一點影子，讓東西站在路上
+        g.fillStyle = 'rgba(0,0,0,.45)';
         g.beginPath();
-        g.moveTo(-u * 0.13, -u * 0.1);
-        g.quadraticCurveTo(-u * 0.1, -u * 0.125, -u * 0.06, -u * 0.13);
-        g.lineTo(u * 0.06, -u * 0.13);
-        g.quadraticCurveTo(u * 0.1, -u * 0.125, u * 0.13, -u * 0.1);
-        g.quadraticCurveTo(u * 0.15, -u * 0.15, u * 0.155, -u * 0.155); // 燕尾
-        g.lineTo(u * 0.08, -u * 0.15);
-        g.lineTo(-u * 0.08, -u * 0.15);
-        g.lineTo(-u * 0.155, -u * 0.155);
-        g.quadraticCurveTo(-u * 0.15, -u * 0.15, -u * 0.13, -u * 0.1);
-        g.closePath();
+        g.ellipse(p.x + W * S.dx, p.y - 2, w * 0.46, Math.max(3, w * 0.035), 0, 0, Math.PI * 2);
         g.fill();
-        for (const sx of [-1, 1]) {
-          const lamp = g.createRadialGradient(sx * u * 0.06, -u * 0.08, 1, sx * u * 0.06, -u * 0.08, u * 0.05);
-          lamp.addColorStop(0, 'rgba(255,110,70,.95)');
-          lamp.addColorStop(1, 'rgba(255,90,60,0)');
-          g.fillStyle = lamp;
-          g.fillRect(sx * u * 0.06 - u * 0.05, -u * 0.13, u * 0.1, u * 0.1);
-        }
+        g.drawImage(lit, p.x + W * S.dx - w * S.ax, p.y - h * S.ay, w, h);
+        g.restore();
       }
-      g.restore();
     }
     g.restore();
     // 龍頭的影子（畫面下緣）

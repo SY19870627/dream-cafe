@@ -25,5 +25,10 @@ export const SHOP_ART = [
   'window_day_clear', 'chair', 'prop_cup', 'pendant_lamp', 'kettleSet', 'plant', 'radio', 'bookshelf', 'tex_counter_front',
   'tex_wall_plaster', 'tex_floor_wood', 'tex_wood_top',
 ];
-// 開場（v3.8）：辦公室、信箱、三合院外觀（暫用 scene_county_road 當佔位）、信封與鑰匙、店裡的貓與晚上的窗、護龍房間的櫃子
-export const OPENING_ART = ['scene_office_night', 'scene_mailboxes', 'scene_county_road', 'envelope', 'key', 'cat_longan_walk', 'window_night_clear', 'cabinet'];
+// 開場（v3.8）：辦公室、信箱、信封與鑰匙、店裡的貓與晚上的窗；
+// 三合院外觀（傍晚／晚上）、機車（未發動／發動／車燈）、夜路上車燈照到的鐵皮工寮與土地公廟、庭埕（晚上）、護龍房間（畫師 v3b 原圖）
+export const OPENING_ART = [
+  'scene_office_night', 'scene_mailboxes', 'envelope', 'key', 'cat_longan_walk', 'window_night_clear',
+  'scene_v3b_sanheyuan_dusk', 'scene_v3b_sanheyuan_night', 'prop_v3b_scooter_off', 'prop_v3b_scooter_on', 'prop_v3b_scooter_beam',
+  'prop_v3b_iron_shed_night', 'prop_v3b_tudigong_night', 'scene_v3b_courtyard_night', 'scene_v3b_room_night',
+];

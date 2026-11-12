@@ -66,7 +66,7 @@ export const CAT_SPOTS = {
 // 桌上的杯子：已經在桌上的生活道具（不做沖煮、不點喝）
 export const CUP = { status: 'ready', src: 'prop_cup' };
 
-// 店內 360 用到的畫師圖（scenes.js 的 shopScene 依名字取用）；開場原樣沿用的三張（view/opening.js）
+// 店內 360 用到的畫師圖（scenes.js 的 shopScene 依名字取用）；開場用到的原圖（view/opening.js）
 export const PANO_ART = [...SHOP_ART];
 export const OPENING_SCENES = [...OPENING_ART];
 
