@@ -1,5 +1,6 @@
-// v3b 三天故事：劇本原字與 ID、四種選擇組合走到 end、when 回收、刷新／連點／重選／壞檔／存檔隔離、回顧、美術對照表。
-// 只測純邏輯與靜態檔案，不開瀏覽器。劇本來源用 tests/fixtures/v3b/（tracked），不依賴 _agent/。
+// v3b 三天故事（保留的模組，第一天起正在重寫）：劇本原字與 ID、四種選擇組合走到 end、when 回收、刷新／連點／重選／壞檔／存檔隔離、回顧、美術對照表。
+// 可玩開場不會進入這條線（見 v3b-opening.test.mjs）；這裡用 S.enterStory() 直接進三天故事，只測純邏輯與靜態檔案，不開瀏覽器。
+// 劇本來源用 tests/fixtures/v3b/（tracked），不依賴 _agent/。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
@@ -12,7 +13,6 @@ import * as S from '../../src/story/state.js';
 import { load, persist, SAVE_KEY, OTHER_KEYS } from '../../src/story/save.js';
 import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, CAT_SPOTS, allArt } from '../../src/story/manifest.js';
 import { NODE_DIRECTION, SCENE_DIRECTION } from '../../src/story/direction.js';
-import { OPENING_ACTS as V3A_ACTS } from '../../src/day.js';
 import { SAVE_KEY as V3A_KEY } from '../../src/save.js';
 import { shopScene } from '../../src/view/shop.js';
 import { shopScene as v3aShop } from '../../src/view/scenes.js';
@@ -32,11 +32,10 @@ const COMBOS = [
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const reload = (s) => S.normalize(clone(s), SRC);
 
-// 開場走完（坐下）
+// 直接進三天故事（保留模組的入口；執行畫面不呼叫）
 function afterOpening() {
-  const s = S.newStoryState();
-  for (const act of S.OPENING_ACTS.slice(1)) assert.equal(S.setOpeningAct(s, act), true, act);
-  assert.equal(S.finishOpening(s), true);
+  const s = S.enterStory(S.newStoryState());
+  assert.equal(s.phase, 'story');
   return s;
 }
 // 照 combo 一路讀到 end；每一步都可回呼（看狀態）
@@ -128,8 +127,10 @@ test('頁面上的字全部逐字來自劇本（或開場原文），stage 不�
   for (const id of lines) assert.ok(seen.has(id), `沒出現：${id}`);
 });
 
-test('開場第四幕兩句原文接在坐下之後、第一天章名之前', () => {
+test('保留的三天模組：序列開頭仍是第一版第四幕兩句、接第一天章名（可玩開場不播放、不進入）', () => {
   assert.deepEqual(ACT4_PAGES.map((p) => p.text), [OP.ACT4_CUP, OP.ACT4_EMPTY]);
+  const main = read('src/main.js').replace(/\/\/.*$/gm, '');
+  assert.doesNotMatch(main, /ACT4_|enterStory|DESHU_ENTER|\bSIT\b|phase = 'story'/,'可玩開場不再播放舊第四幕兩句，也不進三天故事');
   const s = afterOpening();
   assert.equal(s.at, S.FIRST_PAGE);
   const pages = sequence(SRC, {});
@@ -252,19 +253,14 @@ test('刷新：四種組合的每一頁（選前、選項頁、分支中、選�
   }
 });
 
-test('刷新：開場每一幕、推門後德叔第幾句都接著原本的地方', () => {
+test('刷新：開場每一幕都接著原本的地方（v3.8 開場的完整測試在 v3b-opening.test.mjs）', () => {
   const s = S.newStoryState();
   for (const act of S.OPENING_ACTS.slice(1)) {
-    S.setOpeningAct(s, act);
+    assert.equal(S.setOpeningAct(s, act), true, act);
     assert.equal(reload(s).opening.act, act);
   }
-  const d = S.newStoryState();
-  for (const act of ['title', 'mailbox', 'letter', 'road', 'deshu']) S.setOpeningAct(d, act);
-  assert.equal(S.setDeshuLine(d, 2), true);
-  assert.equal(S.setDeshuLine(d, 1), false, '只往前');
-  assert.equal(reload(d).opening.deshuLine, 2);
-  assert.equal(S.setOpeningAct(d, 'office'), false, '開場只往前');
-  assert.deepEqual(S.OPENING_ACTS, V3A_ACTS, '開場各幕與 v3a 相同');
+  assert.equal(S.setOpeningAct(s, 'office'), false, '開場只往前');
+  assert.equal(reload(s).phase, 'opening', '開場走完仍是 opening（待續），不進三天故事');
 });
 
 /* ---------- 壞檔 ---------- */
@@ -292,7 +288,7 @@ test('壞檔防護：格式不對從頭；游標壞了回劇本開頭；不合�
   r = S.normalize({ v: 1, phase: 'opening', opening: { act: 'zzz', name: 'x'.repeat(50), deshuLine: 99 } }, SRC);
   assert.equal(r.opening.act, 'office');
   assert.equal(r.opening.name.length, 12);
-  assert.equal(r.opening.deshuLine, 3);
+  assert.equal(r.opening.line, 0, '辦公室沒有句子：句子進度歸零');
 });
 
 /* ---------- 存檔隔離 ---------- */
@@ -456,7 +452,7 @@ test('執行畫面不再載入泡咖啡、機關、送咖啡、夢想 360 的模
   assert.doesNotMatch(code, /DURATION|brewStartedAt|countdown|倒數/);
 });
 
-test('鍵盤：Enter／Space 只在故事頁推進，開場（簽名輸入框）不攔；按鈕、輸入框上的按鍵交還瀏覽器', () => {
+test('鍵盤：Enter／Space 只在故事頁推進，開場（有自己的閱讀框）不攔；按鈕、輸入框上的按鍵交還瀏覽器', () => {
   const main = read('src/main.js');
   const kd = main.slice(main.indexOf("addEventListener('keydown', (e) => {"), main.indexOf('/* ---------- 環視'));
   assert.match(kd, /if \(!state \|\| state\.phase !== 'story'\) return;/);

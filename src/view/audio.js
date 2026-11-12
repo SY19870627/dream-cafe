@@ -87,6 +87,46 @@ export function play(name) {
     case 'drip': tone(900, { dur: 0.18, gain: 0.08, to: 420 }); break; // 鋁盆滴水
     case 'ding': tone(1046, { dur: 0.9, gain: 0.06 }); tone(784, { at: 0.35, dur: 1.2, gain: 0.05 }); break; // 電梯
     case 'beep': tone(1480, { dur: 0.12, gain: 0.05, type: 'square' }); break; // 閘門
+    // 開場（劇本 v3.8 第三、四幕）
+    case 'engineStart': // 機車發動：起動馬達一陣，接著引擎轉起來
+      noise({ dur: 0.45, gain: 0.08, freq: 900, q: 2 });
+      tone(48, { at: 0.35, dur: 0.9, gain: 0.12, type: 'sawtooth', to: 95 });
+      noise({ at: 0.35, dur: 0.9, gain: 0.06, freq: 260, q: 0.8, type: 'lowpass' });
+      break;
+    case 'engineOff': // 熄火：轉速掉下來，最後一聲喀
+      tone(80, { dur: 1.1, gain: 0.1, type: 'sawtooth', to: 26 });
+      noise({ at: 1.0, dur: 0.06, gain: 0.08, freq: 1500, q: 3 });
+      break;
+    case 'rev': // 掉頭時催一下油門
+      tone(60, { dur: 1.2, gain: 0.1, type: 'sawtooth', to: 120 });
+      noise({ dur: 1.2, gain: 0.05, freq: 320, q: 0.7, type: 'lowpass' });
+      break;
+    case 'dog': // 遠處的狗叫（兩聲，小聲）
+      for (let i = 0; i < 2; i++) {
+        tone(520, { at: i * 0.32, dur: 0.16, gain: 0.025, type: 'sawtooth', to: 360 });
+        noise({ at: i * 0.32, dur: 0.14, gain: 0.02, freq: 800, q: 1.5 });
+      }
+      break;
+    case 'cloth': noise({ dur: 0.32, gain: 0.05, freq: 2200, q: 0.6 }); break; // 布擦杯子，一下
+    case 'rinse': noise({ dur: 0.9, gain: 0.05, freq: 1300, q: 0.7 }); break; // 杯子沖水
+    case 'hop': tone(140, { dur: 0.14, gain: 0.08, to: 80 }); noise({ dur: 0.08, gain: 0.04, freq: 500, q: 0.8 }); break; // 貓跳上／跳下
+    case 'boil': // 水滾：低沉的滾聲加幾顆氣泡
+      noise({ dur: 1.6, gain: 0.07, freq: 380, q: 0.6, type: 'lowpass' });
+      for (let i = 0; i < 10; i++) tone(500 + Math.random() * 600, { at: 0.2 + Math.random() * 1.3, dur: 0.06, gain: 0.03, to: 900 });
+      break;
+    case 'thinPour': // 很細的水聲，斷了一次，又接上
+      noise({ at: 1.5, dur: 0.6, gain: 0.05, freq: 2600, q: 2.5 });
+      noise({ at: 2.35, dur: 1.4, gain: 0.05, freq: 2600, q: 2.5 });
+      break;
+    case 'purr': // 呼嚕：很低的聲音一顫一顫
+      for (let i = 0; i < 18; i++) noise({ at: i * 0.075, dur: 0.07, gain: 0.07, freq: 140, q: 0.9, type: 'lowpass' });
+      for (let i = 0; i < 18; i++) noise({ at: 1.5 + i * 0.075, dur: 0.07, gain: 0.06, freq: 140, q: 0.9, type: 'lowpass' });
+      break;
+    case 'creak': // 床板
+      tone(190, { dur: 0.45, gain: 0.05, type: 'sawtooth', to: 150 });
+      noise({ dur: 0.3, gain: 0.04, freq: 700, q: 4 });
+      tone(170, { at: 0.5, dur: 0.3, gain: 0.03, type: 'sawtooth', to: 140 });
+      break;
     default: break;
   }
 }
@@ -94,6 +134,20 @@ export function play(name) {
 // 環境聲（循環）：rain 雨、heater 暖氣、room 屋內、cafe 咖啡店、hum 日光燈、scooter 機車
 let pendingAmbient = null;
 let pendingLevel = 1;
+let engine = null; // { o, o2 }：環境聲 engine 的振盪器（調轉速用）
+let pendingRev = 0;
+// 引擎轉速：0＝怠速、1＝往前騎（只影響 engine 環境聲）
+export function setEngine(rev) {
+  pendingRev = Math.max(0, Math.min(1, rev));
+  if (!ctx || !engine) return;
+  const t = ctx.currentTime;
+  const f = 38 + pendingRev * 42;
+  for (const [o, k] of [[engine.o, 1], [engine.o2, 0.5]]) {
+    o.frequency.cancelScheduledValues(t);
+    o.frequency.setValueAtTime(o.frequency.value, t);
+    o.frequency.linearRampToValueAtTime(f * k, t + 0.35);
+  }
+}
 // 調整目前環境聲的音量（例如推開咖啡豆行的門，磨豆機聲變大）
 export function setAmbientLevel(level) {
   pendingLevel = level;
@@ -110,6 +164,7 @@ export function setAmbient(name, level = 1) {
   if (ambient?.name === name) { setAmbientLevel(level); return; }
   ambient?.stop();
   ambient = null;
+  engine = null;
   if (!name) return;
   const g = ctx.createGain();
   g.gain.value = 0;
@@ -139,6 +194,7 @@ export function setAmbient(name, level = 1) {
     o.connect(gg).connect(g);
     o.start();
     nodes.push(o);
+    return o;
   };
   if (name === 'rain') { loopNoise(1800, 0.4, 0.12); loopNoise(400, 0.6, 0.05); }
   else if (name === 'heater') { loopNoise(250, 0.5, 0.08, 'lowpass'); hum(55, 0.02); }
@@ -151,6 +207,14 @@ export function setAmbient(name, level = 1) {
   else if (name === 'wind') { loopNoise(380, 0.4, 0.05, 'lowpass'); loopNoise(1200, 0.6, 0.012); }
   else if (name === 'lobby') { loopNoise(300, 0.4, 0.025, 'lowpass'); hum(100, 0.004); }
   else if (name === 'scooter') { hum(70, 0.05, 'sawtooth'); loopNoise(300, 0.5, 0.05, 'lowpass'); }
+  else if (name === 'engine') { // 騎在黑路上：怠速／往前騎由 setEngine() 調轉速
+    const o = hum(38, 0.05, 'sawtooth');
+    const o2 = hum(19, 0.03, 'square');
+    loopNoise(260, 0.6, 0.04, 'lowpass');
+    loopNoise(1400, 0.5, 0.008); // 夜裡的風、蟲
+    engine = { o, o2 };
+    setEngine(pendingRev);
+  }
   ambient = {
     name,
     gain: g,

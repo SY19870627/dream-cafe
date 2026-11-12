@@ -1,15 +1,17 @@
-// v3b 三天故事驗證版入口：開場（第一版原字、原流程）→ 第四幕兩句 → 第一～三天 15 場 AVG 閱讀 → 停在店裡可環視。
-// 沒有泡咖啡、機關、倒數、喝完解鎖、自動派物、自動跨天：每一頁都由玩家點（或 Enter／Space）推進。
+// v3b 入口：開場第一幕到第四幕（劇本 v3.8）→ 待續。第一天起正在重寫，可玩流程不進入三天故事。
+// 三天 AVG 閱讀（story/script.js、final-source.json、下面的「故事閱讀」）保留不刪，但只有 phase === 'story' 才會畫，執行畫面不會走到。
+// 沒有泡咖啡操作、機關、佈置模式、溫度計、倒數、自動跨天：每一句都由玩家點（或 Enter／Space）推進。
 // 劇本規則在 story/script.js、讀到哪一頁與選項在 story/state.js（純邏輯，有單元測試）；美術代號只查 story/manifest.js。
 import * as S from './story/state.js';
 import { load, persist as saveTo } from './story/save.js';
 import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, STORY_YAW, CAT_SPOTS, CUP, artUrl, allArt } from './story/manifest.js';
 import { Pano } from './view/pano.js';
-import { shopScene } from './view/shop.js';
-import { showOpening } from './view/opening.js';
-import { unlock, play, setAmbient } from './view/audio.js';
+import { shopScene, TONE } from './view/shop.js';
+import { showOpening, showScene } from './view/opening.js';
+import { createReader } from './view/reader.js';
+import { unlock, play, setAmbient, setEngine } from './view/audio.js';
 import { preload, img, ready } from './view/art.js';
-import { DESHU_ENTER, SIT } from './lines/opening.js';
+import { OPENING_LINES, sceneAt } from './lines/opening.js';
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -34,40 +36,22 @@ const pano = new Pano($('pano'), { onTap: (it) => onTap?.(it) });
 addEventListener('pointerdown', unlock, { capture: true });
 addEventListener('keydown', unlock, { capture: true });
 
-/* ---------- 開場推門後：沿用 v3a 的說話框 ---------- */
-const WHO = { deshu: '德叔' };
-function say(who, text) {
-  const el = $('say');
-  el.innerHTML = `${WHO[who] ? `<span class="who">${WHO[who]}</span>` : ''}<span class="text">${esc(text)}</span>`;
-  el.hidden = false;
-}
-function waitTap() {
-  const my = token;
-  const btn = $('next');
-  btn.hidden = false;
-  return new Promise((res) => {
-    btn.onclick = () => {
-      btn.hidden = true;
-      btn.onclick = null;
-      play('tap');
-      res(my === token);
-    };
-  });
-}
-
-function fadeThen(fn, color = '#1a1612') {
+function fadeThen(fn, color = '#1a1612', ms = 650) {
   const f = $('fade');
   f.style.background = color;
+  f.style.transitionDuration = `${Math.max(600, ms)}ms`;
   f.classList.add('on');
-  return sleep(650).then(() => { fn(); return sleep(80); }).then(() => f.classList.remove('on'));
+  return sleep(ms).then(() => { fn(); return sleep(80); }).then(() => f.classList.remove('on'));
 }
 
 function reset() {
   token++;
   onTap = null;
   renderedId = null;
-  $('say').hidden = true;
-  $('next').hidden = true;
+  sceneCtl?.stop();
+  sceneCtl = null;
+  cloth(false);
+  reader.hide();
   $('opening').hidden = true;
   $('story').hidden = true;
   $('look').hidden = true;
@@ -83,49 +67,277 @@ function go() {
   render({ forward: false });
 }
 
-/* ---------- 開場（第一版原字、原流程；每一幕存檔） ---------- */
-function opening() {
-  const act = state.opening.act;
-  if (act === 'deshu' || act === 'sit') return openingShop(act);
-  $('pano').hidden = true;
-  setAmbient(act === 'office' ? 'hum' : null);
-  showOpening($('opening'), act, {
-    state,
-    persist: save,
-    go: (a) => { if (S.setOpeningAct(state, a)) { save(); go(); } },
-    enterShop: () => {
-      if (!S.setOpeningAct(state, 'deshu')) return;
-      save();
-      fadeThen(go, '#f3dfb8');
-    },
-  });
+/* ---------- 開場（劇本 v3.8 第一幕～第四幕；每一幕、每一句都存檔，只往前） ---------- */
+// 第一幕～第二幕：DOM 畫面整幕自己處理（view/opening.js 的 showOpening）
+// 第三幕～第四幕：閱讀框一句一句（view/reader.js），畫面是店內 360（pano）或 DOM 畫面（view/opening.js 的 showScene）
+// 開場在「待續」結束：不接第一天，也不會進三天故事。
+const reader = createReader($('op-read'), $('app'));
+const DOM_ACTS = ['office', 'title', 'mailbox', 'letter'];
+const SHOP_ACTS = ['deshu', 'sit', 'coffee', 'stay'];
+const NEXT_ACT = { road: 'deshu', deshu: 'sit', sit: 'coffee', coffee: 'depart', depart: 'ride', ride: 'fork', fork: 'temple', temple: 'return', return: 'stay', stay: 'room' };
+let sceneCtl = null; // 目前的 DOM 畫面（換畫面時停掉動畫與計時器）
+let clothTimer = 0; // 布擦杯子，一下一下
+
+function cloth(on) {
+  if (!on) { clearInterval(clothTimer); clothTimer = 0; return; }
+  if (clothTimer) return;
+  play('cloth');
+  clothTimer = setInterval(() => play('cloth'), 900);
 }
 
-// 推門之後：德叔的三句（點下一句）→「先坐。」→ 點椅子坐下 → 第四幕兩句（閱讀框）
-async function openingShop(act) {
-  const my = token;
-  setAmbient('shop');
-  pano.setScene(shopScene({ mode: act === 'deshu' ? 'enter' : 'sit', day: 0 }), { yaw: act === 'deshu' ? 0 : pano.yaw });
-  if (act === 'deshu') {
-    for (let i = state.opening.deshuLine; i < DESHU_ENTER.length; i++) {
-      say('deshu', DESHU_ENTER[i]);
-      const ok = await waitTap();
-      if (!ok || my !== token) return;
-      S.setDeshuLine(state, i + 1);
-      save();
-    }
-    S.setOpeningAct(state, 'sit');
-    save();
-    return go();
+function opening() {
+  const act = state.opening.act;
+  if (SHOP_ACTS.includes(act)) return openingShop(act);
+  $('pano').hidden = true;
+  if (DOM_ACTS.includes(act)) {
+    setAmbient(act === 'office' ? 'hum' : null);
+    showOpening($('opening'), act, {
+      state,
+      persist: save,
+      go: (a) => { if (S.setOpeningAct(state, a)) { save(); go(); } },
+    });
+    return;
   }
-  say('deshu', SIT);
-  onTap = (it) => {
-    if (it?.id !== 'seat') return;
+  return openingScene(act);
+}
+
+// 換到下一幕（淡出淡入）
+function nextAct(from, color, ms) {
+  if (!S.setOpeningAct(state, NEXT_ACT[from])) return;
+  save();
+  fadeThen(go, color, ms);
+}
+
+// 一幕裡的句子：從存檔那一句接著；每一句說完點一下才出下一句（不點就停在這一句）
+// look(i, 畫面樣子, 句子)：把畫面擺成第 i 句的樣子；gate(name)：互動關卡；optional(name)：可選互動的熱點
+async function runLines(act, { look, gate, optional }) {
+  const my = token;
+  const lines = OPENING_LINES[act];
+  for (let i = state.opening.line; i < lines.length; i++) {
+    const b = lines[i];
+    look(i, sceneAt(lines, i), b);
+    for (const n of b.sfx || []) play(n);
+    if (b.wait) { // 先聽聲音，字晚一點出來
+      reader.hideBox();
+      reader.passive();
+      await sleep(b.wait);
+      if (my !== token) return false;
+    }
+    reader.show(b);
+    let ok;
+    if (b.gate) {
+      reader.clearHot();
+      reader.passive();
+      ok = await gate(b.gate, b);
+    } else {
+      reader.hot(b.optional ? optional(b.optional, b) : []);
+      ok = await reader.next();
+    }
+    reader.clearHot();
+    if (!ok || my !== token) return false;
+    if (i + 1 < lines.length) { S.setOpeningLine(state, i + 1); save(); }
+  }
+  return true;
+}
+
+// 熱點範圍：DOM 元素
+const elRect = (el) => (base) => {
+  const r = el?.getBoundingClientRect();
+  return r && r.width ? { x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height } : null;
+};
+
+/* ---------- 三合院外、黑路、岔路、廟、庭埕與房間、待續 ---------- */
+async function openingScene(act) {
+  const my = token;
+  const ctl = showScene($('opening'), act, {
+    state,
+    chooseFork: (side) => { const ok = S.chooseFork(state, side); if (ok) save(); return ok; },
+    restart,
+  });
+  sceneCtl = ctl;
+  if (act === 'end') { setAmbient(null); reader.hide(); return; }
+  if (act === 'ride' || act === 'fork' || act === 'temple') { setAmbient('engine'); setEngine(0); }
+  else if (act === 'room') setAmbient('room');
+  else setAmbient('wind', act === 'road' ? 0.6 : 0.45);
+
+  if (act === 'depart') { // 點機車「發動」：引擎聲、車燈亮、轉到路上（不點就留在三合院外）
+    reader.hide();
+    const ok = await ctl.gate('start');
+    if (!ok || my !== token) return;
+    return nextAct('depart', '#000', 900);
+  }
+  if (act === 'road' && state.opening.line === 0) { // 傍晚，東山。（機車引擎聲，熄火）
+    reader.hide();
+    const ok = await ctl.intro();
+    if (!ok || my !== token) return;
+  }
+  const done = await runLines(act, {
+    look: (i, lk) => ctl.beat(i, lk),
+    gate: (name) => ctl.gate(name),
+    optional: (name) => (name === 'bed' ? [{
+      id: 'bed', label: '床', rect: elRect(ctl.hot('bed')),
+      onTap: () => ctl.lieDown().then(() => { if (my === token) reader.advance(); }), // 玩家點床：躺下去，翻到下一句
+    }] : []),
+  });
+  if (!done || my !== token) return;
+  if (act === 'room') { // 淡出。開場到此結束（待續）
     if (!S.finishOpening(state)) return;
     save();
-    play('place');
-    fadeThen(go, '#3a2a20');
+    reader.hide();
+    return fadeThen(go, '#0d0b0a', 1600);
+  }
+  if (act === 'ride') { S.setOpeningAct(state, 'fork'); save(); return go(); } // 同一條路接著騎到岔路
+  nextAct(act, act === 'road' || act === 'return' ? '#f3dfb8' : '#000', act === 'temple' ? 1100 : 650);
+}
+
+/* ---------- 店裡（推門之後、坐下、喝咖啡、晚上回來） ---------- */
+// 龍眼在店裡的位置（開場）：貓圖沿用 sleep／sit／walk
+const OP_CAT = {
+  doorway: { angle: 6, depth: 0.9, y: 0.99, h: 0.11, img: 'cat_longan_walk' },
+  chair: { angle: 38, depth: 0.64, y: 0.765, h: 0.075, img: 'cat_longan_sleep' },
+  shoes: { angle: 25, depth: 0.82, y: 0.97, h: 0.1, img: 'cat_longan_walk', flip: true },
+  rub: { angle: 21, depth: 0.86, y: 0.985, h: 0.11, img: 'cat_longan_walk' },
+  feet: { angle: 21, depth: 0.86, y: 0.985, h: 0.105, img: 'cat_longan_sit' },
+  feetSeated: { angle: -30, depth: 0.7, y: 0.95, h: 0.09, img: 'cat_longan_sit' },
+  across: { angle: 7, depth: 0.58, y: 0.73, h: 0.075, img: 'cat_longan_sleep' }, // 對面那張椅子的椅面上
+};
+const DESHU_AT = { // 德叔在店面裡的樣子（立繪出來時店面裡不畫，不會同時兩個德叔）
+  stand: { pose: 'stand' },
+  brew: { pose: 'brew' },
+  serveTable: { pose: 'serve', angle: 58, depth: 0.42, y: 0.86, h: 0.46 }, // 站在靠窗那張桌子後面
+};
+const CAT_ASPECT = 512 / 384;
+const pet = { at: 0 }; // 摸頭（頭頂上來）
+const sip = { at: 0 }; // 拿起杯子喝一口
+
+// 靠窗那張桌子（沒有桌子原圖：用桌面材質畫）
+const drawTable = (g, w, h) => {
+  const top = img('tex_wood_top');
+  g.fillStyle = '#4a3020';
+  g.fillRect(w * 0.08, h * 0.16, w * 0.06, h * 0.84);
+  g.fillRect(w * 0.86, h * 0.16, w * 0.06, h * 0.84);
+  g.fillStyle = '#7a5638';
+  g.fillRect(0, 0, w, h * 0.18);
+  if (ready(top)) { g.save(); g.globalAlpha = 0.85; g.drawImage(top, 0, 0, w, h * 0.18); g.restore(); }
+  g.fillStyle = 'rgba(255,240,210,.25)';
+  g.fillRect(0, 0, w, 2);
+};
+// 貓：畫成可以動（摸頭時頭頂上來一下）
+const drawCat = (spot) => (g, w, h) => {
+  const im = img(spot.img);
+  if (!ready(im)) return;
+  const k = pet.at ? Math.max(0, 1 - (performance.now() - pet.at) / 1600) : 0;
+  const lift = Math.sin(k * Math.PI * 3) * 0.06 * k;
+  g.save();
+  if (spot.flip) { g.translate(w, 0); g.scale(-1, 1); }
+  g.translate(w / 2, h);
+  g.rotate(-lift);
+  g.scale(1 + k * 0.04, 1 + k * 0.06);
+  g.drawImage(im, -w / 2, -h, w, h);
+  g.restore();
+};
+
+function openingShopScene(act, look) {
+  const seated = act === 'coffee';
+  const d = look.deshu ? DESHU_AT[look.deshu] : null;
+  const sc = shopScene({ mode: seated ? 'seated' : 'enter', deshu: d && !d.angle ? d.pose : null, day: 0, tone: 'dusk' });
+  const night = look.night || 0;
+  const items = sc.items.filter((it) => it.id !== 'longan');
+  const win = items.find((it) => it.id === 'window');
+  if (win && night >= 0.5) win.img = 'window_night_clear';
+  if (!seated) {
+    items.push({ id: 'chairA', angle: 38, depth: 0.63, y: 0.9, h: 0.3, img: 'chair', ...(act === 'sit' ? { hit: true, glow: true, label: '椅子', showLabel: true } : {}) });
+    items.push({ id: 'wintable', angle: 52, depth: 0.6, y: 0.88, h: 0.17, aspect: 1.5, draw: drawTable });
+    if (look.cup) items.push({ id: 'cup', angle: 47.5, depth: 0.61, y: 0.715, h: 0.045, img: 'prop_cup' });
+  } else {
+    items.push({ id: 'chairB', angle: 7, depth: 0.56, y: 0.84, h: 0.27, img: 'chair' });
+  }
+  if (d?.angle) items.push({ id: 'deshu-out', angle: d.angle, depth: d.depth, y: d.y, h: d.h, img: `char_deshu_${d.pose}` });
+  const spot = OP_CAT[look.cat];
+  if (spot) items.push({ id: 'longan', angle: spot.angle, depth: spot.depth, y: spot.y, h: spot.h, aspect: CAT_ASPECT, draw: drawCat(spot) });
+  sc.items = items;
+  // 天色：傍晚 → 晚上（窗外暗下來）
+  // 傍晚的暖橘 → 晚上：外面暗了，店裡只剩燈（暖、暗一點，不變灰）
+  sc.tint = night > 0 ? `rgba(${Math.round(120 - 70 * night)},${Math.round(60 - 30 * night)},${Math.round(20 + 8 * night)},${(0.28 + 0.14 * night).toFixed(3)})` : TONE.dusk;
+  if (seated) { // 坐下：桌面在畫面下緣，杯子在右手邊（點了拿起來喝一口）
+    const table = sc.foreground;
+    sc.foreground = (g, W, H, t) => {
+      table?.(g, W, H, t);
+      const cup = img(CUP.src);
+      if (!ready(cup)) return;
+      const k = sip.at ? Math.min(1, (performance.now() - sip.at) / 1500) : 1;
+      const up = Math.sin(k * Math.PI);
+      const h = H * 0.085 * (1 + up * 0.35);
+      const w = (h * cup.naturalWidth) / cup.naturalHeight;
+      g.drawImage(cup, W * 0.86 - w / 2 - up * W * 0.12, H * 0.935 - h - up * H * 0.12, w, h);
+    };
+  }
+  return sc;
+}
+const cupRect = () => {
+  const W = pano.W;
+  const H = pano.H;
+  const h = H * 0.085;
+  const w = h * (600 / 420);
+  return { x: W * 0.86 - w / 2, y: H * 0.935 - h, w, h };
+};
+
+async function openingShop(act) {
+  const my = token;
+  setAmbient('shop', act === 'stay' ? 0.7 : 1);
+  $('opening').hidden = true;
+  const show = (lk, { yaw } = {}) => {
+    pano.setScene(openingShopScene(act, lk), yaw != null ? { yaw } : {});
+    pano.scene.locked = act !== 'sit';
+    pano.enabled = act === 'sit';
   };
+  if (act === 'sit') { // 店內 360：標「椅子」的熱點會發光；可拖曳轉視角；點椅子坐下，點其他地方不會坐下
+    reader.hide();
+    $('pano').classList.remove('reading');
+    show({ deshu: 'stand', cat: 'feet', cup: true }, { yaw: 24 });
+    onTap = (it) => {
+      if (it?.id !== 'chairA') return;
+      onTap = null;
+      play('place');
+      nextAct('sit', '#3a2a20');
+    };
+    return;
+  }
+  $('pano').classList.add('reading');
+  let first = true;
+  const done = await runLines(act, {
+    look: (i, lk) => {
+      const yaw = act === 'coffee' ? STORY_YAW : (lk.yaw ?? 0);
+      show(lk, first ? { yaw } : {});
+      if (!first) pano.turnTo(yaw, 900);
+      first = false;
+      reader.portrait(lk.portrait ? PORTRAITS.deshu.src : null);
+      cloth(!!lk.cloth);
+    },
+    gate: async () => false,
+    optional: (name) => {
+      if (name === 'cat') {
+        return [{ id: 'cat', label: '龍眼', rect: () => { const it = pano.scene?.items.find((x) => x.id === 'longan'); return it ? pano.project(it) : null; },
+          onTap: () => { pet.at = performance.now(); play('purr'); } }];
+      }
+      if (name === 'cup') {
+        return [{ id: 'cup', label: '杯子', rect: cupRect,
+          onTap: () => { sip.at = performance.now(); setTimeout(() => play('sip'), 350); setTimeout(() => play('place'), 1400); } }];
+      }
+      return [];
+    },
+  });
+  cloth(false);
+  if (!done || my !== token) return;
+  reader.hide();
+  nextAct(act, act === 'stay' ? '#0d0b0a' : act === 'coffee' ? '#000' : '#3a2a20', act === 'stay' ? 900 : 650);
+}
+
+// 從開頭再看一次（只重設 v3b 自己的存檔；不碰 v3a 與第一版的鍵）
+function restart() {
+  state = S.newStoryState();
+  save();
+  fadeThen(go, '#15171c');
 }
 
 /* ---------- 故事閱讀 ---------- */
@@ -317,7 +529,7 @@ $('story').addEventListener('click', (e) => {
   tryAdvance();
 });
 addEventListener('keydown', (e) => {
-  if (!state || state.phase !== 'story') return; // 開場（含簽名輸入框）不攔
+  if (!state || state.phase !== 'story') return; // 開場有自己的閱讀框（view/reader.js），這裡不攔
   if (logOpen) {
     if (e.key === 'Escape') closeLog();
     return;
@@ -374,7 +586,7 @@ fetch('src/story/final-source.json')
   .then((r) => r.json())
   .then((json) => {
     source = json;
-    state = load(source);
+    state = S.playable(load(source)); // 舊版存到三天故事裡的存檔：回到開場開頭（不接著播第一天）
     save();
     return preload(allArt());
   })

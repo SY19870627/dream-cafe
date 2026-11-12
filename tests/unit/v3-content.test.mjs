@@ -134,7 +134,7 @@ test('店裡：開場時椅子可點；帶回來的東西上架可點，龍眼�
   assert.deepEqual([...depths].sort((a, b) => a - b), depths);
 });
 
-test('開場字句與第一版原文一字不差', () => {
+test('開場沿用第一版原字的部分一字不差（v3.8 改寫的句子另由 v3b-opening 測試對劇本）', () => {
   const legacy = ['legacy/src/letters.js', 'legacy/src/opening.js', 'legacy/src/main.js'].map(read).join('\n');
   const script = read('legacy/docs/第一站劇本.md');
   const has = (s) => assert.ok(legacy.includes(s), `legacy 找不到：${s}`);
@@ -142,17 +142,16 @@ test('開場字句與第一版原文一字不差', () => {
   has(`to: '${OP.RESIGNATION_MAIL.to}'`);
   has(`subject: '${OP.RESIGNATION_MAIL.subject}'`);
   for (const p of OP.RESIGNATION_MAIL.body) has(`'${p}'`);
-  for (const p of OP.LAWYER_LETTER.paragraphs) { has(`'${p}'`); assert.ok(script.includes(p), `劇本找不到：${p}`); }
-  has(OP.LAWYER_LETTER.attachment);
-  for (const v of [OP.OFFICE.clock, OP.OFFICE.clockAfter, OP.OFFICE.question, OP.OFFICE.sign, OP.OFFICE.signPlaceholder, OP.OFFICE.signEnd, OP.OFFICE.send, OP.OFFICE.keys, OP.OFFICE.to, OP.OFFICE.subject]) has(v);
+  for (const v of [OP.OFFICE.clock, OP.OFFICE.clockAfter, OP.OFFICE.question, OP.OFFICE.send, OP.OFFICE.keys, OP.OFFICE.to, OP.OFFICE.subject]) has(v);
   has(OP.TITLE.lines.join('<br>'));
   has(OP.TITLE.sub);
   has(`>${OP.TITLE.next}<`);
   for (const l of OP.TITLE.links) has(`href="${l.href}"`);
-  for (const v of [OP.MAILBOX.caption, OP.MAILBOX.tap, OP.MAILBOX.shaken, OP.MAILBOX.boxLabel, OP.MAILBOX.artLabel, OP.MAILBOX.next]) has(v);
-  has(OP.ROAD.caption.join('<br>'));
-  has(OP.ROAD.artLabel);
+  for (const v of [OP.MAILBOX.tap, OP.MAILBOX.shaken, OP.MAILBOX.boxLabel, OP.MAILBOX.artLabel, OP.MAILBOX.next]) has(v);
   has(OP.ROAD.door);
+  // 第一版的律師信、德叔三句、「先坐。」只留給舊模組（v3a、三天 AVG），原字不變；v3.8 可玩開場不顯示
+  for (const p of OP.LAWYER_LETTER.paragraphs) { has(`'${p}'`); assert.ok(script.includes(p), `劇本找不到：${p}`); }
+  has(OP.LAWYER_LETTER.attachment);
   for (const l of OP.DESHU_ENTER) { has(`'${l}'`); assert.ok(script.includes(`「${l}」`)); }
   has(`'${OP.SIT}'`);
   assert.ok(script.includes(`「${OP.SIT}」`));

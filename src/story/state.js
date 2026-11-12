@@ -2,43 +2,75 @@
 // 存檔只記「目前這一頁的 id」和「已選的答案」；回顧紀錄從這兩樣推出來，所以不會重複、也不會出現沒走的那一支。
 // 每個轉移都要傳入「玩家眼前那一頁的 id」，跟存檔對不上就什麼都不做（回傳 false）：連點、換頁中的舊點擊都不會多推一頁。
 import { sequence, listChoices, END_ID } from './script.js';
+import { OPENING_LINES } from '../lines/opening.js';
 
 export const SCHEMA = 1;
-// 開場各幕（與 v3a day.js 相同順序；這裡自己定義，執行時不必載入 v3a 的泡咖啡流程）
-export const OPENING_ACTS = ['office', 'title', 'mailbox', 'letter', 'road', 'deshu', 'sit'];
+// 開場各幕（劇本 v3.8 開場到第四幕，只往前）：
+//   office 辦公室 → title 標題 → mailbox 信箱 → letter 信 → road 三合院外（傍晚，推門）→ deshu 店裡站著（到「泡好了」）
+//   → sit 店內 360 點椅子 → coffee 坐下喝咖啡（閱讀框）→ depart 三合院外（晚上，發動）→ ride 黑路（按住騎）→ fork 岔路
+//   → temple 工寮與土地公廟（掉頭回去）→ return 回三合院外（再推門）→ stay 店裡（晚上）→ room 庭埕與護龍房間 → end 待續
+// end 之後沒有下一幕：可玩流程不會進入第一天（三天 AVG 模組保留，但只有 enterStory() 會進去，執行畫面不呼叫）。
+export const OPENING_ACTS = ['office', 'title', 'mailbox', 'letter', 'road', 'deshu', 'sit', 'coffee', 'depart', 'ride', 'fork', 'temple', 'return', 'stay', 'room', 'end'];
+export const FORK_SIDES = ['left', 'right'];
 export const FIRST_PAGE = 'op-act4-1';
+// 每一幕有幾句（沒有句子的幕是 0：只有互動）
+export const lineCount = (act) => (Object.prototype.hasOwnProperty.call(OPENING_LINES, act) ? OPENING_LINES[act].length : 0);
 
 export function newStoryState() {
   return {
     v: SCHEMA,
-    phase: 'opening', // opening → story
-    opening: { act: 'office', resignation: null, name: '', deshuLine: 0 },
+    phase: 'opening', // 執行畫面永遠是 opening；story 只給保留的三天 AVG 模組（測試）用
+    opening: { act: 'office', resignation: null, name: '', line: 0, fork: null },
     at: null, // 劇本目前這一頁的 id（phase === 'story' 時才有）
     choices: {}, // { share_tv: 'location'|'tv', note_share: 'note'|'warm' }
   };
 }
 
-/* ---------- 開場（流程與第一版相同，只往前） ---------- */
+/* ---------- 開場（只往前） ---------- */
+// 換幕：只能往後，換幕時句子從第 0 句開始
 export function setOpeningAct(s, act) {
   if (s.phase !== 'opening') return false;
   const to = OPENING_ACTS.indexOf(act);
   const from = OPENING_ACTS.indexOf(s.opening.act);
   if (to < 0 || to <= from) return false;
   s.opening.act = act;
+  s.opening.line = 0;
   return true;
 }
-export function setDeshuLine(s, n) {
-  if (s.phase !== 'opening' || s.opening.act !== 'deshu' || n <= s.opening.deshuLine) return false;
-  s.opening.deshuLine = Math.min(3, n);
+// 同一幕裡讀到第幾句（0 起算，就是畫面上正在顯示的那一句）：只往前、不超過這一幕的句數
+export function setOpeningLine(s, n) {
+  if (s.phase !== 'opening' || !Number.isInteger(n)) return false;
+  if (n <= s.opening.line || n >= lineCount(s.opening.act)) return false;
+  s.opening.line = n;
   return true;
 }
-// 坐下：開場結束，接第四幕的兩句再進第一天
+// 舊名字（v3b 第一輪只記德叔三句）：現在每一幕都用同一個進度
+export const setDeshuLine = setOpeningLine;
+// 岔路：左或右（後面的字都一樣），只選一次
+export function chooseFork(s, side) {
+  if (s.phase !== 'opening' || s.opening.act !== 'fork' || s.opening.fork != null || !FORK_SIDES.includes(side)) return false;
+  s.opening.fork = side;
+  return true;
+}
+// 最後一句（睡著）讀完：開場結束，停在「待續」。不進第一天。
 export function finishOpening(s) {
-  if (s.phase !== 'opening' || s.opening.act !== 'sit') return false;
-  s.opening.act = 'done';
-  s.phase = 'story';
-  s.at = FIRST_PAGE;
+  if (s.phase !== 'opening' || s.opening.act !== 'room' || s.opening.line !== lineCount('room') - 1) return false;
+  s.opening.act = 'end';
+  s.opening.line = 0;
   return true;
+}
+export const isOpeningEnd = (s) => s.phase === 'opening' && s.opening.act === 'end';
+// 執行畫面讀檔後再過一次：舊版存到三天故事裡的存檔（phase story）不接著播，回到開場開頭
+export function playable(s) {
+  return s && s.phase === 'opening' ? s : newStoryState();
+}
+// 保留的三天 AVG 模組入口（只給單元測試；執行畫面不呼叫）
+export function enterStory(s) {
+  s.phase = 'story';
+  s.opening.act = 'done';
+  s.opening.line = 0;
+  s.at = FIRST_PAGE;
+  return s;
 }
 
 /* ---------- 劇本 ---------- */
@@ -108,14 +140,20 @@ export function normalize(raw, source) {
     s.opening.act = OPENING_ACTS.includes(act) || act === 'done' ? act : 'office';
     s.opening.resignation = typeof raw.opening.resignation === 'string' ? raw.opening.resignation.slice(0, 20) : null;
     s.opening.name = typeof raw.opening.name === 'string' ? raw.opening.name.slice(0, 12) : '';
-    s.opening.deshuLine = Math.max(0, Math.min(3, Math.floor(Number(raw.opening.deshuLine)) || 0));
+    // 句子進度：新存檔用 line，第一輪存檔用 deshuLine；夾在這一幕的句數之內
+    const rawLine = raw.opening.line ?? raw.opening.deshuLine;
+    const max = Math.max(0, lineCount(s.opening.act) - 1);
+    s.opening.line = Math.max(0, Math.min(max, Math.floor(Number(rawLine)) || 0));
+    s.opening.fork = FORK_SIDES.includes(raw.opening.fork) ? raw.opening.fork : null;
   }
   if (raw.phase !== 'story') {
-    if (s.opening.act === 'done') s.opening.act = 'sit';
+    if (s.opening.act === 'done') { s.opening.act = 'sit'; s.opening.line = 0; }
+    if (OPENING_ACTS.indexOf(s.opening.act) <= OPENING_ACTS.indexOf('fork')) s.opening.fork = null; // 還沒到岔路就不可能已經選了
     return s;
   }
   s.phase = 'story';
   s.opening.act = 'done';
+  s.opening.line = 0;
   // 只收已知的 key 與合法的值
   const known = listChoices(source);
   if (raw.choices && typeof raw.choices === 'object') {

@@ -1,0 +1,375 @@
+// v3b 開場（劇本 v3.8 第一幕～第四幕）：字與劇本逐字相同（拿掉稿件標記）、各幕各句只往前、存檔恢復、壞檔、
+// 互動關卡（推門／點椅子／發動／按住騎／左右岔路／掉頭回去／再推門）、可選互動略過也能走完、待續且不進第一天。
+// 只測純邏輯與靜態檔案，不開瀏覽器。劇本字在 src/lines/opening.js（tracked）；有 _agent 稿件時另外逐句對稿，沒有就略過。
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import * as OP from '../../src/lines/opening.js';
+import * as S from '../../src/story/state.js';
+import { load, persist, SAVE_KEY } from '../../src/story/save.js';
+import { OPENING_ART, SHOP_ART } from '../../src/view/art.js';
+
+const root = (p) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
+const read = (p) => readFileSync(root(p), 'utf8');
+const SRC = JSON.parse(read('src/story/final-source.json'));
+const clone = (x) => JSON.parse(JSON.stringify(x));
+const reload = (s) => S.normalize(clone(s), SRC);
+const code = (p) => read(p).replace(/\/\/.*$/gm, ''); // 只看程式，不看註解
+const L = OP.OPENING_LINES;
+const allLines = () => Object.values(L).flat();
+const MARKS = /【(待定|待確認|新增互動)】/;
+
+// 下一幕（與 main.js 的 NEXT_ACT 相同；坐下之前的幕在 view/opening.js 自己換）
+const NEXT = { office: 'title', title: 'mailbox', mailbox: 'letter', letter: 'road', road: 'deshu', deshu: 'sit', sit: 'coffee', coffee: 'depart', depart: 'ride', ride: 'fork', fork: 'temple', temple: 'return', return: 'stay', stay: 'room' };
+
+// 照玩家的方式從頭走到待續：每一句「點一下」或「做完關卡」才往下；可選互動一律不做。回傳讀到的句子。
+function playOpening({ side = 'left', each = () => {} } = {}) {
+  const s = S.newStoryState();
+  const seen = [];
+  let guard = 0;
+  while (!S.isOpeningEnd(s)) {
+    assert.ok(guard++ < 400, '走不到待續');
+    const act = s.opening.act;
+    each(s);
+    const lines = L[act] || [];
+    if (lines.length) {
+      const b = lines[s.opening.line];
+      seen.push(b.text);
+      if (b.gate === 'fork') assert.equal(S.chooseFork(s, side), true);
+      if (s.opening.line + 1 < lines.length) { assert.equal(S.setOpeningLine(s, s.opening.line + 1), true, `${act} ${s.opening.line}`); continue; }
+    }
+    if (act === 'room') assert.equal(S.finishOpening(s), true);
+    else assert.equal(S.setOpeningAct(s, NEXT[act]), true, act);
+  }
+  each(s);
+  return { s, seen };
+}
+
+/* ---------- 字 ---------- */
+test('稿件標記【待定】【待確認】【新增互動】都已拿掉；括弧舞台指示不是字', () => {
+  const texts = [
+    ...allLines().map((b) => b.text), OP.MAILBOX.caption, OP.MAILBOX.tap, OP.MAILBOX.shaken, OP.MAILBOX.boxLabel, OP.MAILBOX.next,
+    OP.LETTER.title, OP.LETTER.greeting, ...OP.LETTER.paragraphs, OP.LETTER.closing, OP.LETTER.signature, OP.LETTER.attachment, OP.LETTER.after,
+    OP.ROAD.card, OP.ROAD.door, OP.DEPART.start, OP.TEMPLE.back, OP.OFFICE.signature, OP.OFFICE.question,
+  ];
+  for (const t of texts) {
+    assert.ok(!MARKS.test(t), `還有標記：${t}`);
+    assert.ok(!/^[（(]/.test(t) && !/[）)]$/.test(t), `舞台指示變成字：${t}`);
+    assert.equal(t, t.trim());
+  }
+  // 【待定】句去標記後正文照出
+  const flat = allLines().map((b) => b.text);
+  assert.ok(flat.includes('龍眼的耳朵往後壓了一下，沒有走。'));
+  assert.ok(flat.includes('椅子是木頭的，坐下去才知道腿有多痠。'));
+  assert.ok(flat.includes('還沒打烊，位子自己挑。'));
+  assert.equal(flat.at(-1), '我本來只想躺一下，燈還沒關就睡著了。', '開場最後一句');
+  // 舊第四幕兩句、第一版德叔三句不在可玩開場
+  for (const old of [OP.ACT4_CUP, OP.ACT4_EMPTY, OP.SIT, ...OP.DESHU_ENTER]) assert.ok(!flat.includes(old), old);
+});
+
+test('署名固定「陳怡君　敬上」，沒有輸入框（刪掉「可以不寫」的簽名欄）', () => {
+  assert.equal(OP.OFFICE.signature, '陳怡君　敬上');
+  assert.ok(!('signPlaceholder' in OP.OFFICE));
+  const view = read('src/view/opening.js');
+  assert.doesNotMatch(view, /<input|op-name|可以不寫|placeholder/);
+  assert.match(view, /<p class="op-sign">\$\{esc\(OFFICE\.signature\)\}<\/p>/);
+  assert.doesNotMatch(read('index.html'), /op-sign input/);
+  // 送出要先選結尾：按鈕一開始 disabled，選了才解除；點擊時沒選就不做事
+  assert.match(view, /id="op-send" class="primary" disabled/);
+  assert.match(view, /if \(!choice \|\| send\.disabled\) return;/);
+  assert.equal(OP.OFFICE.clock, '16:49');
+  assert.equal(OP.OFFICE.clockAfter, '16:50');
+  assert.deepEqual(OP.RESIGNATIONS.map((r) => r.text), ['謝謝這些年的照顧。', '我要去追一個夢了。', '從今天起，我單方面辭退您。']);
+});
+
+test('第二幕：信箱旁白、只能點一次的「拿出信封」、新信全文（標題「信」、署名東山老屋　屋主）', () => {
+  assert.equal(OP.MAILBOX.caption, '我回到租屋處。信箱裡有一個牛皮紙信封。');
+  assert.equal(OP.MAILBOX.boxLabel, '拿出信封');
+  assert.equal(OP.LETTER.title, '信');
+  assert.equal(OP.LETTER.greeting, '怡君：');
+  assert.deepEqual(OP.LETTER.paragraphs, [
+    '妳沒見過我，突然收到這種信，一定覺得奇怪。不想理它，放著也沒關係。',
+    '我在台南東山有一間老三合院，住了很多年。正廳是一間咖啡館，現在還開著。',
+    '我年紀大了，現在不住那裡。店想交給妳經營，屋子也一起留給妳。那間屋子冬天曬得到太陽，坐起來是暖的。',
+    '若妳尚未辭職，請先辭職。這句不算條件，是我雞婆。',
+    '那邊有人在等妳。妳哪一天去，他都在。',
+    '到了東山，找院子裡種一棵老龍眼樹、門上掛風鈴的那間三合院就是。鑰匙放在信封裡，屋子是妳的，鑰匙就是這個意思。門平常沒有鎖，到了用推的就好。',
+  ]);
+  assert.equal(OP.LETTER.closing, '祝　平安');
+  assert.equal(OP.LETTER.signature, '東山老屋　屋主');
+  assert.equal(OP.LETTER.attachment, '附件：鑰匙一把');
+  assert.equal(OP.LETTER.after, '辭了。今天下午四點五十分。');
+  const view = read('src/view/opening.js');
+  assert.doesNotMatch(view, /LAWYER_LETTER|律師信|溫度基金/);
+  assert.match(view, /if \(btn\.disabled\) return; \/\/ 只能點一次/);
+  assert.match(view, /<span class="op-box-label">\$\{MAILBOX\.boxLabel\}<\/span>/, '「拿出信封」看得到');
+  // 可選：點附件看鑰匙滑出（不點也能出發）
+  assert.match(view, /id="op-attach"/);
+  assert.match(view, /el\.querySelector\('#op-next'\)\.onclick = \(\) => api\.go\('road'\);/);
+});
+
+test('有 _agent 稿件時：開場每一句（旁白、對白）照順序與劇本 v3.8 逐字相同（沒有就略過）', (t) => {
+  const p = root('_agent/v3b/script-v3.8-acts1-4.md');
+  if (!existsSync(p)) { t.skip('沒有 _agent 稿件'); return; }
+  const md = readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+  const body = md.slice(md.indexOf('# 【待定】開場'));
+  const strip = (x) => x.replace(/^(【(待定|待確認|新增互動)】)+/, '');
+  const spoken = [];
+  const quoted = [];
+  for (const raw of body.split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#') || line.startsWith('---') || line.startsWith('（') || line.startsWith('**')) continue;
+    if (line.startsWith('>')) { const q = strip(line.replace(/^>\s*/, '')); if (q && !q.startsWith('（')) quoted.push(q); continue; }
+    const m = strip(line).match(/^(德叔|我)(（只有聲音）)?：「(.*)」$/);
+    spoken.push(m ? { who: m[1] === '德叔' ? 'deshu' : 'me', text: m[3] } : { who: undefined, text: strip(line) });
+  }
+  const mine = [
+    { text: OP.MAILBOX.caption }, { text: OP.MAILBOX.shaken }, { text: OP.LETTER.after },
+    ...['road', 'deshu', 'coffee', 'ride', 'fork', 'temple', 'return', 'stay', 'room'].flatMap((a) => L[a]),
+  ].map((b) => ({ who: b.who, text: b.text }));
+  assert.deepEqual(mine, spoken);
+  // 信、郵件、標題、結尾按鈕（引用區塊）
+  for (const q of [...OP.RESIGNATION_MAIL.body, ...OP.RESIGNATIONS.map((r) => r.text), ...OP.TITLE.lines, OP.TITLE.sub,
+    OP.LETTER.greeting, ...OP.LETTER.paragraphs, OP.LETTER.closing, OP.LETTER.signature]) assert.ok(quoted.includes(q), `稿件引用找不到：${q}`);
+  assert.ok(quoted.includes(`署名　${OP.OFFICE.signature}`));
+  for (const s of [OP.ROAD.card, OP.ROAD.door, OP.DEPART.start, OP.TEMPLE.back, OP.MAILBOX.tap, OP.MAILBOX.boxLabel, OP.MAILBOX.next, OP.LETTER.attachment, OP.LETTER.title, OP.TITLE.next]) {
+    assert.ok(body.includes(`「${s}」`), `稿件找不到「${s}」`);
+  }
+});
+
+/* ---------- 推進、存檔恢復 ---------- */
+test('開場只往前：各幕順序、換幕從第 0 句開始、句子不能跳過最後一句也不能往回', () => {
+  assert.deepEqual(S.OPENING_ACTS, ['office', 'title', 'mailbox', 'letter', 'road', 'deshu', 'sit', 'coffee', 'depart', 'ride', 'fork', 'temple', 'return', 'stay', 'room', 'end']);
+  const s = S.newStoryState();
+  assert.equal(S.setOpeningLine(s, 1), false, '辦公室沒有句子');
+  for (const a of ['title', 'mailbox', 'letter', 'road', 'deshu']) assert.equal(S.setOpeningAct(s, a), true);
+  assert.equal(S.setOpeningLine(s, 3), true);
+  assert.equal(S.setOpeningLine(s, 2), false, '只往前');
+  assert.equal(S.setOpeningLine(s, 3), false, '連點同一句不會多推');
+  assert.equal(S.setOpeningLine(s, L.deshu.length), false, '不能超過這一幕');
+  assert.equal(S.setOpeningLine(s, 1.5), false);
+  assert.equal(S.setDeshuLine(s, 20), true, '舊名字仍可用，且能記住超過 3 句');
+  assert.equal(s.opening.line, 20);
+  assert.equal(S.setOpeningAct(s, 'road'), false, '不能回到前一幕');
+  assert.equal(S.setOpeningAct(s, 'sit'), true);
+  assert.equal(s.opening.line, 0);
+  assert.equal(S.finishOpening(s), false, '還沒到最後一句不能結束');
+});
+
+test('從頭走到待續：每一幕、每一句存檔讀回都在同一處；長對話（德叔 32 句）也記得住', () => {
+  let n = 0;
+  const { s, seen } = playOpening({
+    each: (st) => {
+      const r = reload(st);
+      assert.equal(r.opening.act, st.opening.act);
+      assert.equal(r.opening.line, st.opening.line, `${st.opening.act} 第 ${st.opening.line} 句`);
+      assert.equal(r.phase, 'opening');
+      n++;
+    },
+  });
+  assert.ok(n > 60);
+  assert.ok(L.deshu.length > 30);
+  assert.equal(s.opening.act, 'end');
+  assert.equal(seen.length, allLines().length, '每一句都出現一次');
+  // 存進 localStorage 再讀回（fake storage）
+  const m = new Map();
+  const st = { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) };
+  const mid = S.newStoryState();
+  for (const a of ['title', 'mailbox', 'letter', 'road', 'deshu']) S.setOpeningAct(mid, a);
+  S.setOpeningLine(mid, 27);
+  persist(mid, st);
+  assert.deepEqual([...m.keys()], [SAVE_KEY]);
+  const back = load(SRC, st);
+  assert.equal(back.opening.act, 'deshu');
+  assert.equal(back.opening.line, 27);
+});
+
+test('待續且不進入第一天：end 之後沒有下一幕、phase 一直是 opening；舊存檔停在三天故事也回到開場開頭', () => {
+  const { s } = playOpening();
+  assert.equal(S.isOpeningEnd(s), true);
+  assert.equal(s.phase, 'opening');
+  assert.equal(s.at, null);
+  for (const a of S.OPENING_ACTS) assert.equal(S.setOpeningAct(s, a), false, `end 之後不能到 ${a}`);
+  assert.equal(S.finishOpening(s), false);
+  assert.equal(reload(s).opening.act, 'end');
+  // 舊版（第一輪）坐下後就進三天故事；那種存檔在執行畫面一律回到開場開頭
+  const old = S.enterStory(S.newStoryState());
+  assert.equal(old.phase, 'story');
+  assert.deepEqual(S.playable(reload(old)), S.newStoryState());
+  assert.equal(S.playable(s), s);
+  // 執行畫面不呼叫三天故事入口、不把 phase 改成 story、不接第一天標題
+  const main = code('src/main.js');
+  assert.doesNotMatch(main, /enterStory|phase = 'story'|d1-title/);
+  assert.match(main, /state = S\.playable\(load\(source\)\);/);
+  const view = read('src/view/opening.js');
+  assert.match(view, /<p class="op-end-title">待續<\/p>/);
+  assert.doesNotMatch(view + main, /第一天/);
+});
+
+test('壞檔：不認得的幕回開頭、句子進度夾在這一幕之內、岔路的值不合法就丟掉、第一輪存檔的 deshuLine 接得上', () => {
+  const fresh = S.newStoryState();
+  for (const bad of [null, 'x', 42, [], { v: 99 }]) assert.deepEqual(S.normalize(bad, SRC), fresh);
+  let r = S.normalize({ v: 1, phase: 'opening', opening: { act: 'nope', line: 5 } }, SRC);
+  assert.equal(r.opening.act, 'office');
+  assert.equal(r.opening.line, 0);
+  r = S.normalize({ v: 1, phase: 'opening', opening: { act: 'deshu', line: 999 } }, SRC);
+  assert.equal(r.opening.line, L.deshu.length - 1, '超過就停在這一幕最後一句');
+  r = S.normalize({ v: 1, phase: 'opening', opening: { act: 'coffee', line: -3 } }, SRC);
+  assert.equal(r.opening.line, 0);
+  r = S.normalize({ v: 1, phase: 'opening', opening: { act: 'stay', line: 'abc' } }, SRC);
+  assert.equal(r.opening.line, 0);
+  r = S.normalize({ v: 1, phase: 'opening', opening: { act: 'deshu', deshuLine: 2 } }, SRC);
+  assert.equal(r.opening.line, 2, '第一輪存檔（deshuLine）');
+  r = S.normalize({ v: 1, phase: 'opening', opening: { act: 'temple', fork: 'up' } }, SRC);
+  assert.equal(r.opening.fork, null);
+  r = S.normalize({ v: 1, phase: 'opening', opening: { act: 'ride', fork: 'left' } }, SRC);
+  assert.equal(r.opening.fork, null, '還沒到岔路就不可能選過');
+  r = S.normalize({ v: 1, phase: 'opening', opening: { act: 'temple', fork: 'right', line: 2 } }, SRC);
+  assert.equal(r.opening.fork, 'right');
+  r = S.normalize({ v: 1, phase: 'opening', opening: { act: 'done' } }, SRC);
+  assert.equal(r.opening.act, 'sit', '舊的 done 回到最近的合法幕');
+  // 讀回來的壞檔照樣能一路走到待續（不會卡住）
+  for (const act of S.OPENING_ACTS) {
+    const s = S.normalize({ v: 1, phase: 'opening', opening: { act, line: 99 } }, SRC);
+    let guard = 0;
+    while (!S.isOpeningEnd(s)) {
+      assert.ok(guard++ < 200, `${act} 卡住`);
+      const lines = L[s.opening.act] || [];
+      if (lines[s.opening.line]?.gate === 'fork') S.chooseFork(s, 'right');
+      if (s.opening.line + 1 < lines.length) S.setOpeningLine(s, s.opening.line + 1);
+      else if (s.opening.act === 'room') S.finishOpening(s);
+      else S.setOpeningAct(s, NEXT[s.opening.act]);
+    }
+  }
+});
+
+/* ---------- 互動 ---------- */
+test('互動關卡：推門（第一次與回來）、按住騎、岔路、掉頭回去；發動與點椅子是沒有句子的幕', () => {
+  const gates = Object.fromEntries(Object.entries(L).map(([a, ls]) => [a, ls.map((b) => b.gate || null)]));
+  assert.deepEqual(gates.road, [null, 'door', null], '兩句旁白後推門，推開才出「門一開……」');
+  assert.deepEqual(gates.return, ['door'], '回來再推一次門');
+  assert.deepEqual(gates.ride, ['hold', 'hold', 'hold', 'hold']);
+  assert.deepEqual(gates.fork, ['fork']);
+  assert.deepEqual(gates.temple, [null, null, null, null, 'turnback']);
+  assert.equal(S.lineCount('depart'), 0);
+  assert.equal(S.lineCount('sit'), 0);
+  assert.equal(L.road[2].text, '門一開，台階上的橘貓瞇著眼醒來，伸一個懶腰後，從我腳邊鑽進去。');
+  assert.equal(OP.ROAD.door, '推門進去');
+  assert.equal(OP.DEPART.start, '發動');
+  assert.equal(OP.TEMPLE.back, '掉頭回去');
+  const view = read('src/view/opening.js');
+  // 推門：拖夠才開（同一個 pushDoor，第一次與回來都用它）；只點一下會晃一下回來；不用鑰匙
+  assert.match(view, /if \(k >= 0\.75\) \{ start = null; panel\.style\.transition = ''; open\(\); \}/);
+  assert.match(view, /door\.classList\.add\('nudge'\); \/\/ 推不夠：門晃一下回來/);
+  assert.equal((view.match(/pushDoor\(el\.querySelector\('#op-door'\)/g) || []).length, 1, 'road 與 return 共用同一段推門');
+  assert.match(view, /if \(act === 'road' \|\| act === 'depart' \|\| act === 'return'\)/);
+  // 按住騎：按著才累積，放開就停、引擎怠速
+  assert.match(view, /if \(hold\.down\) \{ held \+= now - hold\.last; hold\.last = now; \}/);
+  assert.match(view, /road\.go\(false\); \/\/ 放開就停在原地\s*setEngine\(0\); \/\/ 引擎怠速/);
+  assert.match(view, /if \(held >= HOLD_MS\)/);
+  assert.match(view, /aria-label="左邊的路"/);
+  assert.match(view, /aria-label="右邊的路"/);
+  assert.match(view, /\$\{DEPART\.start\}<\/button>/);
+  assert.match(view, /\$\{TEMPLE\.back\}<\/button>/);
+  // 店內：點椅子才坐下，點其他地方不會坐下
+  const main = code('src/main.js');
+  assert.match(main, /if \(it\?\.id !== 'chairA'\) return;/);
+  assert.match(main, /label: '椅子', showLabel: true/);
+  assert.match(main, /play\('place'\);\s*nextAct\('sit'/);
+});
+
+test('岔路：左右只能選一次，選哪一邊後面的字都一樣', () => {
+  const a = playOpening({ side: 'left' });
+  const b = playOpening({ side: 'right' });
+  assert.deepEqual(a.seen, b.seen);
+  assert.equal(a.s.opening.fork, 'left');
+  assert.equal(b.s.opening.fork, 'right');
+  const s = S.newStoryState();
+  assert.equal(S.chooseFork(s, 'left'), false, '不在岔路不能選');
+  for (const x of S.OPENING_ACTS.slice(1, S.OPENING_ACTS.indexOf('fork') + 1)) S.setOpeningAct(s, x);
+  assert.equal(S.chooseFork(s, 'up'), false);
+  assert.equal(S.chooseFork(s, 'right'), true);
+  assert.equal(S.chooseFork(s, 'left'), false, '只能選一次');
+});
+
+test('可選互動（點貓、點杯子、點床、點附件）不是關卡：不做也能一句一句走完', () => {
+  const opt = allLines().filter((b) => b.optional);
+  assert.deepEqual(opt.map((b) => b.optional), ['cat', 'cup', 'bed']);
+  for (const b of opt) assert.ok(!b.gate, `${b.optional} 不能擋住劇情`);
+  const { seen } = playOpening(); // playOpening 從不做可選互動
+  for (const b of opt) assert.ok(seen.includes(b.text));
+  assert.ok(seen.includes('燙。我吹了兩下才喝。'), '不點杯子第一口旁白照出');
+  const main = code('src/main.js');
+  assert.match(main, /reader\.hot\(b\.optional \? optional\(b\.optional, b\) : \[\]\);\s*ok = await reader\.next\(\);/, '可選互動時照樣等點一下');
+  assert.match(main, /play\('purr'\)/);
+  assert.match(main, /ctl\.lieDown\(\)\.then\(\(\) => \{ if \(my === token\) reader\.advance\(\); \}\)/, '點床：躺下去後翻到下一句');
+  // 熱點與按鈕至少 44px
+  assert.match(read('src/view/reader.js'), /const w = Math\.max\(44, r\.w\);\s*const hh = Math\.max\(44, r\.h\);/);
+  assert.match(read('index.html'), /button \{[^}]*min-height: 44px; min-width: 44px;/);
+});
+
+test('每一句說完點一下才出下一句：閱讀框不自動翻頁、一句剛出來的連點不跳句', () => {
+  const reader = read('src/view/reader.js');
+  assert.match(reader, /if \(performance\.now\(\) - shownAt < TAP_GUARD_MS\) return;/);
+  assert.doesNotMatch(code('src/view/reader.js'), /setTimeout|setInterval/);
+  const main = code('src/main.js');
+  for (const m of main.matchAll(/setTimeout\(([^;]*)/g)) assert.doesNotMatch(m[1], /advance|setOpeningLine|nextAct/, '計時器不推句');
+  // 名牌：德叔標「德叔」、怡君自己開口標「我」、旁白沒有名牌
+  assert.deepEqual(OP.SPEAKER_NAMES, { deshu: '德叔', me: '我' });
+  for (const b of allLines()) assert.ok(b.who === undefined || b.who in OP.SPEAKER_NAMES);
+  assert.equal(L.deshu[1].who, 'deshu');
+  assert.equal(L.deshu[1].voice, true, '德叔第一句只有聲音');
+});
+
+test('演出：德叔第一句只有聲音（先不出立繪、擦杯子聲）→ 立繪出現、擦杯子聲停；沖煮只聽水聲不能操作', () => {
+  const at = (act, i) => OP.sceneAt(L[act], i);
+  assert.equal(at('deshu', 0).portrait, false);
+  assert.equal(at('deshu', 0).cloth, true);
+  assert.equal(at('deshu', 1).portrait, false, '「還沒打烊」只有聲音');
+  assert.equal(at('deshu', 2).portrait, true);
+  assert.equal(at('deshu', 2).cloth, false);
+  const brew = L.deshu.findIndex((b) => b.text === '香味一路到門口。');
+  assert.deepEqual(L.deshu[brew].sfx, ['boil', 'thinPour']);
+  assert.equal(at('deshu', brew).portrait, false, '畫面留在我和龍眼');
+  assert.equal(at('deshu', brew).yaw, 40, '鏡頭轉向我和龍眼，德叔只剩肩膀');
+  const serve = brew + 1;
+  assert.equal(at('deshu', serve).cup, true, '德叔把杯子放在靠窗那張桌');
+  assert.equal(L.deshu.at(-1).text, '泡好了。坐下喝看看。');
+  assert.equal(at('coffee', L.coffee.length - 1).night, 1, '窗外暗下來');
+  assert.ok(at('room', 2).lying);
+});
+
+test('不出現佈置模式、溫度計、沖煮操作介面；畫面不要求鑰匙開門', () => {
+  const src = ['src/main.js', 'src/view/opening.js', 'src/view/reader.js', 'src/lines/opening.js'].map(code).join('\n');
+  assert.doesNotMatch(src, /佈置|溫度計|thermo|machine|brewDone|drawMachine|decor/);
+  assert.doesNotMatch(code('src/view/opening.js'), /需要鑰匙|上鎖|locked/);
+});
+
+test('音效全部用 WebAudio 合成且都有定義；沒有外部音檔', () => {
+  const audio = read('src/view/audio.js');
+  const names = new Set(['engineStart', 'engineOff', 'rev', 'dog', 'purr', 'creak', 'cloth', 'boil', 'thinPour', 'keys', 'door', 'bell', 'place', 'sip', 'tap', 'key', 'send', 'grind']);
+  for (const b of allLines()) for (const n of b.sfx || []) names.add(n);
+  for (const n of names) assert.ok(audio.includes(`case '${n}':`), `沒有音效 ${n}`);
+  assert.match(audio, /name === 'engine'/);
+  assert.match(audio, /export function setEngine\(/);
+  assert.ok(!existsSync(root('assets/audio')));
+  for (const f of ['src/main.js', 'src/view/opening.js']) assert.doesNotMatch(read(f), /\.(mp3|ogg|wav|m4a)\b/);
+});
+
+test('美術：用到的原圖都在 assets/art 且有預載；缺圖的畫面標明「佔位：…」；不再疊「175」', () => {
+  const files = new Set(readdirSync(root('assets/art')));
+  const view = read('src/view/opening.js');
+  const main = read('src/main.js');
+  const used = new Set([...OPENING_ART, ...SHOP_ART]);
+  for (const m of (view + main).matchAll(/art\('([\w]+)'\)|img: '([\w]+)'|img\('([\w]+)'\)/g)) used.add(m[1] || m[2] || m[3]);
+  for (const m of main.matchAll(/char_deshu_\$\{d\.pose\}/g)) void m;
+  for (const pose of ['stand', 'brew', 'serve']) used.add(`char_deshu_${pose}`);
+  for (const n of used) assert.ok(files.has(`${n}.webp`), `缺 ${n}.webp`);
+  for (const n of ['envelope', 'key', 'cat_longan_walk', 'window_night_clear', 'cabinet', 'scene_county_road']) assert.ok(OPENING_ART.includes(n) || SHOP_ART.includes(n), `${n} 沒有預載`);
+  assert.doesNotMatch(view, />175</, '三合院外不再疊 175');
+  for (const ph of ['三合院外觀（傍晚）', '三合院外觀（晚上）', '機車', '鐵皮工寮', '土地公廟', '庭埕（晚上）', '護龍的房間']) assert.ok(view.includes(`'${ph}'`), `缺佔位標示：${ph}`);
+  assert.match(view, /佔位：\$\{esc\(what\)\}/);
+  // 待補美術清單只在 _agent（不 commit）；程式裡不新增假原圖
+  assert.doesNotMatch(view + main, /assets\/art\/(scene_sanheyuan|scooter|room_|hut_|temple_)/);
+});

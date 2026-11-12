@@ -62,7 +62,16 @@ export class Pano {
   setScene(scene, { yaw } = {}) {
     this.scene = scene;
     this.resize(); // canvas 可能剛從 hidden 變成看得見
-    if (yaw != null) this.yaw = yaw;
+    if (yaw != null) { this.yaw = yaw; this.turn = null; }
+    this.vel = 0;
+  }
+
+  // 鏡頭慢慢轉到某個角度（開場演出用；玩家拖曳時取消）
+  turnTo(yaw, ms = 900) {
+    const from = this.yaw;
+    const d = wrap(yaw - from);
+    if (Math.abs(d) < 0.5) { this.yaw = wrap(yaw); this.turn = null; return; }
+    this.turn = { from, d, t0: performance.now(), ms };
     this.vel = 0;
   }
 
@@ -79,6 +88,7 @@ export class Pano {
       const gesture = hit?.item.gesture ? hit.item : null;
       start = { x: e.clientX, y: e.clientY, lx: e.clientX, moved: false, t: performance.now(), lt: performance.now(), gesture };
       this.vel = 0;
+      if (!this.scene?.locked) this.turn = null;
     });
     c.addEventListener('pointermove', (e) => {
       if (!start || this.scene?.locked) return;
@@ -174,6 +184,12 @@ export class Pano {
     const { g, W, H, scene } = this;
     if (!scene) return;
     const t = (performance.now() - this.t0) / 1000;
+    if (this.turn) {
+      const k = Math.min(1, (performance.now() - this.turn.t0) / this.turn.ms);
+      const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+      this.yaw = wrap(this.turn.from + this.turn.d * e);
+      if (k >= 1) this.turn = null;
+    }
     if (Math.abs(this.vel) > 0.0005 && !scene.locked) {
       this.yaw = wrap(this.yaw + this.vel * 16);
       this.vel *= 0.92;
