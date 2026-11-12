@@ -134,9 +134,9 @@ export function showOpening(root, act, api) {
       <p class="op-caption op-after">${esc(L.after)}</p>
       <button type="button" id="op-next" class="primary">${MAILBOX.next}</button>
       <div class="op-keyshot" id="op-keyshot" hidden aria-hidden="true">
-        <div class="op-keyshot-in"><img class="env" src="${art('envelope')}" alt=""><img class="key" src="${art('key')}" alt=""></div>
+        <div class="op-keyshot-in"><img class="envkey" src="${art('prop_v3b_envelope_key')}" alt=""></div>
       </div>`);
-    // 可選：點附件，鑰匙從信封滑出來的特寫（不點也能出發）
+    // 可選：點附件，鑰匙從信封滑出來的特寫（畫師原圖 prop_v3b_envelope_key，只疊一點滑入的動畫；不點也能出發）
     const shot = el.querySelector('#op-keyshot');
     el.querySelector('#op-attach').onclick = () => {
       shot.hidden = false;
@@ -171,7 +171,8 @@ export function showScene(root, act, api) {
           <img class="off" src="${art('prop_v3b_scooter_off')}" alt="">
           ${act === 'depart' ? `<img class="on" src="${art('prop_v3b_scooter_on')}" alt=""><img class="beam" src="${art('prop_v3b_scooter_beam')}" alt="">` : ''}
         </div>
-        ${act === 'depart' ? '' : `<img class="op-step-cat${act === 'return' ? ' flip' : ''}" src="${art('cat_longan_sleep')}" alt="">`}
+        ${act === 'road' ? `<img class="op-step-cat" src="${art('cat_longan_sleep')}" alt=""><img class="op-step-cat stretch" src="${art('cat_longan_stretch_v3b')}" alt="">` : ''}
+        ${act === 'return' ? `<img class="op-step-cat" src="${art('cat_longan_sleep_flip')}" alt="">` : ''}
         <div class="op-door-wrap" hidden>
           <div class="op-door" id="op-door" role="button" tabindex="0" aria-label="${ROAD.door}">
             <div class="op-door-panel"><span class="op-door-knob"></span><span class="op-door-text">${ROAD.door}</span></div>
@@ -291,12 +292,14 @@ export function showScene(root, act, api) {
         <img class="op-art-img" src="${art('scene_v3b_room_night')}" alt="">
         <img class="op-rm-key" src="${art('key')}" alt="">
         <div class="op-rm-bed" id="op-bed"></div>
-      </div></div>`);
+      </div></div>
+      <div class="op-bedpov"><div class="op-art"><img class="op-art-img" src="${art('scene_v3b_bed_pov_night')}" alt=""></div></div>`);
     ctl.beat = (i, look) => {
       el.classList.toggle('in-room', look.place === 'room');
       if (look.lying) el.classList.add('lying');
     };
     ctl.hot = (name) => (name === 'bed' ? el.querySelector('#op-bed') : null);
+    // 躺下：畫面切到躺在床上的視角（床頭燈一直亮著），床板聲
     ctl.lieDown = () => { el.classList.add('lying'); play('creak'); return sleep(900); };
     return ctl;
   }

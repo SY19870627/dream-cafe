@@ -123,18 +123,17 @@ export const OPENING_LINES = {
     { who: 'me', text: '沒寫。只說我沒見過。' },
     { who: 'deshu', text: '那我也不能多說什麼，妳會有機會知道的。' },
     { who: 'me', text: '好吧...' },
-    // （橘貓跳上靠窗那張椅子，踩兩圈趴下。）
+    // （橘貓跳上靠窗那張椅子，踩兩圈趴下。）（窗邊椅子上，橘貓的耳朵轉過來。）：cat chair＝踩兩圈 → 趴下 → 耳朵轉過來
     { text: '我往裡面走了一步。', set: { ...SIDE, portrait: false, deshu: 'stand', cat: 'chair' }, sfx: ['hop'] },
-    // （窗邊椅子上，橘貓的耳朵轉過來。）
     { text: '橘貓下了椅子，走過來聞我的鞋，兩隻都聞。', set: { cat: 'shoes' }, sfx: ['hop'] },
-    { text: '然後他整個身體靠上來，從頭到尾巴在我小腿上擦過去，掉頭再擦一次。', set: { cat: 'rub' }, optional: 'cat' },
+    { text: '然後他整個身體靠上來，從頭到尾巴在我小腿上擦過去，掉頭再擦一次。', set: { cat: 'rub' }, optional: 'cat' }, // 點貓：手入鏡摸頭、頭頂上來；不點：蹭完坐在腳邊舔前腳（cat feet）
     { who: 'deshu', text: '那隻貓叫龍眼，是這間三合院的主人，而妳是老闆。', set: { ...COUNTER, portrait: true, deshu: null, cat: 'feet' } },
     { who: 'me', text: '龍眼。' },
     { text: '他沒理我，尾巴勾了一下我的腳踝。', set: { ...SIDE, portrait: false, deshu: 'stand' } },
     { text: '德叔彎腰，從吧台下面拿出一個杯子，沖了水。吧台上那排洗好的，他沒有動。', set: { ...COUNTER, deshu: 'brew' }, sfx: ['rinse'] },
     { who: 'me', text: '不用麻煩了。' },
     { text: '磨豆機響了，我後面的話沒講。', sfx: ['grind'], wait: 900 },
-    { text: '龍眼的耳朵往後壓了一下，沒有走。', set: { ...SIDE } },
+    { text: '龍眼的耳朵往後壓了一下，沒有走。', set: { ...SIDE, cat: 'earsBack' } },
     // （畫面留在我和龍眼，德叔只看得到肩膀。水滾，接著很細的水聲，斷了一次，又接上。不能操作。）
     { text: '香味一路到門口。', sfx: ['boil', 'thinPour'], wait: 2600 },
     { text: '德叔端著杯子走出吧台，放在靠窗那張桌上，龍眼剛才那個位子的右手邊。把手朝右。',
@@ -142,7 +141,7 @@ export const OPENING_LINES = {
     { who: 'deshu', text: '泡好了。坐下喝看看。', set: { portrait: true, deshu: null } },
   ],
 
-  // 第四幕：坐下後的閱讀框（窗外暗下來）
+  // 第四幕：坐下後的閱讀框（背景是看得到窗的店內夜景，窗外暗下來）
   coffee: [
     { text: '椅子是木頭的，坐下去才知道腿有多痠。', set: { portrait: false, deshu: 'stand', cat: 'feetSeated', night: 0.35 } },
     { who: 'deshu', text: '這個杯子沒有人用，以後就是妳的。', set: { portrait: true, deshu: null } },
@@ -183,7 +182,7 @@ export const OPENING_LINES = {
   ],
   // 店裡（晚上，站著）
   stay: [
-    { text: '德叔還在，拿著掃把。我剛才坐的那張椅子還沒收。', set: { ...COUNTER, portrait: false, deshu: 'stand', cat: null, cup: true, night: 1 } },
+    { text: '德叔還在，拿著掃把。我剛才坐的那張椅子還沒收。', set: { ...COUNTER, portrait: false, deshu: 'broom', cat: null, cup: true, night: 1 } },
     { who: 'me', text: '我繞了半個多小時，找不到路下去。' },
     { who: 'deshu', text: '晚上是這樣。', set: { portrait: true, deshu: null } },
     { who: 'me', text: '我今天可以住這裡嗎？一晚就好。' },

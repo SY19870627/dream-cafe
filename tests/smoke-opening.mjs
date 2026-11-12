@@ -87,6 +87,7 @@ try {
   await snap('letter');
   await page.locator('#op-attach').click();
   await sleep(1700);
+  if (!(await page.evaluate(() => { const im = document.querySelector('#op-keyshot:not([hidden]) .envkey'); return im?.complete && im.naturalWidth === 1024 && im.src.includes('prop_v3b_envelope_key'); }))) fail('鑰匙特寫不是 prop_v3b_envelope_key 原圖');
   await snap('letter-key');
   await page.locator('#op-keyshot').click();
   await page.locator('#op-next').click();
@@ -108,6 +109,7 @@ try {
   await snap('road-door');
   await drag('#op-door', -160);
   await waitText('門一開，台階上的橘貓瞇著眼醒來，伸一個懶腰後，從我腳邊鑽進去。', 4000);
+  if (!(await page.locator('.op-yard.lit .op-step-cat.stretch[src*="cat_longan_stretch_v3b"]').count())) fail('門一開沒有伸懶腰');
   await sleep(500);
   await snap('road-open');
   await tapRead();
@@ -238,6 +240,7 @@ try {
   await waitAct('return', 6000);
   await waitText('我把車停回剛才的位置。龍眼還在台階上，換了一邊睡。');
   await sleep(600);
+  if (!(await page.locator('.op-step-cat[src*="cat_longan_sleep_flip"]').count())) fail('回來時不是換一邊睡（sleep_flip）');
   await snap('return');
   await page.locator('#op-door').click();
   await sleep(800);
@@ -262,6 +265,7 @@ try {
   await page.locator('.opr-hotspot[data-id="bed"]').click();
   await waitText('我本來只想躺一下，燈還沒關就睡著了。', 3000);
   await sleep(1200);
+  if (!(await page.evaluate(() => { const im = document.querySelector('.op-room-act.lying .op-bedpov img'); return im?.complete && im.naturalWidth === 1170 && getComputedStyle(im.closest('.op-bedpov')).opacity === '1'; }))) fail('點床後沒有切到躺下的視角');
   await snap('room-sleep');
   await tapRead();
   await waitAct('end', 4000);
