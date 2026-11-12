@@ -1,4 +1,4 @@
-// 開場（第一幕到第四幕）的字：劇本 v3.8（作者 2026-11-12 核准前四幕）。
+// 開場（第一幕到第四幕）的字：劇本 v3.8（作者 2026-11-12 核准前四幕）；留宿段依劇本 v3.9（2026-11-13 核准）。
 // 規則：
 // - 畫面上的對白、旁白、信件、按鈕字、標題與劇本逐字相同；句首的【待定】【待確認】【新增互動】是稿件標記，這裡已拿掉，只留正文。
 // - 劇本裡全形括弧（……）的畫面／聲音／互動指示不是字，不放進 text；演出寫在每一句的 set／sfx／gate／optional（只給畫面用）。
@@ -184,8 +184,9 @@ export const OPENING_LINES = {
   stay: [
     { text: '德叔還在，拿著掃把。我剛才坐的那張椅子還沒收。', set: { ...COUNTER, portrait: false, deshu: 'broom', cat: null, cup: true, night: 1 } },
     { who: 'me', text: '我繞了半個多小時，找不到路下去。' },
-    { who: 'deshu', text: '晚上是這樣。', set: { portrait: true, deshu: null } },
-    { who: 'me', text: '我今天可以住這裡嗎？一晚就好。' },
+    { who: 'deshu', text: '這邊比較偏僻，導航可能會不太準。', set: { portrait: true, deshu: null } },
+    { who: 'deshu', text: '老老闆交代過，要留一個房間讓妳睡。' },
+    { who: 'me', text: '留給我？' },
     { who: 'deshu', text: '右邊護龍第一間整理好了，被子下午曬過。' },
     { who: 'me', text: '我什麼都沒帶。' },
     { who: 'deshu', text: '櫃子裡有毛巾。' },

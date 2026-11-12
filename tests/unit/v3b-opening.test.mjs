@@ -12,6 +12,8 @@ import { load, persist, SAVE_KEY } from '../../src/story/save.js';
 import { OPENING_ART, SHOP_ART } from '../../src/view/art.js';
 import { doorView, DOOR_FADE_MS } from '../../src/view/opening.js';
 import { PORTRAIT_PLACE } from '../../src/view/reader.js';
+import { SEATED, seatFit, KETTLE, WINDOW_TABLE, TABLE_CUP } from '../../src/view/shop.js';
+import { projectRect, childRect, childPoint } from '../../src/view/pano.js';
 
 const root = (p) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
 const read = (p) => readFileSync(root(p), 'utf8');
@@ -112,8 +114,8 @@ test('第二幕：信箱旁白、只能點一次的「拿出信封」、新信�
   assert.match(view, /el\.querySelector\('#op-next'\)\.onclick = \(\) => api\.go\('road'\);/);
 });
 
-test('有 _agent 稿件時：開場每一句（旁白、對白）照順序與劇本 v3.8 逐字相同（沒有就略過）', (t) => {
-  const p = root('_agent/v3b/script-v3.8-acts1-4.md');
+test('有 _agent 稿件時：開場每一句（旁白、對白）照順序與劇本 v3.9 逐字相同（沒有就略過）', (t) => {
+  const p = root('_agent/v3b/script-v3.9-acts1-4.md');
   if (!existsSync(p)) { t.skip('沒有 _agent 稿件'); return; }
   const md = readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
   const body = md.slice(md.indexOf('# 【待定】開場'));
@@ -449,7 +451,7 @@ const V3B_ART2 = {
 };
 
 test('v3b 第二批原圖：13 張都在、原圖尺寸沒動、有預載、都接進開場', () => {
-  const both = read('src/view/opening.js') + read('src/main.js');
+  const both = read('src/view/opening.js') + read('src/main.js') + read('src/view/shop.js'); // 坐下窗景的 SEATED 在 view/shop.js
   for (const [n, size] of Object.entries(V3B_ART2)) {
     assert.ok(existsSync(root(`assets/art/${n}.webp`)), `缺 ${n}.webp`);
     assert.deepEqual(webpSize(readFileSync(root(`assets/art/${n}.webp`))), size, `${n} 尺寸不對（原圖不可縮放）`);
@@ -507,7 +509,8 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   assert.ok(!L.room.some((b) => b.gate), '點床不是關卡');
   // 15. 坐下後的閱讀框：背景是看得到窗的店內夜景；窗外從傍晚暗到晚上
   assert.match(main, /if \(act === 'coffee'\) return seatedScene\(look\);/);
-  assert.match(main, /src: 'scene_v3b_shop_window_night_seated'/);
+  assert.equal(SEATED.src, 'scene_v3b_shop_window_night_seated');
+  assert.match(main, /if \(ready\(bg\)\) g\.drawImage\(bg, ox, oy, SEATED\.w \* s, SEATED\.h \* s\);/);
   assert.match(main, /const dusk = Math\.max\(0, 1 - night\)/);
   assert.ok(at('coffee', 0).night < at('coffee', L.coffee.length - 1).night);
   // 點椅子之前的店內 360 照舊
@@ -621,7 +624,7 @@ test('點貓的手（_v2）從上方伸進來、指尖落在頭頂；踩奶（kn
 
 test('坐下窗景：吊燈燈罩不被裁；德叔說話時站到右手邊、不擋杯子', () => {
   const main = code('src/main.js');
-  const shift = Number(main.match(/const SEATED = \{[^\n]*shift: ([\d.]+),/)[1]);
+  const shift = SEATED.shift; // SEATED 搬到 view/shop.js（可單元測試 seatFit）
   assert.ok(shift * 2532 <= 160, '往上移不超過燈罩頂');
   assert.match(main, /reader\.portrait\([^\n]*, act === 'coffee' \? 'aside' : 'center'\);/);
   assert.match(PORTRAIT_PLACE.aside, /left:\s*7\d%/);
@@ -633,4 +636,98 @@ test('不改既有的 assets/art 原圖（git 有追蹤的檔沒有被改動或�
   try { out = execFileSync('git', ['status', '--porcelain', '--', 'assets/art'], { cwd: root('.'), encoding: 'utf8' }); } catch { t.skip('沒有 git'); return; }
   const changed = out.split('\n').filter((l) => l && !l.startsWith('??'));
   assert.deepEqual(changed, [], `既有原圖被改動：${changed.join(', ')}`);
+});
+
+/* ---------- fix4：吧台磨豆機比例、桌上的杯子跟著桌子、v3.9 留宿對白 ---------- */
+// 點在凸四邊形內（含邊上往內 margin 像素）
+const insideQuad = (quad, [px, py], margin = 0) => quad.every(([ax, ay], i) => {
+  const [bx, by] = quad[(i + 1) % quad.length];
+  const cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+  return cross / Math.hypot(bx - ax, by - ay) >= margin; // 順時針（畫面 y 往下）時在內側為正
+});
+
+test('吧台上的磨豆機組（kettleSet）不再像玩具：可見高度約德叔的 1/5 以上、底邊坐在吧台面上、不飛到後櫃', () => {
+  const H = 596; const W = 390; // 390 閱讀框
+  const vis = (675 - 246) / 675; // kettleSet 上方約 36% 透明
+  const k = projectRect(KETTLE, W, H, 0, 1050 / 675);
+  const deshu = projectRect({ angle: -8, depth: 0.32, y: 0.74, h: 0.46 }, W, H, 0, 0.5);
+  const counter = projectRect({ angle: 0, depth: 0.42, y: 0.8, h: 0.17 }, W, H, 0, 3.4);
+  assert.ok(KETTLE.h >= 0.13 && KETTLE.h <= 0.19, `h ${KETTLE.h}`);
+  const old = projectRect({ ...KETTLE, angle: 16, h: 0.055 }, W, H, 0, 1050 / 675);
+  assert.ok(k.h * vis >= 2.5 * old.h * vis && k.h * vis >= 50, `可見高度 ${(k.h * vis).toFixed(1)}px（原本 ${(old.h * vis).toFixed(1)}px）`);
+  assert.ok(k.h * vis <= deshu.h * 0.35, '不比德叔的三分之一還高');
+  assert.ok(Math.abs(k.y + k.h - counter.y) <= 0.02 * H, '底邊在吧台面上');
+  assert.ok(k.x >= counter.x && k.x + k.w <= counter.x + counter.w, '整組在吧台寬度內');
+  assert.ok(k.x >= deshu.x + deshu.w * 0.85, '不擋住德叔');
+  assert.match(code('src/view/shop.js'), /\{ id: 'kettle', \.\.\.KETTLE \}/);
+  assert.equal(KETTLE.img, 'kettleSet');
+});
+
+test('桌上的杯子跟著靠窗那張桌：用桌子原圖像素定位，杯底在桌面四邊形內（390、1280、1920、閱讀框）', () => {
+  const T = WINDOW_TABLE;
+  assert.deepEqual(T.size, [1024, 768]);
+  assert.equal(T.img, 'prop_v3b_window_table');
+  // 桌面四邊形在原圖內容範圍（30,24)–(993,743) 的上半
+  for (const [x, y] of T.top) assert.ok(x >= 30 && x <= 994 && y >= 24 && y <= 384, `桌面角 ${x},${y}`);
+  const at = TABLE_CUP.at;
+  const aspect = TABLE_CUP.size[0] / TABLE_CUP.size[1];
+  // 「龍眼剛才那個位子的右手邊」：椅子在桌子左側 → 杯子在桌面前緣的左半段到中段
+  const [fl, , , fr] = T.top;
+  const t = (at.x - fl[0]) / (fr[0] - fl[0]);
+  assert.ok(t > 0.3 && t < 0.65, `杯子在前緣的 ${t.toFixed(2)}`);
+  const table = { angle: 53, depth: 0.6, y: 0.93, h: 0.26 };
+  const views = [[390, 844, 24], [390, 844 * 0.69, 0], [1280, 720, 24], [1280, 720 * 0.69, 0], [1920, 1080, 24], [1920, 1080 * 0.69, 30], [498, 1080 * 0.69, 0]];
+  for (const [W, H, yaw] of views) {
+    const tr = projectRect(table, W, H, yaw, T.size[0] / T.size[1]);
+    if (!tr) continue;
+    const cup = childRect(tr, T.size, at, aspect);
+    const quad = T.top.map((p) => childPoint(tr, T.size, p));
+    const sc = tr.w / T.size[0];
+    // 杯底中心、杯盤左右兩端（prop_cup 杯盤約佔寬 15%–85%、底部 8% 以內）都在桌面內，離桌緣至少 2 原圖像素
+    const pts = [[cup.x + cup.w / 2, cup.y + cup.h], [cup.x + cup.w * 0.15, cup.y + cup.h * 0.92], [cup.x + cup.w * 0.85, cup.y + cup.h * 0.92]];
+    for (const p of pts) assert.ok(insideQuad(quad, p, 2 * sc), `${W}×${Math.round(H)} yaw ${yaw}：杯底 ${p.map(Math.round)} 不在桌面上`);
+    // 杯子大小跟著桌子（不是跟著畫面）
+    assert.ok(Math.abs(cup.h / tr.h - at.h / T.size[1]) < 1e-9);
+  }
+  // 程式：杯子掛在桌子底下，不再用自己的角度／高度
+  const main = code('src/main.js');
+  assert.match(main, /id: 'cup', parent: 'wintable', at: TABLE_CUP\.at/);
+  assert.doesNotMatch(main, /id: 'cup', angle:/);
+  assert.match(main, /id: 'wintable'[^\n]*size: WINDOW_TABLE\.size/);
+  assert.match(code('src/view/pano.js'), /if \(it\.parent\) \{[\s\S]*?childRect\(pr, par\.size, it\.at, this\.aspectOf\(it\)\)/);
+});
+
+test('坐下窗景 seatFit：390 閱讀框照舊；畫面很寬時桌子、杯子、對面椅面仍在畫面裡', () => {
+  // 390 閱讀框（之前對好的構圖不變）
+  const a = seatFit(389.53125, 596.359375);
+  assert.ok(Math.abs(a.s - 389.53125 / 1170) < 1e-9);
+  assert.ok(Math.abs(a.oy + SEATED.shift * SEATED.h * a.s) < 1e-9);
+  for (const [W, H] of [[389.53, 596.36], [498, 745], [1920, 1080 * 0.69], [1920, 1080], [2560, 700], [1280, 500]]) {
+    const { s, oy } = seatFit(W, H);
+    const cupBottom = oy + SEATED.cup.y * s;
+    const acrossY = oy + SEATED.across.y * s;
+    assert.ok(cupBottom <= H && acrossY <= H, `${W}×${H}：杯子／對面椅面被裁掉`);
+    assert.ok(oy + SEATED.window.y * s >= -1e-6 || oy === -SEATED.shift * SEATED.h * s, `${W}×${H}：窗頂被裁`);
+  }
+});
+
+test('劇本 v3.9 留宿：德叔先說導航不準、老老闆交代留房間；我不再自己開口借住', () => {
+  assert.deepEqual(L.stay.map((b) => [b.who, b.text]), [
+    [undefined, '德叔還在，拿著掃把。我剛才坐的那張椅子還沒收。'],
+    ['me', '我繞了半個多小時，找不到路下去。'],
+    ['deshu', '這邊比較偏僻，導航可能會不太準。'],
+    ['deshu', '老老闆交代過，要留一個房間讓妳睡。'],
+    ['me', '留給我？'],
+    ['deshu', '右邊護龍第一間整理好了，被子下午曬過。'],
+    ['me', '我什麼都沒帶。'],
+    ['deshu', '櫃子裡有毛巾。'],
+    ['deshu', '我回去了，早上再過來。門平常沒在鎖，妳要鎖的話，裡面有門閂。'],
+  ]);
+  assert.deepEqual(L.stay[2].set, { portrait: true, deshu: null }, '立繪在「導航」那句出來');
+  assert.equal(L.stay[3].set, undefined);
+  assert.equal(L.stay[4].set, undefined);
+  const all = allLines().map((b) => b.text).join('\n');
+  assert.ok(!all.includes('晚上是這樣。'));
+  assert.ok(!all.includes('我今天可以住這裡嗎？一晚就好。'));
+  assert.ok(!MARKS.test(L.stay.map((b) => b.text).join('')));
 });

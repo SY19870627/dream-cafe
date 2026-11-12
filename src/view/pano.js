@@ -27,6 +27,33 @@ export function hitBox(p, W, H, labelH = 0) {
   return { x, y, w, h };
 }
 
+// 物件在畫面上的矩形（純函式，給 Pano.project 與單元測試共用）。aspect：寬 / 高；不在視野內回傳 null。
+// 物件用角度擺在一圈上；y 是物件底邊（佔畫面高），h 是高（佔畫面高），depth 越大越近、越大。
+export function projectRect(it, W, H, yaw, aspect) {
+  const ppd = W / FOV;
+  const f = 0.85 + 0.3 * it.depth;
+  const dx = wrap(it.angle - yaw);
+  const x = W / 2 + dx * ppd * f;
+  const s = 0.65 + 0.7 * it.depth;
+  const h = it.h * H * s;
+  const w = h * aspect;
+  const y = it.y * H - h;
+  if (x + w / 2 < -40 || x - w / 2 > W + 40) return null;
+  return { x: x - w / 2, y, w, h };
+}
+
+// 子物件（例如桌上的杯子）跟著父物件（桌子）走：位置用父物件「原圖像素」給，不用自己的角度／高度。
+// parent：父物件在畫面上的矩形；size：父物件原圖 [寬, 高]；at：{ x, y：子物件底邊中心（父原圖像素）, h：子物件高（父原圖像素） }；aspect：子物件寬 / 高
+export function childRect(parent, size, at, aspect) {
+  const kx = parent.w / size[0];
+  const ky = parent.h / size[1];
+  const h = at.h * ky;
+  const w = h * aspect;
+  return { x: parent.x + at.x * kx - w / 2, y: parent.y + at.y * ky - h, w, h };
+}
+// 父物件原圖上的一點 → 畫面座標（測試與除錯用：桌面四邊形投影到畫面上）
+export const childPoint = (parent, size, [x, y]) => [parent.x + (x * parent.w) / size[0], parent.y + (y * parent.h) / size[1]];
+
 export const wrap =(a) => ((((a + 180) % 360) + 360) % 360) - 180;
 
 export class Pano {
@@ -159,25 +186,24 @@ export class Pano {
     else it.drag = { dx: cl(dx, 160), dy: cl(dy, 160) };
   }
 
-  // 物件在畫面上的位置（不在視野內回傳 null）
-  project(it) {
-    const { W, H } = this;
-    const ppd = W / FOV;
-    const f = 0.85 + 0.3 * it.depth;
-    const dx = wrap(it.angle - this.yaw);
-    const x = W / 2 + dx * ppd * f;
-    const s = 0.65 + 0.7 * it.depth;
-    const h = it.h * H * s;
-    let aspect = it.aspect;
+  // 物件的寬高比：有圖就用圖的比例，圖還沒載入時用 it.aspect（或 it.size）
+  aspectOf(it) {
+    let aspect = it.aspect || (it.size ? it.size[0] / it.size[1] : 0);
     if (it.img) {
       const im = img(it.img);
       aspect = ready(im) ? im.naturalWidth / im.naturalHeight : aspect || 1;
     }
-    if (!aspect) aspect = ASPECT[it.shape] || 1;
-    const w = h * aspect;
-    const y = it.y * H - h;
-    if (x + w / 2 < -40 || x - w / 2 > W + 40) return null;
-    return { x: x - w / 2, y, w, h };
+    return aspect || ASPECT[it.shape] || 1;
+  }
+
+  // 物件在畫面上的位置（不在視野內回傳 null）。有 parent 的物件（例如桌上的杯子）跟著父物件走：用父物件原圖像素定位
+  project(it) {
+    if (it.parent) {
+      const par = this.scene?.items?.find((x) => x.id === it.parent);
+      const pr = par && !par.hidden ? this.project(par) : null;
+      return pr ? childRect(pr, par.size, it.at, this.aspectOf(it)) : null;
+    }
+    return projectRect(it, this.W, this.H, this.yaw, this.aspectOf(it));
   }
 
   frame() {

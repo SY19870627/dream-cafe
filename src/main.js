@@ -6,7 +6,7 @@ import * as S from './story/state.js';
 import { load, persist as saveTo } from './story/save.js';
 import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, STORY_YAW, CAT_SPOTS, CUP, artUrl, allArt } from './story/manifest.js';
 import { Pano } from './view/pano.js';
-import { shopScene, TONE } from './view/shop.js';
+import { shopScene, TONE, WINDOW_TABLE, TABLE_CUP, SEATED, seatFit } from './view/shop.js';
 import { showOpening, showScene } from './view/opening.js';
 import { createReader } from './view/reader.js';
 import { unlock, play, setAmbient, setEngine } from './view/audio.js';
@@ -289,19 +289,7 @@ const drawCat = (spot) => (g, w, h) => {
   g.restore();
 };
 
-// 坐下後的閱讀框：畫師原圖「坐下看得到窗」的店內夜景（1170×2532）；窗外的天色從傍晚暗到晚上（原圖是晚上，傍晚時窗裡疊一層暮色）。
-// 原圖往上移一點，桌子與對面那張椅子落在閱讀框上方。座標都用原圖像素。
-// shift：原圖往上移多少（佔原圖高）。0.06：吊燈燈罩（約 y140–325）整個留在畫面裡、只裁到吊鍊，杯子與對面椅面仍在閱讀框上方
-const SEATED = { src: 'scene_v3b_shop_window_night_seated', w: 1170, h: 2532, shift: 0.06,
-  window: { x: 300, y: 355, w: 685, h: 780 }, // 窗玻璃
-  cup: { x: 455, y: 1835, h: 150 }, // 我右手邊的杯子（杯底中心），把手朝右
-  across: { x: 715, y: 1860, w: 330 }, // 對面那張椅子的椅面（貓的腳線、寬）
-};
-function seatFit(W, H) {
-  let s = W / SEATED.w;
-  if (SEATED.h * s * (1 - SEATED.shift) < H) s = H / (SEATED.h * (1 - SEATED.shift));
-  return { s, ox: (W - SEATED.w * s) / 2, oy: -SEATED.shift * SEATED.h * s };
-}
+// 坐下後的閱讀框（SEATED、seatFit 在 view/shop.js，有單元測試）
 // 對面那張椅子上的龍眼：跳上來踩兩圈（knead_v2，沒有凳子，腳底 y349 踩在椅面上、小小上下 bob）→ 趴下（sleep）
 const ACROSS_SEQ = [{ img: 'cat_longan_knead_v2', ms: 2400, dy: (384 - 349) / 384, bob: true }, { img: 'cat_longan_sleep', s: 0.8, dx: 0.06, dy: 0.02 }];
 function seatedScene(look) {
@@ -373,8 +361,9 @@ function openingShopScene(act, look) {
   if (win && night >= 0.5) win.img = 'window_night_clear';
   items.push({ id: 'chairA', angle: 38, depth: 0.63, y: 0.9, h: 0.3, img: 'chair', ...(act === 'sit' ? { hit: true, glow: true, label: '椅子', showLabel: true } : {}) });
   // 靠窗那張桌（畫師原圖 prop_v3b_window_table）；杯子放在龍眼剛才那個位子的右手邊，把手朝右
-  items.push({ id: 'wintable', angle: 53, depth: 0.6, y: 0.93, h: 0.26, img: 'prop_v3b_window_table' });
-  if (look.cup) items.push({ id: 'cup', angle: 49, depth: 0.61, y: 0.75, h: 0.045, img: 'prop_cup' });
+  items.push({ id: 'wintable', angle: 53, depth: 0.6, y: 0.93, h: 0.26, img: 'prop_v3b_window_table', size: WINDOW_TABLE.size });
+  // 杯子跟著桌子走（桌子原圖像素定位，見 shop.js TABLE_CUP），不再自己用角度／高度擺，任何畫面大小都在桌面上
+  if (look.cup) items.push({ id: 'cup', parent: 'wintable', at: TABLE_CUP.at, depth: 0.6, z: 0.605, img: 'prop_cup', aspect: TABLE_CUP.size[0] / TABLE_CUP.size[1] });
   if (d?.angle) items.push({ id: 'deshu-out', angle: d.angle, depth: d.depth, y: d.y, h: d.h, img: `char_deshu_${d.pose}` });
   const spot = OP_CAT[look.cat];
   if (spot) items.push({ id: 'longan', angle: spot.angle, depth: spot.depth, y: spot.y, h: spot.h, aspect: CAT_ASPECT, draw: drawCat({ ...spot, pet: look.cat === 'rub' || look.cat === 'feet' }) });
