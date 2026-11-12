@@ -26,13 +26,15 @@ export const SHOP_ART = [
   'tex_wall_plaster', 'tex_floor_wood', 'tex_wood_top',
 ];
 // 開場（v3.8）：辦公室、信箱、鑰匙（房間枕頭旁）、店裡的貓與晚上的窗；
-// 三合院外觀（傍晚／晚上）、機車（未發動／發動／車燈）、夜路上車燈照到的鐵皮工寮與土地公廟、庭埕（晚上）、護龍房間（畫師 v3b 原圖）
+// 三合院外觀（傍晚／晚上）、機車（未發動／發動／車燈／路面光錐）、夜路上車燈照到的鐵皮工寮與土地公廟、庭埕（晚上）、護龍房間（畫師 v3b 原圖）
 export const OPENING_ART = [
   'scene_office_night', 'scene_mailboxes', 'key', 'cat_longan_walk', 'window_night_clear',
-  'scene_v3b_sanheyuan_dusk', 'scene_v3b_sanheyuan_night', 'prop_v3b_scooter_off', 'prop_v3b_scooter_on', 'prop_v3b_scooter_beam',
-  'prop_v3b_iron_shed_night', 'prop_v3b_tudigong_night', 'scene_v3b_courtyard_night', 'scene_v3b_room_night',
+  'scene_v3b_sanheyuan_dusk_v2', 'scene_v3b_sanheyuan_night_v2', 'prop_v3b_scooter_off_v2', 'prop_v3b_scooter_on_v2', 'prop_v3b_scooter_beam_v2',
+  'prop_v3b_iron_shed_night_v2', 'prop_v3b_tudigong_night_v2', 'scene_v3b_courtyard_night_v2', 'scene_v3b_room_night',
   // 第二批（v3b 項目 8–15）：點貓的手與頂頭、貓的各種動作、德叔拿掃把、靠窗木桌、信封滑出鑰匙、躺下的視角、坐下看得到窗的夜景
-  'char_v3b_yijun_hand', 'cat_longan_headbump', 'cat_longan_stretch_v3b', 'cat_longan_knead', 'cat_longan_ears_turn',
-  'cat_longan_ears_back', 'cat_longan_lick_paw', 'cat_longan_sleep_flip', 'char_deshu_broom', 'prop_v3b_window_table',
-  'prop_v3b_envelope_key', 'scene_v3b_bed_pov_night', 'scene_v3b_shop_window_night_seated',
+  'char_v3b_yijun_hand_v2', 'cat_longan_headbump_v2', 'cat_longan_stretch_v3b_v2', 'cat_longan_knead_v2', 'cat_longan_ears_turn_v2',
+  'cat_longan_ears_back_v2', 'cat_longan_lick_paw_v2', 'cat_longan_sleep_flip_v2', 'char_deshu_broom', 'prop_v3b_window_table',
+  'prop_v3b_envelope_key_v2', 'scene_v3b_bed_pov_night', 'scene_v3b_shop_window_night_seated',
+  // 第三批（_v2 重畫）：上面已換成 _v2 檔名；新增發動後路面的光錐（疊在機車下層）
+  'prop_v3b_scooter_road_light_v2',
 ];

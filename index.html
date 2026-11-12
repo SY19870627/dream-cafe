@@ -147,7 +147,7 @@
   .op-attach:active { background: rgba(138,109,59,.08); }
   .op-after { margin-top: 2px; }
   .op-keyshot { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; background: rgba(12,10,9,.72); cursor: pointer; }
-  /* 鑰匙從信封滑出的特寫：畫師原圖 prop_v3b_envelope_key（1024×640）照原樣顯示，只疊一點往右下滑的動畫 */
+  /* 鑰匙從信封滑出的特寫：畫師原圖 prop_v3b_envelope_key_v2（1024×640）照原樣顯示，只疊一點往右下滑的動畫 */
   .op-keyshot-in { position: relative; width: 92%; aspect-ratio: 1024 / 640; }
   .op-keyshot .envkey { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 22px rgba(0,0,0,.5)); }
   .op-keyshot.play .op-keyshot-in { animation: rise .45s ease-out both; }
@@ -192,12 +192,22 @@
   .op-door-wrap { position: absolute; left: 50.769%; top: 58.610%; width: 15.556%; height: 9.321%; z-index: 2; }
   .op-yard .op-door { width: 100%; height: 100%; min-width: 44px; min-height: 44px; border-radius: 3px 3px 0 0; animation: doorcall 2.2s ease-in-out infinite; }
   .op-yard .op-door.open { animation: none; }
+  /* 門推開後：假門板整塊淡出、藏起來（不再留一條深色門板），原圖的門口與暖光自己露出來 */
+  .op-door-wrap.gone { opacity: 0; pointer-events: none; transition: opacity 1s ease; }
   .op-yard .op-door-panel { border-width: 2px; border-radius: 3px 3px 0 0; background: linear-gradient(90deg, #4f3220, #5e3c25 55%, #4a2f1d); }
   .op-yard .op-door-knob { right: 8px; width: 7px; height: 7px; }
   .op-yard .op-door-text { font-size: 13px; letter-spacing: 3px; }
   @keyframes doorcall { 0%, 100% { box-shadow: inset 0 0 20px rgba(255,190,90,.6), 0 0 6px rgba(255,214,140,.25); } 50% { box-shadow: inset 0 0 20px rgba(255,190,90,.6), 0 0 18px 4px rgba(255,214,140,.65); } }
-  /* 機車（畫師原圖 800×520，off／on／beam 三張對齊）：停在門前小路右邊的草地上，車頭朝左，不擋門和台階 */
-  .op-scooter { position: absolute; left: 62.7%; top: 64.6%; width: 45.6%; aspect-ratio: 800 / 520; z-index: 1; pointer-events: none; }
+  /* 機車（畫師原圖 _v2 800×520，off／on／beam 三張對齊）：停在門前埕上、台階右邊，車頭朝左，不擋門（門 50.8%–66.3%），
+     車身（原圖 x155–644）落在約 66.9%–92.0%，390 寬不裁到右緣。位置寫成變數，路面光錐跟著同一組數字算 */
+  .op-yard { --sc-l: 59%; --sc-t: 65.7%; --sc-w: 41%; }
+  .op-scooter { position: absolute; left: var(--sc-l); top: var(--sc-t); width: var(--sc-w); aspect-ratio: 800 / 520; z-index: 1; pointer-events: none; }
+  /* 路面光錐（prop_v3b_scooter_road_light_v2，1400×720）：與機車同比例（scale＝機車寬／800），錨點 (1330,110) 對準前輪著地點 (232,493)：
+     left＝機車 left − 1098×scale、top＝機車 top ＋ 383×scale（top 的 % 是相對畫高，寬度 % 要乘 1170／2532 換算）。
+     車頭朝左，不翻轉。疊在機車下層、背景上層；發動後與車燈一起淡入 */
+  .op-road-light { position: absolute; left: calc(var(--sc-l) - var(--sc-w) * 1098 / 800); top: calc(var(--sc-t) + var(--sc-w) * 383 / 800 * 1170 / 2532);
+    width: calc(var(--sc-w) * 1400 / 800); aspect-ratio: 1400 / 720; z-index: 1; pointer-events: none; mix-blend-mode: screen; opacity: 0; transition: opacity .6s; }
+  .op-yard.beam .op-road-light { opacity: .8; }
   .op-scooter img { position: absolute; inset: 0; width: 100%; height: 100%; }
   .op-scooter .off, .op-scooter .on { filter: brightness(.86) sepia(.12) drop-shadow(0 4px 5px rgba(0,0,0,.45)); }
   .op-yard.night .op-scooter .off, .op-yard.night .op-scooter .on { filter: brightness(.58) saturate(.8) drop-shadow(0 4px 5px rgba(0,0,0,.55)); }
@@ -205,8 +215,8 @@
   .op-scooter .beam { mix-blend-mode: screen; transition-duration: .6s; }
   .op-yard.beam .op-scooter .on, .op-yard.beam .op-scooter .beam { opacity: 1; }
   .op-yard.beam .op-scooter .off { opacity: 0; transition: opacity .35s; }
-  /* 台階上睡著的龍眼（原圖無貓，疊 cat_longan_sleep）；回來時換了一邊睡（另一張原圖 cat_longan_sleep_flip，不翻轉舊圖）；
-     門一開：醒來伸懶腰（cat_longan_stretch_v3b），然後往門那邊鑽進去（淡出） */
+  /* 台階上睡著的龍眼（原圖無貓，疊 cat_longan_sleep）；回來時換了一邊睡（另一張原圖 cat_longan_sleep_flip_v2，不翻轉舊圖）；
+     門一開：醒來伸懶腰（cat_longan_stretch_v3b_v2），然後往門那邊鑽進去（淡出） */
   .op-step-cat { position: absolute; left: 44.4%; top: 65.8%; width: 11%; z-index: 3; pointer-events: none; filter: brightness(.8) saturate(.85) drop-shadow(0 3px 3px rgba(0,0,0,.45)); }
   .op-yard.night .op-step-cat { filter: brightness(.6) saturate(.8) drop-shadow(0 3px 3px rgba(0,0,0,.5)); }
   .op-step-cat.stretch { opacity: 0; }

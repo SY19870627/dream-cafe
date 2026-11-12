@@ -87,7 +87,7 @@ try {
   await snap('letter');
   await page.locator('#op-attach').click();
   await sleep(1700);
-  if (!(await page.evaluate(() => { const im = document.querySelector('#op-keyshot:not([hidden]) .envkey'); return im?.complete && im.naturalWidth === 1024 && im.src.includes('prop_v3b_envelope_key'); }))) fail('鑰匙特寫不是 prop_v3b_envelope_key 原圖');
+  if (!(await page.evaluate(() => { const im = document.querySelector('#op-keyshot:not([hidden]) .envkey'); return im?.complete && im.naturalWidth === 1024 && im.src.includes('prop_v3b_envelope_key_v2'); }))) fail('鑰匙特寫不是 prop_v3b_envelope_key_v2 原圖');
   await snap('letter-key');
   await page.locator('#op-keyshot').click();
   await page.locator('#op-next').click();
@@ -109,9 +109,23 @@ try {
   await snap('road-door');
   await drag('#op-door', -160);
   await waitText('門一開，台階上的橘貓瞇著眼醒來，伸一個懶腰後，從我腳邊鑽進去。', 4000);
-  if (!(await page.locator('.op-yard.lit .op-step-cat.stretch[src*="cat_longan_stretch_v3b"]').count())) fail('門一開沒有伸懶腰');
-  await sleep(500);
+  if (!(await page.locator('.op-yard.lit .op-step-cat.stretch[src*="cat_longan_stretch_v3b_v2"]').count())) fail('門一開沒有伸懶腰');
+  await sleep(1500);
+  // 門推開、門聲風鈴過後：疊上去的假門板淡出藏起來，不留一條深色門板
+  if (await page.locator('.op-door-wrap').isVisible()) fail('門開了還留著假門板');
   await snap('road-open');
+  // 存檔停在「門一開……」重新整理：直接是門開著的樣子，從頭到尾不出現關著的「推門進去」
+  await page.reload();
+  let sawClosed = false;
+  for (let end = Date.now() + 2500; Date.now() < end;) {
+    if (await page.evaluate(() => { const w = document.querySelector('.op-door-wrap'); return !!w && !w.hidden && getComputedStyle(w).display !== 'none' && Number(getComputedStyle(w).opacity) > 0.05; })) sawClosed = true;
+    await sleep(50);
+  }
+  if (sawClosed) fail('讀回「門一開……」時閃出關著的門');
+  await waitText('門一開，台階上的橘貓瞇著眼醒來，伸一個懶腰後，從我腳邊鑽進去。');
+  if (!(await page.locator('.op-yard.lit').count())) fail('讀回「門一開……」時門口沒有亮');
+  if (await page.getByText('推門進去').first().isVisible()) fail('讀回「門一開……」還看得到「推門進去」');
+  await snap('road-open-resumed');
   await tapRead();
 
   // 店裡
@@ -190,8 +204,16 @@ try {
   await waitAct('depart');
   await sleep(900);
   await snap('depart');
+  const car = await page.locator('.op-scooter').boundingBox();
+  if (car.x + (car.width * 644) / 800 > 390 - 4) fail('機車車身卡在右緣被裁掉');
+  if ((await page.evaluate(() => getComputedStyle(document.querySelector('.op-road-light')).opacity)) !== '0') fail('還沒發動就看得到路面光');
   await page.locator('#op-start').click();
   await sleep(700);
+  // 發動後看得到路面光錐（_v2 原圖、錨點 (1330,110) 對準機車前輪著地點 (232,493)）
+  const light = await page.evaluate(() => { const el = document.querySelector('.op-road-light'); const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, op: Number(getComputedStyle(el).opacity), ok: el.complete && el.naturalWidth === 1400 }; });
+  if (!light.ok || light.op < 0.5) fail('發動後看不到路面光');
+  const sc = car.width / 800;
+  if (Math.abs(light.x + 1330 * sc - (car.x + 232 * sc)) > 1.5 || Math.abs(light.y + 110 * sc - (car.y + 493 * sc)) > 1.5 || Math.abs(light.w - 1400 * sc) > 1.5) fail(`路面光錐沒對準前輪：${JSON.stringify(light)}`);
   await snap('depart-beam');
 
   // 黑路：按住騎
@@ -240,7 +262,7 @@ try {
   await waitAct('return', 6000);
   await waitText('我把車停回剛才的位置。龍眼還在台階上，換了一邊睡。');
   await sleep(600);
-  if (!(await page.locator('.op-step-cat[src*="cat_longan_sleep_flip"]').count())) fail('回來時不是換一邊睡（sleep_flip）');
+  if (!(await page.locator('.op-step-cat[src*="cat_longan_sleep_flip_v2"]').count())) fail('回來時不是換一邊睡（sleep_flip）');
   await snap('return');
   await page.locator('#op-door').click();
   await sleep(800);

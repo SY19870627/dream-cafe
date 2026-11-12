@@ -13,6 +13,7 @@ const art = (name) => `assets/art/${name}.webp`;
 
 export const HOLD_MS = 1500; // 按住騎多久翻到下一句
 export const DOOR_DRAG = 140; // 推門：拖多遠算推到底（推到 75% 才開）
+export const DOOR_FADE_MS = 1000; // 門推開後，假門板淡出多久（與 index.html 的 .op-door-wrap.gone 一致）
 
 function makeStage(root) {
   root.hidden = false;
@@ -134,9 +135,9 @@ export function showOpening(root, act, api) {
       <p class="op-caption op-after">${esc(L.after)}</p>
       <button type="button" id="op-next" class="primary">${MAILBOX.next}</button>
       <div class="op-keyshot" id="op-keyshot" hidden aria-hidden="true">
-        <div class="op-keyshot-in"><img class="envkey" src="${art('prop_v3b_envelope_key')}" alt=""></div>
+        <div class="op-keyshot-in"><img class="envkey" src="${art('prop_v3b_envelope_key_v2')}" alt=""></div>
       </div>`);
-    // 可選：點附件，鑰匙從信封滑出來的特寫（畫師原圖 prop_v3b_envelope_key，只疊一點滑入的動畫；不點也能出發）
+    // 可選：點附件，鑰匙從信封滑出來的特寫（畫師原圖 prop_v3b_envelope_key_v2，只疊一點滑入的動畫；不點也能出發）
     const shot = el.querySelector('#op-keyshot');
     el.querySelector('#op-attach').onclick = () => {
       shot.hidden = false;
@@ -165,14 +166,15 @@ export function showScene(root, act, api) {
     const night = act !== 'road';
     const el = stage(`yard${night ? ' night' : ''}${act === 'depart' ? ' no-box' : ''}`, `
       <div class="op-art">
-        <img class="op-art-img" src="${art(night ? 'scene_v3b_sanheyuan_night' : 'scene_v3b_sanheyuan_dusk')}" alt="">
+        <img class="op-art-img" src="${art(night ? 'scene_v3b_sanheyuan_night_v2' : 'scene_v3b_sanheyuan_dusk_v2')}" alt="">
         <div class="op-glow door"></div>
+        ${act === 'depart' ? `<img class="op-road-light" src="${art('prop_v3b_scooter_road_light_v2')}" alt="" aria-hidden="true">` : ''}
         <div class="op-scooter" aria-hidden="true">
-          <img class="off" src="${art('prop_v3b_scooter_off')}" alt="">
-          ${act === 'depart' ? `<img class="on" src="${art('prop_v3b_scooter_on')}" alt=""><img class="beam" src="${art('prop_v3b_scooter_beam')}" alt="">` : ''}
+          <img class="off" src="${art('prop_v3b_scooter_off_v2')}" alt="">
+          ${act === 'depart' ? `<img class="on" src="${art('prop_v3b_scooter_on_v2')}" alt=""><img class="beam" src="${art('prop_v3b_scooter_beam_v2')}" alt="">` : ''}
         </div>
-        ${act === 'road' ? `<img class="op-step-cat" src="${art('cat_longan_sleep')}" alt=""><img class="op-step-cat stretch" src="${art('cat_longan_stretch_v3b')}" alt="">` : ''}
-        ${act === 'return' ? `<img class="op-step-cat" src="${art('cat_longan_sleep_flip')}" alt="">` : ''}
+        ${act === 'road' ? `<img class="op-step-cat" src="${art('cat_longan_sleep')}" alt=""><img class="op-step-cat stretch" src="${art('cat_longan_stretch_v3b_v2')}" alt="">` : ''}
+        ${act === 'return' ? `<img class="op-step-cat" src="${art('cat_longan_sleep_flip_v2')}" alt="">` : ''}
         <div class="op-door-wrap" hidden>
           <div class="op-door" id="op-door" role="button" tabindex="0" aria-label="${ROAD.door}">
             <div class="op-door-panel"><span class="op-door-knob"></span><span class="op-door-text">${ROAD.door}</span></div>
@@ -197,10 +199,19 @@ export function showScene(root, act, api) {
       card.hidden = true;
       return alive();
     };
+    // 門開了以後，疊上去的假門板（.op-door-wrap）不留在畫面上：剛推開時淡出（DOOR_FADE_MS），讀回存檔時直接藏起來，
+    // 讓原圖的門口與暖光自己露出來；不會先閃一扇關著的「推門進去」。
+    const hideDoor = (fade) => {
+      if (doorWrap.classList.contains('gone')) return;
+      doorWrap.classList.add('gone');
+      if (fade) later(() => { doorWrap.hidden = true; }, DOOR_FADE_MS);
+      else doorWrap.hidden = true;
+    };
     ctl.beat = (i, look) => {
-      el.classList.toggle('lit', !!look.doorOpen);
-      doorWrap.hidden = !(act !== 'depart' && (look.doorOpen || ctl.atDoor));
-      if (look.doorOpen) el.querySelector('#op-door').classList.add('open');
+      const v = doorView(act, look, ctl.atDoor);
+      el.classList.toggle('lit', v.lit);
+      if (v.door === 'gone') hideDoor(false);
+      else doorWrap.hidden = v.door !== 'closed';
     };
     ctl.gate = (name) => {
       if (name === 'door') {
@@ -208,6 +219,7 @@ export function showScene(root, act, api) {
         doorWrap.hidden = false;
         return new Promise((res) => pushDoor(el.querySelector('#op-door'), () => {
           el.classList.add('lit');
+          hideDoor(true); // 門聲已過、風鈴正在收尾：假門板淡出
           later(() => res(true), 650);
         }));
       }
@@ -285,7 +297,7 @@ export function showScene(root, act, api) {
   if (act === 'room') {
     const el = stage('room-act', `
       <div class="op-yardnight"><div class="op-art">
-        <img class="op-art-img" src="${art('scene_v3b_courtyard_night')}" alt="">
+        <img class="op-art-img" src="${art('scene_v3b_courtyard_night_v2')}" alt="">
         <img class="op-yn-cat" src="${art('cat_longan_sit')}" alt="">
       </div></div>
       <div class="op-room"><div class="op-art">
@@ -314,6 +326,14 @@ export function showScene(root, act, api) {
     return ctl;
   }
   return ctl;
+}
+
+// 三合院外這一句時，門該是什麼樣子（純函式，有單元測試）：
+//   門已經開了（doorOpen，包括存檔停在「門一開……」重新整理）→ lit、假門板 gone（不出現、不能推）
+//   還沒開、走到門前（推門關卡）→ closed（可推的假門板）；發動那一幕沒有門
+export function doorView(act, look, atDoor) {
+  if (look && look.doorOpen) return { lit: true, door: 'gone' };
+  return { lit: false, door: act !== 'depart' && atDoor ? 'closed' : 'none' };
 }
 
 // 進門：拖曳推門，門推開才有門聲與風鈴（與第一次相同）。點一下門只會晃一下，不會開。門沒有鎖。
@@ -417,8 +437,8 @@ function holdToRide(el, road, stopFns) {
 // 車燈照到的東西（畫師透明底原圖）：z＝站在路上多遠（0 腳下～1 遠處）；w＝寬佔畫面寬；dx＝離路中線（佔畫面寬）；
 // ax、ay＝圖上哪一點落在路面上（底部中心，依原圖的不透明範圍）
 const SIGHTS = {
-  hut: { src: 'prop_v3b_iron_shed_night', z: 0.42, w: 0.56, dx: 0, ax: 0.5, ay: 727 / 768 }, // 路的盡頭，正面被車燈照到
-  temple: { src: 'prop_v3b_tudigong_night', z: 0.5, w: 0.4, dx: 0.2, ax: 525 / 1024, ay: 945 / 1024 }, // 路邊的小廟
+  hut: { src: 'prop_v3b_iron_shed_night_v2', z: 0.42, w: 0.56, dx: 0, ax: 0.5, ay: 727 / 768 }, // 路的盡頭，正面被車燈照到
+  temple: { src: 'prop_v3b_tudigong_night_v2', z: 0.5, w: 0.4, dx: 0.2, ax: 525 / 1024, ay: 945 / 1024 }, // 路邊的小廟
 };
 // 原圖不改：畫到另一張畫布上，再把上半部壓暗一點（車燈從下面照上去，越高越暗）
 const litCache = new Map();

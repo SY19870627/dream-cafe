@@ -192,21 +192,26 @@ async function openingScene(act) {
 
 /* ---------- 店裡（推門之後、坐下、喝咖啡、晚上回來） ---------- */
 // 龍眼在店裡的位置（開場）。seq＝照劇本換動作的順序（每一步的原圖、停多久；dx／dy／s 是在這個位置上的微調，佔貓圖寬高）：
-//   chair：跳上靠窗那張椅子，踩兩圈（knead，圓凳是原圖的一部分）→ 趴下（sleep）→ 耳朵轉過來（ears_turn）
+//   chair：跳上靠窗那張椅子，踩兩圈（knead_v2：只有貓、沒有凳子，直接站在椅面上，身體小小上下 bob）→ 趴下（sleep）→ 耳朵轉過來（ears_turn）
 //   feet：蹭完坐在我腳邊；沒點貓就舔前腳（lick_paw），點過就坐著（sit）
 //   earsBack：磨豆機響，耳朵往後壓一下（ears_back）→ 坐著（sit），沒有走
 // 貓的原圖都是同一張 512×384 畫布、腳線對齊，換圖不會跳位置。
+// knead_v2 腳底在 y349，sleep 的底線在 y339：踩奶時往上移 10px，腳踩在 sleep 趴的同一條椅面上。
+const KNEAD_ON_SLEEP_LINE = -(349 - 339) / 384;
+// 踩奶：整隻貓小小地上下 bob（正弦；幅度佔貓圖高、每秒幾下），看得出在踩
+const KNEAD_BOB = { amp: 0.018, hz: 1.7 };
+const kneadBob = (now) => Math.sin((now / 1000) * Math.PI * 2 * KNEAD_BOB.hz) * KNEAD_BOB.amp;
 const OP_CAT = {
   doorway: { angle: 6, depth: 0.9, y: 0.99, h: 0.11, img: 'cat_longan_walk' },
   chair: { angle: 38, depth: 0.64, y: 0.765, h: 0.075, img: 'cat_longan_sleep', seq: [
-    { img: 'cat_longan_knead', ms: 2200, dy: 0.2, s: 1.15 },
+    { img: 'cat_longan_knead_v2', ms: 2200, dy: KNEAD_ON_SLEEP_LINE, bob: true },
     { img: 'cat_longan_sleep', ms: 1600 },
-    { img: 'cat_longan_ears_turn', s: 1.05 },
+    { img: 'cat_longan_ears_turn_v2', s: 1.05 },
   ] },
   shoes: { angle: 25, depth: 0.82, y: 0.97, h: 0.1, img: 'cat_longan_walk', flip: true },
   rub: { angle: 21, depth: 0.86, y: 0.985, h: 0.11, img: 'cat_longan_walk' },
   feet: { angle: 21, depth: 0.86, y: 0.985, h: 0.105, img: 'cat_longan_sit', lick: true },
-  earsBack: { angle: 21, depth: 0.86, y: 0.985, h: 0.105, img: 'cat_longan_sit', seq: [{ img: 'cat_longan_ears_back', ms: 1800 }, { img: 'cat_longan_sit' }] },
+  earsBack: { angle: 21, depth: 0.86, y: 0.985, h: 0.105, img: 'cat_longan_sit', seq: [{ img: 'cat_longan_ears_back_v2', ms: 1800 }, { img: 'cat_longan_sit' }] },
 };
 const DESHU_AT = { // 德叔在店面裡的樣子（立繪出來時店面裡不畫，不會同時兩個德叔）
   stand: { pose: 'stand' },
@@ -222,7 +227,7 @@ const catClock = { key: null, at: 0 }; // 龍眼換到這個位置的時間（�
 
 // 這個位置現在該用哪一張貓圖
 function catStep(spot) {
-  if (!spot.seq) return { img: spot.lick && !pet.done ? 'cat_longan_lick_paw' : spot.img };
+  if (!spot.seq) return { img: spot.lick && !pet.done ? 'cat_longan_lick_paw_v2' : spot.img };
   let t = performance.now() - catClock.at;
   for (const st of spot.seq) {
     if (st.ms == null || t < st.ms) return st;
@@ -230,41 +235,64 @@ function catStep(spot) {
   }
   return spot.seq.at(-1);
 }
-// 貓：照劇本換動作；摸頭時換成頂頭（headbump），怡君的手從右上伸進來（char_v3b_yijun_hand）
+// 怡君的手（char_v3b_yijun_hand_v2，800×600）：內容框 (330,0)–(504,152)，袖口貼齊上緣（從畫面上方伸進來），指尖約 (332,147)。
+// 與貓圖同比例（1 原圖 px＝1 貓圖 px），手掌到指尖約 120px，差不多一個貓頭大。指尖落在頂頭圖（headbump_v2，512×384）的頭頂。
+const HAND = { src: 'char_v3b_yijun_hand_v2', w: 800, h: 600, tip: [332, 147], box: [330, 0, 504, 152] };
+const HEAD_TOP = [205, 58]; // headbump_v2 抬起來的頭頂（左耳與右耳之間偏前）
+// 袖口那一截淡掉（原圖不改，畫到另一張畫布上再擦）：看起來是從鏡頭外伸進來，不是一截浮在空中的袖子
+let handFaded = null;
+function fadedHand() {
+  if (handFaded) return handFaded;
+  const im = img(HAND.src);
+  if (!ready(im)) return null;
+  const c = document.createElement('canvas');
+  c.width = HAND.w;
+  c.height = HAND.h;
+  const g = c.getContext('2d');
+  g.drawImage(im, 0, 0);
+  g.globalCompositeOperation = 'destination-in';
+  const fade = g.createLinearGradient(0, 0, 0, 48);
+  fade.addColorStop(0, 'rgba(0,0,0,0)');
+  fade.addColorStop(1, 'rgba(0,0,0,1)');
+  g.fillStyle = fade;
+  g.fillRect(0, 0, HAND.w, HAND.h);
+  return (handFaded = c);
+}
+// 貓：照劇本換動作；摸頭時換成頂頭（headbump），怡君的小手從上方伸進來，指尖落在頭頂（char_v3b_yijun_hand_v2）
 const drawCat = (spot) => (g, w, h) => {
   const now = performance.now();
   const petting = spot.pet && pet.at && now - pet.at < PET_MS;
-  const st = petting ? { img: 'cat_longan_headbump' } : catStep(spot);
+  const st = petting ? { img: 'cat_longan_headbump_v2' } : catStep(spot);
   const im = img(st.img);
   if (!ready(im)) return;
   const k = st.s || 1;
   g.save();
   if (spot.flip) { g.translate(w, 0); g.scale(-1, 1); }
-  g.translate(w / 2 + (st.dx || 0) * w, h + (st.dy || 0) * h);
+  g.translate(w / 2 + (st.dx || 0) * w, h + ((st.dy || 0) + (st.bob ? kneadBob(now) : 0)) * h);
   g.drawImage(im, (-w / 2) * k, -h * k, w * k, h * k);
   g.restore();
   if (!petting) return;
-  const hand = img('char_v3b_yijun_hand');
-  if (!ready(hand)) return;
+  const hand = fadedHand();
+  if (!hand) return;
   const e = (now - pet.at) / PET_MS;
   const inK = Math.min(1, e / 0.18); // 伸進來
   const outK = Math.max(0, (e - 0.82) / 0.18); // 收回去
   const away = (1 - inK) + outK;
-  const stroke = Math.sin(e * Math.PI * 6) * 0.04 * inK * (1 - outK); // 摸兩三下
-  const hw = w * 1.05;
-  const hh = (hw * 600) / 800;
-  // 手的指尖（原圖約 (0.2, 0.78)）落在貓頭頂（頂頭圖約 (0.5, 0.2)）
-  const hx = w * 0.5 - hw * 0.2 + away * w * 0.9 + stroke * w;
-  const hy = h * 0.2 - hh * 0.78 - away * h * 0.9 + stroke * h * 0.5;
+  const stroke = Math.sin(e * Math.PI * 6) * inK * (1 - outK); // 摸兩三下（沿著手的方向前後）
+  const u = w / 512; // 貓圖 1px 在畫面上多大；手用同一個比例
+  // 指尖 HAND.tip 對準頭頂 HEAD_TOP；沒摸到時往上收（從上方進出，不從旁邊）
+  const hx = (HEAD_TOP[0] - HAND.tip[0]) * u + stroke * 6 * u;
+  const hy = (HEAD_TOP[1] - HAND.tip[1]) * u - away * (HAND.box[3] + 40) * u - stroke * 4 * u;
   g.save();
   g.globalAlpha = 1 - outK * 0.6;
-  g.drawImage(hand, hx, hy, hw, hh);
+  g.drawImage(hand, hx, hy, HAND.w * u, HAND.h * u);
   g.restore();
 };
 
 // 坐下後的閱讀框：畫師原圖「坐下看得到窗」的店內夜景（1170×2532）；窗外的天色從傍晚暗到晚上（原圖是晚上，傍晚時窗裡疊一層暮色）。
 // 原圖往上移一點，桌子與對面那張椅子落在閱讀框上方。座標都用原圖像素。
-const SEATED = { src: 'scene_v3b_shop_window_night_seated', w: 1170, h: 2532, shift: 0.085,
+// shift：原圖往上移多少（佔原圖高）。0.06：吊燈燈罩（約 y140–325）整個留在畫面裡、只裁到吊鍊，杯子與對面椅面仍在閱讀框上方
+const SEATED = { src: 'scene_v3b_shop_window_night_seated', w: 1170, h: 2532, shift: 0.06,
   window: { x: 300, y: 355, w: 685, h: 780 }, // 窗玻璃
   cup: { x: 455, y: 1835, h: 150 }, // 我右手邊的杯子（杯底中心），把手朝右
   across: { x: 715, y: 1860, w: 330 }, // 對面那張椅子的椅面（貓的腳線、寬）
@@ -274,8 +302,8 @@ function seatFit(W, H) {
   if (SEATED.h * s * (1 - SEATED.shift) < H) s = H / (SEATED.h * (1 - SEATED.shift));
   return { s, ox: (W - SEATED.w * s) / 2, oy: -SEATED.shift * SEATED.h * s };
 }
-// 對面那張椅子上的龍眼：跳上來踩兩圈（knead，圓凳是原圖的一部分）→ 趴下（sleep）
-const ACROSS_SEQ = [{ img: 'cat_longan_knead', ms: 2400, dy: 0.1 }, { img: 'cat_longan_sleep', s: 0.8, dx: 0.06, dy: 0.02 }];
+// 對面那張椅子上的龍眼：跳上來踩兩圈（knead_v2，沒有凳子，腳底 y349 踩在椅面上、小小上下 bob）→ 趴下（sleep）
+const ACROSS_SEQ = [{ img: 'cat_longan_knead_v2', ms: 2400, dy: (384 - 349) / 384, bob: true }, { img: 'cat_longan_sleep', s: 0.8, dx: 0.06, dy: 0.02 }];
 function seatedScene(look) {
   const night = look.night || 0;
   const draw = (g, W, H) => {
@@ -311,7 +339,7 @@ function seatedScene(look) {
         const cw = SEATED.across.w * s * 1.05 * k;
         const ch = cw / CAT_ASPECT;
         const [cx, cy] = P(SEATED.across.x, SEATED.across.y);
-        g.drawImage(im, cx - cw / 2 + (st.dx || 0) * cw, cy - ch + (st.dy || 0) * ch, cw, ch);
+        g.drawImage(im, cx - cw / 2 + (st.dx || 0) * cw, cy - ch + ((st.dy || 0) + (st.bob ? kneadBob(performance.now()) : 0)) * ch, cw, ch);
       }
     }
     // 杯子（既有 prop_cup）：我右手邊、把手朝右；點了拿起來喝一口
@@ -385,7 +413,8 @@ async function openingShop(act) {
       show(lk, first ? { yaw } : {});
       if (!first) pano.turnTo(yaw, 900);
       first = false;
-      reader.portrait(lk.portrait ? (act === 'stay' ? 'char_deshu_broom' : PORTRAITS.deshu.src) : null); // 晚上回來：德叔拿著掃把
+      // 晚上回來：德叔拿著掃把；坐下喝咖啡時德叔站到右手邊（aside），不擋住桌上的杯子
+      reader.portrait(lk.portrait ? (act === 'stay' ? 'char_deshu_broom' : PORTRAITS.deshu.src) : null, act === 'coffee' ? 'aside' : 'center');
       cloth(!!lk.cloth);
     },
     gate: async () => false,

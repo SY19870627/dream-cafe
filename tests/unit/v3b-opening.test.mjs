@@ -10,6 +10,8 @@ import * as OP from '../../src/lines/opening.js';
 import * as S from '../../src/story/state.js';
 import { load, persist, SAVE_KEY } from '../../src/story/save.js';
 import { OPENING_ART, SHOP_ART } from '../../src/view/art.js';
+import { doorView, DOOR_FADE_MS } from '../../src/view/opening.js';
+import { PORTRAIT_PLACE } from '../../src/view/reader.js';
 
 const root = (p) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
 const read = (p) => readFileSync(root(p), 'utf8');
@@ -372,10 +374,10 @@ test('美術：用到的原圖都在 assets/art 且有預載；不再疊「175�
 
 // 畫師 v3b 第一批原圖（開場第一～四幕）：檔名 → 原圖尺寸（只讀，不縮圖、不重新壓縮）
 const V3B_ART = {
-  scene_v3b_sanheyuan_dusk: [1170, 2532], scene_v3b_sanheyuan_night: [1170, 2532],
-  prop_v3b_scooter_off: [800, 520], prop_v3b_scooter_on: [800, 520], prop_v3b_scooter_beam: [800, 520],
-  scene_v3b_room_night: [1170, 2532], scene_v3b_courtyard_night: [1170, 2532],
-  prop_v3b_iron_shed_night: [1024, 768], prop_v3b_tudigong_night: [1024, 1024],
+  scene_v3b_sanheyuan_dusk_v2: [1170, 2532], scene_v3b_sanheyuan_night_v2: [1170, 2532],
+  prop_v3b_scooter_off_v2: [800, 520], prop_v3b_scooter_on_v2: [800, 520], prop_v3b_scooter_beam_v2: [800, 520],
+  scene_v3b_room_night: [1170, 2532], scene_v3b_courtyard_night_v2: [1170, 2532],
+  prop_v3b_iron_shed_night_v2: [1024, 768], prop_v3b_tudigong_night_v2: [1024, 1024],
 };
 // 讀 WebP 檔頭的寬高（VP8／VP8L／VP8X）
 function webpSize(buf) {
@@ -402,23 +404,23 @@ test('v3b 原圖接進開場：七類畫面都用原圖、有預載、原圖尺�
   for (const ph of ['三合院外觀（傍晚）', '三合院外觀（晚上）', '鐵皮工寮\'', '土地公廟\'', '庭埕（晚上）', '護龍的房間']) assert.ok(!view.includes(`'${ph}`), `還有佔位：${ph}`);
   assert.doesNotMatch(read('index.html'), /\.op-ph\b|op-yn-roof|op-yn-floor|op-rm-wall|op-rm-window|op-rm-lamp|op-rm-cabinet|\.quilt/, '自繪的屋頂地板、牆窗櫃燈被子都拿掉');
   // 三合院外：傍晚 dusk、晚上 night；不再拿縣道圖當三合院、不再壓暗夜景
-  assert.match(prog, /art\(night \? 'scene_v3b_sanheyuan_night' : 'scene_v3b_sanheyuan_dusk'\)/);
+  assert.match(prog, /art\(night \? 'scene_v3b_sanheyuan_night_v2' : 'scene_v3b_sanheyuan_dusk_v2'\)/);
   assert.doesNotMatch(prog, /scene_county_road|cabinet|scooterSvg|<svg class="op-scooter"/);
   assert.ok(!OPENING_ART.includes('scene_county_road') && !OPENING_ART.includes('cabinet'), '開場不再預載佔位用的縣道圖與櫃子');
   const css = read('index.html');
   assert.doesNotMatch(css, /\.op-yard\.night[^{]*\.op-art-img\s*\{[^}]*filter/, '夜景原圖不再套壓暗濾鏡');
   assert.match(css, /\.op-art-img \{[^}]*transform-origin: 58\.5% 63\.3%/, '推近對準新門中心');
   // 機車：三張原圖都在三合院外；off 每一幕都有（停在原位），發動才有 on 與 beam
-  assert.match(prog, /<img class="off" src="\$\{art\('prop_v3b_scooter_off'\)\}"/);
-  assert.match(prog, /act === 'depart' \? `<img class="on" src="\$\{art\('prop_v3b_scooter_on'\)\}" alt=""><img class="beam" src="\$\{art\('prop_v3b_scooter_beam'\)\}"/);
+  assert.match(prog, /<img class="off" src="\$\{art\('prop_v3b_scooter_off_v2'\)\}"/);
+  assert.match(prog, /act === 'depart' \? `<img class="on" src="\$\{art\('prop_v3b_scooter_on_v2'\)\}" alt=""><img class="beam" src="\$\{art\('prop_v3b_scooter_beam_v2'\)\}"/);
   assert.match(css, /\.op-yard\.beam \.op-scooter \.on, \.op-yard\.beam \.op-scooter \.beam \{ opacity: 1; \}/);
   // 夜路：工寮與廟畫原圖（車燈照到才淡入），沒有 canvas 剪影
-  assert.match(prog, /hut: \{ src: 'prop_v3b_iron_shed_night'/);
-  assert.match(prog, /temple: \{ src: 'prop_v3b_tudigong_night'/);
+  assert.match(prog, /hut: \{ src: 'prop_v3b_iron_shed_night_v2'/);
+  assert.match(prog, /temple: \{ src: 'prop_v3b_tudigong_night_v2'/);
   assert.match(prog, /g\.drawImage\(lit,/);
   assert.doesNotMatch(prog, /燕尾|波浪鐵皮/);
   // 庭埕、房間：原圖當背景；龍眼疊在庭埕；鑰匙疊在枕頭旁；床仍是可點熱點（至少 44px）
-  assert.match(prog, /art\('scene_v3b_courtyard_night'\)[\s\S]*class="op-yn-cat" src="\$\{art\('cat_longan_sit'\)\}"/);
+  assert.match(prog, /art\('scene_v3b_courtyard_night_v2'\)[\s\S]*class="op-yn-cat" src="\$\{art\('cat_longan_sit'\)\}"/);
   assert.match(prog, /art\('scene_v3b_room_night'\)[\s\S]*class="op-rm-key" src="\$\{art\('key'\)\}"[\s\S]*id="op-bed"/);
   assert.match(css, /\.op-rm-bed \{[^}]*min-width: 44px; min-height: 44px;/);
   assert.match(prog, /ctl\.lieDown = \(\) => \{ el\.classList\.add\('lying'\); play\('creak'\);/);
@@ -440,9 +442,9 @@ test('推門疊圖對齊畫師給的門板座標 (594,1484)–(776,1720)／1170�
 
 // 畫師 v3b 第二批原圖（項目 8–15）：檔名 → 原圖尺寸
 const V3B_ART2 = {
-  char_v3b_yijun_hand: [800, 600], cat_longan_headbump: [512, 384], cat_longan_stretch_v3b: [512, 384], cat_longan_knead: [512, 384],
-  cat_longan_ears_turn: [512, 384], cat_longan_ears_back: [512, 384], cat_longan_lick_paw: [512, 384], cat_longan_sleep_flip: [512, 384],
-  char_deshu_broom: [1024, 2048], prop_v3b_window_table: [1024, 768], prop_v3b_envelope_key: [1024, 640],
+  char_v3b_yijun_hand_v2: [800, 600], cat_longan_headbump_v2: [512, 384], cat_longan_stretch_v3b_v2: [512, 384], cat_longan_knead_v2: [512, 384],
+  cat_longan_ears_turn_v2: [512, 384], cat_longan_ears_back_v2: [512, 384], cat_longan_lick_paw_v2: [512, 384], cat_longan_sleep_flip_v2: [512, 384],
+  char_deshu_broom: [1024, 2048], prop_v3b_window_table: [1024, 768], prop_v3b_envelope_key_v2: [1024, 640],
   scene_v3b_bed_pov_night: [1170, 2532], scene_v3b_shop_window_night_seated: [1170, 2532],
 };
 
@@ -463,28 +465,28 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   const at = (act, i) => OP.sceneAt(L[act], i);
   const idx = (act, t) => L[act].findIndex((b) => b.text === t);
   // 8. 點貓：怡君的手入鏡摸頭 + 龍眼頂頭（疊在貓的位置），呼嚕；不點照走（optional 不是 gate）
-  assert.match(main, /petting \? \{ img: 'cat_longan_headbump' \}/);
-  assert.match(main, /const hand = img\('char_v3b_yijun_hand'\);/);
+  assert.match(main, /petting \? \{ img: 'cat_longan_headbump_v2' \}/);
+  assert.match(main, /const HAND = \{ src: 'char_v3b_yijun_hand_v2'/);
   assert.match(main, /onTap: \(\) => \{ pet\.at = performance\.now\(\); pet\.done = true; play\('purr'\); \}/);
   assert.equal(L.deshu[idx('deshu', '然後他整個身體靠上來，從頭到尾巴在我小腿上擦過去，掉頭再擦一次。')].optional, 'cat');
   // 9. 台階上伸懶腰再鑽進去
-  assert.match(view, /class="op-step-cat stretch" src="\$\{art\('cat_longan_stretch_v3b'\)\}"/);
+  assert.match(view, /class="op-step-cat stretch" src="\$\{art\('cat_longan_stretch_v3b_v2'\)\}"/);
   assert.match(css, /\.op-yard\.lit \.op-step-cat\.stretch \{ animation: catstretch/);
   //    跳上靠窗那張椅子：踩兩圈（knead）→ 趴下（sleep）→ 耳朵轉過來（ears_turn）
   assert.equal(at('deshu', idx('deshu', '我往裡面走了一步。')).cat, 'chair');
-  assert.match(main, /chair: \{[^\n]*seq: \[\s*\{ img: 'cat_longan_knead'[^\n]*\n\s*\{ img: 'cat_longan_sleep'[^\n]*\n\s*\{ img: 'cat_longan_ears_turn'/);
+  assert.match(main, /chair: \{[^\n]*seq: \[\s*\{ img: 'cat_longan_knead_v2'[^\n]*\n\s*\{ img: 'cat_longan_sleep'[^\n]*\n\s*\{ img: 'cat_longan_ears_turn_v2'/);
   //    龍眼跳上對面那張椅子：踩兩圈 → 趴下
   assert.equal(at('coffee', idx('coffee', '龍眼跳上對面那張椅子，踩兩圈，趴下。')).cat, 'across');
-  assert.match(main, /const ACROSS_SEQ = \[\{ img: 'cat_longan_knead'[^\]]*\{ img: 'cat_longan_sleep'/);
+  assert.match(main, /const ACROSS_SEQ = \[\{ img: 'cat_longan_knead_v2'[^\]]*\{ img: 'cat_longan_sleep'/);
   //    磨豆機響：耳朵往後壓（ears_back），沒有走
   assert.equal(at('deshu', idx('deshu', '龍眼的耳朵往後壓了一下，沒有走。')).cat, 'earsBack');
-  assert.match(main, /earsBack: \{[^\n]*seq: \[\{ img: 'cat_longan_ears_back'/);
+  assert.match(main, /earsBack: \{[^\n]*seq: \[\{ img: 'cat_longan_ears_back_v2'/);
   //    不點貓：坐在腳邊舔前腳
   assert.equal(at('deshu', idx('deshu', '那隻貓叫龍眼，是這間三合院的主人，而妳是老闆。')).cat, 'feet');
-  assert.match(main, /spot\.lick && !pet\.done \? 'cat_longan_lick_paw'/);
+  assert.match(main, /spot\.lick && !pet\.done \? 'cat_longan_lick_paw_v2'/);
   // 10. 傍晚台階用 sleep；回來換了一邊睡用 sleep_flip，不再 CSS 翻轉舊 sleep
   assert.match(view, /act === 'road' \? `<img class="op-step-cat" src="\$\{art\('cat_longan_sleep'\)\}"/);
-  assert.match(view, /act === 'return' \? `<img class="op-step-cat" src="\$\{art\('cat_longan_sleep_flip'\)\}"/);
+  assert.match(view, /act === 'return' \? `<img class="op-step-cat" src="\$\{art\('cat_longan_sleep_flip_v2'\)\}"/);
   assert.doesNotMatch(view, /op-step-cat\$\{|' flip'/);
   assert.doesNotMatch(css, /\.op-step-cat\.flip|scaleX\(-1\)/);
   // 11. 晚上回店：德叔拿著掃把（店裡與立繪都是 broom）
@@ -496,7 +498,7 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   assert.doesNotMatch(main, /drawTable|tex_wood_top/);
   assert.match(main, /id: 'cup'[^\n]*img: 'prop_cup'/);
   // 13. 附件：鑰匙從信封滑出的特寫用原圖（不改蜡封）
-  assert.match(view, /<img class="envkey" src="\$\{art\('prop_v3b_envelope_key'\)\}"/);
+  assert.match(view, /<img class="envkey" src="\$\{art\('prop_v3b_envelope_key_v2'\)\}"/);
   assert.doesNotMatch(view, /art\('envelope'\)/);
   // 14. 點床：切到躺在床上的視角（燈一直亮），床板聲；最後一句（不點床）也是這張，但不擋翻頁
   assert.match(view, /class="op-bedpov"><div class="op-art"><img class="op-art-img" src="\$\{art\('scene_v3b_bed_pov_night'\)\}"/);
@@ -510,6 +512,120 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   assert.ok(at('coffee', 0).night < at('coffee', L.coffee.length - 1).night);
   // 點椅子之前的店內 360 照舊
   assert.match(main, /if \(act === 'sit'\) \{[\s\S]*?show\(\{ deshu: 'stand', cat: 'feet', cup: true \}, \{ yaw: 24 \}\);/);
+});
+
+// 畫師第三批（_v2 重畫，assets/art/previews/manifest_v3b_3.json）：舊檔名 → 尺寸。舊檔（無 _v2）只讀留下，程式不再引用
+const V3B_ART3 = {
+  scene_v3b_sanheyuan_dusk: [1170, 2532], scene_v3b_sanheyuan_night: [1170, 2532], scene_v3b_courtyard_night: [1170, 2532],
+  prop_v3b_scooter_off: [800, 520], prop_v3b_scooter_on: [800, 520], prop_v3b_scooter_beam: [800, 520],
+  prop_v3b_iron_shed_night: [1024, 768], prop_v3b_tudigong_night: [1024, 1024], prop_v3b_envelope_key: [1024, 640],
+  char_v3b_yijun_hand: [800, 600], cat_longan_knead: [512, 384], cat_longan_headbump: [512, 384], cat_longan_stretch_v3b: [512, 384],
+  cat_longan_ears_turn: [512, 384], cat_longan_ears_back: [512, 384], cat_longan_lick_paw: [512, 384], cat_longan_sleep_flip: [512, 384],
+};
+
+test('第三批 _v2：18 張都在、原圖尺寸沒動、有預載；程式只用 _v2，舊檔還在（沒刪）', () => {
+  const both = code('src/view/opening.js') + code('src/main.js') + code('src/view/art.js');
+  for (const [old, size] of Object.entries(V3B_ART3)) {
+    const n = `${old}_v2`;
+    assert.ok(existsSync(root(`assets/art/${n}.webp`)), `缺 ${n}.webp`);
+    assert.deepEqual(webpSize(readFileSync(root(`assets/art/${n}.webp`))), size, `${n} 尺寸不對`);
+    assert.ok(OPENING_ART.includes(n), `${n} 沒有預載`);
+    assert.ok(!OPENING_ART.includes(old), `還在預載舊圖 ${old}`);
+    assert.ok(both.includes(`'${n}'`), `${n} 沒接進開場`);
+    assert.ok(!both.includes(`'${old}'`), `程式還在用舊圖 ${old}`);
+    assert.ok(existsSync(root(`assets/art/${old}.webp`)), `舊圖 ${old}.webp 不可刪`);
+  }
+  assert.deepEqual(webpSize(readFileSync(root('assets/art/prop_v3b_scooter_road_light_v2.webp'))), [1400, 720]);
+  assert.ok(OPENING_ART.includes('prop_v3b_scooter_road_light_v2'), '路面光錐沒有預載');
+  assert.equal(Object.keys(V3B_ART3).length + 1, 18);
+});
+
+test('路面光錐：與機車同比例、錨點 (1330,110) 對準前輪著地點 (232,493)、疊在車下層、發動才淡入', () => {
+  const view = code('src/view/opening.js');
+  const css = read('index.html');
+  // 只在發動那一幕，放在 .op-scooter 前面（同 z-index、DOM 在前 → 在車圖下層）
+  assert.match(view, /\$\{act === 'depart' \? `<img class="op-road-light" src="\$\{art\('prop_v3b_scooter_road_light_v2'\)\}"[^`]*` : ''\}\s*<div class="op-scooter"/);
+  // 機車位置是變數，光錐用同一組變數算
+  const v = css.match(/\.op-yard \{ --sc-l: ([\d.]+)%; --sc-t: ([\d.]+)%; --sc-w: ([\d.]+)%; \}/);
+  assert.ok(v, '機車位置變數');
+  const [l, t, w] = v.slice(1).map(Number);
+  assert.match(css, /\.op-scooter \{ position: absolute; left: var\(--sc-l\); top: var\(--sc-t\); width: var\(--sc-w\); aspect-ratio: 800 \/ 520; z-index: 1;/);
+  const rl = css.match(/\.op-road-light \{([^}]*)\}/)[1];
+  // 公式：left = 機車left + (232−1330)×scale；top = 機車top + (493−110)×scale；寬 = 1400×scale（scale = 機車寬／800）
+  assert.equal(232 - 1330, -1098);
+  assert.equal(493 - 110, 383);
+  assert.match(rl, /left: calc\(var\(--sc-l\) - var\(--sc-w\) \* 1098 \/ 800\)/);
+  assert.match(rl, /top: calc\(var\(--sc-t\) \+ var\(--sc-w\) \* 383 \/ 800 \* 1170 \/ 2532\)/, 'top 的 % 相對畫高，要把寬度 % 換算');
+  assert.match(rl, /width: calc\(var\(--sc-w\) \* 1400 \/ 800\); aspect-ratio: 1400 \/ 720; z-index: 1;/);
+  assert.match(rl, /mix-blend-mode: (screen|lighter|plus-lighter)/);
+  assert.match(rl, /opacity: 0;/, '沒發動前看不到');
+  assert.doesNotMatch(rl, /scaleX\(-1\)/, '車頭朝左，不翻轉');
+  const on = Number(css.match(/\.op-yard\.beam \.op-road-light \{ opacity: ([\d.]+); \}/)[1]);
+  assert.ok(on >= 0.6 && on <= 0.9, `發動後不透明度 ${on}`);
+  // 換成畫面像素（390×844，原圖 1170×2532 剛好滿版）：光錐頂點落在前輪著地點
+  const W = 390, H = 844, sc = ((w / 100) * W) / 800;
+  const car = { x: (l / 100) * W, y: (t / 100) * H };
+  const light = { x: car.x - 1098 * sc, y: car.y + ((w * 383 / 800 * 1170 / 2532) / 100) * H };
+  assert.ok(Math.abs(light.x + 1330 * sc - (car.x + 232 * sc)) < 0.01);
+  assert.ok(Math.abs(light.y + 110 * sc - (car.y + 493 * sc)) < 0.01);
+  // 機車：車身（原圖 x155–644）不擋門（門右緣 776/1170）、390 寬不被右緣裁掉
+  assert.ok(l + (w * 155) / 800 >= (776 / 1170) * 100, '車身擋到門');
+  assert.ok(l + (w * 644) / 800 <= 96, '車身太貼右緣');
+});
+
+test('門推開後假門板淡出藏起來；存檔停在「門一開……」讀回直接是開著的門（不再閃關著的「推門進去」）', () => {
+  const view = code('src/view/opening.js');
+  const css = read('index.html');
+  const open = L.road.findIndex((b) => b.text.startsWith('門一開'));
+  // 純邏輯：每一句時門的樣子
+  assert.deepEqual(doorView('road', OP.sceneAt(L.road, 0), false), { lit: false, door: 'none' });
+  assert.deepEqual(doorView('road', OP.sceneAt(L.road, 1), true), { lit: false, door: 'closed' }, '推門關卡：可推的門');
+  assert.deepEqual(doorView('road', OP.sceneAt(L.road, open), false), { lit: true, door: 'gone' }, '重新整理讀回：門已開');
+  assert.deepEqual(doorView('road', OP.sceneAt(L.road, open), true), { lit: true, door: 'gone' }, '剛推開：門已開');
+  assert.deepEqual(doorView('depart', {}, true), { lit: false, door: 'none' });
+  assert.ok(!L.road[open].gate, '「門一開……」不是推門關卡，讀回時不會再叫 pushDoor（不會 set(0) 關門）');
+  // 畫面：beat 依 doorView；門開了就藏假門板（讀回直接藏、剛推開淡出）
+  assert.match(view, /const v = doorView\(act, look, ctl\.atDoor\);\s*el\.classList\.toggle\('lit', v\.lit\);\s*if \(v\.door === 'gone'\) hideDoor\(false\);\s*else doorWrap\.hidden = v\.door !== 'closed';/);
+  assert.match(view, /el\.classList\.add\('lit'\);\s*hideDoor\(true\);/, '推開後淡出假門板');
+  assert.match(view, /doorWrap\.classList\.add\('gone'\);\s*if \(fade\) later\(\(\) => \{ doorWrap\.hidden = true; \}, DOOR_FADE_MS\);\s*else doorWrap\.hidden = true;/);
+  assert.doesNotMatch(view, /el\.querySelector\('#op-door'\)\.classList\.add\('open'\)/, 'beat 不再只加 .open（.open 不會轉開門板）');
+  assert.match(view, /<div class="op-door-wrap" hidden>/, '一開始就藏著，讀回不會先閃一下');
+  const gone = css.match(/\.op-door-wrap\.gone \{([^}]*)\}/);
+  assert.ok(gone, '.op-door-wrap.gone');
+  assert.match(gone[1], /opacity: 0;/);
+  assert.match(gone[1], /pointer-events: none;/);
+  assert.equal(Number(gone[1].match(/transition: opacity ([\d.]+)s/)[1]) * 1000, DOOR_FADE_MS);
+});
+
+test('點貓的手（_v2）從上方伸進來、指尖落在頭頂；踩奶（knead_v2）沒有凳子、有小小的上下 bob', () => {
+  const main = code('src/main.js');
+  // 手：內容框 (330,0)–(504,152)、指尖 (332,147)；與貓圖同比例
+  assert.match(main, /const HAND = \{ src: 'char_v3b_yijun_hand_v2', w: 800, h: 600, tip: \[332, 147\], box: \[330, 0, 504, 152\] \};/);
+  const [hx, hy] = main.match(/const HEAD_TOP = \[(\d+), (\d+)\];/).slice(1).map(Number);
+  assert.ok(hx > 132 && hx < 379 && hy >= 23 && hy < 120, '頭頂在 headbump_v2 內容框上緣附近');
+  assert.match(main, /const hx = \(HEAD_TOP\[0\] - HAND\.tip\[0\]\) \* u \+ stroke \* 6 \* u;/, '水平只有摸頭的小晃動，不從旁邊進來');
+  assert.match(main, /const hy = \(HEAD_TOP\[1\] - HAND\.tip\[1\]\) \* u - away \* \(HAND\.box\[3\] \+ 40\) \* u/, '從上方進出');
+  assert.match(main, /const u = w \/ 512;/);
+  assert.match(main, /g\.drawImage\(hand, hx, hy, HAND\.w \* u, HAND\.h \* u\);/, '手與貓同比例（約一個貓頭大）');
+  assert.doesNotMatch(main, /hw \* 0\.2|hh \* 0\.78|const hw = w \* 1\.05/, '不再用舊圖指尖 (0.2, 0.78)、手不再是貓頭兩倍');
+  // 踩奶：無凳；腳底 y349 踩在椅面；正弦小 bob
+  assert.doesNotMatch(read('src/main.js'), /圓凳/);
+  assert.match(main, /\{ img: 'cat_longan_knead_v2', ms: 2200, dy: KNEAD_ON_SLEEP_LINE, bob: true \}/);
+  assert.match(main, /const KNEAD_ON_SLEEP_LINE = -\(349 - 339\) \/ 384;/);
+  assert.match(main, /const ACROSS_SEQ = \[\{ img: 'cat_longan_knead_v2', ms: 2400, dy: \(384 - 349\) \/ 384, bob: true \}/);
+  const amp = Number(main.match(/const KNEAD_BOB = \{ amp: ([\d.]+), hz: ([\d.]+) \};/)[1]);
+  assert.ok(amp > 0 && amp <= 0.03, `bob 幅度小：${amp}`);
+  assert.match(main, /const kneadBob = \(now\) => Math\.sin\(/);
+  assert.equal((main.match(/st\.bob \? kneadBob\(/g) || []).length, 2, '店裡的椅子與坐下窗景對面的椅子都有 bob');
+});
+
+test('坐下窗景：吊燈燈罩不被裁；德叔說話時站到右手邊、不擋杯子', () => {
+  const main = code('src/main.js');
+  const shift = Number(main.match(/const SEATED = \{[^\n]*shift: ([\d.]+),/)[1]);
+  assert.ok(shift * 2532 <= 160, '往上移不超過燈罩頂');
+  assert.match(main, /reader\.portrait\([^\n]*, act === 'coffee' \? 'aside' : 'center'\);/);
+  assert.match(PORTRAIT_PLACE.aside, /left:\s*7\d%/);
+  assert.equal(PORTRAIT_PLACE.center, 'height:130%;top:7%', '其他幕的立繪照舊');
 });
 
 test('不改既有的 assets/art 原圖（git 有追蹤的檔沒有被改動或刪除）', (t) => {
