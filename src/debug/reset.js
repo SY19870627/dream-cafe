@@ -43,6 +43,23 @@ export function reloadUrl(url, sha, now = Date.now()) {
   return u.toString();
 }
 
+// debug 模式開機時要不要先查最新 commit：只有在 raw.githack 的「分支網址」（ref 不是 40 碼 commit）才要。
+// 已經釘在 commit 的網址不查、不轉（就算不是最新也只顯示提示，不自動跳）。
+export const isFullSha = (s) => /^[0-9a-f]{40}$/i.test(String(s || ''));
+export function onBranch(url) {
+  try {
+    const gh = githackRef(url);
+    return !!gh && !isFullSha(gh.ref);
+  } catch {
+    return false;
+  }
+}
+// 拿到最新 commit 後要不要轉去釘 commit 的網址：分支網址＋查到 40 碼 sha 才轉；
+// 轉完的網址（reloadUrl）已經釘了 commit，再判一次一定是 false，不會一直轉。
+export function shouldPin(url, sha) {
+  return isFullSha(sha) && onBranch(url);
+}
+
 // 面板上顯示的「目前版本」：網址釘了 commit 就用 commit 短碼，否則 ?v=，再沒有就用 BUILD
 export function currentVersion(url, build = '') {
   const gh = (() => { try { return githackRef(url); } catch { return null; } })();

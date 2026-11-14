@@ -5,10 +5,11 @@
 import { nameOf } from '../view/reader.js';
 import { BUILD } from '../version.js';
 import { REPORT_ENDPOINT, REPORT_KEY } from './config.js';
-import { directAssetUrl, directCssUrls, COMMENT_MAX, CATEGORIES, buildPayload, reportText, deviceSummary, shotFits, shotScale, SHOT_MAX_WIDTH, SHOT_QUALITY } from './report.js';
+import { directAssetUrl, directCssUrls, COMMENT_MAX, CATEGORIES, buildPayload, reportText, deviceSummary, shotFits, shotScale, SHOT_MAX_WIDTH, SHOT_QUALITY,
+  SHOT_REV, firstOk, shotErrorText, textShotLines, versionOf } from './report.js';
 import { readQueue, submit, flush, exportText, RETRY_MS } from './queue.js';
 import { jumpGroups, actLabel } from './jump.js';
-import { saveKeysToClear, shaOf, reloadUrl, currentVersion, LATEST_API } from './reset.js';
+import { saveKeysToClear, shaOf, reloadUrl, currentVersion, onBranch, shouldPin, LATEST_API } from './reset.js';
 
 const FAST_KEY = 'dream-cafe.debug.fast';
 const OWNER_KEY = 'dream-cafe.debug.owner'; // 本人識別碼：只存在這台裝置；不顯示、不記錄、不放進複製的文字；「清除存檔重來」不會刪
@@ -147,42 +148,91 @@ function fixClone(doc) {
   }
 }
 
-// 截 #app（除錯介面不入鏡）
-// 畫布本身已經被汙染（讀不出來）的就不入鏡
-const tainted = (node) => {
-  if (node.tagName !== 'CANVAS') return false;
-  try { node.getContext('2d') && node.toDataURL('image/png').length; return false; } catch { return true; }
-};
-let captureNote = ''; // 這次截圖少了什麼（給回報框顯示）
-// 先截完整的；還是被汙染就退一步：拿掉讀不出的畫布；再不行：只留文字與色塊（不放圖）。都不行才丟錯
-async function capture(app, root) {
-  const h2c = await loadHtml2canvas();
-  const w = app.getBoundingClientRect().width || app.clientWidth;
-  const base = { scale: shotScale(w, window.devicePixelRatio || 1), backgroundColor: '#1a1612', logging: false, useCORS: true, imageTimeout: 8000 };
-  const tries = [
-    { note: '', ignore: (node) => node === root },
-    { note: '截圖少了店內 360 畫面（瀏覽器不讓讀取）', ignore: (node) => node === root || tainted(node) },
-    { note: '截圖只有文字、沒有圖（瀏覽器不讓讀取圖片）', ignore: (node) => node === root || node.tagName === 'CANVAS' || node.tagName === 'IMG', noBg: true },
-  ];
-  let err = null;
-  for (const t of tries) {
+// 畫布是不是被汙染（讀不出來）：讀一個像素就知道（不用整張 toDataURL，快很多）；拿不到 2D context（例如 WebGL）視為沒汙染。
+// 結果記在 memo 裡，同一次截圖每張畫布只檢查一次（html2canvas 的 ignoreElements 會對每個節點各問一次）
+function taintCheck(memo) {
+  return (node) => {
+    if (!node || node.tagName !== 'CANVAS') return false;
+    if (memo.has(node)) return memo.get(node);
+    let bad = false;
     try {
-      const canvas = await h2c(app, {
-        ...base,
-        ignoreElements: t.ignore,
+      const g = node.getContext('2d');
+      if (g && node.width > 0 && node.height > 0) g.getImageData(0, 0, 1, 1);
+    } catch { bad = true; }
+    memo.set(node, bad);
+    return bad;
+  };
+}
+// 畫面上看得到（自己與上層都沒有 hidden、有大小）
+const visible = (node) => !node.closest('[hidden]') && node.getClientRects().length > 0;
+
+// 最後一段退路：不用 html2canvas，自己畫一張 720 寬的文字截圖（第幾天｜幕｜第幾句、說話的人：台詞、版本）。
+// 這張畫布從來沒畫過圖，toDataURL 一定成功。
+function textShot(snap) {
+  const W = SHOT_MAX_WIDTH;
+  const PAD = 28;
+  const SIZE = 22;
+  const LH = 34;
+  const lines = textShotLines({ ...snap, label: actLabel(snap.state?.opening?.act), version: versionOf(location.search, BUILD), maxUnits: Math.floor(((W - PAD * 2) / SIZE) * 2) - 2 });
+  const c = document.createElement('canvas');
+  c.width = W;
+  c.height = PAD * 2 + lines.length * LH;
+  const g = c.getContext('2d');
+  g.fillStyle = '#1a1612';
+  g.fillRect(0, 0, c.width, c.height);
+  g.font = `${SIZE}px "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif`;
+  g.textBaseline = 'top';
+  lines.forEach((t, i) => {
+    g.fillStyle = i === lines.length - 1 ? '#c9a77c' : '#f6efe2';
+    g.fillText(t, PAD, PAD + i * LH + (LH - SIZE) / 2);
+  });
+  return c;
+}
+
+// 截 #app（除錯介面不入鏡），三段，前一段失敗才試下一段：
+// 1. 完整的畫面（被汙染、讀不出來的畫布不入鏡）
+// 2. 只留文字與色塊（不放任何圖：<img>、畫布、CSS 背景圖都拿掉）
+// 3. 文字截圖（textShot，保證成功）
+// 回傳 { url, note }；note＝這張截圖少了什麼（給回報框顯示）。三段都失敗才丟錯（錯誤訊息帶截圖程式版本與每一段的錯）
+async function capture(app, root, snap) {
+  const memo = new Map();
+  const isTainted = taintCheck(memo);
+  // 截圖前先看畫面上的畫布：有被汙染的（例如店內 360）就先記下來，第一段會跳過它
+  let lost = false;
+  for (const c of app.querySelectorAll('canvas')) if (!root.contains(c) && visible(c) && isTainted(c)) lost = true;
+  const shoot = async (opt) => {
+    const h2c = await loadHtml2canvas();
+    const w = app.getBoundingClientRect().width || app.clientWidth;
+    const canvas = await h2c(app, { scale: shotScale(w, window.devicePixelRatio || 1), backgroundColor: '#1a1612', logging: false, useCORS: true, imageTimeout: 8000, ...opt });
+    const url = toJpeg(canvas);
+    if (!url) throw new Error('壓不到 200KB 以內');
+    return url;
+  };
+  const tries = [
+    async () => ({
+      url: await shoot({ ignoreElements: (node) => node === root || isTainted(node), onclone: fixClone }),
+      note: lost ? '截圖少了店內 360 畫面（瀏覽器不讓讀取）' : '',
+    }),
+    async () => ({
+      url: await shoot({
+        ignoreElements: (node) => node === root || node.tagName === 'CANVAS' || node.tagName === 'IMG',
         onclone: (doc) => {
           fixClone(doc);
-          if (t.noBg) for (const n of doc.querySelectorAll('#app, #app *')) n.style.backgroundImage = 'none';
+          for (const n of doc.querySelectorAll('#app, #app *')) n.style.setProperty('background-image', 'none', 'important');
         },
-      });
-      const url = toJpeg(canvas);
-      captureNote = t.note;
-      return url;
-    } catch (e) {
-      err = e;
-    }
-  }
-  throw err;
+      }),
+      note: '截圖只有文字、沒有圖（瀏覽器不讓讀取圖片）',
+    }),
+    async () => {
+      const url = toJpeg(textShot(snap));
+      if (!url) throw new Error('文字截圖壓不到 200KB 以內');
+      return { url, note: '畫面截不下來，只有文字' };
+    },
+  ];
+  const r = await firstOk(tries);
+  if (!r.ok) throw new Error(shotErrorText(r.errors));
+  // 前面的段落失敗過：錯誤也附在提示裡，方便查是哪裡不行
+  return { url: r.value.url, note: r.errors.length ? `${r.value.note}（${shotErrorText(r.errors)}）` : r.value.note };
 }
 
 function device() {
@@ -238,10 +288,28 @@ async function copyText(text) {
   return ok;
 }
 
+// 開機先確定跑的是最新、釘在 commit 的版本：
+// 模組網址不帶版本，在 raw.githack 的分支網址上，瀏覽器（或 CDN）可能還在給舊的 js（只改 ?v= 沒用，見 reset.js 開頭）。
+// 分支網址就查最新 commit，查到就換成釘 commit 的網址（所有檔案都是新網址，一定重抓）；回傳 true＝正在換頁，不用再畫面板。
+// 已釘 commit 不轉；查不到（API 失敗、超過次數）也不轉，面板顯示「可能不是最新版」。
+let pinNote = '';
+async function pinLatest() {
+  if (!onBranch(location.href)) return false;
+  const sha = await latestCommit();
+  if (!shouldPin(location.href, sha)) {
+    pinNote = '查不到最新 commit，現在跑的可能不是最新版（可以按「重新載入最新版」）';
+    return false;
+  }
+  location.replace(reloadUrl(location.href, sha));
+  return true;
+}
+
 /**
  * hooks：{ app, getState(), beat(), jump(act, line) → boolean, setTimeScale(k) }
+ * 在分支網址上會先換到釘 commit 的網址（回傳 null，不畫面板）
  */
-export function start(hooks) {
+export async function start(hooks) {
+  if (await pinLatest()) return null;
   const { app } = hooks;
   const store = storage();
   const readOwner = () => { try { return store?.getItem(OWNER_KEY) || ''; } catch { return ''; } };
@@ -350,7 +418,7 @@ export function start(hooks) {
 
     // 目前位置
     sheet.appendChild(el('h3', '', '目前位置'));
-    sheet.appendChild(el('p', 'dbg-info', `${s?.opening?.act}　${actLabel(s?.opening?.act)}　第 ${s?.opening?.line} 句\n版本 ${currentVersion(location.href, BUILD)}`));
+    sheet.appendChild(el('p', 'dbg-info', `${s?.opening?.act}　${actLabel(s?.opening?.act)}　第 ${s?.opening?.line} 句\n版本 ${currentVersion(location.href, BUILD)}｜截圖程式第 ${SHOT_REV} 版${pinNote ? `\n${pinNote}` : ''}`));
 
     // 跳關
     sheet.appendChild(el('h3', '', '跳到'));
@@ -498,8 +566,8 @@ export function start(hooks) {
     const snap = { state: JSON.parse(JSON.stringify(s)), beat: hooks.beat() }; // 截圖這一刻的位置（寫字的時候遊戲不會動，但保險）
     let shot = '';
     let shotErr = '';
-    captureNote = '';
-    try { shot = await capture(app, root); } catch (e) { shotErr = String(e?.message || e); }
+    let captureNote = ''; // 這次截圖少了什麼
+    try { ({ url: shot, note: captureNote } = await capture(app, root, { ...snap, nameOf })); } catch (e) { shotErr = String(e?.message || e); }
 
     sheet = el('div', 'dbg-sheet');
     sheet.setAttribute('role', 'dialog');
@@ -514,7 +582,7 @@ export function start(hooks) {
     sheet.appendChild(el('p', 'dbg-info',
       `${preview.day}｜${preview.scene}（${actLabel(preview.scene)}）｜第 ${preview.line} 句\n`
       + `${preview.speaker ? `${preview.speaker}：` : ''}${preview.text || '（這一幕沒有台詞）'}\n`
-      + `版本 ${preview.version}\n${preview.device}`));
+      + `版本 ${preview.version}｜截圖程式第 ${SHOT_REV} 版${pinNote ? `｜${pinNote}` : ''}\n${preview.device}`));
     if (shot && captureNote) sheet.appendChild(el('p', 'dbg-hint', captureNote));
     if (shot) {
       const im = el('img', 'dbg-shot');
@@ -522,7 +590,7 @@ export function start(hooks) {
       im.alt = '截圖';
       sheet.appendChild(im);
     } else {
-      sheet.appendChild(el('p', 'dbg-hint', `沒有截圖${shotErr ? `（${shotErr}）` : '（壓不到 200KB 以內）'}`));
+      sheet.appendChild(el('p', 'dbg-hint', `沒有截圖（${shotErr || shotErrorText([])}）`));
     }
 
     sheet.appendChild(el('h3', '', '分類（可不選）'));

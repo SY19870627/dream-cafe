@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { saveKeysToClear, shaOf, githackRef, reloadUrl, currentVersion } from '../../src/debug/reset.js';
+import { saveKeysToClear, shaOf, githackRef, reloadUrl, currentVersion, shouldPin, onBranch, isFullSha } from '../../src/debug/reset.js';
 import { SAVE_KEY, OTHER_KEYS } from '../../src/story/save.js';
 import { QUEUE_KEY } from '../../src/debug/queue.js';
 
@@ -43,6 +43,36 @@ test('reloadUrl：查不到 commit 或本機 → 路徑不動，v＝時間', () 
   const l = new URL(reloadUrl('http://127.0.0.1:8080/index.html?debug=1', SHA, 5));
   assert.equal(l.pathname, '/index.html');
   assert.equal(l.searchParams.get('v'), '0232a35');
+});
+
+test('shouldPin：分支網址＋查到 sha 才轉；已釘 commit、沒 sha、非 githack 都不轉', () => {
+  assert.equal(onBranch(BR), true);
+  assert.equal(shouldPin(BR, SHA), true);
+  assert.equal(shouldPin(BR.replace('raw.githack.com', 'rawcdn.githack.com'), SHA), true);
+  const pinned = `https://raw.githack.com/SY19870627/dream-cafe/${SHA}/index.html?debug=1&v=0232a35`;
+  assert.equal(onBranch(pinned), false);
+  assert.equal(shouldPin(pinned, SHA), false);
+  assert.equal(shouldPin(pinned, 'f'.repeat(40)), false, '已釘舊 commit 也不自動跳');
+  assert.equal(shouldPin(BR, ''), false);
+  assert.equal(shouldPin(BR, 'abc1234'), false, '短碼不算');
+  assert.equal(shouldPin(BR, undefined), false);
+  assert.equal(shouldPin('http://127.0.0.1:8080/index.html?debug=1', SHA), false);
+  assert.equal(onBranch('http://127.0.0.1:8080/index.html?debug=1'), false);
+  assert.equal(shouldPin('not a url', SHA), false);
+  assert.equal(isFullSha(SHA), true);
+  assert.equal(isFullSha('0232a35'), false);
+});
+
+test('shouldPin：轉完的網址再判一次不會再轉（防迴圈），debug=1 還在', () => {
+  for (const start of [BR, 'https://raw.githack.com/SY19870627/dream-cafe/feat/v3b-acts1-4/', 'https://rawcdn.githack.com/SY19870627/dream-cafe/main/index.html?debug=1']) {
+    assert.equal(shouldPin(start, SHA), true, start);
+    const next = reloadUrl(start, SHA, 42);
+    assert.equal(shouldPin(next, SHA), false, next);
+    assert.equal(onBranch(next), false, next);
+    // 第二次再轉一次（例如 API 又回了別的 sha）也不會轉
+    assert.equal(shouldPin(next, 'e'.repeat(40)), false);
+  }
+  assert.equal(new URL(reloadUrl(BR, SHA, 42)).searchParams.get('debug'), '1');
 });
 
 test('currentVersion：釘 commit 的路徑優先，其次 ?v=，再來 BUILD', () => {
