@@ -62,18 +62,22 @@ test('純邏輯除錯檔不碰 DOM／storage／fetch／navigator（只有 ui.js 
     assert.doesNotMatch(src, /\b(document|window|localStorage|navigator|location)\b/, f);
     assert.doesNotMatch(src, /(?<![.\w])fetch\(/, `${f} 不直接呼叫全域 fetch`);
   }
-  assert.deepEqual(readdirSync(root('src/debug')).sort(), ['config.js', 'flag.js', 'jump.js', 'queue.js', 'report.js', 'reset.js', 'stamp.js', 'ui.js']);
+  // core/ 是兩個遊戲共用的除錯核心（面板 UI、截圖、回報、佇列的做法搬到那裡）
+  assert.deepEqual(readdirSync(root('src/debug')).sort(), ['config.js', 'core', 'flag.js', 'jump.js', 'queue.js', 'report.js', 'reset.js', 'stamp.js', 'ui.js']);
   assert.match(code('src/debug/ui.js'), /vendor\/html2canvas\.min\.js/);
   assert.match(read('vendor/html2canvas.min.js').slice(0, 200), /html2canvas 1\.4\.1/);
-  // ui.js 的樣式都是 .dbg- 開頭
-  const css = /const CSS = `([\s\S]*?)`;/.exec(read('src/debug/ui.js'))[1];
+  // 面板的樣式（在核心的 ui.js）都是 .dbg- 開頭
+  const css = /const CSS = `([\s\S]*?)`;/.exec(read('src/debug/core/ui.js'))[1];
   for (const m of css.matchAll(/(^|[\s,}])\.([a-zA-Z][\w-]*)/g)) assert.ok(m[2].startsWith('dbg-'), `.${m[2]} 要用 .dbg- 開頭`);
 });
 
 test('設定檔：回報網址是 Apps Script 網頁應用程式（或留空）、密語已填；除錯檔只用 BUILD_TIME、沒有寫死的 commit 短碼', () => {
   assert.ok(REPORT_ENDPOINT === '' || /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(REPORT_ENDPOINT));
   assert.ok(typeof REPORT_KEY === 'string' && REPORT_KEY.length >= 8 && (REPORT_ENDPOINT === '' || REPORT_KEY !== 'REPLACE_ME'));
-  for (const f of readdirSync(root('src/debug'))) {
+  // src/debug 底下所有的程式檔（含 core/）
+  const files = readdirSync(root('src/debug'), { recursive: true }).map((f) => String(f).replace(/\\/g, '/')).filter((f) => /\.(m?js|ts)$/.test(f));
+  assert.ok(files.includes('core/ui.js'));
+  for (const f of files) {
     const src = code(`src/debug/${f}`);
     assert.doesNotMatch(src, /\bBUILD\b/, `${f} 不再用寫死的版本代號`);
     assert.doesNotMatch(src, /c155aaa/, f);
@@ -140,14 +144,19 @@ test('版本一致：面板「目前位置」、「版本與重來」、回報�
   assert.match(ui, /const running = \(\) => runningVersion\(MODULE_URL, location\.href\);/);
   assert.match(ui, /const version = \(\) => formatVersion\(BUILD_TIME, running\(\)\);/);
   assert.match(ui, /versionParts\(BUILD_TIME, running\(\)\)/); // 面板小字用同一組輸入拆開
-  assert.match(ui, /el\('small', 'dbg-ver-hash', `（\$\{hash\}）`\)/);
-  assert.match(read('src/debug/ui.js'), /\.dbg-ver-hash \{[^}]*font-size: 11px/);
   assert.doesNotMatch(ui, /currentVersion|versionOf/);
-  assert.match(ui, /version: version\(\), maxUnits/); // 文字截圖
-  assert.match(ui, /第 \$\{s\?\.opening\?\.line\} 句\\n版本 `, `｜截圖程式/); // 目前位置
-  assert.equal((ui.match(/infoWithVersion\(ver, '目前版本 '|infoWithVersion\(el\('p', 'dbg-info'\), '目前版本 '/g) || []).length, 2); // 版本與重來（查詢前後）
-  assert.match(ui, /\\n版本 `,\s*`｜截圖程式第 \$\{SHOT_REV\} 版\$\{pinNote \? `｜/); // 自動帶入
-  assert.match(ui, /buildTime: BUILD_TIME, moduleUrl: MODULE_URL, pageUrl: location\.href/); // 回報框與送出的回報（buildPayload）
+  // 轉接層把同一個 version() 交給核心：核心的每個地方（面板、回報框、文字截圖、送出的回報）都用 version.display()
+  assert.match(ui, /display: version,/);
+  assert.match(ui, /note: \(\) => pinNote/);
+  const coreUi = code('src/debug/core/ui.js');
+  assert.match(coreUi, /const version = \(\) => String\(ver\.display \? ver\.display\(\) : ''\);/);
+  assert.match(coreUi, /el\('small', 'dbg-ver-hash', `（\$\{hash\}）`\)/);
+  assert.match(read('src/debug/core/ui.js'), /\.dbg-ver-hash \{[^}]*font-size: 11px/);
+  assert.match(coreUi, /text: \{ position: pos, label: lbl, version: version\(\) \}/); // 文字截圖
+  assert.match(coreUi, /第 \$\{pos\.line\} 句\\n版本 `, `｜截圖程式/); // 目前位置
+  assert.ok((coreUi.match(/infoWithVersion\(verInfo, '目前版本 '|infoWithVersion\(el\('p', 'dbg-info'\), '目前版本 '/g) || []).length >= 2); // 版本與重來（查詢前後）
+  assert.match(coreUi, /\\n版本 `,\s*`｜截圖程式第 \$\{SHOT_REV\} 版\$\{n \? `｜/); // 自動帶入
+  assert.equal((coreUi.match(/buildPayload\(\{ \.\.\.base, version: version\(\),/g) || []).length, 3); // 回報框、複製文字、送出的回報
   assert.match(code('src/debug/report.js'), /version: formatVersion\(ctx\.buildTime, runningVersion\(ctx\.moduleUrl, ctx\.pageUrl\)\)/);
   // 自動釘 commit：查對的分支、no-store、8 秒逾時、失敗隔 1.5 秒重試一次
   assert.match(ui, /fetch\(LATEST_API, \{ cache: 'no-store'/);

@@ -6,14 +6,20 @@
 // raw.githack 的網址可以把分支名換成 commit 編號：https://raw.githack.com/SY19870627/dream-cafe/<commit>/index.html
 // 換了 commit，所有檔案（index.html、js、圖）的網址整串都變新的，瀏覽器的快取裡一定沒有，只能重抓；
 // 同一個 commit 的內容永遠不變，也不會抓到半新半舊。存檔在 localStorage，是跟著網域（raw.githack.com）走，換路徑不會不見。
+import { keysToClear } from './core/reset.js';
 export const REPO_PREFIX = '/SY19870627/dream-cafe/';
 export const BRANCH = 'feat/v3b-acts1-4';
 export const LATEST_API = `https://api.github.com/repos/SY19870627/dream-cafe/commits/${BRANCH}`;
 export const GITHACK_HOSTS = ['raw.githack.com', 'rawcdn.githack.com'];
 
-// 遊戲進度的鍵：dream-cafe. 開頭、但不是 dream-cafe.debug.（回報佇列、快轉設定）的都算
+// 遊戲進度的鍵：dream-cafe. 開頭、但不是 dream-cafe.debug.（回報佇列、快轉設定、本人識別碼）的都算。
+// 篩選的做法在除錯核心（./core/reset.js 的 keysToClear）；這裡只給 dream-cafe 的規則，面板的「清除存檔重來」也用這組。
+export const SAVE_PREFIX = 'dream-cafe.';
+export const DEBUG_PREFIX = 'dream-cafe.debug.';
+export const isGameSaveKey = (k) => typeof k === 'string' && k.startsWith(SAVE_PREFIX);
+export const CLEAR_RULE = { isGameSaveKey, keepPrefixes: [DEBUG_PREFIX] };
 export function saveKeysToClear(keys) {
-  return [...keys].filter((k) => typeof k === 'string' && k.startsWith('dream-cafe.') && !k.startsWith('dream-cafe.debug.'));
+  return keysToClear(keys, CLEAR_RULE);
 }
 
 // GitHub API 回來的 JSON → 完整 commit 編號（40 碼）；不像就回 ''

@@ -46,7 +46,9 @@ test('識別碼不出現在複製文字、佇列、匯出；送出時才帶上',
 test('識別碼的鍵不會被「清除存檔重來」刪掉；ui.js 不 console 輸出識別碼', () => {
   assert.deepEqual(saveKeysToClear(['dream-cafe.debug.owner', 'dream-cafe.v3b']), ['dream-cafe.v3b']);
   const ui = readFileSync(new URL('../../src/debug/ui.js', import.meta.url), 'utf8');
+  const coreUi = readFileSync(new URL('../../src/debug/core/ui.js', import.meta.url), 'utf8'); // 輸入框在除錯核心
   assert.match(ui, /OWNER_KEY = 'dream-cafe\.debug\.owner'/);
-  assert.doesNotMatch(ui, /console\.\w+\([^)]*[Oo]wner/);
-  assert.match(ui, /type = 'password'/);
+  assert.match(ui, /owner: OWNER_KEY/);
+  for (const src of [ui, coreUi]) assert.doesNotMatch(src, /console\.\w+\([^)]*[Oo]wner/);
+  assert.match(coreUi, /type = 'password'/);
 });

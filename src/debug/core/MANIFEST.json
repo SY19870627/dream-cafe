@@ -1,0 +1,20 @@
+{
+  "coreVersion": "1.0.0",
+  "sourceCommit": "70638dd",
+  "sourceDirty": true,
+  "files": {
+    "README.md": "3cc1a0456273b69dc66444a8fabaf90f5d44b5d056ae7e018bf73d32ffbb9cdf",
+    "capture.js": "6cb01eabf897cea75aad0eb3191cf1fe12d0a47842725ed255e805e0bd6e5180",
+    "flag.js": "2d036c130c66fb49c64bed76e2508997046484d88933b5bde7d0f94181d264bb",
+    "index.d.ts": "7da96bb1b44b27667493e16d177dba77777687ec8e52428fe12efb6c2f97e354",
+    "index.js": "e0d0eaacba82dae82e6e76f966a5f216868a7c2b9d0f4390c4e421016876ccaa",
+    "manifest-check.d.ts": "6a26b4ac0097918f1b90df3ce18728b27ae70fa08ba99c0f300abb07edb8c85d",
+    "manifest-check.js": "d4f4273a2f538c82b793f4f0f5f4eade5dc70b67a6b468c611533c87100d221b",
+    "queue.js": "07dde2ba4eb7ea52b528db19afe93f20d6a9865fd5cdde75a2e50564dd6a85a1",
+    "report.js": "0e84add5514e59c1e0d214a85e3f79a6f73c10ed94caf3fdc182f748ea756b3d",
+    "reset.js": "0dd7c7a22766329e307c91a718696360790098fec9095d498f963eda5b965dcd",
+    "stamp.js": "5b83f9c7da843fccb8af93a3368a6b43c12ac930179c8a9ebd1388d062c0d7f0",
+    "ui.js": "ac5416b9957ff435f221e33aad83c2ae49e4d92f1133f7ce894fd7a5b3a028e4",
+    "version.js": "03f48980d1cea2f956f714c138e31a982bb4d6da334d258e7a94384e70ec1ec0"
+  }
+}

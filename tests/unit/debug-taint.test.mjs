@@ -151,14 +151,18 @@ test('firstOk：全部失敗回傳 ok=false 與每一段的錯誤（不丟錯）
 });
 
 test('ui.js：截圖三段（完整、不放圖、文字截圖）、汙染檢查用 getImageData 並快取、背景用 important 拿掉', () => {
+  // 截圖的做法搬到除錯核心（core/capture.js）；面板文字在 core/ui.js；自動釘 commit 留在 dream-cafe 的 ui.js
   const ui = readFileSync(new URL('../../src/debug/ui.js', import.meta.url), 'utf8');
-  assert.match(ui, /getImageData\(0, 0, 1, 1\)/);
-  assert.doesNotMatch(ui, /toDataURL\('image\/png'\)/);
-  assert.match(ui, /memo\.has\(node\)/);
-  assert.match(ui, /setProperty\('background-image', 'none', 'important'\)/);
-  assert.match(ui, /await firstOk\(tries\)/);
-  assert.match(ui, /function textShot\(snap\)/);
-  assert.match(ui, /截圖程式第 \$\{SHOT_REV\} 版/);
+  const cap = readFileSync(new URL('../../src/debug/core/capture.js', import.meta.url), 'utf8');
+  const coreUi = readFileSync(new URL('../../src/debug/core/ui.js', import.meta.url), 'utf8');
+  assert.match(cap, /getImageData\(0, 0, 1, 1\)/);
+  for (const src of [ui, cap, coreUi]) assert.doesNotMatch(src, /toDataURL\('image\/png'\)/);
+  assert.match(cap, /memo\.has\(node\)/);
+  assert.match(cap, /setProperty\('background-image', 'none', 'important'\)/);
+  assert.match(cap, /await firstOk\(tries\)/);
+  assert.match(cap, /function textShot\(info\)/);
+  assert.match(coreUi, /截圖程式第 \$\{SHOT_REV\} 版/);
+  assert.match(ui, /assetUrl: \(url\) => directAssetUrl\(url, location\.href\)/);
   assert.match(ui, /if \(await pinLatest\(\)\) return null;/);
 });
 

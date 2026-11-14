@@ -10,6 +10,8 @@
     "test:unit": "node --test tests/unit/*.test.mjs",
     "smoke:opening": "node tests/smoke-opening.mjs",
     "version:stamp": "node scripts/stamp-version.mjs",
+    "debug-core:manifest": "node scripts/sync-debug-core.mjs",
+    "debug-core:sync": "node scripts/sync-debug-core.mjs",
     "hooks:install": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
