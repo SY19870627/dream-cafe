@@ -8,6 +8,7 @@ import { REPORT_ENDPOINT, REPORT_KEY } from './config.js';
 import { CATEGORIES, buildPayload, reportText, deviceSummary, shotFits, shotScale, SHOT_MAX_WIDTH, SHOT_QUALITY } from './report.js';
 import { readQueue, submit, flush, exportText, RETRY_MS } from './queue.js';
 import { jumpGroups, actLabel } from './jump.js';
+import { saveKeysToClear, shaOf, reloadUrl, currentVersion, LATEST_API } from './reset.js';
 
 const FAST_KEY = 'dream-cafe.debug.fast';
 const FAST_RATE = 5; // 快轉：等待時間變 1/5，CSS 動畫／轉場 5 倍速
@@ -165,6 +166,25 @@ function storage() {
 }
 
 // 剪貼簿：navigator.clipboard 不能用（非 https、權限）就退回 textarea + execCommand
+// 最新 commit（GitHub 公開 API，不用登入；每小時 60 次上限）；查不到回 ''
+async function latestCommit() {
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 6000);
+    const res = await fetch(LATEST_API, { cache: 'no-store', signal: ctl.signal, headers: { Accept: 'application/vnd.github+json' } });
+    clearTimeout(t);
+    return res.ok ? shaOf(await res.json()) : '';
+  } catch {
+    return '';
+  }
+}
+
+// 清 Cache Storage 與 service worker（這個遊戲目前沒用，有的話才清）
+async function clearCaches() {
+  try { if (window.caches) for (const k of await caches.keys()) await caches.delete(k); } catch { /* 沒有就算了 */ }
+  try { if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch { /* 沒有就算了 */ }
+}
+
 async function copyText(text) {
   try {
     if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
@@ -293,7 +313,7 @@ export function start(hooks) {
 
     // 目前位置
     sheet.appendChild(el('h3', '', '目前位置'));
-    sheet.appendChild(el('p', 'dbg-info', `${s?.opening?.act}　${actLabel(s?.opening?.act)}　第 ${s?.opening?.line} 句\n版本 ${BUILD}`));
+    sheet.appendChild(el('p', 'dbg-info', `${s?.opening?.act}　${actLabel(s?.opening?.act)}　第 ${s?.opening?.line} 句\n版本 ${currentVersion(location.href, BUILD)}`));
 
     // 跳關
     sheet.appendChild(el('h3', '', '跳到'));
@@ -368,6 +388,38 @@ export function start(hooks) {
       const ok = await copyText(exportText(readQueue(store)));
       msg.className = ok ? 'dbg-msg' : 'dbg-msg dbg-err';
       msg.textContent = ok ? '已複製到剪貼簿' : '複製失敗（瀏覽器不允許）';
+    };
+
+    // 版本與快取：重新載入最新版（換到最新 commit 的網址，所有檔案重抓）、清除存檔重來；都不動還沒送出的回報
+    sheet.appendChild(el('h3', '', '版本與重來'));
+    const ver = el('p', 'dbg-info', `目前版本 ${currentVersion(location.href, BUILD)}\n最新版本 查詢中…`);
+    sheet.appendChild(ver);
+    let latestSha = '';
+    latestCommit().then((sha) => {
+      latestSha = sha;
+      if (sheet && ver.isConnected) ver.textContent = `目前版本 ${currentVersion(location.href, BUILD)}\n最新版本 ${sha ? sha.slice(0, 7) : '查不到（還是可以重新載入）'}`;
+    });
+    const reload = btn('重新載入最新版', 'dbg-primary');
+    const wipe = btn('清除存檔重來');
+    const r4 = el('div', 'dbg-row');
+    r4.append(reload, wipe);
+    sheet.append(r4, el('p', 'dbg-hint', '重新載入會清掉這個網頁的快取，換成最新版的檔案；存檔和還沒送出的回報都會留著。清除存檔只刪遊戲進度，回報和測試設定不動。'));
+    reload.onclick = async () => {
+      reload.disabled = true;
+      msg.className = 'dbg-msg';
+      msg.textContent = '正在找最新版…';
+      const sha = latestSha || await latestCommit();
+      await clearCaches();
+      location.replace(reloadUrl(location.href, sha));
+    };
+    wipe.onclick = () => {
+      if (!confirm('確定要清除存檔、從頭開始嗎？（還沒送出的回報不會刪）')) return;
+      try {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+        for (const k of saveKeysToClear(keys)) localStorage.removeItem(k);
+      } catch { /* 存不了就算了 */ }
+      location.reload();
     };
 
     sheet.appendChild(msg);

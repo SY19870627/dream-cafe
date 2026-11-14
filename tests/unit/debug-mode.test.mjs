@@ -56,12 +56,12 @@ test('main.js 只靜態載入 debug/flag.js；面板用動態 import()，且只�
 });
 
 test('純邏輯除錯檔不碰 DOM／storage／fetch／navigator（只有 ui.js 碰）', () => {
-  for (const f of ['flag.js', 'report.js', 'queue.js', 'jump.js', 'config.js']) {
+  for (const f of ['flag.js', 'report.js', 'queue.js', 'jump.js', 'config.js', 'reset.js']) {
     const src = code(`src/debug/${f}`);
     assert.doesNotMatch(src, /\b(document|window|localStorage|navigator|location)\b/, f);
     assert.doesNotMatch(src, /(?<![.\w])fetch\(/, `${f} 不直接呼叫全域 fetch`);
   }
-  assert.deepEqual(readdirSync(root('src/debug')).sort(), ['config.js', 'flag.js', 'jump.js', 'queue.js', 'report.js', 'ui.js']);
+  assert.deepEqual(readdirSync(root('src/debug')).sort(), ['config.js', 'flag.js', 'jump.js', 'queue.js', 'report.js', 'reset.js', 'ui.js']);
   assert.match(code('src/debug/ui.js'), /vendor\/html2canvas\.min\.js/);
   assert.match(read('vendor/html2canvas.min.js').slice(0, 200), /html2canvas 1\.4\.1/);
   // ui.js 的樣式都是 .dbg- 開頭
