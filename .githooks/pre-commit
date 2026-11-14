@@ -1,0 +1,4 @@
+#!/bin/sh
+# 每次 commit 前把台北時間寫進 src/version.js 的 BUILD_TIME（除錯面板與回報的版本用它）。
+# 啟用（每台電腦一次）：git config core.hooksPath .githooks
+node scripts/stamp-version.mjs && git add src/version.js

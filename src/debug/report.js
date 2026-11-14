@@ -1,5 +1,7 @@
 // 回報問題的內容（純邏輯）：不碰 DOM、localStorage、fetch、navigator。要的東西都從參數傳進來，才能在 Node 測試。
 import { directAssetUrl, GITHACK_HOSTS, DIRECT_HOST } from './flag.js';
+import { runningVersion } from './reset.js';
+import { formatVersion } from './stamp.js';
 export const CATEGORIES = ['台詞', '畫面', '圖', '操作', '其他']; // 可以不選（空字串）
 export const GAME = 'dream-cafe'; // 收件端用這個分遊戲（白名單 dream-cafe、taiwan-procession）
 export const COMMENT_MAX = 1000; // 意見最多幾個字（收件端也是 1000）
@@ -31,14 +33,8 @@ export function plainText(html) {
     .trim();
 }
 
-// 版本：網址 ?v= 優先，沒有就用 src/version.js 的 BUILD
-export function versionOf(search, build) {
-  try {
-    const v = new URLSearchParams(String(search ?? '')).get('v');
-    if (v) return v.slice(0, 40);
-  } catch { /* 網址壞了就用 BUILD */ }
-  return String(build || '');
-}
+// 版本：「commit 時間（實際在跑的 commit 短碼）」——formatVersion（stamp.js）＋ runningVersion（reset.js），面板也用同一組
+export { runningVersion, formatVersion };
 
 // 裝置摘要：手機／平板／電腦、作業系統、螢幕大小、devicePixelRatio、直向／橫向
 // info：{ ua, maxTouchPoints, screenW, screenH, viewW, viewH, dpr }
@@ -76,7 +72,7 @@ export function lineInfo(beat, nameOf = () => '') {
 }
 
 // 組出一筆回報（送出與存佇列都用這個形狀）
-// ctx：{ state, beat, nameOf, now: Date, search, build, device, category, comment, screenshot }
+// ctx：{ state, beat, nameOf, now: Date, buildTime（src/version.js 的 BUILD_TIME）, moduleUrl（除錯模組的 import.meta.url）, pageUrl（location.href）, device, category, comment, screenshot }
 export function buildPayload(ctx = {}) {
   const op = ctx.state?.opening || {};
   const { speaker, text } = lineInfo(ctx.beat, ctx.nameOf);
@@ -84,7 +80,7 @@ export function buildPayload(ctx = {}) {
   const shot = typeof ctx.screenshot === 'string' && ctx.screenshot.startsWith('data:image/') ? ctx.screenshot : '';
   return {
     time: now.toISOString(),
-    version: versionOf(ctx.search, ctx.build),
+    version: formatVersion(ctx.buildTime, runningVersion(ctx.moduleUrl, ctx.pageUrl)),
     day: dayLabel(op.act),
     scene: String(op.act || ''),
     line: Number.isInteger(op.line) ? op.line : 0,

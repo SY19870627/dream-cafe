@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { saveKeysToClear, shaOf, githackRef, reloadUrl, currentVersion, shouldPin, onBranch, isFullSha } from '../../src/debug/reset.js';
+import { saveKeysToClear, shaOf, githackRef, reloadUrl, runningVersion, moduleRef, shouldPin, onBranch, isFullSha } from '../../src/debug/reset.js';
 import { SAVE_KEY, OTHER_KEYS } from '../../src/story/save.js';
 import { QUEUE_KEY } from '../../src/debug/queue.js';
 
@@ -75,8 +75,39 @@ test('shouldPin：轉完的網址再判一次不會再轉（防迴圈），debug
   assert.equal(new URL(reloadUrl(BR, SHA, 42)).searchParams.get('debug'), '1');
 });
 
-test('currentVersion：釘 commit 的路徑優先，其次 ?v=，再來 BUILD', () => {
-  assert.equal(currentVersion(`https://raw.githack.com/SY19870627/dream-cafe/${SHA}/index.html?v=zzz`, 'b'), '0232a35');
-  assert.equal(currentVersion(BR, 'b'), 'c155aaa');
-  assert.equal(currentVersion('http://127.0.0.1/index.html', 'b'), 'b');
+test('runningVersion：看模組網址判斷實際在跑的程式', () => {
+  const GH = 'https://raw.githack.com/SY19870627/dream-cafe/';
+  const CDN = 'https://rawcdn.githack.com/SY19870627/dream-cafe/';
+  // 釘 40 碼 commit：取前 7 碼，頁面的 ?v= 不管（就算是錯的）
+  assert.equal(runningVersion(`${GH}${SHA}/src/debug/ui.js`, `${GH}${SHA}/index.html?debug=1&v=zzz`), '0232a35');
+  assert.equal(runningVersion(`${CDN}${SHA.toUpperCase()}/src/debug/ui.js`, `${CDN}${SHA}/index.html?debug=1`), '0232a35');
+  // 釘短碼（7 碼以上 16 進位）
+  assert.equal(runningVersion(`${GH}b00eb97/src/debug/ui.js`, `${GH}b00eb97/index.html?debug=1`), 'b00eb97');
+  assert.equal(runningVersion(`${GH}b00eb97c1/src/debug/ui.js`, `${GH}b00eb97c1/`), 'b00eb97');
+  // 分支（名字有斜線），有沒有 v 都一樣：「未釘」
+  assert.equal(runningVersion(`${GH}feat/v3b-acts1-4/src/debug/ui.js`, BR), '未釘');
+  assert.equal(runningVersion(`${GH}feat/v3b-acts1-4/src/debug/ui.js`, `${GH}feat/v3b-acts1-4/index.html?debug=1`), '未釘');
+  assert.equal(runningVersion(`${GH}main/src/debug/ui.js`, `${GH}main/`), '未釘');
+  // 頁面釘了 commit、模組卻從分支載入（不會發生，但以模組為準）
+  assert.equal(runningVersion(`${GH}feat/v3b-acts1-4/src/debug/ui.js`, `${GH}${SHA}/index.html`), '未釘');
+  // 本機：一律 'local'（?v= 不算版本）
+  assert.equal(runningVersion('http://127.0.0.1:8080/src/debug/ui.js', 'http://127.0.0.1:8080/index.html?debug=1&v=r42'), 'local');
+  assert.equal(runningVersion('http://127.0.0.1:8080/src/debug/ui.js', 'http://127.0.0.1:8080/index.html?debug=1'), 'local');
+  assert.equal(runningVersion('file:///D:/Git/dream-cafe/src/debug/ui.js', 'file:///D:/Git/dream-cafe/index.html'), 'local');
+  // 別人的 repo、壞網址、沒給
+  assert.equal(runningVersion('https://raw.githack.com/someone/else/main/src/debug/ui.js', 'https://raw.githack.com/someone/else/main/index.html'), 'local');
+  assert.equal(runningVersion('不是網址', '也不是'), 'local');
+  assert.equal(runningVersion(undefined, undefined), 'local');
+  // 沒有模組網址就退回頁面網址判斷
+  assert.equal(runningVersion('', `${GH}${SHA}/index.html`), '0232a35');
+  // 絕不會冒出寫死的版本
+  for (const v of [runningVersion('', ''), runningVersion(`${GH}main/src/debug/ui.js`, '')]) assert.doesNotMatch(v, /c155aaa/);
+});
+
+test('moduleRef：模組與頁面網址都拆得出 ref', () => {
+  assert.equal(moduleRef('https://raw.githack.com/SY19870627/dream-cafe/feat/v3b-acts1-4/src/debug/ui.js'), 'feat/v3b-acts1-4');
+  assert.equal(moduleRef(`https://raw.githack.com/SY19870627/dream-cafe/${SHA}/src/debug/ui.js?x=1`), SHA);
+  assert.equal(moduleRef('https://raw.githack.com/SY19870627/dream-cafe/feat/v3b-acts1-4/index.html'), 'feat/v3b-acts1-4');
+  assert.equal(moduleRef('https://raw.githack.com/SY19870627/dream-cafe/main/'), 'main');
+  assert.equal(moduleRef('http://127.0.0.1/src/debug/ui.js'), null);
 });

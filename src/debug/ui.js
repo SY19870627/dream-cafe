@@ -3,18 +3,25 @@
 // 樣式用 <style> 注入，class 一律 .dbg- 開頭，不動 index.html。
 // 面板上的點擊、拖曳、按鍵一律在這裡擋掉，不會穿到遊戲（不會翻句、不會轉店內鏡頭）。
 import { nameOf } from '../view/reader.js';
-import { BUILD } from '../version.js';
+import { BUILD_TIME } from '../version.js';
 import { REPORT_ENDPOINT, REPORT_KEY } from './config.js';
+import { formatVersion, versionParts } from './stamp.js';
 import { directAssetUrl, directCssUrls, COMMENT_MAX, CATEGORIES, buildPayload, reportText, deviceSummary, shotFits, shotScale, SHOT_MAX_WIDTH, SHOT_QUALITY,
-  SHOT_REV, firstOk, shotErrorText, textShotLines, versionOf } from './report.js';
+  SHOT_REV, firstOk, shotErrorText, textShotLines } from './report.js';
 import { readQueue, submit, flush, exportText, RETRY_MS } from './queue.js';
 import { jumpGroups, actLabel } from './jump.js';
-import { saveKeysToClear, shaOf, reloadUrl, currentVersion, onBranch, shouldPin, LATEST_API } from './reset.js';
+import { saveKeysToClear, shaOf, reloadUrl, runningVersion, onBranch, shouldPin, LATEST_API } from './reset.js';
 
 const FAST_KEY = 'dream-cafe.debug.fast';
 const OWNER_KEY = 'dream-cafe.debug.owner'; // 本人識別碼：只存在這台裝置；不顯示、不記錄、不放進複製的文字；「清除存檔重來」不會刪
 const FAST_RATE = 5; // 快轉：等待時間變 1/5，CSS 動畫／轉場 5 倍速
 const H2C_SRC = 'vendor/html2canvas.min.js';
+// 這個模組自己的網址：判斷實際在跑的是哪個 commit（頁面網址可能沒帶 v=，或分支網址還沒釘成 commit）
+const MODULE_URL = import.meta.url;
+// 版本＝「commit 時間（實際在跑的 commit 短碼）」：面板「目前位置」、「版本與重來」、回報框「自動帶入」、文字截圖、
+// 送出的回報都用 formatVersion(BUILD_TIME, runningVersion(...))，顯示的版本一定一致
+const running = () => runningVersion(MODULE_URL, location.href);
+const version = () => formatVersion(BUILD_TIME, running());
 
 const CSS = `
 .dbg-root { position: absolute; inset: 0; z-index: 60; pointer-events: none; font-size: 15px; line-height: 1.5; color: #2b2119;
@@ -47,6 +54,7 @@ const CSS = `
 .dbg-msg { min-height: 1.5em; margin: 8px 0 0; font-size: 13px; color: #7a5638; }
 .dbg-msg.dbg-err { color: #b3261e; }
 .dbg-hint { margin: 4px 0 0; font-size: 12px; color: #8a7660; }
+.dbg-ver-hash { font-size: 11px; color: #8a7660; }
 `;
 
 const el = (tag, cls, text) => {
@@ -56,6 +64,16 @@ const el = (tag, cls, text) => {
   return e;
 };
 const btn = (text, cls = '') => { const b = el('button', cls, text); b.type = 'button'; return b; };
+// 面板上的版本：日期時間照常大小，括號（commit 短碼／未釘／local）用小字；合起來的文字和 version() 一模一樣
+function versionNodes() {
+  const { time, hash } = versionParts(BUILD_TIME, running());
+  return time ? [time, el('small', 'dbg-ver-hash', `（${hash}）`)] : [hash];
+}
+// 填一段 .dbg-info：前面的字＋版本＋後面的字
+function infoWithVersion(p, before, after = '') {
+  p.replaceChildren(before, ...versionNodes(), after);
+  return p;
+}
 
 let h2cLoading = null;
 function loadHtml2canvas() {
@@ -173,7 +191,7 @@ function textShot(snap) {
   const PAD = 28;
   const SIZE = 22;
   const LH = 34;
-  const lines = textShotLines({ ...snap, label: actLabel(snap.state?.opening?.act), version: versionOf(location.search, BUILD), maxUnits: Math.floor(((W - PAD * 2) / SIZE) * 2) - 2 });
+  const lines = textShotLines({ ...snap, label: actLabel(snap.state?.opening?.act), version: version(), maxUnits: Math.floor(((W - PAD * 2) / SIZE) * 2) - 2 });
   const c = document.createElement('canvas');
   c.width = W;
   c.height = PAD * 2 + lines.length * LH;
@@ -253,16 +271,26 @@ function storage() {
 
 // 剪貼簿：navigator.clipboard 不能用（非 https、權限）就退回 textarea + execCommand
 // 最新 commit（GitHub 公開 API，不用登入；每小時 60 次上限）；查不到回 ''
-async function latestCommit() {
+// LATEST_API 查的是分支 feat/v3b-acts1-4 的最新 commit；每次最多等 8 秒，失敗隔 1.5 秒再試一次
+const LATEST_TIMEOUT_MS = 8000;
+const LATEST_RETRY_MS = 1500;
+async function latestOnce() {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), LATEST_TIMEOUT_MS);
   try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), 6000);
     const res = await fetch(LATEST_API, { cache: 'no-store', signal: ctl.signal, headers: { Accept: 'application/vnd.github+json' } });
-    clearTimeout(t);
     return res.ok ? shaOf(await res.json()) : '';
   } catch {
     return '';
+  } finally {
+    clearTimeout(t);
   }
+}
+async function latestCommit() {
+  const sha = await latestOnce();
+  if (sha) return sha;
+  await new Promise((ok) => setTimeout(ok, LATEST_RETRY_MS));
+  return latestOnce();
 }
 
 // 清 Cache Storage 與 service worker（這個遊戲目前沒用，有的話才清）
@@ -418,7 +446,7 @@ export async function start(hooks) {
 
     // 目前位置
     sheet.appendChild(el('h3', '', '目前位置'));
-    sheet.appendChild(el('p', 'dbg-info', `${s?.opening?.act}　${actLabel(s?.opening?.act)}　第 ${s?.opening?.line} 句\n版本 ${currentVersion(location.href, BUILD)}｜截圖程式第 ${SHOT_REV} 版${pinNote ? `\n${pinNote}` : ''}`));
+    sheet.appendChild(infoWithVersion(el('p', 'dbg-info'), `${s?.opening?.act}　${actLabel(s?.opening?.act)}　第 ${s?.opening?.line} 句\n版本 `, `｜截圖程式第 ${SHOT_REV} 版${pinNote ? `\n${pinNote}` : ''}`));
 
     // 跳關
     sheet.appendChild(el('h3', '', '跳到'));
@@ -522,12 +550,12 @@ export async function start(hooks) {
 
     // 版本與快取：重新載入最新版（換到最新 commit 的網址，所有檔案重抓）、清除存檔重來；都不動還沒送出的回報
     sheet.appendChild(el('h3', '', '版本與重來'));
-    const ver = el('p', 'dbg-info', `目前版本 ${currentVersion(location.href, BUILD)}\n最新版本 查詢中…`);
+    const ver = infoWithVersion(el('p', 'dbg-info'), '目前版本 ', '\n最新版本 查詢中…');
     sheet.appendChild(ver);
     let latestSha = '';
     latestCommit().then((sha) => {
       latestSha = sha;
-      if (sheet && ver.isConnected) ver.textContent = `目前版本 ${currentVersion(location.href, BUILD)}\n最新版本 ${sha ? sha.slice(0, 7) : '查不到（還是可以重新載入）'}`;
+      if (sheet && ver.isConnected) infoWithVersion(ver, '目前版本 ', `\n最新版本 ${sha ? sha.slice(0, 7) : '查不到（還是可以重新載入）'}`);
     });
     const reload = btn('重新載入最新版', 'dbg-primary');
     const wipe = btn('清除存檔重來');
@@ -576,13 +604,14 @@ export async function start(hooks) {
     x.onclick = close;
     sheet.appendChild(x);
 
-    const base = { ...snap, nameOf, search: location.search, build: BUILD, device: device() };
+    const base = { ...snap, nameOf, buildTime: BUILD_TIME, moduleUrl: MODULE_URL, pageUrl: location.href, device: device() };
     const preview = buildPayload({ ...base, screenshot: shot });
     sheet.appendChild(el('h3', '', '自動帶入'));
-    sheet.appendChild(el('p', 'dbg-info',
+    // 送出的 preview.version（純文字）＝ version()；畫面上括號部分用小字
+    sheet.appendChild(infoWithVersion(el('p', 'dbg-info'),
       `${preview.day}｜${preview.scene}（${actLabel(preview.scene)}）｜第 ${preview.line} 句\n`
-      + `${preview.speaker ? `${preview.speaker}：` : ''}${preview.text || '（這一幕沒有台詞）'}\n`
-      + `版本 ${preview.version}｜截圖程式第 ${SHOT_REV} 版${pinNote ? `｜${pinNote}` : ''}\n${preview.device}`));
+      + `${preview.speaker ? `${preview.speaker}：` : ''}${preview.text || '（這一幕沒有台詞）'}\n版本 `,
+      `｜截圖程式第 ${SHOT_REV} 版${pinNote ? `｜${pinNote}` : ''}\n${preview.device}`));
     if (shot && captureNote) sheet.appendChild(el('p', 'dbg-hint', captureNote));
     if (shot) {
       const im = el('img', 'dbg-shot');

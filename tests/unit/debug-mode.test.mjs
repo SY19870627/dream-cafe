@@ -4,11 +4,12 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { debugOn } from '../../src/debug/flag.js';
-import { buildPayload, reportText, dayLabel, deviceSummary, dayOf, plainText, versionOf, shotFits, shotScale, lineInfo, CATEGORIES, SHOT_MAX_BASE64 } from '../../src/debug/report.js';
+import { buildPayload, reportText, dayLabel, deviceSummary, dayOf, plainText, runningVersion, shotFits, shotScale, lineInfo, CATEGORIES, SHOT_MAX_BASE64 } from '../../src/debug/report.js';
 import { readQueue, writeQueue, submit, flush, post, exportText, QUEUE_KEY } from '../../src/debug/queue.js';
 import { jumpGroups, actLabel } from '../../src/debug/jump.js';
 import * as S from '../../src/story/state.js';
-import { BUILD } from '../../src/version.js';
+import { BUILD_TIME } from '../../src/version.js';
+import { taipeiStamp, formatVersion, versionParts, versionSource, BUILD_TIME_RE } from '../../src/debug/stamp.js';
 import { REPORT_ENDPOINT, REPORT_KEY } from '../../src/debug/config.js';
 import { CHOICE } from '../../src/story/state.js';
 
@@ -56,12 +57,12 @@ test('main.js 只靜態載入 debug/flag.js；面板用動態 import()，且只�
 });
 
 test('純邏輯除錯檔不碰 DOM／storage／fetch／navigator（只有 ui.js 碰）', () => {
-  for (const f of ['flag.js', 'report.js', 'queue.js', 'jump.js', 'config.js', 'reset.js']) {
+  for (const f of ['flag.js', 'report.js', 'queue.js', 'jump.js', 'config.js', 'reset.js', 'stamp.js']) {
     const src = code(`src/debug/${f}`);
     assert.doesNotMatch(src, /\b(document|window|localStorage|navigator|location)\b/, f);
     assert.doesNotMatch(src, /(?<![.\w])fetch\(/, `${f} 不直接呼叫全域 fetch`);
   }
-  assert.deepEqual(readdirSync(root('src/debug')).sort(), ['config.js', 'flag.js', 'jump.js', 'queue.js', 'report.js', 'reset.js', 'ui.js']);
+  assert.deepEqual(readdirSync(root('src/debug')).sort(), ['config.js', 'flag.js', 'jump.js', 'queue.js', 'report.js', 'reset.js', 'stamp.js', 'ui.js']);
   assert.match(code('src/debug/ui.js'), /vendor\/html2canvas\.min\.js/);
   assert.match(read('vendor/html2canvas.min.js').slice(0, 200), /html2canvas 1\.4\.1/);
   // ui.js 的樣式都是 .dbg- 開頭
@@ -69,10 +70,90 @@ test('純邏輯除錯檔不碰 DOM／storage／fetch／navigator（只有 ui.js 
   for (const m of css.matchAll(/(^|[\s,}])\.([a-zA-Z][\w-]*)/g)) assert.ok(m[2].startsWith('dbg-'), `.${m[2]} 要用 .dbg- 開頭`);
 });
 
-test('設定檔：回報網址是 Apps Script 網頁應用程式（或留空）、密語已填；版本有 BUILD', () => {
+test('設定檔：回報網址是 Apps Script 網頁應用程式（或留空）、密語已填；除錯檔只用 BUILD_TIME、沒有寫死的 commit 短碼', () => {
   assert.ok(REPORT_ENDPOINT === '' || /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(REPORT_ENDPOINT));
   assert.ok(typeof REPORT_KEY === 'string' && REPORT_KEY.length >= 8 && (REPORT_ENDPOINT === '' || REPORT_KEY !== 'REPLACE_ME'));
-  assert.equal(BUILD, 'c155aaa');
+  for (const f of readdirSync(root('src/debug'))) {
+    const src = code(`src/debug/${f}`);
+    assert.doesNotMatch(src, /\bBUILD\b/, `${f} 不再用寫死的版本代號`);
+    assert.doesNotMatch(src, /c155aaa/, f);
+    for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"][^'"]*version\.js['"]/g)) {
+      assert.deepEqual(m[1].split(',').map((x) => x.trim()).filter(Boolean), ['BUILD_TIME'], `${f} 從 version.js 只拿 BUILD_TIME`);
+    }
+  }
+  assert.match(code('src/debug/ui.js'), /import \{ BUILD_TIME \} from '\.\.\/version\.js';/);
+});
+
+test('src/version.js：只有 BUILD_TIME（台北時間 YYYY-MM-DD HH:mm:ss）、註解說明自動寫入；內容就是 stamp 腳本寫的樣子', () => {
+  assert.match(BUILD_TIME, BUILD_TIME_RE);
+  const [y, mo, d, h, mi, s] = BUILD_TIME.split(/[- :]/).map(Number);
+  assert.ok(y >= 2026 && mo >= 1 && mo <= 12 && d >= 1 && d <= 31 && h <= 23 && mi <= 59 && s <= 59, BUILD_TIME);
+  const src = read('src/version.js').replace(/\r\n/g, '\n');
+  assert.equal(src, versionSource(BUILD_TIME));
+  assert.match(src, /pre-commit/);
+  assert.match(src, /不要手改/);
+  assert.doesNotMatch(src, /\bBUILD\b|c155aaa/);
+});
+
+test('pre-commit：.githooks/pre-commit 跑 stamp 腳本再 git add src/version.js；package.json 有 version:stamp', () => {
+  const hook = read('.githooks/pre-commit').replace(/\r\n/g, '\n');
+  assert.match(hook, /^#!\/bin\/sh\n/);
+  assert.match(hook, /^node scripts\/stamp-version\.mjs && git add src\/version\.js$/m);
+  assert.match(hook, /git config core\.hooksPath \.githooks/); // 啟用方式寫在註解裡
+  const pkg = JSON.parse(read('package.json'));
+  assert.equal(pkg.scripts['version:stamp'], 'node scripts/stamp-version.mjs');
+  assert.equal(pkg.scripts['hooks:install'], 'git config core.hooksPath .githooks');
+  const script = code('scripts/stamp-version.mjs');
+  assert.match(script, /taipeiStamp\(new Date\(\)\)/);
+  assert.match(script, /versionSource\(stamp\)/);
+  assert.match(script, /src\/version\.js/);
+});
+
+test('taipeiStamp：台北時間（UTC+8），不看系統時區；跨日、跨月、跨年', () => {
+  assert.equal(taipeiStamp(new Date('2026-11-14T12:05:31Z')), '2026-11-14 20:05:31');
+  assert.equal(taipeiStamp(new Date('2026-11-14T15:59:59Z')), '2026-11-14 23:59:59');
+  assert.equal(taipeiStamp(new Date('2026-11-14T16:00:00Z')), '2026-11-15 00:00:00'); // 跨日
+  assert.equal(taipeiStamp(new Date('2026-11-30T16:00:01Z')), '2026-12-01 00:00:01'); // 跨月
+  assert.equal(taipeiStamp(new Date('2026-12-31T20:30:00Z')), '2027-01-01 04:30:00'); // 跨年
+  assert.equal(taipeiStamp(new Date('2026-07-01T00:00:00Z')), '2026-07-01 08:00:00'); // 夏天也是 +8（沒有日光節約）
+  assert.equal(taipeiStamp(Date.UTC(2026, 0, 2, 3, 4, 5)), '2026-01-02 11:04:05'); // 給毫秒數也行
+  assert.match(taipeiStamp(), BUILD_TIME_RE);
+  assert.throws(() => taipeiStamp(new Date('壞掉')), RangeError);
+  assert.throws(() => versionSource('2026/11/14'), RangeError);
+});
+
+test('formatVersion：「日期 時間（running）」；沒有 commit 時間就只回 running', () => {
+  assert.equal(formatVersion('2026-11-14 20:05:31', 'b00eb97'), '2026-11-14 20:05:31（b00eb97）');
+  assert.equal(formatVersion('2026-11-14 20:05:31', '未釘'), '2026-11-14 20:05:31（未釘）');
+  assert.equal(formatVersion('2026-11-14 20:05:31', 'local'), '2026-11-14 20:05:31（local）');
+  assert.equal(formatVersion('', 'b00eb97'), 'b00eb97');
+  assert.equal(formatVersion(undefined, '未釘'), '未釘');
+  assert.equal(formatVersion('亂寫', 'local'), 'local'); // 格式不對當作沒有
+  assert.equal(formatVersion('2026-11-14 20:05:31', ''), '2026-11-14 20:05:31（local）');
+  assert.deepEqual(versionParts('2026-11-14 20:05:31', 'b00eb97'), { time: '2026-11-14 20:05:31', hash: 'b00eb97' });
+  assert.deepEqual(versionParts('', 'local'), { time: '', hash: 'local' });
+});
+
+test('版本一致：面板「目前位置」、「版本與重來」、回報框、文字截圖、送出的回報都用 formatVersion(BUILD_TIME, runningVersion)', () => {
+  const ui = code('src/debug/ui.js');
+  assert.match(ui, /const MODULE_URL = import\.meta\.url;/);
+  assert.match(ui, /const running = \(\) => runningVersion\(MODULE_URL, location\.href\);/);
+  assert.match(ui, /const version = \(\) => formatVersion\(BUILD_TIME, running\(\)\);/);
+  assert.match(ui, /versionParts\(BUILD_TIME, running\(\)\)/); // 面板小字用同一組輸入拆開
+  assert.match(ui, /el\('small', 'dbg-ver-hash', `（\$\{hash\}）`\)/);
+  assert.match(read('src/debug/ui.js'), /\.dbg-ver-hash \{[^}]*font-size: 11px/);
+  assert.doesNotMatch(ui, /currentVersion|versionOf/);
+  assert.match(ui, /version: version\(\), maxUnits/); // 文字截圖
+  assert.match(ui, /第 \$\{s\?\.opening\?\.line\} 句\\n版本 `, `｜截圖程式/); // 目前位置
+  assert.equal((ui.match(/infoWithVersion\(ver, '目前版本 '|infoWithVersion\(el\('p', 'dbg-info'\), '目前版本 '/g) || []).length, 2); // 版本與重來（查詢前後）
+  assert.match(ui, /\\n版本 `,\s*`｜截圖程式第 \$\{SHOT_REV\} 版\$\{pinNote \? `｜/); // 自動帶入
+  assert.match(ui, /buildTime: BUILD_TIME, moduleUrl: MODULE_URL, pageUrl: location\.href/); // 回報框與送出的回報（buildPayload）
+  assert.match(code('src/debug/report.js'), /version: formatVersion\(ctx\.buildTime, runningVersion\(ctx\.moduleUrl, ctx\.pageUrl\)\)/);
+  // 自動釘 commit：查對的分支、no-store、8 秒逾時、失敗隔 1.5 秒重試一次
+  assert.match(ui, /fetch\(LATEST_API, \{ cache: 'no-store'/);
+  assert.match(ui, /LATEST_TIMEOUT_MS = 8000/);
+  assert.match(ui, /LATEST_RETRY_MS = 1500/);
+  assert.match(ui, /async function latestCommit\(\) \{\s*const sha = await latestOnce\(\);\s*if \(sha\) return sha;\s*await new Promise\(\(ok\) => setTimeout\(ok, LATEST_RETRY_MS\)\);\s*return latestOnce\(\);/);
 });
 
 /* ---------- 回報內容 ---------- */
@@ -80,10 +161,10 @@ test('payload：從進度、這一句、裝置組出所有欄位；說話的人�
   const state = S.jumpState(S.newStoryState(), 'd2town', 3);
   const beat = { who: 'yizhen', text: '<b>妳</b>還好嗎&amp;' };
   const nameOf = (w) => ({ yizhen: '宜蓁' }[w] || '');
-  const p = buildPayload({ state, beat, nameOf, now: new Date('2026-11-14T01:02:03Z'), search: '', build: 'abc1234', device: '手機 iOS', category: '台詞', comment: '  這裡少一個字  ', screenshot: 'data:image/jpeg;base64,AAAA' });
+  const p = buildPayload({ state, beat, nameOf, now: new Date('2026-11-14T01:02:03Z'), buildTime: '2026-11-14 20:05:31', moduleUrl: `https://raw.githack.com/SY19870627/dream-cafe/abc1234${'0'.repeat(33)}/src/debug/ui.js`, pageUrl: 'https://raw.githack.com/SY19870627/dream-cafe/abc1234/index.html?debug=1', device: '手機 iOS', category: '台詞', comment: '  這裡少一個字  ', screenshot: 'data:image/jpeg;base64,AAAA' });
   assert.deepEqual(Object.keys(p).sort(), ['category', 'comment', 'day', 'device', 'game', 'line', 'owner', 'scene', 'screenshot', 'speaker', 'text', 'time', 'version'].sort());
   assert.equal(p.time, '2026-11-14T01:02:03.000Z');
-  assert.equal(p.version, 'abc1234');
+  assert.equal(p.version, '2026-11-14 20:05:31（abc1234）');
   assert.equal(p.day, '第2天');
   assert.equal(p.scene, 'd2town');
   assert.equal(p.line, 3);
@@ -95,13 +176,26 @@ test('payload：從進度、這一句、裝置組出所有欄位；說話的人�
   assert.equal(p.device, '手機 iOS');
 });
 
-test('payload：版本以網址 ?v= 優先；旁白、沒有句子、沒有截圖、未知類別', () => {
-  assert.equal(versionOf('?v=r42&debug=1', 'c155aaa'), 'r42');
-  assert.equal(versionOf('?debug=1', 'c155aaa'), 'c155aaa');
-  assert.equal(versionOf('', 'c155aaa'), 'c155aaa');
+test('payload：版本是「commit 時間（runningVersion）」的純文字（不再退回寫死的版本）；旁白、沒有句子、沒有截圖、未知類別', () => {
   const state = S.newStoryState();
-  const p = buildPayload({ state, beat: { text: '雞叫了。' }, search: '?v=r42', build: 'c155aaa', category: '亂寫', screenshot: 'not-a-data-url' });
-  assert.equal(p.version, 'r42');
+  const T = '2026-11-14 20:05:31';
+  const cases = [
+    ['http://127.0.0.1:8080/src/debug/ui.js', 'http://127.0.0.1:8080/index.html?v=r42&debug=1', `${T}（local）`],
+    ['http://127.0.0.1:8080/src/debug/ui.js', 'http://127.0.0.1:8080/index.html?debug=1', `${T}（local）`],
+    ['https://raw.githack.com/SY19870627/dream-cafe/feat/v3b-acts1-4/src/debug/ui.js', 'https://raw.githack.com/SY19870627/dream-cafe/feat/v3b-acts1-4/index.html?debug=1&v=b00eb97', `${T}（未釘）`],
+    [`https://raw.githack.com/SY19870627/dream-cafe/${'b00eb97'.padEnd(40, 'f')}/src/debug/ui.js`, `https://raw.githack.com/SY19870627/dream-cafe/${'b00eb97'.padEnd(40, 'f')}/index.html?debug=1`, `${T}（b00eb97）`],
+  ];
+  for (const [moduleUrl, pageUrl, want] of cases) {
+    const v = buildPayload({ state, buildTime: T, moduleUrl, pageUrl }).version;
+    assert.equal(v, want);
+    assert.equal(v, formatVersion(T, runningVersion(moduleUrl, pageUrl)));
+    assert.doesNotMatch(v, /<|small/); // 送出的是純文字
+  }
+  assert.equal(buildPayload({ state, moduleUrl: cases[3][0], pageUrl: cases[3][1] }).version, 'b00eb97'); // 沒有 commit 時間就只有短碼
+  assert.equal(buildPayload({ state, buildTime: BUILD_TIME }).version, `${BUILD_TIME}（local）`);
+  assert.equal(buildPayload({ state }).version, 'local'); // 什麼都沒給也不會冒出寫死的版本
+  const p = buildPayload({ state, beat: { text: '雞叫了。' }, buildTime: T, moduleUrl: cases[0][0], pageUrl: cases[0][1], category: '亂寫', screenshot: 'not-a-data-url' });
+  assert.equal(p.version, `${T}（local）`);
   assert.equal(p.speaker, '旁白');
   assert.equal(p.day, '開場');
   assert.equal(p.scene, 'office');
@@ -289,8 +383,8 @@ test('回報：分類照設計（台詞、畫面、圖、操作、其他），�
 });
 
 test('複製文字：位置、原文、分類、意見、裝置都在，沒有截圖', () => {
-  const p = buildPayload({ state: { opening: { act: 'd2town', line: 3 } }, beat: { who: 'deshu', text: '<b>早</b>啊' }, nameOf: () => '德叔', search: '?v=abc', category: '台詞', comment: '太長', device: '手機', screenshot: 'data:image/jpeg;base64,AAAA' });
+  const p = buildPayload({ state: { opening: { act: 'd2town', line: 3 } }, beat: { who: 'deshu', text: '<b>早</b>啊' }, nameOf: () => '德叔', buildTime: '2026-11-14 20:05:31', moduleUrl: 'http://127.0.0.1/src/debug/ui.js', pageUrl: 'http://127.0.0.1/index.html?v=abc', category: '台詞', comment: '太長', device: '手機', screenshot: 'data:image/jpeg;base64,AAAA' });
   const t = reportText(p);
-  for (const s of ['第2天', 'd2town 第 3 句', '版本 abc', '德叔：早啊', '分類：台詞', '意見：太長', '裝置：手機']) assert.ok(t.includes(s), s);
+  for (const s of ['第2天', 'd2town 第 3 句', '版本 2026-11-14 20:05:31（local）', '德叔：早啊', '分類：台詞', '意見：太長', '裝置：手機']) assert.ok(t.includes(s), s);
   assert.ok(!t.includes('base64'));
 });

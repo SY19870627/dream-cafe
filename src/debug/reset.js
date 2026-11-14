@@ -60,11 +60,27 @@ export function shouldPin(url, sha) {
   return isFullSha(sha) && onBranch(url);
 }
 
-// 面板上顯示的「目前版本」：網址釘了 commit 就用 commit 短碼，否則 ?v=，再沒有就用 BUILD
-export function currentVersion(url, build = '') {
-  const gh = (() => { try { return githackRef(url); } catch { return null; } })();
-  if (gh && /^[0-9a-f]{7,40}$/i.test(gh.ref)) return gh.ref.slice(0, 7);
-  let v = '';
-  try { v = new URL(url).searchParams.get('v') || ''; } catch { v = ''; }
-  return v || String(build || '');
+// 模組網址（import.meta.url，例如 …/dream-cafe/<ref>/src/debug/ui.js）或頁面網址裡的 ref；不是 raw.githack 的回 null
+export function moduleRef(url) {
+  let u;
+  try { u = new URL(url); } catch { return null; }
+  if (!GITHACK_HOSTS.includes(u.hostname) || !u.pathname.startsWith(REPO_PREFIX)) return null;
+  const rest = u.pathname.slice(REPO_PREFIX.length);
+  // 模組：ref 後面接 /src/…（貪婪比對取最後一個 /src/，分支名有斜線也不會切錯）；頁面：ref 後面接 /xxx.html 或 /
+  const m = /^(.+)\/src\/.*$/.exec(rest) || /^(.+?)\/(?:[^/]*\.html)?$/.exec(rest);
+  if (!m || !m[1]) return null;
+  try { return decodeURIComponent(m[1]); } catch { return m[1]; }
+}
+
+// 「實際在跑的程式」是哪一版：面板「目前位置」、「版本與重來」的目前版本、回報框「自動帶入」、送出的回報都用這一個函式。
+// 結果放在版本字串的括號裡（stamp.js 的 formatVersion）：「2026-11-14 20:05:31（b00eb97）」。
+// moduleUrl：除錯模組自己的網址（import.meta.url），代表 js 真正從哪裡載入；沒有才看 pageUrl（location.href）。
+// - raw.githack／rawcdn.githack 釘 commit 的路徑（7～40 碼 16 進位）→ commit 前 7 碼
+// - 分支路徑 → '未釘'：分支上的檔案可能是快取的舊版，不假裝是某個 commit
+// - 本機或其他網站 → 'local'
+export function runningVersion(moduleUrl, pageUrl) {
+  const ref = moduleRef(moduleUrl || pageUrl);
+  if (ref == null) return 'local';
+  if (/^[0-9a-f]{7,40}$/i.test(ref)) return ref.slice(0, 7).toLowerCase();
+  return '未釘';
 }
