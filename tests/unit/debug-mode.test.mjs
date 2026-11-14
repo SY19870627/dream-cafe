@@ -69,9 +69,9 @@ test('純邏輯除錯檔不碰 DOM／storage／fetch／navigator（只有 ui.js 
   for (const m of css.matchAll(/(^|[\s,}])\.([a-zA-Z][\w-]*)/g)) assert.ok(m[2].startsWith('dbg-'), `.${m[2]} 要用 .dbg- 開頭`);
 });
 
-test('設定檔：預設沒有回報網址、密語是 REPLACE_ME；版本有 BUILD', () => {
-  assert.equal(REPORT_ENDPOINT, '');
-  assert.equal(REPORT_KEY, 'REPLACE_ME');
+test('設定檔：回報網址是 Apps Script 網頁應用程式（或留空）、密語已填；版本有 BUILD', () => {
+  assert.ok(REPORT_ENDPOINT === '' || /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(REPORT_ENDPOINT));
+  assert.ok(typeof REPORT_KEY === 'string' && REPORT_KEY.length >= 8 && (REPORT_ENDPOINT === '' || REPORT_KEY !== 'REPLACE_ME'));
   assert.equal(BUILD, 'c155aaa');
 });
 
