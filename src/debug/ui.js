@@ -5,7 +5,7 @@
 import { nameOf } from '../view/reader.js';
 import { BUILD } from '../version.js';
 import { REPORT_ENDPOINT, REPORT_KEY } from './config.js';
-import { COMMENT_MAX, CATEGORIES, buildPayload, reportText, deviceSummary, shotFits, shotScale, SHOT_MAX_WIDTH, SHOT_QUALITY } from './report.js';
+import { directAssetUrl, directCssUrls, COMMENT_MAX, CATEGORIES, buildPayload, reportText, deviceSummary, shotFits, shotScale, SHOT_MAX_WIDTH, SHOT_QUALITY } from './report.js';
 import { readQueue, submit, flush, exportText, RETRY_MS } from './queue.js';
 import { jumpGroups, actLabel } from './jump.js';
 import { saveKeysToClear, shaOf, reloadUrl, currentVersion, LATEST_API } from './reset.js';
@@ -106,6 +106,18 @@ function fixClone(doc) {
   st.textContent = '*, *::before, *::after { animation: none !important; transition: none !important; }';
   doc.head.appendChild(st);
   const win = doc.defaultView;
+  const here = location.href;
+  // 0. 轉到別的網域的圖：網址直接換成真正的來源，讓 html2canvas 用 CORS 載入（見 report.js 的 directAssetUrl）
+  for (const im of [...doc.querySelectorAll('#app img')]) {
+    const src = im.currentSrc || im.src;
+    const to = directAssetUrl(src, here);
+    if (to !== src) { im.removeAttribute('srcset'); im.src = to; }
+  }
+  for (const node of [doc.querySelector('#app'), ...doc.querySelectorAll('#app *')]) {
+    if (!node) continue;
+    const bg = win.getComputedStyle(node).backgroundImage;
+    if (bg && bg.includes('url(')) { const to = directCssUrls(bg, here); if (to !== bg) node.style.backgroundImage = to; }
+  }
   // 3. overflow:hidden 又用 transform 位移的框（例如 .op-art 的 translateX(-50%)）：html2canvas 用沒位移的位置裁切，
   //    畫面只剩一半 → 純位移改成 left／top
   for (const node of [...doc.querySelectorAll('#app *')]) {
@@ -124,7 +136,7 @@ function fixClone(doc) {
     const d = doc.createElement('div');
     d.className = im.className;
     d.setAttribute('style', im.getAttribute('style') || '');
-    d.style.backgroundImage = `url("${im.currentSrc || im.src}")`;
+    d.style.backgroundImage = `url("${directAssetUrl(im.src || im.currentSrc, here)}")`;
     d.style.backgroundSize = fit;
     d.style.backgroundPosition = cs.objectPosition;
     d.style.backgroundRepeat = 'no-repeat';
@@ -136,18 +148,41 @@ function fixClone(doc) {
 }
 
 // 截 #app（除錯介面不入鏡）
+// 畫布本身已經被汙染（讀不出來）的就不入鏡
+const tainted = (node) => {
+  if (node.tagName !== 'CANVAS') return false;
+  try { node.getContext('2d') && node.toDataURL('image/png').length; return false; } catch { return true; }
+};
+let captureNote = ''; // 這次截圖少了什麼（給回報框顯示）
+// 先截完整的；還是被汙染就退一步：拿掉讀不出的畫布；再不行：只留文字與色塊（不放圖）。都不行才丟錯
 async function capture(app, root) {
   const h2c = await loadHtml2canvas();
   const w = app.getBoundingClientRect().width || app.clientWidth;
-  const canvas = await h2c(app, {
-    scale: shotScale(w, window.devicePixelRatio || 1),
-    backgroundColor: '#1a1612',
-    logging: false,
-    useCORS: true,
-    ignoreElements: (node) => node === root,
-    onclone: fixClone,
-  });
-  return toJpeg(canvas);
+  const base = { scale: shotScale(w, window.devicePixelRatio || 1), backgroundColor: '#1a1612', logging: false, useCORS: true, imageTimeout: 8000 };
+  const tries = [
+    { note: '', ignore: (node) => node === root },
+    { note: '截圖少了店內 360 畫面（瀏覽器不讓讀取）', ignore: (node) => node === root || tainted(node) },
+    { note: '截圖只有文字、沒有圖（瀏覽器不讓讀取圖片）', ignore: (node) => node === root || node.tagName === 'CANVAS' || node.tagName === 'IMG', noBg: true },
+  ];
+  let err = null;
+  for (const t of tries) {
+    try {
+      const canvas = await h2c(app, {
+        ...base,
+        ignoreElements: t.ignore,
+        onclone: (doc) => {
+          fixClone(doc);
+          if (t.noBg) for (const n of doc.querySelectorAll('#app, #app *')) n.style.backgroundImage = 'none';
+        },
+      });
+      const url = toJpeg(canvas);
+      captureNote = t.note;
+      return url;
+    } catch (e) {
+      err = e;
+    }
+  }
+  throw err;
 }
 
 function device() {
@@ -463,6 +498,7 @@ export function start(hooks) {
     const snap = { state: JSON.parse(JSON.stringify(s)), beat: hooks.beat() }; // 截圖這一刻的位置（寫字的時候遊戲不會動，但保險）
     let shot = '';
     let shotErr = '';
+    captureNote = '';
     try { shot = await capture(app, root); } catch (e) { shotErr = String(e?.message || e); }
 
     sheet = el('div', 'dbg-sheet');
@@ -479,6 +515,7 @@ export function start(hooks) {
       `${preview.day}｜${preview.scene}（${actLabel(preview.scene)}）｜第 ${preview.line} 句\n`
       + `${preview.speaker ? `${preview.speaker}：` : ''}${preview.text || '（這一幕沒有台詞）'}\n`
       + `版本 ${preview.version}\n${preview.device}`));
+    if (shot && captureNote) sheet.appendChild(el('p', 'dbg-hint', captureNote));
     if (shot) {
       const im = el('img', 'dbg-shot');
       im.src = shot;

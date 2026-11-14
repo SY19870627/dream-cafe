@@ -1,10 +1,15 @@
 // 畫師美術（assets/art/*.webp）：只讀取、照原檔顯示，不修改、不重新壓縮。
+import { debugOn } from '../debug/flag.js';
 const cache = new Map();
+// 只有 ?debug=1：圖用 CORS 載入（raw.githack 會把圖轉到 raw.githubusercontent.com，不加的話店內 360 的畫布會被汙染、回報截不了圖）。
+// 一般玩家不加，載入方式和以前一樣。
+const CORS = (() => { try { return debugOn(globalThis.location?.search); } catch { return false; } })();
 
 export function img(name) {
   if (cache.has(name)) return cache.get(name);
   const im = new Image();
   im.decoding = 'async';
+  if (CORS) im.crossOrigin = 'anonymous';
   im.src = `assets/art/${name}.webp`;
   cache.set(name, im);
   return im;

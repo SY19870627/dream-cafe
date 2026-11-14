@@ -98,6 +98,27 @@ export function buildPayload(ctx = {}) {
   };
 }
 
+// raw.githack 會把圖片（.webp 等）301 轉到 raw.githubusercontent.com：網址看起來同網域，其實圖是別的網域來的，
+// html2canvas 以為同網域就不加 crossOrigin，畫進去整張畫布就被「汙染」、不能輸出。截圖時把這類網址直接換成 githubusercontent
+// （那邊有 Access-Control-Allow-Origin: *），html2canvas 就會用 CORS 載入。頁面本身、js、css、json 不換。
+export const GITHACK_HOST = 'raw.githack.com';
+export const DIRECT_HOST = 'https://raw.githubusercontent.com';
+export function directAssetUrl(url, pageHref) {
+  try {
+    const page = new URL(pageHref);
+    const u = new URL(url, pageHref);
+    if (page.hostname !== GITHACK_HOST || u.hostname !== GITHACK_HOST) return url;
+    if (/\.(html?|m?js|css|json)$/i.test(u.pathname) || u.pathname.endsWith('/')) return url;
+    return DIRECT_HOST + u.pathname;
+  } catch {
+    return url;
+  }
+}
+// CSS background-image 字串裡的 url(...) 都換掉
+export function directCssUrls(css, pageHref) {
+  return String(css || '').replace(/url\((["']?)([^"')]+)\1\)/g, (all, q, u) => `url("${directAssetUrl(u, pageHref)}")`);
+}
+
 // 截圖 data URL 的 base64 部分有沒有在上限內
 export function shotFits(dataUrl, max = SHOT_MAX_BASE64) {
   const s = String(dataUrl || '');
