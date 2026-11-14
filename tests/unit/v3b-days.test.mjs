@@ -9,7 +9,7 @@ import * as OP from '../../src/lines/opening.js';
 import * as D from '../../src/lines/days.js';
 import * as S from '../../src/story/state.js';
 import { load, persist, SAVE_KEY, OTHER_KEYS } from '../../src/story/save.js';
-import { PLACES, DAY_ART, placesOf, FILM_START, FILM_END, TAPE_TIMES, REWIND_TURNS } from '../../src/view/days.js';
+import { PLACES, DAY_ART, YIJUN_CARD, yijunCardFor, placesOf, FILM_START, FILM_END, TAPE_TIMES, REWIND_TURNS } from '../../src/view/days.js';
 import { step, walk } from './walk.mjs';
 
 const root = (p) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
@@ -75,11 +75,14 @@ test('作者親寫句一字不改（「甚麼」不是「什麼」，沒有【�
   has('deshu', '右邊護龍第一間整理好了，被子下午曬過。');
   has('me', '兩聲。我聽到了喔。');
   has('deshu', '看妳的氣色變好，最近是不是遇到甚麼好事了。');
+  has(undefined, '鼻梁和臉頰上的雀斑還是一樣多，從國中就跟著我了。');
+  has(undefined, '鼻梁跟臉頰上的雀斑，早上洗臉的時候全部不見了，連跟了我好幾年的黑眼圈也沒了。');
+  has(undefined, '雀斑怎麼可能睡一覺就不見？');
   assert.ok(!all.some(([, t]) => t === '看妳的氣色變好，最近是不是遇到什麼好事了。'), '不能改成「什麼」');
 });
 
-test('有 _agent 稿件時：第一～四天與各晚自白的對白／旁白照順序與劇本 v4.4 逐字相同（沒有就略過）', (t) => {
-  const p = root('_agent/v3b/script-v4.4.md');
+test('有 _agent 稿件時：第一～四天與各晚自白的對白／旁白照順序與劇本 v4.5 逐字相同（沒有就略過）', (t) => {
+  const p = root('_agent/v3b/script-v4.5.md');
   if (!existsSync(p)) { t.skip('沒有 _agent 稿件'); return; }
   const md = readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
   const body = md.slice(md.indexOf('# 【待定】第一天'));
@@ -531,7 +534,17 @@ test('美術：第一～四天用到的原圖都在 assets/art、有預載；不
   for (const k of ['bank', 'lobby', 'meeting', 'orchard']) assert.ok(PLACES[k].lady, k);
   // 執行畫面預載
   assert.match(read('src/main.js'), /preload\(\[\.\.\.new Set\(\[\.\.\.allArt\(\), \.\.\.DAY_ART\]\)\]\)/);
-  // 不畫人形（立繪只用畫師原圖：德叔、阿桂）；宜蓁沒有對應立繪（char_v3_junior_half 不是她），不拿來用
+  assert.equal(YIJUN_CARD.base, 'char_v3b_yijun_card_v2');
+  assert.equal(YIJUN_CARD.flawed, 'char_v3b_yijun_card_flawed_v2'); // v3 尚未到
+  assert.equal(YIJUN_CARD.better, 'char_v3b_yijun_card_better_v2');
+  assert.equal(YIJUN_CARD.bites, 'char_v3b_yijun_card_bites');
+  assert.equal(yijunCardFor('d1wake'), YIJUN_CARD.flawed);
+  assert.equal(yijunCardFor('d2wake'), YIJUN_CARD.better);
+  assert.equal(yijunCardFor('d3wake'), YIJUN_CARD.better);
+  assert.equal(yijunCardFor('d4wake'), YIJUN_CARD.bites);
+  assert.match(read('src/view/days.js'), /class="dy-face"/);
+  assert.match(read('index.html'), /\.dy-face \{/);
+  // 不以程式畫人形；鏡子裡的怡君用角色卡原圖。立繪只用畫師原圖（德叔、阿桂、怡君角色卡）；宜蓁沒有對應立繪（char_v3_junior_half 不是她），不拿來用
   assert.doesNotMatch(code('src/view/days.js') + code('src/main.js'), /drawShape|granny|junior/);
   // 不加外部音檔；新音效都有定義
   const audio = read('src/view/audio.js');

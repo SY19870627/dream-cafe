@@ -293,11 +293,12 @@
   .op-day.can .dy-can { opacity: 1; }
   .dy-dark { position: absolute; inset: 0; background: rgba(5,6,10,.6); opacity: 0; transition: opacity 1.2s; pointer-events: none; }
   .op-day.dark .dy-dark { opacity: 1; }
-  /* 洗手台與舊鏡子（CSS：塑膠框、邊緣水銀掉了一圈）；鏡子裡不畫人（角色卡缺圖） */
+  /* 洗手台與舊鏡子（CSS：塑膠框、邊緣水銀掉了一圈）；鏡子裡放怡君角色卡原圖 */
   .dy-basin { position: absolute; left: 12%; top: 12%; width: 76%; height: 52%; z-index: 1; border-radius: 4px;
     background: linear-gradient(#cfc7b6, #b9b09d); box-shadow: inset 0 0 40px rgba(60,45,30,.35); }
   .dy-mirror { position: absolute; left: 20%; top: 8%; width: 60%; height: 52%; border: 10px solid #e2dccd; border-radius: 6px;
     background: radial-gradient(closest-side, #aab6bb 62%, #7d8584 82%, #5c5f5a); box-shadow: 0 3px 8px rgba(0,0,0,.25); overflow: hidden; }
+  .dy-face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; pointer-events: none; }
   .dy-fog { position: absolute; inset: 0; background: rgba(240,244,244,.0); }
   .dy-place.washing .dy-fog { animation: fog 2.6s ease-in-out both; }
   @keyframes fog { 30% { background: rgba(240,244,244,.75); } to { background: rgba(240,244,244,0); } }

@@ -1,8 +1,8 @@
-// 第一天到第四天的 DOM 畫面（劇本 v4.4）：
+// 第一天到第四天的 DOM 畫面（劇本 v4.5）：
 //   showDay()：整張背景圖的畫面（護龍早上、洗手台、租屋處、信箱、銀行、辦公大樓、郵局、省道、阿桂的攤子、果園、店門口、庭埕、房間、躺下）。
 //     字由閱讀框（view/reader.js）一句一句出；這裡只負責「第 i 句時長什麼樣子」與可點的位置（水龍頭、電燈開關、信箱、抽屜、衣服、報告）。
 //   createProps()：疊在閱讀框上面的一層（#op-prop）：特寫卡（存摺、識別證、相機……）、要拖的東西、關卡、兩個按鈕。店內 360 與整張背景圖都用這一層。
-// 美術：畫師原圖只讀不改（不重新壓縮、不縮圖）。沒有對應原圖的場景先用最接近的圖（見 docs/v3b-缺圖清單.md），缺的道具用簡單的 CSS 形狀；不畫人形。
+// 美術：畫師原圖只讀不改（不重新壓縮、不縮圖）。沒有對應原圖的場景先用最接近的圖（見 docs/v3b-缺圖清單.md），缺的道具用簡單的 CSS 形狀；不以程式畫人形。鏡子裡放怡君角色卡原圖。
 import { DAY_TITLES, PASSBOOK_CHOICES } from '../lines/days.js';
 import { OLD_LADY } from '../story/manifest.js';
 import { play } from './audio.js';
@@ -34,7 +34,19 @@ export const PLACES = {
   orchard: { src: 'scene_county_road', tone: 'dusk', ambient: 'wind', lady: 'road' }, // * 果園、水塔
   shopDusk: { src: 'scene_v3b_sanheyuan_dusk_v2', ambient: 'wind', lit: true }, // 咖啡店外（傍晚，門裡的燈亮著）
 };
-export const DAY_ART = [...new Set([...Object.values(PLACES).map((p) => p.src), 'prop_v3_id_badge', 'key', OLD_LADY.src])];
+// 怡君角色卡：flawed_v3 還沒到（畫師重畫黑眼圈），缺點版先用 flawed_v2
+export const YIJUN_CARD = {
+  base: 'char_v3b_yijun_card_v2',
+  flawed: 'char_v3b_yijun_card_flawed_v2',
+  better: 'char_v3b_yijun_card_better_v2',
+  bites: 'char_v3b_yijun_card_bites',
+};
+export function yijunCardFor(act) {
+  if (act === 'd1wake') return YIJUN_CARD.flawed;
+  if (act === 'd4wake') return YIJUN_CARD.bites;
+  return YIJUN_CARD.better; // 第二天、第三天：雀斑與黑眼圈都沒了，氣色較好
+}
+export const DAY_ART = [...new Set([...Object.values(PLACES).map((p) => p.src), ...Object.values(YIJUN_CARD), 'prop_v3_id_badge', 'key', OLD_LADY.src])];
 
 // 這一幕會用到哪些場景（照出現順序）
 export function placesOf(lines) {
@@ -59,7 +71,7 @@ function makeStage(root) {
   return { alive, stage };
 }
 
-function placeHtml(key) {
+function placeHtml(key, act) {
   const p = PLACES[key];
   const lady = p.lady ? OLD_LADY.places[p.lady] : null;
   return `<div class="dy-place${p.tone ? ` ${p.tone}` : ''}${p.fit ? ` ${p.fit}` : ''}${p.lit ? ' lit' : ''}" data-place="${key}"><div class="op-art">
@@ -67,7 +79,7 @@ function placeHtml(key) {
     ${lady ? `<img class="dy-lady" src="${art(OLD_LADY.src)}" alt="" aria-hidden="true" style="left:${lady.x * 100}%;top:${(lady.y - lady.h) * 100}%;height:${lady.h * 100}%">` : ''}
     ${key === 'roomNight' ? `<img class="op-rm-key dy-key" src="${art('key')}" alt=""><span class="dy-can on-pillow" aria-hidden="true"></span>` : ''}
     ${key === 'bed' ? '<span class="dy-dark" aria-hidden="true"></span>' : ''}
-    ${p.basin ? `<div class="dy-basin" aria-hidden="true"><div class="dy-mirror"><span class="dy-fog"></span></div><div class="dy-sink"></div></div>
+    ${p.basin ? `<div class="dy-basin" aria-hidden="true"><div class="dy-mirror"><img class="dy-face" src="${art(yijunCardFor(act))}" alt="" aria-hidden="true"><span class="dy-fog"></span></div><div class="dy-sink"></div></div>
       <div class="dy-faucet" id="dy-faucet"></div><div class="dy-switch" id="dy-switch"></div><span class="dy-water" aria-hidden="true"></span>` : ''}
     ${key === 'mailbox' ? '<div class="dy-mailslot" id="dy-mailslot"><span class="dy-slip" aria-hidden="true"></span></div>' : ''}
     ${p.home ? '<div class="dy-drawer" id="dy-drawer"><span class="dy-clothes" aria-hidden="true"><i></i><i></i><i></i></span></div>' : ''}
@@ -83,7 +95,7 @@ export function showDay(root, act, api) {
   const { alive, stage } = makeStage(root);
   const keys = placesOf(api.lines);
   const title = DAY_TITLES[act];
-  const el = stage('day', `${keys.map(placeHtml).join('')}
+  const el = stage('day', `${keys.map((k) => placeHtml(k, act)).join('')}
     ${title ? `<div class="op-card" ${api.state.opening.line === 0 ? '' : 'hidden'}><p>${esc(title)}</p></div>` : ''}`);
   el.dataset.act = act;
   for (const im of el.querySelectorAll('img')) im.onerror = () => im.remove(); // 缺圖：留底色，不擋閱讀

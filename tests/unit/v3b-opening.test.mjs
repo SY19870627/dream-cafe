@@ -1,5 +1,5 @@
 // v3b 開場（劇本 v3.8 第一幕～第四幕）：字與劇本逐字相同（拿掉稿件標記）、各幕各句只往前、存檔恢復、壞檔、
-// 互動關卡（推門／點椅子／發動／按住騎／左右岔路／掉頭回去／再推門）、可選互動略過也能走完、第一晚自白（v4.4 A 版）睡著後進第一天。
+// 互動關卡（推門／點椅子／發動／按住騎／左右岔路／掉頭回去／再推門）、可選互動略過也能走完、第一晚自白（v4.5 A 版）睡著後進第一天。
 // 第一～四天、睡著自動存檔、跳過自白、舊存檔相容在 v3b-days.test.mjs。
 // 只測純邏輯與靜態檔案，不開瀏覽器。劇本字在 src/lines/opening.js（tracked）；有 _agent 稿件時另外逐句對稿，沒有就略過。
 import test from 'node:test';
@@ -97,8 +97,8 @@ test('第二幕：信箱旁白、只能點一次的「拿出信封」、新信�
   assert.match(view, /el\.querySelector\('#op-next'\)\.onclick = \(\) => api\.go\('road'\);/);
 });
 
-test('有 _agent 稿件時：開場每一句（旁白、對白、第一晚 A 版自白）照順序與劇本 v4.4 逐字相同（沒有就略過）', (t) => {
-  const p = root('_agent/v3b/script-v4.4.md');
+test('有 _agent 稿件時：開場每一句（旁白、對白、第一晚 A 版自白）照順序與劇本 v4.5 逐字相同（沒有就略過）', (t) => {
+  const p = root('_agent/v3b/script-v4.5.md');
   if (!existsSync(p)) { t.skip('沒有 _agent 稿件'); return; }
   const md = readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
   const body = md.slice(md.indexOf('# 開場'), md.indexOf('# 【待定】第一天'));
