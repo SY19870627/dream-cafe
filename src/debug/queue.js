@@ -4,6 +4,9 @@
 export const QUEUE_KEY = 'dream-cafe.debug.queue';
 export const RETRY_MS = 30000;
 
+// 本人識別碼不存進佇列、不匯出：送出那一刻才從這台裝置的設定補上
+export const withoutOwner = (x) => { const { owner, ...rest } = x || {}; return rest; };
+
 export function readQueue(storage) {
   if (!storage) return [];
   try {
@@ -33,18 +36,19 @@ export function writeQueue(storage, list) {
 }
 
 export function enqueue(storage, payload) {
-  return writeQueue(storage, [...readQueue(storage), payload]);
+  return writeQueue(storage, [...readQueue(storage), withoutOwner(payload)]);
 }
 
 // 只送一筆：沒有網址或離線就不送（回傳 false）；fetch 丟錯回傳 false；其他回傳 true
-export async function post(payload, { endpoint, key, fetch: f, online = true } = {}) {
+export async function post(payload, deps = {}) {
+  const { endpoint, key, fetch: f, online = true } = deps;
   if (!endpoint || online === false || typeof f !== 'function') return false;
   try {
     await f(endpoint, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ key, ...payload }),
+      body: JSON.stringify({ key, ...payload, owner: payload.owner || deps.owner || '' }),
     });
     return true;
   } catch {
@@ -78,5 +82,5 @@ export async function flush(deps = {}) {
 
 // 匯出佇列（複製到剪貼簿用）：JSON 文字
 export function exportText(list) {
-  return JSON.stringify(list, null, 2);
+  return JSON.stringify(list.map(withoutOwner), null, 2);
 }

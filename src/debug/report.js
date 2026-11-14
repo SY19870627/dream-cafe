@@ -1,5 +1,7 @@
 // 回報問題的內容（純邏輯）：不碰 DOM、localStorage、fetch、navigator。要的東西都從參數傳進來，才能在 Node 測試。
 export const CATEGORIES = ['台詞', '畫面', '圖', '操作', '其他']; // 可以不選（空字串）
+export const GAME = 'dream-cafe'; // 收件端用這個分遊戲（白名單 dream-cafe、taiwan-procession）
+export const COMMENT_MAX = 1000; // 意見最多幾個字（收件端也是 1000）
 export const SHOT_MAX_WIDTH = 720; // 截圖寬度上限（px）
 export const SHOT_QUALITY = 0.7; // JPEG 品質
 export const SHOT_MAX_BASE64 = 200 * 1024; // base64 超過這個長度就再壓／縮；縮到最小還超過就不附截圖
@@ -88,9 +90,11 @@ export function buildPayload(ctx = {}) {
     speaker,
     text,
     category: CATEGORIES.includes(ctx.category) ? ctx.category : '',
-    comment: String(ctx.comment ?? '').trim().slice(0, 4000),
+    comment: String(ctx.comment ?? '').trim().slice(0, COMMENT_MAX),
     screenshot: shot,
     device: String(ctx.device || ''),
+    game: GAME,
+    owner: String(ctx.owner || ''), // 本人識別碼：只在送出時帶上；複製文字、佇列、匯出都不含
   };
 }
 

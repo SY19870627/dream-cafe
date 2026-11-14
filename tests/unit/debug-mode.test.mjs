@@ -81,7 +81,7 @@ test('payload：從進度、這一句、裝置組出所有欄位；說話的人�
   const beat = { who: 'yizhen', text: '<b>妳</b>還好嗎&amp;' };
   const nameOf = (w) => ({ yizhen: '宜蓁' }[w] || '');
   const p = buildPayload({ state, beat, nameOf, now: new Date('2026-11-14T01:02:03Z'), search: '', build: 'abc1234', device: '手機 iOS', category: '台詞', comment: '  這裡少一個字  ', screenshot: 'data:image/jpeg;base64,AAAA' });
-  assert.deepEqual(Object.keys(p).sort(), ['category', 'comment', 'day', 'device', 'line', 'scene', 'screenshot', 'speaker', 'text', 'time', 'version'].sort());
+  assert.deepEqual(Object.keys(p).sort(), ['category', 'comment', 'day', 'device', 'game', 'line', 'owner', 'scene', 'screenshot', 'speaker', 'text', 'time', 'version'].sort());
   assert.equal(p.time, '2026-11-14T01:02:03.000Z');
   assert.equal(p.version, 'abc1234');
   assert.equal(p.day, '第2天');

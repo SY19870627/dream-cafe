@@ -5,12 +5,13 @@
 import { nameOf } from '../view/reader.js';
 import { BUILD } from '../version.js';
 import { REPORT_ENDPOINT, REPORT_KEY } from './config.js';
-import { CATEGORIES, buildPayload, reportText, deviceSummary, shotFits, shotScale, SHOT_MAX_WIDTH, SHOT_QUALITY } from './report.js';
+import { COMMENT_MAX, CATEGORIES, buildPayload, reportText, deviceSummary, shotFits, shotScale, SHOT_MAX_WIDTH, SHOT_QUALITY } from './report.js';
 import { readQueue, submit, flush, exportText, RETRY_MS } from './queue.js';
 import { jumpGroups, actLabel } from './jump.js';
 import { saveKeysToClear, shaOf, reloadUrl, currentVersion, LATEST_API } from './reset.js';
 
 const FAST_KEY = 'dream-cafe.debug.fast';
+const OWNER_KEY = 'dream-cafe.debug.owner'; // 本人識別碼：只存在這台裝置；不顯示、不記錄、不放進複製的文字；「清除存檔重來」不會刪
 const FAST_RATE = 5; // 快轉：等待時間變 1/5，CSS 動畫／轉場 5 倍速
 const H2C_SRC = 'vendor/html2canvas.min.js';
 
@@ -208,7 +209,8 @@ async function copyText(text) {
 export function start(hooks) {
   const { app } = hooks;
   const store = storage();
-  const deps = () => ({ endpoint: REPORT_ENDPOINT, key: REPORT_KEY, fetch: window.fetch.bind(window), storage: store, online: navigator.onLine !== false });
+  const readOwner = () => { try { return store?.getItem(OWNER_KEY) || ''; } catch { return ''; } };
+  const deps = () => ({ owner: readOwner(), endpoint: REPORT_ENDPOINT, key: REPORT_KEY, fetch: window.fetch.bind(window), storage: store, online: navigator.onLine !== false });
 
   const style = el('style');
   style.dataset.dbg = '';
@@ -390,6 +392,31 @@ export function start(hooks) {
       msg.textContent = ok ? '已複製到剪貼簿' : '複製失敗（瀏覽器不允許）';
     };
 
+    // 本人識別碼：讓收件端分得出是不是本人送的；只顯示有沒有設定，不顯示內容
+    sheet.appendChild(el('h3', '', '本人識別碼'));
+    const ownStat = el('p', 'dbg-info');
+    const renderOwner = () => { ownStat.textContent = readOwner() ? '已設定' : '未設定'; };
+    renderOwner();
+    const ownIn = el('input', 'dbg-grow');
+    ownIn.type = 'password';
+    ownIn.autocomplete = 'off';
+    ownIn.placeholder = '輸入識別碼';
+    ownIn.setAttribute('aria-label', '本人識別碼');
+    const ownSave = btn('儲存', 'dbg-primary');
+    const ownClear = btn('清除');
+    const r5 = el('div', 'dbg-row');
+    r5.style.marginTop = '8px';
+    r5.append(ownIn, ownSave, ownClear);
+    sheet.append(ownStat, r5, el('p', 'dbg-hint', '只存在這台裝置，回報送出時才帶上；不會出現在複製的文字或截圖裡。'));
+    ownSave.onclick = () => {
+      const v = ownIn.value.trim();
+      ownIn.value = '';
+      if (!v) return;
+      try { store?.setItem(OWNER_KEY, v); } catch { /* 存不了就算了 */ }
+      renderOwner();
+    };
+    ownClear.onclick = () => { ownIn.value = ''; try { store?.removeItem(OWNER_KEY); } catch { /* 沒有就算了 */ } renderOwner(); };
+
     // 版本與快取：重新載入最新版（換到最新 commit 的網址，所有檔案重抓）、清除存檔重來；都不動還沒送出的回報
     sheet.appendChild(el('h3', '', '版本與重來'));
     const ver = el('p', 'dbg-info', `目前版本 ${currentVersion(location.href, BUILD)}\n最新版本 查詢中…`);
@@ -472,7 +499,13 @@ export function start(hooks) {
     const ta = el('textarea');
     ta.placeholder = '這裡怎麼了、想改成什麼';
     ta.setAttribute('aria-label', '說明');
+    ta.maxLength = COMMENT_MAX;
     sheet.appendChild(ta);
+    const count = el('p', 'dbg-hint');
+    const renderCount = () => { count.textContent = `${ta.value.length}／${COMMENT_MAX} 字`; };
+    ta.addEventListener('input', renderCount);
+    renderCount();
+    sheet.appendChild(count);
 
     const keep = el('label', 'dbg-row');
     const keepShot = el('input');
@@ -504,7 +537,7 @@ export function start(hooks) {
       send.disabled = true;
       msg.className = 'dbg-msg';
       msg.textContent = '送出中…';
-      const payload = buildPayload({ ...base, now: new Date(), category: cat.value, comment: ta.value, screenshot: keepShot.checked ? shot : '' });
+      const payload = buildPayload({ ...base, now: new Date(), category: cat.value, comment: ta.value, screenshot: keepShot.checked ? shot : '', owner: readOwner() });
       const res = await submit(payload, deps());
       refreshBadge();
       if (res === 'sent') {
