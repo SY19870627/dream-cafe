@@ -1,4 +1,5 @@
-// v3b 入口：開場第一幕到第四幕（劇本 v3.8）→ 待續。第一天起正在重寫，可玩流程不進入三天故事。
+// v3b 入口：開場第一幕到第四幕（劇本 v3.8／v3.9）→ 第一晚自白 → 第一～四天（劇本 v4.4）→ 第四天睡著後待續。
+// 每晚自白結束、睡著時自動存檔（讀檔從隔天早上接著）；自白期間有獨立的按鈕可以一次讀完（見 view/reader.js 的 skip）。
 // 三天 AVG 閱讀（story/script.js、final-source.json、下面的「故事閱讀」）保留不刪，但只有 phase === 'story' 才會畫，執行畫面不會走到。
 // 沒有泡咖啡操作、機關、佈置模式、溫度計、倒數、自動跨天：每一句都由玩家點（或 Enter／Space）推進。
 // 劇本規則在 story/script.js、讀到哪一頁與選項在 story/state.js（純邏輯，有單元測試）；美術代號只查 story/manifest.js。
@@ -8,17 +9,18 @@ import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, STORY_YAW, CAT_SPOTS, CUP, art
 import { Pano } from './view/pano.js';
 import { shopScene, TONE, WINDOW_TABLE, TABLE_CUP, SEATED, seatFit } from './view/shop.js';
 import { showOpening, showScene } from './view/opening.js';
+import { showDay, createProps, PLACES, DAY_ART } from './view/days.js';
 import { createReader } from './view/reader.js';
 import { unlock, play, setAmbient, setEngine } from './view/audio.js';
 import { preload, img, ready } from './view/art.js';
-import { OPENING_LINES, sceneAt } from './lines/opening.js';
+import { sceneAt } from './lines/opening.js';
+import { DAY_ACT_VIEW, DAY_TITLES } from './lines/days.js';
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-// 劇本字原樣顯示；開頭的【待定】標記用小字淡色（字還在，只是不搶眼）
-const TAG = '【待定】';
-const fmt = (t) => (t.startsWith(TAG) ? `<span class="st-tag">${TAG}</span>${esc(t.slice(TAG.length))}` : esc(t));
+// 劇本字原樣顯示；開頭的稿件標記（【待定】等）不顯示（只用在保留的三天 AVG 模組；可玩流程的字已經去掉標記）
+const fmt = (t) => esc(String(t).replace(/^(【(待定|待確認|新增互動)】)+/, ''));
 
 let source = null;
 let state = null;
@@ -52,6 +54,8 @@ function reset() {
   sceneCtl = null;
   cloth(false);
   reader.hide();
+  props.hide();
+  $('app').classList.remove('focusing');
   $('opening').hidden = true;
   $('story').hidden = true;
   $('look').hidden = true;
@@ -67,14 +71,15 @@ function go() {
   render({ forward: false });
 }
 
-/* ---------- 開場（劇本 v3.8 第一幕～第四幕；每一幕、每一句都存檔，只往前） ---------- */
+/* ---------- 開場（劇本 v3.8 第一幕～第四幕）與第一～四天（劇本 v4.4）；每一幕、每一句都存檔，只往前 ---------- */
 // 第一幕～第二幕：DOM 畫面整幕自己處理（view/opening.js 的 showOpening）
-// 第三幕～第四幕：閱讀框一句一句（view/reader.js），畫面是店內 360（pano）或 DOM 畫面（view/opening.js 的 showScene）
-// 開場在「待續」結束：不接第一天，也不會進三天故事。
+// 第三幕～第一晚：閱讀框一句一句（view/reader.js），畫面是店內 360（pano）或 DOM 畫面（view/opening.js 的 showScene）
+// 第一～四天：同一套閱讀框；店裡用店內 360，其他地方用整張背景圖（view/days.js 的 showDay），特寫與關卡在 #op-prop
+// 每晚自白最後一句（睡著）一出現就存成隔天早上；第四天睡著後是「待續」。不會進三天故事。
 const reader = createReader($('op-read'), $('app'));
+const props = createProps($('op-prop'), $('app'));
 const DOM_ACTS = ['office', 'title', 'mailbox', 'letter'];
 const SHOP_ACTS = ['deshu', 'sit', 'coffee', 'stay'];
-const NEXT_ACT = { road: 'deshu', deshu: 'sit', sit: 'coffee', coffee: 'depart', depart: 'ride', ride: 'fork', fork: 'temple', temple: 'return', return: 'stay', stay: 'room' };
 let sceneCtl = null; // 目前的 DOM 畫面（換畫面時停掉動畫與計時器）
 let clothTimer = 0; // 布擦杯子，一下一下
 
@@ -87,6 +92,9 @@ function cloth(on) {
 
 function opening() {
   const act = state.opening.act;
+  if (act === S.END_ACT) return openingScene('end'); // 第四天睡著之後：待續
+  if (DAY_ACT_VIEW[act] === 'shop') return openingShop(act);
+  if (DAY_ACT_VIEW[act] === 'still') return dayScene(act);
   if (SHOP_ACTS.includes(act)) return openingShop(act);
   $('pano').hidden = true;
   if (DOM_ACTS.includes(act)) {
@@ -103,19 +111,30 @@ function opening() {
 
 // 換到下一幕（淡出淡入）
 function nextAct(from, color, ms) {
-  if (!S.setOpeningAct(state, NEXT_ACT[from])) return;
+  if (!S.setOpeningAct(state, S.nextActOf(from))) return;
   save();
   fadeThen(go, color, ms);
+}
+// 睡著（自白讀完，或點了自白按鈕直接睡）：存檔已經在 runLines 做了（隔天早上／待續），這裡只淡出再進下一幕
+function fallAsleep() {
+  reader.hide();
+  props.hide();
+  return fadeThen(go, '#0d0b0a', 1600);
 }
 
 // 一幕裡的句子：從存檔那一句接著；每一句說完點一下才出下一句（不點就停在這一句）
 // look(i, 畫面樣子, 句子)：把畫面擺成第 i 句的樣子；gate(name)：互動關卡；optional(name)：可選互動的熱點
+// 回傳 true＝這一幕讀完；'slept'＝睡著了（自白最後一句，或點了自白按鈕），已經存成下一幕；false＝換畫面了
 async function runLines(act, { look, gate, optional }) {
   const my = token;
-  const lines = OPENING_LINES[act];
-  for (let i = state.opening.line; i < lines.length; i++) {
+  const lines = S.ACT_LINES[act];
+  let i = state.opening.line;
+  while (i >= 0 && i < lines.length) {
     const b = lines[i];
-    look(i, sceneAt(lines, i), b);
+    const lk = sceneAt(lines, i);
+    props.clear();
+    props.show(lk);
+    look(i, lk, b);
     for (const n of b.sfx || []) play(n);
     if (b.wait) { // 先聽聲音，字晚一點出來
       reader.hideBox();
@@ -124,18 +143,31 @@ async function runLines(act, { look, gate, optional }) {
       if (my !== token) return false;
     }
     reader.show(b);
+    reader.skip(!!b.mono); // 自白期間才有自白按鈕（與翻一句分開的按鈕，見 reader.skip）
+    if (b.sleep && S.sleepThrough(state)) save(); // 睡著：這一句一出現就自動存檔成隔天早上（第四天是待續）
     let ok;
     if (b.gate) {
       reader.clearHot();
       reader.passive();
       ok = await gate(b.gate, b);
+      if (ok && my === token) S.passGate(state, b.gate); // 岔路、存摺兩個按鈕在 gate 裡已經記下選擇
     } else {
       reader.hot(b.optional ? optional(b.optional, b) : []);
       ok = await reader.next();
     }
     reader.clearHot();
-    if (!ok || my !== token) return false;
-    if (i + 1 < lines.length) { S.setOpeningLine(state, i + 1); save(); }
+    if (my !== token) return false;
+    if (ok === 'skip') { // 點了自白按鈕：剩下的自白不再一句一句出，直接睡著並存檔
+      if (S.skipMonologue(state)) save();
+      return 'slept';
+    }
+    if (!ok) return false;
+    if (b.sleep) return 'slept';
+    const n = S.nextLine(state);
+    if (n < 0) return true;
+    if (!S.setOpeningLine(state, n)) return false;
+    save();
+    i = n;
   }
   return true;
 }
@@ -155,7 +187,7 @@ async function openingScene(act) {
     restart,
   });
   sceneCtl = ctl;
-  if (act === 'end') { setAmbient(null); reader.hide(); return; }
+  if (act === 'end') { setAmbient(null); reader.hide(); props.hide(); return; }
   if (act === 'ride' || act === 'fork' || act === 'temple') { setAmbient('engine'); setEngine(0); }
   else if (act === 'room') setAmbient('room');
   else setAmbient('wind', act === 'road' ? 0.6 : 0.45);
@@ -180,12 +212,7 @@ async function openingScene(act) {
     }] : []),
   });
   if (!done || my !== token) return;
-  if (act === 'room') { // 淡出。開場到此結束（待續）
-    if (!S.finishOpening(state)) return;
-    save();
-    reader.hide();
-    return fadeThen(go, '#0d0b0a', 1600);
-  }
+  if (done === 'slept') return fallAsleep(); // 第一晚睡著：淡出，直接進第一天早上（已存檔）
   if (act === 'ride') { S.setOpeningAct(state, 'fork'); save(); return go(); } // 同一條路接著騎到岔路
   nextAct(act, act === 'road' || act === 'return' ? '#f3dfb8' : '#000', act === 'temple' ? 1100 : 650);
 }
@@ -212,6 +239,12 @@ const OP_CAT = {
   rub: { angle: 21, depth: 0.86, y: 0.985, h: 0.11, img: 'cat_longan_walk' },
   feet: { angle: 21, depth: 0.86, y: 0.985, h: 0.105, img: 'cat_longan_sit', lick: true },
   earsBack: { angle: 21, depth: 0.86, y: 0.985, h: 0.105, img: 'cat_longan_sit', seq: [{ img: 'cat_longan_ears_back_v2', ms: 1800 }, { img: 'cat_longan_sit' }] },
+  // 第一～四天（劇本 v4.4）：
+  nap: { angle: 38, depth: 0.64, y: 0.765, h: 0.075, img: 'cat_longan_sleep' }, // 趴在靠窗那張（我對面的）椅子上
+  bar: { angle: 12, depth: 0.43, y: 0.655, h: 0.07, img: 'cat_longan_sit' }, // 跳上吧台
+  mat: { angle: 8, depth: 0.88, y: 0.99, h: 0.1, img: 'cat_longan_sit' }, // 門邊的地墊上，看我的鞋
+  under: { angle: 40, depth: 0.7, y: 0.95, h: 0.07, img: 'cat_longan_sleep' }, // 我的椅子底下
+  front: { angle: 24, depth: 0.86, y: 0.985, h: 0.105, img: 'cat_longan_sit' }, // 自己走出來，坐在我面前（可以從頭順到尾巴）
 };
 const DESHU_AT = { // 德叔在店面裡的樣子（立繪出來時店面裡不畫，不會同時兩個德叔）
   stand: { pose: 'stand' },
@@ -354,7 +387,8 @@ function openingShopScene(act, look) {
   if (look.cat !== catClock.key) { catClock.key = look.cat; catClock.at = performance.now(); }
   if (act === 'coffee') return seatedScene(look);
   const d = look.deshu ? DESHU_AT[look.deshu] : null;
-  const sc = shopScene({ mode: 'enter', deshu: d && !d.angle ? d.pose : null, day: 0, tone: 'dusk' });
+  const tone = look.tone === 'morning' ? 'morning' : 'dusk'; // 第一～四天：早上用早上的色溫
+  const sc = shopScene({ mode: 'enter', deshu: d && !d.angle ? d.pose : null, day: 0, tone });
   const night = look.night || 0;
   const items = sc.items.filter((it) => it.id !== 'longan');
   const win = items.find((it) => it.id === 'window');
@@ -366,15 +400,16 @@ function openingShopScene(act, look) {
   if (look.cup) items.push({ id: 'cup', parent: 'wintable', at: TABLE_CUP.at, depth: 0.6, z: 0.605, img: 'prop_cup', aspect: TABLE_CUP.size[0] / TABLE_CUP.size[1] });
   if (d?.angle) items.push({ id: 'deshu-out', angle: d.angle, depth: d.depth, y: d.y, h: d.h, img: `char_deshu_${d.pose}` });
   const spot = OP_CAT[look.cat];
-  if (spot) items.push({ id: 'longan', angle: spot.angle, depth: spot.depth, y: spot.y, h: spot.h, aspect: CAT_ASPECT, draw: drawCat({ ...spot, pet: look.cat === 'rub' || look.cat === 'feet' }) });
+  if (spot) items.push({ id: 'longan', angle: spot.angle, depth: spot.depth, y: spot.y, h: spot.h, aspect: CAT_ASPECT, draw: drawCat({ ...spot, pet: look.cat === 'rub' || look.cat === 'feet' || look.cat === 'front' }) });
   sc.items = items;
-  // 天色：傍晚的暖橘 → 晚上：外面暗了，店裡只剩燈（暖、暗一點，不變灰）
-  sc.tint = night > 0 ? `rgba(${Math.round(120 - 70 * night)},${Math.round(60 - 30 * night)},${Math.round(20 + 8 * night)},${(0.28 + 0.14 * night).toFixed(3)})` : TONE.dusk;
+  // 天色：傍晚的暖橘 → 晚上：外面暗了，店裡只剩燈（暖、暗一點，不變灰）；第一～四天的早上用早上的色溫
+  sc.tint = night > 0 ? `rgba(${Math.round(120 - 70 * night)},${Math.round(60 - 30 * night)},${Math.round(20 + 8 * night)},${(0.28 + 0.14 * night).toFixed(3)})` : TONE[tone];
   return sc;
 }
 
 async function openingShop(act) {
   const my = token;
+  const day = !!DAY_ACT_VIEW[act]; // 第一～四天的店裡：德叔開口的那一句出立繪
   setAmbient('shop', act === 'stay' ? 0.7 : 1);
   $('opening').hidden = true;
   const show = (lk, { yaw } = {}) => {
@@ -397,32 +432,106 @@ async function openingShop(act) {
   $('pano').classList.add('reading');
   let first = true;
   const done = await runLines(act, {
-    look: (i, lk) => {
+    look: (i, lk, b) => {
       const yaw = act === 'coffee' ? STORY_YAW : (lk.yaw ?? 0);
-      show(lk, first ? { yaw } : {});
+      const portrait = day ? b.who === 'deshu' : lk.portrait; // 第一～四天：德叔說話時出立繪，店面裡的德叔不畫（不會同時兩個德叔）
+      show(portrait && day ? { ...lk, deshu: null } : lk, first ? { yaw } : {});
       if (!first) pano.turnTo(yaw, 900);
       first = false;
       // 晚上回來：德叔拿著掃把；坐下喝咖啡時德叔站到右手邊（aside），不擋住桌上的杯子
-      reader.portrait(lk.portrait ? (act === 'stay' ? 'char_deshu_broom' : PORTRAITS.deshu.src) : null, act === 'coffee' ? 'aside' : 'center');
+      reader.portrait(portrait ? (act === 'stay' ? 'char_deshu_broom' : PORTRAITS.deshu.src) : null, act === 'coffee' ? 'aside' : 'center');
       cloth(!!lk.cloth);
     },
-    gate: async () => false,
+    gate: (name) => dayGate(name),
     optional: (name) => {
       if (name === 'cat') {
         return [{ id: 'cat', label: '龍眼', rect: () => { const it = pano.scene?.items.find((x) => x.id === 'longan'); return it ? pano.project(it) : null; },
           onTap: () => { pet.at = performance.now(); pet.done = true; play('purr'); } }]; // 手入鏡摸頭、頭頂上來、呼嚕
       }
+      if (name === 'cup' && day) { // 第一～四天：店裡桌上的杯子（點了喝一口）
+        return [{ id: 'cup', label: '杯子', rect: itemRect('cup'),
+          onTap: () => { pano.flash.set('cup', performance.now()); setTimeout(() => play('sip'), 350); setTimeout(() => play('place'), 1400); } }];
+      }
       if (name === 'cup') {
         return [{ id: 'cup', label: '杯子', rect: cupRect,
           onTap: () => { sip.at = performance.now(); setTimeout(() => play('sip'), 350); setTimeout(() => play('place'), 1400); } }];
       }
+      if (name === 'stroke') { // 按住龍眼的頭，從頭順到尾巴：怡君的手入鏡、龍眼頂上來、呼嚕
+        props.optional('stroke', { rect: itemRect('longan'), onDone: () => { pet.at = performance.now(); pet.done = true; } });
+        return [];
+      }
+      if (name === 'keyGive') { props.optional('keyGive'); return []; } // 鑰匙拖向德叔：沒有接，回到手上
       return [];
     },
   });
   cloth(false);
   if (!done || my !== token) return;
   reader.hide();
+  if (day) { props.hide(); return nextAct(act, '#1a1612', 750); }
   nextAct(act, act === 'stay' ? '#0d0b0a' : act === 'coffee' ? '#000' : '#3a2a20', act === 'stay' ? 900 : 650);
+}
+// 店內 360 裡某個物件在畫面上的位置（熱點跟著它走）
+const itemRect = (id) => () => {
+  const it = pano.scene?.items.find((x) => x.id === id);
+  return it ? pano.project(it) : null;
+};
+
+/* ---------- 第一～四天：整張背景圖的畫面（view/days.js） ---------- */
+async function dayScene(act) {
+  const my = token;
+  const lines = S.ACT_LINES[act];
+  $('pano').hidden = true;
+  const ctl = showDay($('opening'), act, { state, lines });
+  sceneCtl = ctl;
+  let ambient = null;
+  if (state.opening.line === 0 && DAY_TITLES[act]) { // 每天開頭：章名卡
+    reader.hide();
+    setAmbient('room');
+    const ok = await ctl.intro();
+    if (!ok || my !== token) return;
+  }
+  let current = {};
+  const done = await runLines(act, {
+    look: (i, lk) => {
+      current = lk;
+      ctl.beat(i, lk);
+      const amb = PLACES[lk.place]?.ambient || 'room';
+      if (amb !== ambient) { ambient = amb; setAmbient(amb, amb === 'room' ? 1 : 0.6); }
+      reader.portrait(lk.portrait === 'agui' ? PORTRAITS.gui.src : null, 'half', '阿桂');
+    },
+    gate: (name) => dayGate(name),
+    optional: (name) => {
+      const label = { faucet: '水龍頭', switch: '電燈開關', mailbox: '信箱', drawer: '抽屜', clothes: '衣服', report: '報告' }[name];
+      if (label) {
+        const el = ctl.hot(name);
+        if (!el) return [];
+        return [{ id: name, label, rect: elRect(el), repeat: name === 'drawer' || name === 'clothes',
+          onTap: () => {
+            const fin = ctl.effect(name);
+            if (name === 'report') props.show({ ...current, prop: 'report' }); // 翻到第十二頁：一張表
+            return fin;
+          } }];
+      }
+      props.optional(name); // 拖曳類、疊在特寫卡上的（識別證刷閘門、輸入框、過片扳手、快門、對焦環）
+      return [];
+    },
+  });
+  if (!done || my !== token) return;
+  if (done === 'slept') return fallAsleep(); // 睡著：已存成隔天早上（第四天是待續）
+  reader.hide();
+  props.hide();
+  nextAct(act, '#1a1612', 750);
+}
+
+// 第一～四天的關卡（做完才往下）：存摺拖到櫃檯、識別證放到櫃檯、撕膠帶三次、倒片；存摺兩個按鈕要記下選擇
+async function dayGate(name) {
+  const r = await props.gate(name);
+  if (name === 'choice') {
+    if (!r || !S.choosePassbook(state, r)) return false;
+    save();
+    return true;
+  }
+  return r === true;
 }
 
 // 從開頭再看一次（只重設 v3b 自己的存檔；不碰 v3a 與第一版的鍵）
@@ -681,7 +790,7 @@ fetch('src/story/final-source.json')
     source = json;
     state = S.playable(load(source)); // 舊版存到三天故事裡的存檔：回到開場開頭（不接著播第一天）
     save();
-    return preload(allArt());
+    return preload([...new Set([...allArt(), ...DAY_ART])]);
   })
   .then(() => {
     $('boot').remove();

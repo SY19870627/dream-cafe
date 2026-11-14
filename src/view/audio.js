@@ -127,6 +127,17 @@ export function play(name) {
       noise({ dur: 0.3, gain: 0.04, freq: 700, q: 4 });
       tone(170, { at: 0.5, dur: 0.3, gain: 0.03, type: 'sawtooth', to: 140 });
       break;
+    // 第一～四天（劇本 v4.4）：都是 WebAudio 合成，沒有外部音檔
+    case 'shutter': // 底片相機的快門：喀一聲＋簧片
+      noise({ dur: 0.04, gain: 0.3, freq: 2600, q: 1.5 });
+      noise({ at: 0.06, dur: 0.07, gain: 0.22, freq: 1500, q: 2 });
+      break;
+    case 'tape': // 撕膠帶
+      noise({ dur: 0.35, gain: 0.1, freq: 2400, q: 0.6, type: 'highpass' });
+      break;
+    case 'rewind': // 倒片：沙沙
+      for (let i = 0; i < 4; i++) noise({ at: i * 0.06, dur: 0.05, gain: 0.06, freq: 3000, q: 1.2 });
+      break;
     default: break;
   }
 }

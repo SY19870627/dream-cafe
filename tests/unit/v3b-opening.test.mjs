@@ -1,5 +1,6 @@
 // v3b 開場（劇本 v3.8 第一幕～第四幕）：字與劇本逐字相同（拿掉稿件標記）、各幕各句只往前、存檔恢復、壞檔、
-// 互動關卡（推門／點椅子／發動／按住騎／左右岔路／掉頭回去／再推門）、可選互動略過也能走完、待續且不進第一天。
+// 互動關卡（推門／點椅子／發動／按住騎／左右岔路／掉頭回去／再推門）、可選互動略過也能走完、第一晚自白（v4.4 A 版）睡著後進第一天。
+// 第一～四天、睡著自動存檔、跳過自白、舊存檔相容在 v3b-days.test.mjs。
 // 只測純邏輯與靜態檔案，不開瀏覽器。劇本字在 src/lines/opening.js（tracked）；有 _agent 稿件時另外逐句對稿，沒有就略過。
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,6 +15,7 @@ import { doorView, DOOR_FADE_MS } from '../../src/view/opening.js';
 import { PORTRAIT_PLACE } from '../../src/view/reader.js';
 import { SEATED, seatFit, KETTLE, WINDOW_TABLE, TABLE_CUP } from '../../src/view/shop.js';
 import { projectRect, childRect, childPoint } from '../../src/view/pano.js';
+import { walk } from './walk.mjs';
 
 const root = (p) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
 const read = (p) => readFileSync(root(p), 'utf8');
@@ -25,30 +27,11 @@ const L = OP.OPENING_LINES;
 const allLines = () => Object.values(L).flat();
 const MARKS = /【(待定|待確認|新增互動)】/;
 
-// 下一幕（與 main.js 的 NEXT_ACT 相同；坐下之前的幕在 view/opening.js 自己換）
-const NEXT = { office: 'title', title: 'mailbox', mailbox: 'letter', letter: 'road', road: 'deshu', deshu: 'sit', sit: 'coffee', coffee: 'depart', depart: 'ride', ride: 'fork', fork: 'temple', temple: 'return', return: 'stay', stay: 'room' };
-
-// 照玩家的方式從頭走到待續：每一句「點一下」或「做完關卡」才往下；可選互動一律不做。回傳讀到的句子。
+// 照玩家的方式從頭走完開場（到第一晚睡著）：每一句「點一下」或「做完關卡」才往下；可選互動一律不做。回傳讀到的句子。
+// 第一晚睡著後就是第一天早上（d1wake），不再停在待續。
 function playOpening({ side = 'left', each = () => {} } = {}) {
-  const s = S.newStoryState();
-  const seen = [];
-  let guard = 0;
-  while (!S.isOpeningEnd(s)) {
-    assert.ok(guard++ < 400, '走不到待續');
-    const act = s.opening.act;
-    each(s);
-    const lines = L[act] || [];
-    if (lines.length) {
-      const b = lines[s.opening.line];
-      seen.push(b.text);
-      if (b.gate === 'fork') assert.equal(S.chooseFork(s, side), true);
-      if (s.opening.line + 1 < lines.length) { assert.equal(S.setOpeningLine(s, s.opening.line + 1), true, `${act} ${s.opening.line}`); continue; }
-    }
-    if (act === 'room') assert.equal(S.finishOpening(s), true);
-    else assert.equal(S.setOpeningAct(s, NEXT[act]), true, act);
-  }
-  each(s);
-  return { s, seen };
+  const { s, seen } = walk(S.newStoryState(), { side, each, stop: (st) => st.opening.act === 'd1wake' });
+  return { s, seen: seen.map((b) => b.text) };
 }
 
 /* ---------- 字 ---------- */
@@ -68,7 +51,7 @@ test('稿件標記【待定】【待確認】【新增互動】都已拿掉；�
   assert.ok(flat.includes('龍眼的耳朵往後壓了一下，沒有走。'));
   assert.ok(flat.includes('椅子是木頭的，坐下去才知道腿有多痠。'));
   assert.ok(flat.includes('還沒打烊，位子自己挑。'));
-  assert.equal(flat.at(-1), '我本來只想躺一下，燈還沒關就睡著了。', '開場最後一句');
+  assert.equal(flat.at(-1), '我本來只想躺一下，燈還沒關就睡著了。', '開場最後一句（第一晚自白的最後一句，仍是睡著句）');
   // 舊第四幕兩句、第一版德叔三句不在可玩開場
   for (const old of [OP.ACT4_CUP, OP.ACT4_EMPTY, OP.SIT, ...OP.DESHU_ENTER]) assert.ok(!flat.includes(old), old);
 });
@@ -114,11 +97,11 @@ test('第二幕：信箱旁白、只能點一次的「拿出信封」、新信�
   assert.match(view, /el\.querySelector\('#op-next'\)\.onclick = \(\) => api\.go\('road'\);/);
 });
 
-test('有 _agent 稿件時：開場每一句（旁白、對白）照順序與劇本 v3.9 逐字相同（沒有就略過）', (t) => {
-  const p = root('_agent/v3b/script-v3.9-acts1-4.md');
+test('有 _agent 稿件時：開場每一句（旁白、對白、第一晚 A 版自白）照順序與劇本 v4.4 逐字相同（沒有就略過）', (t) => {
+  const p = root('_agent/v3b/script-v4.4.md');
   if (!existsSync(p)) { t.skip('沒有 _agent 稿件'); return; }
   const md = readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
-  const body = md.slice(md.indexOf('# 【待定】開場'));
+  const body = md.slice(md.indexOf('# 開場'), md.indexOf('# 【待定】第一天'));
   const strip = (x) => x.replace(/^(【(待定|待確認|新增互動)】)+/, '');
   const spoken = [];
   const quoted = [];
@@ -145,7 +128,9 @@ test('有 _agent 稿件時：開場每一句（旁白、對白）照順序與劇
 
 /* ---------- 推進、存檔恢復 ---------- */
 test('開場只往前：各幕順序、換幕從第 0 句開始、句子不能跳過最後一句也不能往回', () => {
-  assert.deepEqual(S.OPENING_ACTS, ['office', 'title', 'mailbox', 'letter', 'road', 'deshu', 'sit', 'coffee', 'depart', 'ride', 'fork', 'temple', 'return', 'stay', 'room', 'end']);
+  assert.deepEqual(S.OPENING_ACTS.slice(0, 16), ['office', 'title', 'mailbox', 'letter', 'road', 'deshu', 'sit', 'coffee', 'depart', 'ride', 'fork', 'temple', 'return', 'stay', 'room', 'd1wake'], '開場之後接第一天早上');
+  assert.equal(S.OPENING_ACTS.at(-1), S.END_ACT, '待續在第四天之後');
+  assert.ok(!S.OPENING_ACTS.includes('end'), '舊的 end（第一晚後的待續）不在列表裡');
   const s = S.newStoryState();
   assert.equal(S.setOpeningLine(s, 1), false, '辦公室沒有句子');
   for (const a of ['title', 'mailbox', 'letter', 'road', 'deshu']) assert.equal(S.setOpeningAct(s, a), true);
@@ -159,10 +144,10 @@ test('開場只往前：各幕順序、換幕從第 0 句開始、句子不能�
   assert.equal(S.setOpeningAct(s, 'road'), false, '不能回到前一幕');
   assert.equal(S.setOpeningAct(s, 'sit'), true);
   assert.equal(s.opening.line, 0);
-  assert.equal(S.finishOpening(s), false, '還沒到最後一句不能結束');
+  assert.equal(S.sleepThrough(s), false, '不在自白裡不能睡著');
 });
 
-test('從頭走到待續：每一幕、每一句存檔讀回都在同一處；長對話（德叔 32 句）也記得住', () => {
+test('從頭走完開場（到第一晚睡著）：每一幕、每一句存檔讀回都在同一處；長對話（德叔 32 句）也記得住', () => {
   let n = 0;
   const { s, seen } = playOpening({
     each: (st) => {
@@ -175,7 +160,8 @@ test('從頭走到待續：每一幕、每一句存檔讀回都在同一處；�
   });
   assert.ok(n > 60);
   assert.ok(L.deshu.length > 30);
-  assert.equal(s.opening.act, 'end');
+  assert.equal(s.opening.act, 'd1wake', '第一晚睡著後直接是第一天早上');
+  assert.equal(s.opening.line, 0);
   assert.equal(seen.length, allLines().length, '每一句都出現一次');
   // 存進 localStorage 再讀回（fake storage）
   const m = new Map();
@@ -190,14 +176,14 @@ test('從頭走到待續：每一幕、每一句存檔讀回都在同一處；�
   assert.equal(back.opening.line, 27);
 });
 
-test('待續且不進入第一天：end 之後沒有下一幕、phase 一直是 opening；舊存檔停在三天故事也回到開場開頭', () => {
+test('第一晚睡著後進第一天（不停在待續）：phase 一直是 opening；舊存檔停在三天故事也回到開場開頭', () => {
   const { s } = playOpening();
-  assert.equal(S.isOpeningEnd(s), true);
+  assert.equal(S.isOpeningEnd(s), false, '第一晚之後不是待續');
+  assert.equal(s.opening.act, 'd1wake');
   assert.equal(s.phase, 'opening');
   assert.equal(s.at, null);
-  for (const a of S.OPENING_ACTS) assert.equal(S.setOpeningAct(s, a), false, `end 之後不能到 ${a}`);
-  assert.equal(S.finishOpening(s), false);
-  assert.equal(reload(s).opening.act, 'end');
+  for (const a of S.OPENING_ACTS.slice(0, S.OPENING_ACTS.indexOf('d1wake') + 1)) assert.equal(S.setOpeningAct(s, a), false, `不能回到 ${a}`);
+  assert.equal(reload(s).opening.act, 'd1wake');
   // 舊版（第一輪）坐下後就進三天故事；那種存檔在執行畫面一律回到開場開頭
   const old = S.enterStory(S.newStoryState());
   assert.equal(old.phase, 'story');
@@ -208,8 +194,8 @@ test('待續且不進入第一天：end 之後沒有下一幕、phase 一直是 
   assert.doesNotMatch(main, /enterStory|phase = 'story'|d1-title/);
   assert.match(main, /state = S\.playable\(load\(source\)\);/);
   const view = read('src/view/opening.js');
-  assert.match(view, /<p class="op-end-title">待續<\/p>/);
-  assert.doesNotMatch(view + main, /第一天/);
+  assert.match(view, /<p class="op-end-title">待續<\/p>/, '待續畫面還在（第四天之後才用）');
+  assert.match(main, /if \(act === S\.END_ACT\) return openingScene\('end'\);/);
 });
 
 test('壞檔：不認得的幕回開頭、句子進度夾在這一幕之內、岔路的值不合法就丟掉、第一輪存檔的 deshuLine 接得上', () => {
@@ -237,15 +223,7 @@ test('壞檔：不認得的幕回開頭、句子進度夾在這一幕之內、�
   // 讀回來的壞檔照樣能一路走到待續（不會卡住）
   for (const act of S.OPENING_ACTS) {
     const s = S.normalize({ v: 1, phase: 'opening', opening: { act, line: 99 } }, SRC);
-    let guard = 0;
-    while (!S.isOpeningEnd(s)) {
-      assert.ok(guard++ < 200, `${act} 卡住`);
-      const lines = L[s.opening.act] || [];
-      if (lines[s.opening.line]?.gate === 'fork') S.chooseFork(s, 'right');
-      if (s.opening.line + 1 < lines.length) S.setOpeningLine(s, s.opening.line + 1);
-      else if (s.opening.act === 'room') S.finishOpening(s);
-      else S.setOpeningAct(s, NEXT[s.opening.act]);
-    }
+    walk(s, { side: 'right', stop: S.isOpeningEnd });
   }
 });
 

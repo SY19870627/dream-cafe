@@ -266,6 +266,147 @@
   .op-end-lamp { width: 90px; height: 90px; margin-bottom: 18px; border-radius: 50%; background: radial-gradient(closest-side, rgba(255,214,150,.6), rgba(255,214,150,0)); animation: floatin 2.4s ease-out both; }
   .op-end-title { margin: 0 0 40px; font-size: 24px; letter-spacing: 12px; color: #f1ece2; animation: floatin 2.4s .5s ease-out both; }
   .op-end-again { background: transparent; color: rgba(241,236,226,.9); border: 1px solid rgba(241,236,226,.5); box-shadow: none; min-width: 180px; animation: floatin 2s 1.4s ease-out both; }
+
+  /* ---------- 睡前自白：獨立的「點一下睡著」按鈕（字在 view/reader.js 的 SKIP_LABEL；右上角，離正文很遠；剛出現的一小段時間淡入、不收點） ---------- */
+  #op-read .opr-skip { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; z-index: 4; min-width: 96px; min-height: 44px; padding: 8px 16px;
+    pointer-events: auto; font-size: 14px; letter-spacing: 1px; color: #f1ece2; background: rgba(20,16,12,.55); border: 1px solid rgba(241,236,226,.45); box-shadow: none; }
+  #op-read .opr-skip.arm { animation: skiparm .9s ease-out both; }
+  @keyframes skiparm { from { opacity: 0; } 70% { opacity: .2; } to { opacity: 1; } }
+  .st-aside { color: #7a6656; }
+  .st-line.msg .st-text { display: inline-block; padding: 4px 12px; border-radius: 14px 14px 14px 4px; background: #e8f0e0; }
+  .st-line.note .st-text { font-family: "Kaiti TC", "DFKai-SB", "BiauKai", serif; }
+  .st-line.mono .st-text { color: #4b3a2e; }
+
+  /* ---------- 第一～四天：整張背景圖的畫面（view/days.js）；沒原圖的場景用最接近的圖（見 docs/v3b-缺圖清單.md） ---------- */
+  .op-day { padding: 0; background: #14110e; }
+  .dy-place { position: absolute; inset: 0; opacity: 0; transition: opacity .9s; }
+  .dy-place.on { opacity: 1; }
+  .dy-place.wide .op-art-img { object-position: 66% 60%; }
+  .dy-place .op-art::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
+  .dy-place.morning .op-art::after { background: linear-gradient(rgba(255,238,205,.42), rgba(255,236,210,.18)); mix-blend-mode: screen; }
+  .dy-place.dusk .op-art::after { background: linear-gradient(rgba(235,140,70,.32), rgba(120,60,30,.28)); mix-blend-mode: multiply; }
+  .dy-place.lit .op-glow.door { opacity: 1; }
+  .dy-lady { position: absolute; width: auto; transform: translateX(-50%); pointer-events: none; opacity: .95; z-index: 1; }
+  .dy-key, .dy-can { opacity: 0; transition: opacity .6s; }
+  .op-day.key .dy-key { opacity: 1; }
+  .dy-can.on-pillow { position: absolute; left: 47%; top: 35%; width: 7%; aspect-ratio: 3 / 4; border-radius: 3px; background: linear-gradient(90deg, #6f6a62, #b9b2a5 40%, #7c766c); }
+  .op-day.can .dy-can { opacity: 1; }
+  .dy-dark { position: absolute; inset: 0; background: rgba(5,6,10,.6); opacity: 0; transition: opacity 1.2s; pointer-events: none; }
+  .op-day.dark .dy-dark { opacity: 1; }
+  /* 洗手台與舊鏡子（CSS：塑膠框、邊緣水銀掉了一圈）；鏡子裡不畫人（角色卡缺圖） */
+  .dy-basin { position: absolute; left: 12%; top: 12%; width: 76%; height: 52%; z-index: 1; border-radius: 4px;
+    background: linear-gradient(#cfc7b6, #b9b09d); box-shadow: inset 0 0 40px rgba(60,45,30,.35); }
+  .dy-mirror { position: absolute; left: 20%; top: 8%; width: 60%; height: 52%; border: 10px solid #e2dccd; border-radius: 6px;
+    background: radial-gradient(closest-side, #aab6bb 62%, #7d8584 82%, #5c5f5a); box-shadow: 0 3px 8px rgba(0,0,0,.25); overflow: hidden; }
+  .dy-fog { position: absolute; inset: 0; background: rgba(240,244,244,.0); }
+  .dy-place.washing .dy-fog { animation: fog 2.6s ease-in-out both; }
+  @keyframes fog { 30% { background: rgba(240,244,244,.75); } to { background: rgba(240,244,244,0); } }
+  .op-day.light .dy-mirror { background: radial-gradient(closest-side, #cdd8dc 62%, #8d9594 82%, #5c5f5a); }
+  .op-day.flicker .dy-basin { animation: flicker .5s steps(2) 2; }
+  @keyframes flicker { 50% { filter: brightness(1.5); } }
+  .dy-sink { position: absolute; left: 14%; bottom: 6%; width: 72%; height: 20%; border-radius: 0 0 40% 40%; background: linear-gradient(#f2efe8, #c9c3b6); }
+  .dy-faucet { position: absolute; left: 46%; top: 47%; width: 8%; height: 4%; z-index: 2; border-radius: 6px; background: linear-gradient(#d9d9d6, #8f918f); }
+  .dy-switch { position: absolute; left: 80%; top: 26%; width: 5%; height: 3.5%; z-index: 2; border-radius: 3px; background: #f1ede4; box-shadow: inset 0 0 0 2px #c8c1b2; }
+  .dy-water { position: absolute; left: 49%; top: 51%; width: 1.2%; height: 6%; background: rgba(210,230,240,.8); opacity: 0; z-index: 2; }
+  .dy-place.washing .dy-water { animation: water 2.2s ease-in-out both; }
+  @keyframes water { 10%, 80% { opacity: 1; } }
+  /* 信箱：鐵片門打開（第四天裡面有一張粉紅色的單子） */
+  .dy-mailslot { position: absolute; left: 38%; top: 40%; width: 26%; height: 12%; z-index: 1; }
+  .dy-mailslot::before { content: ""; position: absolute; inset: 0; background: #20201e; opacity: 0; transition: opacity .4s; }
+  .dy-place.open .dy-mailslot::before { opacity: .85; }
+  .dy-slip { position: absolute; left: 22%; top: 30%; width: 56%; height: 40%; background: #f3b8c6; transform: rotate(-4deg); opacity: 0; transition: opacity .4s .2s; }
+  .op-day[data-act="d4town"] .dy-place.open .dy-slip { opacity: 1; }
+  /* 衣櫃最底層的抽屜（卡住，再點一次才拉得開）；撥開衣服，底下露出資料袋 */
+  .dy-drawer { position: absolute; left: 8%; top: 56%; width: 44%; height: 9%; z-index: 1; border-radius: 3px;
+    background: linear-gradient(#8b6440, #6e4c2f); box-shadow: inset 0 0 0 3px #5a3d26; transition: transform .6s ease; }
+  .dy-place.stuck .dy-drawer { transform: translateY(6%); }
+  .dy-place.open .dy-drawer { transform: translateY(40%); }
+  .dy-clothes { position: absolute; inset: 8% 6%; display: flex; gap: 4%; opacity: 0; transition: opacity .4s; }
+  .dy-place.open .dy-clothes { opacity: 1; }
+  .dy-clothes i { flex: 1; border-radius: 4px; background: #7b8794; transition: transform .4s; }
+  .dy-clothes i:nth-child(2) { background: #c9b48e; }
+  .dy-clothes i:nth-child(3) { background: #2f4a6b; }
+  .dy-place.moved1 .dy-clothes i:nth-child(1) { transform: translateY(-140%); }
+  .dy-place.moved2 .dy-clothes i:nth-child(2) { transform: translateY(-140%); }
+  .dy-place.moved3 .dy-clothes i:nth-child(3) { transform: translateY(-140%); }
+  .dy-place.bag .dy-drawer::after { content: ""; position: absolute; left: 30%; top: 25%; width: 40%; height: 55%; border-radius: 4px; background: rgba(220,226,230,.75); }
+  /* 會議室桌上的報告 */
+  .dy-report { position: absolute; left: 34%; top: 60%; width: 32%; height: 9%; z-index: 1; border-radius: 2px; background: linear-gradient(#fbfaf6, #e8e4d8); box-shadow: 0 3px 6px rgba(0,0,0,.3); transform: rotate(-3deg); }
+
+  /* ---------- 疊在閱讀框上面的一層：特寫卡、要拖的東西、關卡、兩個按鈕（#op-prop） ---------- */
+  #op-prop { position: absolute; inset: 0; z-index: 23; pointer-events: none; }
+  .pp-card { position: absolute; left: 50%; top: 16%; transform: translateX(-50%) scale(.96); opacity: 0; transition: opacity .4s, transform .4s; pointer-events: none; }
+  .pp-card.on { opacity: 1; transform: translateX(-50%); }
+  .pp-card.badge img { display: block; width: min(56vw, 210px); filter: drop-shadow(0 10px 18px rgba(0,0,0,.45)); }
+  .pp-passbook { position: relative; width: 150px; height: 196px; border-radius: 6px; background: linear-gradient(135deg, #2f5a4a, #234537); box-shadow: 0 10px 22px rgba(0,0,0,.45); }
+  .pp-passbook i { position: absolute; left: 14%; right: 14%; height: 3px; background: rgba(240,235,220,.0); }
+  .pp-passbook.printing { background: #f4f1e6; }
+  .pp-passbook.printing i { background: #555; animation: print .6s steps(1) both; }
+  .pp-passbook.printing i:nth-child(1) { top: 14%; animation-delay: .2s; } .pp-passbook.printing i:nth-child(2) { top: 26%; animation-delay: .7s; }
+  .pp-passbook.printing i:nth-child(3) { top: 38%; animation-delay: 1.2s; } .pp-passbook.printing i:nth-child(4) { top: 50%; animation-delay: 1.7s; }
+  .pp-passbook.printing i:nth-child(5) { top: 62%; animation-delay: 2.2s; } .pp-passbook.printing i:nth-child(6) { top: 74%; animation-delay: 2.7s; }
+  @keyframes print { from { opacity: 0; } to { opacity: .8; } }
+  .pp-bag { width: 230px; height: 160px; border-radius: 8px; background: rgba(214,222,226,.85); box-shadow: 0 10px 22px rgba(0,0,0,.35), inset 0 8px 0 #9aa4aa; display: flex; align-items: center; justify-content: center; }
+  .pp-bag span { padding: 6px 10px; background: #fbf8ef; font-size: 15px; letter-spacing: 1px; color: #3a2e25; transform: rotate(-2deg); }
+  .pp-phone { position: relative; width: 150px; height: 290px; border-radius: 22px; border: 7px solid #2c2622; background: linear-gradient(#f4f6f4, #e2e8e2); box-shadow: 0 10px 26px rgba(0,0,0,.45); }
+  .pp-input { position: absolute; left: 8px; right: 8px; bottom: 10px; min-height: 44px; border-radius: 22px; background: #fff; box-shadow: inset 0 0 0 1px #b8c0b8; display: flex; align-items: center; padding: 0 12px; font-size: 15px; }
+  .pp-input.live { pointer-events: auto; cursor: pointer; box-shadow: inset 0 0 0 2px #e0b86a, 0 0 14px rgba(224,184,106,.7); }
+  .pp-input.sent { box-shadow: inset 0 0 0 1px #b8c0b8; }
+  .pp-report { position: relative; width: 250px; height: 170px; border-radius: 2px; background:
+    repeating-linear-gradient(0deg, transparent 0 20px, #d8d3c6 20px 21px), repeating-linear-gradient(90deg, #fbfaf6 0 49px, #d8d3c6 49px 50px); box-shadow: 0 10px 22px rgba(0,0,0,.35); }
+  .pp-cell { position: absolute; left: 100px; top: 63px; width: 50px; height: 21px; background: rgba(240,200,90,.55); }
+  .pp-box { position: relative; width: 230px; height: 150px; border-radius: 4px; background: linear-gradient(#c9a172, #a8804f); box-shadow: 0 10px 22px rgba(0,0,0,.4); }
+  .pp-box i { position: absolute; left: 0; right: 0; height: 18%; background: rgba(214,190,140,.9); transition: opacity .3s; }
+  .pp-box .t1 { top: 20%; } .pp-box .t2 { top: 42%; } .pp-box .t3 { top: 64%; }
+  .pp-box.torn1 .t1, .pp-box.torn2 .t2, .pp-box.torn3 .t3 { opacity: 0; }
+  .pp-camera { position: relative; width: 260px; height: 150px; border-radius: 14px; background: linear-gradient(#2a2a2a, #121212); box-shadow: 0 10px 22px rgba(0,0,0,.5), inset 0 12px 0 #3a3a3a; }
+  .pp-lens { position: absolute; left: 50%; top: 52%; width: 86px; height: 86px; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(#3d4c5c 20%, #0b0b0b 55%, #4a4a4a 60%, #1b1b1b 70%); }
+  .pp-counter { position: absolute; right: 22px; top: 10px; min-width: 30px; padding: 0 4px; font: 600 14px/20px ui-monospace, Consolas, monospace; color: #f1ece2; background: #0c0c0c; border-radius: 4px; text-align: center; }
+  .pp-lever { position: absolute; right: 64px; top: -10px; width: 44px; height: 44px; border-radius: 8px; }
+  .pp-lever::before { content: ""; position: absolute; left: 4px; top: 16px; width: 36px; height: 8px; border-radius: 4px; background: #888; transform-origin: 90% 50%; }
+  .pp-lever.live { pointer-events: auto; cursor: pointer; box-shadow: 0 0 12px rgba(224,184,106,.8); }
+  .pp-lever.flick::before { animation: flick .4s ease-out; }
+  @keyframes flick { 40% { transform: rotate(-35deg); } }
+  .pp-crank { position: absolute; left: 22px; top: -6px; width: 30px; height: 14px; border-radius: 3px; background: #777; }
+  .pp-note { position: relative; width: 210px; height: 150px; background: #fffef6; transform: rotate(2deg); box-shadow: 0 8px 18px rgba(0,0,0,.35); }
+  .pp-note i { position: absolute; left: 10%; right: 10%; height: 1px; background: #c8d4e4; }
+  .pp-note i:nth-child(1) { top: 30%; } .pp-note i:nth-child(2) { top: 52%; } .pp-note i:nth-child(3) { top: 74%; }
+  .pp-can { width: 110px; height: 140px; border-radius: 8px; background: linear-gradient(90deg, #6f6a62, #cfc8ba 40%, #7c766c); box-shadow: 0 10px 22px rgba(0,0,0,.4), inset 0 10px 0 #9a948a; }
+  .pp-extra > * { pointer-events: auto; }
+  .pp-drag { position: absolute; left: 50%; bottom: calc(var(--box-h) + 18px); width: 96px; height: 96px; margin-left: -48px; padding: 0; z-index: 2;
+    background: transparent; box-shadow: none; animation: doorcall 2.2s ease-in-out infinite; touch-action: none; }
+  .pp-drag img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 6px 10px rgba(0,0,0,.45)); }
+  .pp-drag .pp-passbook { width: 72px; height: 94px; margin: 0 auto; }
+  .pp-drag.held { animation: none; }
+  .pp-drag.placed { opacity: 0; transition: opacity .4s; }
+  .pp-zone { position: absolute; border: 2px dashed rgba(255,226,170,.75); border-radius: 12px; background: rgba(255,226,170,.12); pointer-events: none; animation: blink 1.8s ease-in-out infinite; }
+  .pp-zone.counter-top { left: 12%; top: 40%; width: 76%; height: 14%; }
+  .pp-zone.to-deshu { left: 22%; top: 14%; width: 56%; height: 34%; border-style: dotted; background: transparent; }
+  .pp-zone.to-gate { left: 10%; top: 40%; width: 40%; height: 16%; }
+  .pp-zone.ok { animation: none; background: rgba(255,226,170,.25); }
+  .pp-zone.red { animation: gatered .9s ease-out; }
+  @keyframes gatered { 0%, 60% { background: rgba(220,40,40,.45); border-color: #e04848; } }
+  .pp-tape { position: absolute; left: 50%; top: 16%; width: 230px; height: 150px; margin-left: -115px; background: transparent; box-shadow: 0 0 0 2px rgba(255,226,170,.6); }
+  .pp-rewind { position: absolute; left: 50%; top: 44%; width: 120px; height: 120px; margin-left: -60px; border-radius: 50%; padding: 0; touch-action: none;
+    background: radial-gradient(#3a3a3a 30%, #1a1a1a 32%, #2a2a2a 70%); box-shadow: 0 0 0 2px rgba(255,226,170,.7), 0 8px 18px rgba(0,0,0,.45); }
+  .pp-rewind i { position: absolute; left: 50%; top: 50%; width: 46px; height: 10px; border-radius: 5px; background: #9a9a9a; transform-origin: 0 50%; transform: rotate(var(--a, 0deg)); }
+  .pp-rewind.free { box-shadow: 0 8px 18px rgba(0,0,0,.45); }
+  .pp-shutter { position: absolute; right: 16px; bottom: calc(var(--box-h) + 18px); width: 64px; height: 64px; border-radius: 50%; padding: 0;
+    background: radial-gradient(#e8e2d4 40%, #9a9384 42%, #2a2a2a 46%); box-shadow: 0 0 0 3px rgba(255,226,170,.6), 0 6px 14px rgba(0,0,0,.5); }
+  .pp-focus { position: absolute; left: 16px; bottom: calc(var(--box-h) + 24px); width: 150px; height: 52px; border-radius: 26px; padding: 0; overflow: hidden; touch-action: none;
+    background: repeating-linear-gradient(90deg, #1c1c1c 0 6px, #3a3a3a 6px 12px); background-position: var(--turn, 0deg) 0; box-shadow: 0 0 0 2px rgba(255,226,170,.6); }
+  .pp-focus i { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.6), transparent 30%, transparent 70%, rgba(0,0,0,.6)); }
+  #app.focusing .opr-portrait img { filter: blur(var(--focus-blur, 0px)); transition: filter .1s; }
+  .pp-film { position: absolute; right: 16px; top: calc(14px + env(safe-area-inset-top)); padding: 2px 8px; font: 600 15px/22px ui-monospace, Consolas, monospace; color: #f1ece2;
+    background: rgba(10,10,10,.7); border-radius: 4px; opacity: 0; transition: opacity .4s; }
+  #op-prop.counter .pp-film { opacity: 1; }
+  .pp-stroke { position: absolute; padding: 0; border-radius: 40px; background: linear-gradient(90deg, rgba(255,226,170,.35) calc(var(--k, 0) * 100%), rgba(255,226,170,.08) 0); box-shadow: 0 0 0 2px rgba(255,226,170,.6); touch-action: none; }
+  .pp-stroke.done { opacity: 0; pointer-events: none; transition: opacity .5s; }
+  .pp-choices { position: absolute; left: 16px; right: 16px; bottom: calc(var(--box-h) + 16px); display: flex; flex-direction: column; gap: 12px; }
+  .pp-choices button { min-height: 56px; font-size: 18px; text-align: left; padding: 12px 18px; background: #fbf5e8; animation: rise .35s ease-out both; }
+  .pp-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  .pp-flash.go { animation: shot .35s ease-out; }
+  @keyframes shot { from { opacity: .85; } to { opacity: 0; } }
 </style>
 </head>
 <body>
@@ -282,7 +423,8 @@
   <section id="look" hidden><span class="hint">左右拖曳看看店裡</span><button id="look-back" type="button">回到故事</button><button id="look-log" type="button">回顧</button></section>
   <section id="log" hidden role="dialog" aria-label="回顧"><div class="log-paper" id="log-list"></div><div class="log-bar"><button id="log-close" type="button">回到原頁</button></div></section>
   <section id="opening" hidden></section>
-  <section id="op-read" hidden aria-label="下一句"><div class="st-portrait opr-portrait"></div><div class="opr-hot"></div><div class="st-box opr-box" aria-live="polite"></div></section>
+  <section id="op-read" hidden aria-label="下一句"><div class="st-portrait opr-portrait"></div><div class="opr-hot"></div><div class="st-box opr-box" aria-live="polite"></div><button type="button" class="opr-skip" hidden></button></section>
+  <section id="op-prop" hidden><div class="pp-card"></div><span class="pp-film" aria-hidden="true"></span><div class="pp-extra"></div><div class="pp-flash"></div></section>
   <div id="fade"></div>
   <div id="boot"></div>
 </div>

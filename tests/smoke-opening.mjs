@@ -1,4 +1,4 @@
-// 開場冒煙（自動跑完，不用人盯）：用 Playwright 從辦公室一路玩到「待續」，每一幕截圖到 tests/output/opening/（不 commit）。
+// 開場冒煙（自動跑完，不用人盯）：用 Playwright 從辦公室一路玩到第一晚自白，點「跳過自白」接到第一天，每一幕截圖到 tests/output/opening/（不 commit）。
 // 執行：node tests/smoke-opening.mjs（約 1～2 分鐘）。任何一步不對或頁面丟錯就以非 0 結束。
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
@@ -285,23 +285,28 @@ try {
   await sleep(1200);
   await snap('room');
   await page.locator('.opr-hotspot[data-id="bed"]').click();
-  await waitText('我本來只想躺一下，燈還沒關就睡著了。', 3000);
+  // 第一晚 A 版自白（劇本 v4.4）：躺下視角；右上角有獨立的「跳過自白」
+  await waitText('外面有蟲在叫，遠一點的地方有狗叫了幾聲，又停了。', 3000);
   await sleep(1200);
   if (!(await page.evaluate(() => { const im = document.querySelector('.op-room-act.lying .op-bedpov img'); return im?.complete && im.naturalWidth === 1170 && getComputedStyle(im.closest('.op-bedpov')).opacity === '1'; }))) fail('點床後沒有切到躺下的視角');
-  await snap('room-sleep');
+  if (await page.locator('.opr-skip').isHidden()) fail('自白期間沒有跳過按鈕');
+  await snap('room-mono');
   await tapRead();
-  await waitAct('end', 4000);
-  await sleep(2600);
-  await snap('end');
+  await waitText('被子真的有曬過，德叔沒有騙我。', 3000);
+  if ((await act()) !== 'room') fail('點正文就跳完自白了');
+  await sleep(1100);
+  await page.locator('.opr-skip').click();
+  await waitAct('d1wake', 4000); // 跳過自白：睡著並存檔，接著是第一天早上（不再停在待續）
+  await sleep(1800);
+  await snap('d1-title');
   const body = await page.evaluate(() => document.body.innerText);
-  if (!body.includes('待續')) fail('沒有待續頁');
-  if (/第一天|第 1 天/.test(body)) fail('接到第一天了');
+  if (!body.includes('第一天')) fail('沒有接到第一天');
+  if (body.includes('待續')) fail('第一晚之後還停在待續');
   await page.reload();
   await sleep(1500);
-  if ((await act()) !== 'end') fail('重新整理後不在待續');
-  if (!(await page.locator('.op-end-title').count())) fail('重新整理後沒有待續頁');
+  if ((await act()) !== 'd1wake') fail('重新整理後不在第一天早上');
   if (errors.length) fail(`頁面錯誤：\n${errors.join('\n')}`);
-  console.log(`OK：開場走到待續，截圖 ${shot} 張在 ${OUT}`);
+  console.log(`OK：開場走到第一晚自白、跳過後接到第一天，截圖 ${shot} 張在 ${OUT}`);
 } catch (e) {
   await snap('FAIL').catch(() => {});
   console.error('FAIL：', e.message);
