@@ -1,5 +1,5 @@
 // v3b 入口：開場第一幕到第四幕（劇本 v3.8／v3.9）→ 第一晚自白 → 第一～四天（劇本 v4.4）→ 第四天睡著後待續。
-// 每晚自白結束、睡著時自動存檔（讀檔從隔天早上接著）；自白期間有獨立的按鈕可以一次讀完（見 view/reader.js 的 skip）。
+// 每晚自白結束、睡著時自動存檔（讀檔從隔天早上接著）；只有睡前自白期間才有獨立的「跳過自白」按鈕，點一下跳完整段（見 view/reader.js 的 skip）。其他地方不能跳過。
 // 三天 AVG 閱讀（story/script.js、final-source.json、下面的「故事閱讀」）保留不刪，但只有 phase === 'story' 才會畫，執行畫面不會走到。
 // 沒有泡咖啡操作、機關、佈置模式、溫度計、倒數、自動跨天：每一句都由玩家點（或 Enter／Space）推進。
 // 劇本規則在 story/script.js、讀到哪一頁與選項在 story/state.js（純邏輯，有單元測試）；美術代號只查 story/manifest.js。
@@ -115,7 +115,7 @@ function nextAct(from, color, ms) {
   save();
   fadeThen(go, color, ms);
 }
-// 睡著（自白讀完，或點了自白按鈕直接睡）：存檔已經在 runLines 做了（隔天早上／待續），這裡只淡出再進下一幕
+// 睡著（自白讀完，或點了「跳過自白」直接睡）：存檔已經在 runLines 做了（隔天早上／待續），這裡只淡出再進下一幕
 function fallAsleep() {
   reader.hide();
   props.hide();
@@ -124,7 +124,7 @@ function fallAsleep() {
 
 // 一幕裡的句子：從存檔那一句接著；每一句說完點一下才出下一句（不點就停在這一句）
 // look(i, 畫面樣子, 句子)：把畫面擺成第 i 句的樣子；gate(name)：互動關卡；optional(name)：可選互動的熱點
-// 回傳 true＝這一幕讀完；'slept'＝睡著了（自白最後一句，或點了自白按鈕），已經存成下一幕；false＝換畫面了
+// 回傳 true＝這一幕讀完；'slept'＝睡著了（自白最後一句，或點了「跳過自白」），已經存成下一幕；false＝換畫面了
 async function runLines(act, { look, gate, optional }) {
   const my = token;
   const lines = S.ACT_LINES[act];
@@ -143,7 +143,7 @@ async function runLines(act, { look, gate, optional }) {
       if (my !== token) return false;
     }
     reader.show(b);
-    reader.skip(!!b.mono); // 自白期間才有自白按鈕（與翻一句分開的按鈕，見 reader.skip）
+    reader.skip(!!b.mono); // 只有睡前自白（mono）才顯示「跳過自白」，與翻一句分開
     if (b.sleep && S.sleepThrough(state)) save(); // 睡著：這一句一出現就自動存檔成隔天早上（第四天是待續）
     let ok;
     if (b.gate) {
@@ -157,7 +157,7 @@ async function runLines(act, { look, gate, optional }) {
     }
     reader.clearHot();
     if (my !== token) return false;
-    if (ok === 'skip') { // 點了自白按鈕：剩下的自白不再一句一句出，直接睡著並存檔
+    if (ok === 'skip') { // 點了「跳過自白」：剩下的自白不再一句一句出，直接睡著並存檔
       if (S.skipMonologue(state)) save();
       return 'slept';
     }

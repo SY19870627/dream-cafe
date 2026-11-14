@@ -335,9 +335,24 @@ test('可點範圍至少 44px；拖曳超過 10px 不算點', () => {
   assert.match(html, /<script type="module" src="src\/main\.js">/);
 });
 
-test('畫面沒有「略過」、選單、數值、進度列表', () => {
-  const src = ['index.html', 'src/main.js', 'src/view/opening.js', 'src/view/company.js'].map(read).join('\n');
-  for (const word of ['略過', '跳過', '任務', '完成獎勵', '還差', '進度', 'alert(', 'confirm(']) assert.ok(!src.includes(word), `不應出現：${word}`);
+test('只有睡前自白可以跳過；其他地方仍然禁止出現跳過、略過、選單與進度列表', () => {
+  const html = read('index.html');
+  const main = read('src/main.js');
+  const reader = read('src/view/reader.js');
+  const opening = read('src/view/opening.js');
+  const company = read('src/view/company.js');
+  // 跳過按鈕只在閱讀框 #op-read 出現一次，按鈕上的字是「跳過自白」，而且只在自白（mono）時打開
+  assert.equal([...html.matchAll(/class="opr-skip"/g)].length, 1);
+  assert.match(html, /<section id="op-read"[^>]*>[\s\S]*<button type="button" class="opr-skip" hidden><\/button><\/section>/);
+  assert.match(reader, /export const SKIP_LABEL = '跳過自白';/);
+  assert.match(main, /reader\.skip\(!!b\.mono\)/);
+  assert.ok(!opening.includes('opr-skip') && !company.includes('opr-skip'), '開場畫面與公司線沒有跳過按鈕');
+  // 「略過」以及催促型字、選單、進度列表：這四個檔仍然全面禁止
+  const src = [html, main, opening, company].join('\n');
+  for (const word of ['略過', '任務', '完成獎勵', '還差', '進度', 'alert(', 'confirm(']) assert.ok(!src.includes(word), `不應出現：${word}`);
+  // 「跳過」只允許用在睡前自白：畫面上的字只來自 reader.js 的 SKIP_LABEL；註解可以清楚寫「跳過自白」，但不能再做第二個跳過控件
+  assert.equal((reader.match(/export const SKIP_LABEL = '跳過自白';/g) || []).length, 1);
+  assert.ok(!company.includes('跳過'), '公司線不應出現跳過');
 });
 
 test('粗稿形狀（含互動前後的狀態）都畫得出來', () => {

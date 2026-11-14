@@ -2,6 +2,7 @@
 //   showOpening()：16:49 的辦公室 → 標題 → 信箱 → 信（整幕自己處理，換幕時呼叫 api.go）
 //   showScene()：三合院外（傍晚／晚上）、黑路、岔路、工寮與土地公廟、庭埕與護龍房間、待續。
 //     這些畫面的字由閱讀框（view/reader.js）一句一句出；畫面只負責「第 i 句時長什麼樣子」與互動關卡（推門、發動、按住騎、岔路、掉頭、點床）。
+// 開場這些畫面沒有「跳過」按鈕。只有睡前自白期間，閱讀框才會顯示「跳過自白」（view/reader.js）；其他幕與互動關卡都不能跳過。
 // 字全部來自 src/lines/opening.js。畫師原圖只讀不改（不重新壓縮、不縮圖）；夜路的路面是程式繪製，路上照到的東西用畫師原圖。
 import { RESIGNATIONS, RESIGNATION_MAIL, LETTER, OFFICE, TITLE, MAILBOX, ROAD, DEPART, TEMPLE } from '../lines/opening.js';
 import { play, setEngine } from './audio.js';

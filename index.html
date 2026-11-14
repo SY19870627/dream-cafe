@@ -267,7 +267,7 @@
   .op-end-title { margin: 0 0 40px; font-size: 24px; letter-spacing: 12px; color: #f1ece2; animation: floatin 2.4s .5s ease-out both; }
   .op-end-again { background: transparent; color: rgba(241,236,226,.9); border: 1px solid rgba(241,236,226,.5); box-shadow: none; min-width: 180px; animation: floatin 2s 1.4s ease-out both; }
 
-  /* ---------- 睡前自白：獨立的「點一下睡著」按鈕（字在 view/reader.js 的 SKIP_LABEL；右上角，離正文很遠；剛出現的一小段時間淡入、不收點） ---------- */
+  /* ---------- 睡前自白：獨立的「跳過自白」按鈕（字在 view/reader.js 的 SKIP_LABEL；右上角，離正文很遠；剛出現的一小段時間淡入、不收點。只有自白期間才顯示） ---------- */
   #op-read .opr-skip { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; z-index: 4; min-width: 96px; min-height: 44px; padding: 8px 16px;
     pointer-events: auto; font-size: 14px; letter-spacing: 1px; color: #f1ece2; background: rgba(20,16,12,.55); border: 1px solid rgba(241,236,226,.45); box-shadow: none; }
   #op-read .opr-skip.arm { animation: skiparm .9s ease-out both; }
