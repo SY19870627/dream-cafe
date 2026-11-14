@@ -34,10 +34,10 @@ export const PLACES = {
   orchard: { src: 'scene_county_road', tone: 'dusk', ambient: 'wind', lady: 'road' }, // * 果園、水塔
   shopDusk: { src: 'scene_v3b_sanheyuan_dusk_v2', ambient: 'wind', lit: true }, // 咖啡店外（傍晚，門裡的燈亮著）
 };
-// 怡君角色卡：flawed_v3 還沒到（畫師重畫黑眼圈），缺點版先用 flawed_v2
+// 怡君角色卡：缺點版用 flawed_v4（承峰 2026-11-14 17:02 換進遊戲）
 export const YIJUN_CARD = {
   base: 'char_v3b_yijun_card_v2',
-  flawed: 'char_v3b_yijun_card_flawed_v2',
+  flawed: 'char_v3b_yijun_card_flawed_v4',
   better: 'char_v3b_yijun_card_better_v2',
   bites: 'char_v3b_yijun_card_bites',
 };

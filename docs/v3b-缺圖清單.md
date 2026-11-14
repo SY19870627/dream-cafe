@@ -13,7 +13,7 @@
 - 店內 360：沿用開場的店面、德叔、龍眼、靠窗木桌、杯子
 - 識別證 `prop_v3_id_badge`、鑰匙 `key`、老太太遠景 `char_v3_old_lady_far`（小、不可點、不標示）
 - 阿桂半身立繪 `char_v3_agui_half`
-- 怡君角色卡底圖 `char_v3b_yijun_card_v2`、缺點版 `char_v3b_yijun_card_flawed_v2`（畫師重畫黑眼圈的 v3 尚未到，先用 v2）、變好版 `char_v3b_yijun_card_better_v2`、第四天蚊子包 `char_v3b_yijun_card_bites`
+- 怡君角色卡底圖 `char_v3b_yijun_card_v2`、缺點版 `char_v3b_yijun_card_flawed_v4`、變好版 `char_v3b_yijun_card_better_v2`、第四天蚊子包 `char_v3b_yijun_card_bites`
 
 
 ## 場景
@@ -22,7 +22,7 @@
 | --- | --- | --- | --- |
 | 護龍，早上（第一、四天） | 窗外有雞叫；第四天蚊帳一角垂下來 | `scene_v3b_room_night` 疊早上的光（CSS） | 護龍房間（早上）直式 1170×2532；可另出蚊帳垂下來的版本 |
 | 護龍門邊的洗手台 | 牆上一面塑膠框的舊鏡子，鏡子邊緣的水銀掉了一圈；鏡子旁有電燈開關、日光燈 | `scene_v3b_room_night`（早上光）＋ CSS 畫的牆面、鏡框、洗手槽、水龍頭、開關；鏡子裡放角色卡原圖 | 洗手台與舊鏡子（早上）直式；水龍頭、開關位置給座標 |
-| 鏡子裡的怡君 | 角色卡帶缺點版（眼下兩塊青，鼻梁和兩頰一片雀斑，額頭靠髮際也有幾顆）／變好版（雀斑與黑眼圈都沒了）／第四天多兩個蚊子包 | 第一天 `char_v3b_yijun_card_flawed_v2`（v3 尚未到）；第二天、第三天 `char_v3b_yijun_card_better_v2`；第四天 `char_v3b_yijun_card_bites`；底圖 `char_v3b_yijun_card_v2` | 缺點版黑眼圈重畫後改接 `char_v3b_yijun_card_flawed_v3` |
+| 鏡子裡的怡君 | 角色卡帶缺點版（眼下兩塊青，鼻梁和兩頰一片雀斑，額頭靠髮際也有幾顆）／變好版（雀斑與黑眼圈都沒了）／第四天多兩個蚊子包 | 第一天 `char_v3b_yijun_card_flawed_v4`；第二天、第三天 `char_v3b_yijun_card_better_v2`；第四天 `char_v3b_yijun_card_bites`；底圖 `char_v3b_yijun_card_v2` | 已接缺點版 v4 |
 | 下山的路、省道、進市區 | 山上的霧到平地就散了；砂石車；省道旁的鐵皮檳榔攤、過溪的橋、上坡第一個彎的龍眼樹 | `scene_county_road` | 下山／省道（早上）、過溪的橋；第四天三個可拍的點可各出一張 |
 | 郵局門口、超商門口 | 第三天超商門口喝水；第四天郵局門口的機車上拆紙箱 | `scene_county_road` | 市區騎樓（超商、郵局門口） |
 | 租屋處房間 | 單人床、摺疊桌、洗衣籃滿到蓋子蓋不上；衣櫃最底層抽屜 | `scene_v3_rain_room`（第一天傍晚疊傍晚的光）＋ CSS 抽屜、衣服 | 租屋處房間（白天／傍晚）直式；抽屜打開的特寫 |

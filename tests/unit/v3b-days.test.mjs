@@ -535,7 +535,7 @@ test('美術：第一～四天用到的原圖都在 assets/art、有預載；不
   // 執行畫面預載
   assert.match(read('src/main.js'), /preload\(\[\.\.\.new Set\(\[\.\.\.allArt\(\), \.\.\.DAY_ART\]\)\]\)/);
   assert.equal(YIJUN_CARD.base, 'char_v3b_yijun_card_v2');
-  assert.equal(YIJUN_CARD.flawed, 'char_v3b_yijun_card_flawed_v2'); // v3 尚未到
+  assert.equal(YIJUN_CARD.flawed, 'char_v3b_yijun_card_flawed_v4');
   assert.equal(YIJUN_CARD.better, 'char_v3b_yijun_card_better_v2');
   assert.equal(YIJUN_CARD.bites, 'char_v3b_yijun_card_bites');
   assert.equal(yijunCardFor('d1wake'), YIJUN_CARD.flawed);
