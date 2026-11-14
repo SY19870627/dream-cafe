@@ -272,6 +272,40 @@ export function normalize(raw, source) {
   return s;
 }
 
+/* ---------- 測試用跳關（只有網址帶 ?debug=1 的除錯面板會呼叫） ---------- */
+// 回傳一份新的進度（不改傳入的 s）：停在 act 的第 line 句（夾在句數之內），phase 一律是 opening。
+// 跳過的前提自動補上，讓那一幕能照常演：已經過了岔路就補左右（沿用原本的，沒有就 left）；
+// 已經過了存摺按鈕就補選擇（沿用原本的，沒有就第一個）；跳進某一支分支的句子就照那一支補。
+// 關卡做完的記號（cleared）在新物件上是空的：停在關卡那一句就要重做。最後過一次 normalize，跟讀檔走同一套規則。
+// act 不在 OPENING_ACTS 裡回傳 null。
+export function jumpState(s, act, line = 0) {
+  if (!OPENING_ACTS.includes(act)) return null;
+  const prev = (s && typeof s.opening === 'object' && s.opening) || {};
+  const at = OPENING_ACTS.indexOf(act);
+  const max = Math.max(0, lineCount(act) - 1);
+  const n = Math.max(0, Math.min(max, Math.floor(Number(line)) || 0));
+  const ci = OPENING_ACTS.indexOf(CHOICE.act);
+  const branch = linesOf(act)[n]?.branch;
+  let passbook = null;
+  if (branch) passbook = branch;
+  else if (at > ci || (at === ci && n > CHOICE.line)) passbook = PASSBOOK_SIDES.includes(prev.passbook) ? prev.passbook : PASSBOOK_SIDES[0];
+  const raw = {
+    v: SCHEMA,
+    phase: 'opening',
+    opening: {
+      act,
+      line: n,
+      resignation: prev.resignation ?? null,
+      name: prev.name ?? '',
+      fork: at > OPENING_ACTS.indexOf('fork') ? (FORK_SIDES.includes(prev.fork) ? prev.fork : FORK_SIDES[0]) : null,
+      passbook,
+    },
+    at: null,
+    choices: {},
+  };
+  return normalize(raw);
+}
+
 /* ---------- 連點防護 ---------- */
 // 選項剛出現的一小段時間內不收點擊（避免推頁的連點直接落在選項上）；推頁之間也留一點間隔。
 export const CHOICE_ARM_MS = 400;

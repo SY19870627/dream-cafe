@@ -15,9 +15,11 @@ import { unlock, play, setAmbient, setEngine } from './view/audio.js';
 import { preload, img, ready } from './view/art.js';
 import { sceneAt } from './lines/opening.js';
 import { DAY_ACT_VIEW, DAY_TITLES } from './lines/days.js';
+import { debugOn } from './debug/flag.js'; // 只有這個除錯檔是靜態載入；面板本身在 ?debug=1 時才動態 import()
 
 const $ = (id) => document.getElementById(id);
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+let timeScale = 1; // 等待時間的倍率：平常是 1；只有 ?debug=1 面板的「快轉」會改成 1/5（CSS 動畫／轉場由面板調倍速）
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms * timeScale));
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 // 劇本字原樣顯示；開頭的稿件標記（【待定】等）不顯示（只用在保留的三天 AVG 模組；可玩流程的字已經去掉標記）
 const fmt = (t) => esc(String(t).replace(/^(【(待定|待確認|新增互動)】)+/, ''));
@@ -795,4 +797,29 @@ fetch('src/story/final-source.json')
   .then(() => {
     $('boot').remove();
     go();
+    if (debugOn(location.search)) startDebug();
   });
+
+/* ---------- 除錯（網址帶 ?debug=1 才有；沒帶時不載入、不碰 DOM、不發請求） ---------- */
+// 跳關：換成 jumpState 給的新狀態（覆蓋這台裝置的存檔），整個畫面重來
+function debugJump(act, line) {
+  const s = S.jumpState(state, act, line);
+  if (!s) return false;
+  state = s;
+  pet.done = false;
+  save();
+  $('fade').classList.remove('on');
+  go();
+  return true;
+}
+function startDebug() {
+  import('./debug/ui.js')
+    .then((m) => m.start({
+      app: $('app'),
+      getState: () => state,
+      beat: () => S.beatAt(state),
+      jump: debugJump,
+      setTimeScale: (k) => { timeScale = k > 0 ? k : 1; },
+    }))
+    .catch((e) => console.warn('除錯面板載入失敗', e));
+}
