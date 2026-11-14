@@ -1,7 +1,7 @@
 {
   "coreVersion": "1.0.0",
-  "sourceCommit": "70638dd",
-  "sourceDirty": true,
+  "sourceCommit": "b3b22f3",
+  "sourceDirty": false,
   "files": {
     "README.md": "3cc1a0456273b69dc66444a8fabaf90f5d44b5d056ae7e018bf73d32ffbb9cdf",
     "capture.js": "6cb01eabf897cea75aad0eb3191cf1fe12d0a47842725ed255e805e0bd6e5180",

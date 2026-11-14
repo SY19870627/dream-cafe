@@ -1,5 +1,5 @@
 /**
- * dream-cafe 測試回報收件端（Google Apps Script 網頁應用程式）
+ * 測試回報收件端（Google Apps Script 網頁應用程式），dream-cafe 與 taiwan-procession 共用
  * 遊戲網址帶 ?debug=1 時，面板的「回報問題」會把一筆回報 POST 到這裡：寫進試算表一列，截圖存到雲端硬碟資料夾。
  * 部署步驟見同一個資料夾的「部署說明.md」。
  *
@@ -11,11 +11,16 @@ var REPORT_KEY = 'REPLACE_ME';
 var SPREADSHEET_ID = '';
 var SHEET_NAME = '回報';
 var FOLDER_NAME = 'dream-cafe 回報截圖';
+// 依回報的 game 欄位分頁、分資料夾；沒列到的遊戲（含舊版沒帶 game 的回報）都進上面預設的「回報」
+var GAMES = {
+  'dream-cafe': { sheet: '回報', folder: 'dream-cafe 回報截圖' },
+  'taiwan-procession': { sheet: '回報-遶境', folder: 'taiwan-procession 回報截圖' }
+};
 var CELL_MAX = 5000; // 每一格最多幾個字（試算表一格上限五萬字，留短一點好讀）
 var HEADERS = ['時間(台北)', '版本', '天', '場景', '句', '說話的人', '原文', '分類', '意見', '截圖連結', '裝置', '狀態', '處理說明'];
 
 function doGet() {
-  return ContentService.createTextOutput('dream-cafe report endpoint ok').setMimeType(ContentService.MimeType.TEXT);
+  return ContentService.createTextOutput('report endpoint ok').setMimeType(ContentService.MimeType.TEXT);
 }
 
 function doPost(e) {
@@ -38,11 +43,11 @@ function doPost(e) {
     var when = parseTime_(data.time);
     var link = '';
     try {
-      link = saveShot_(data.screenshot, when, data.scene);
+      link = saveShot_(data.screenshot, when, data.scene, game_(data.game).folder);
     } catch (err) {
       link = '截圖存檔失敗：' + err;
     }
-    var sheet = sheet_();
+    var sheet = sheet_(game_(data.game).sheet);
     sheet.appendRow([
       Utilities.formatDate(when, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss'),
       cell_(data.version),
@@ -84,10 +89,16 @@ function cell_(v) {
   return s;
 }
 
+// 這筆回報是哪個遊戲：回傳 { sheet, folder }
+function game_(name) {
+  return (typeof name === 'string' && GAMES.hasOwnProperty(name)) ? GAMES[name] : { sheet: SHEET_NAME, folder: FOLDER_NAME };
+}
+
 // 工作表：沒有就建，第一列沒有標題就補
-function sheet_() {
+function sheet_(name) {
   var book = SPREADSHEET_ID ? SpreadsheetApp.openById(SPREADSHEET_ID) : SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = book.getSheetByName(SHEET_NAME) || book.insertSheet(SHEET_NAME);
+  name = name || SHEET_NAME;
+  var sheet = book.getSheetByName(name) || book.insertSheet(name);
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(HEADERS);
     sheet.setFrozenRows(1);
@@ -97,14 +108,14 @@ function sheet_() {
 }
 
 // 截圖（data:image/jpeg;base64,...）存到雲端硬碟資料夾，設成「知道連結的人可以檢視」，回傳連結；沒有截圖回傳空字串
-function saveShot_(dataUrl, when, scene) {
+function saveShot_(dataUrl, when, scene, folderName) {
   if (typeof dataUrl !== 'string') return '';
   var m = /^data:(image\/(jpeg|png));base64,(.+)$/.exec(dataUrl);
   if (!m) return '';
   var ext = m[2] === 'png' ? 'png' : 'jpg';
   var name = Utilities.formatDate(when, 'Asia/Taipei', 'yyyyMMdd-HHmmss') + '_' + String(scene || 'unknown').replace(/[^\w-]/g, '') + '.' + ext;
   var blob = Utilities.newBlob(Utilities.base64Decode(m[3]), m[1], name);
-  var file = folder_().createFile(blob);
+  var file = folder_(folderName).createFile(blob);
   try {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   } catch (err) {
@@ -113,7 +124,8 @@ function saveShot_(dataUrl, when, scene) {
   return file.getUrl();
 }
 
-function folder_() {
-  var it = DriveApp.getFoldersByName(FOLDER_NAME);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(FOLDER_NAME);
+function folder_(name) {
+  name = name || FOLDER_NAME;
+  var it = DriveApp.getFoldersByName(name);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
 }
