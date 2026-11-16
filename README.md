@@ -13,7 +13,7 @@
 ## 給接手的人／AI
 
 1. 先讀 [`AGENTS.md`](AGENTS.md) 與 [`docs/規格書.md`](docs/規格書.md)
-2. 人物設定讀 [`docs/人物誌.md`](docs/人物誌.md)
+2. 故事與人物設定讀 [`docs/故事架構.md`](docs/故事架構.md)；[`docs/人物誌.md`](docs/人物誌.md) 是第一版，多數已被取代
 3. 需要開場四幕台詞或舊實作時，再查 [`legacy/README.md`](legacy/README.md)
 4. **不要**在 `legacy/src/` 上繼續開發第二版
 
