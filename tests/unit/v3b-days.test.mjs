@@ -10,8 +10,8 @@ import * as OP from '../../src/lines/opening.js';
 import * as D from '../../src/lines/days.js';
 import * as S from '../../src/story/state.js';
 import { load, persist, SAVE_KEY, OTHER_KEYS } from '../../src/story/save.js';
-import { PLACES, DAY_ART, YIJUN_CARD, yijunCardFor, placesOf, HOT_IDS, MINI_SLOTS, miniHtml } from '../../src/view/days.js';
-import { ART_MAP, OVERLAY_TEXT, ART_MAP_FILES } from '../../src/view/art-map.js';
+import { PLACES, DAY_ART, YIJUN_CARD, yijunCardFor, placesOf, HOT_IDS, MINI_SLOTS, miniHtml, cueOf, LINE_CUES, CHAR_SLOTS } from '../../src/view/days.js';
+import { ART_MAP, OVERLAY_TEXT, ART_MAP_FILES, artUrl, refOf, srcOf } from '../../src/view/art-map.js';
 import { nameOf } from '../../src/view/reader.js';
 import { step, walk } from './walk.mjs';
 
@@ -22,6 +22,14 @@ const SRC = JSON.parse(read('src/story/final-source.json'));
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const reload = (s) => S.normalize(clone(s), SRC);
 const MARKS = /【(待定|待確認|新增互動)】|【小圖/;
+// 讀 WebP 檔頭的寬高（VP8／VP8L／VP8X）
+const webpSize = (buf) => {
+  const kind = buf.toString('ascii', 12, 16);
+  if (kind === 'VP8X') return [1 + buf.readUIntLE(24, 3), 1 + buf.readUIntLE(27, 3)];
+  if (kind === 'VP8L') { const b = buf.readUInt32LE(21); return [1 + (b & 0x3fff), 1 + ((b >> 14) & 0x3fff)]; }
+  if (kind === 'VP8 ') return [buf.readUInt16LE(26) & 0x3fff, buf.readUInt16LE(28) & 0x3fff];
+  throw new Error(`不認得的 WebP：${kind}`);
+};
 const fakeStorage = () => {
   const m = new Map();
   return { m, getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
@@ -125,15 +133,46 @@ test('不再有 v4.5 的雀斑消失、公司會議、相機、存摺放上吧�
   assert.ok(!dayLines().some((b) => b.branch || b.gate || b.sleep || b.mono), '沒有分支、關卡、睡著、自白');
 });
 
-test('說話的人：房東、坤伯、店長、店員都有名牌；開場的德叔、我照舊；新角色沒有立繪（只有名牌）', () => {
+test('說話的人：房東、坤伯、店長、店員都有名牌與半身立繪（v5.6 定版，依台詞切差分）；開場的德叔、我照舊', () => {
   assert.deepEqual(D.DAY_SPEAKERS, { landlord: '房東', kunbo: '坤伯', storeManager: '店長', clerk: '店員' });
   for (const [who, name] of [['landlord', '房東'], ['kunbo', '坤伯'], ['storeManager', '店長'], ['clerk', '店員'], ['deshu', '德叔'], ['me', '我']]) assert.equal(nameOf(who), name);
   const known = new Set(['deshu', 'me', ...Object.keys(D.DAY_SPEAKERS)]);
   for (const b of dayLines()) assert.ok(b.who === undefined || known.has(b.who), b.who);
   for (const w of ['landlord', 'kunbo', 'storeManager', 'clerk']) assert.ok(dayLines().some((b) => b.who === w), `${w} 有開口`);
+  // 新角色每一句都出半身立繪（底卡或差分），圖在 assets/art-v56/A
+  const half = { landlord: 'char_v56_landlord_half', kunbo: 'char_v56_kunbo_half', storeManager: 'char_v56_store_manager_half', clerk: 'char_v56_store_clerk_half' };
+  for (const b of dayLines().filter((x) => half[x.who])) {
+    const c = cueOf(b);
+    assert.ok(c, `${b.who}：${b.text} 有立繪`);
+    assert.equal(c.place, 'half');
+    assert.ok(c.src.startsWith(`art-v56/A/${c.variant ? 'variants/' : ''}${half[b.who]}_`), `${b.text} → ${c.src}`);
+    assert.ok(existsSync(root(artUrl(c.src))), `缺 ${artUrl(c.src)}`);
+  }
+  // 差分：每一句對到劇本原文、差分都在對照表上；沒對上的句子用底卡
+  const texts = new Set(dayLines().map((b) => b.text));
+  for (const [t, [who, v]] of Object.entries(LINE_CUES)) {
+    assert.ok(texts.has(t), `差分對不到句子：${t}`);
+    assert.ok(ART_MAP[CHAR_SLOTS[who]].variants[v], `${who} 沒有差分 ${v}`);
+  }
+  const cue = (t) => cueOf(find(t).b);
+  assert.equal(cue('這個昨天就過期了，你是沒在看喔？').src, 'art-v56/A/variants/char_v56_store_manager_half_scold_bento', '店長罵過期便當');
+  assert.equal(cue('對不起。').src, 'art-v56/A/variants/char_v56_store_clerk_half_sorry_bow', '店員道歉');
+  assert.equal(cue('店員低著頭，手上還拿著那個過期的便當。').src, 'art-v56/A/variants/char_v56_store_clerk_half_downcast', '旁白：店員低著頭');
+  assert.equal(cue('現在年輕人齁，動不動就請假……').variant, 'nag');
+  assert.equal(cue('去吧，看到我就想跑。').variant, 'shoo');
+  assert.equal(cue('記得下禮拜要交房租。').variant, 'remind_rent');
+  assert.equal(cue('妳怎麼沒去上班？').src, 'art-v56/A/char_v56_landlord_half_v2', '沒對上的句子用底卡');
+  assert.equal(cue('蛤？').variant, 'squint_bottle');
+  assert.equal(cue('……我老花眼鏡放在屋裡啦。').variant, 'sheepish');
+  assert.equal(cue('來，這顆給妳。').variant, 'offer_longan');
+  assert.equal(cue('花斑貓跳上椅子，用手去撥袋子裡的龍眼乾。').src, 'art-v56/A/variants/cat_huaban_paw', '花斑貓撥龍眼乾');
+  assert.equal(cueOf({ who: 'me', text: '好，我記得。' }), null, '我、旁白沒有立繪');
+  assert.equal(cueOf({ who: 'deshu', text: '這裡隨時都歡迎妳。' }), null, '德叔照舊由店內流程處理');
   const main = code('src/main.js');
-  assert.match(main, /reader\.portrait\(null\);/, '背景圖的畫面：新角色不出立繪');
-  assert.match(main, /const portrait = day \? b\.who === 'deshu' : lk\.portrait;/, '店裡：只有德叔說話才出立繪（坤伯沒有）');
+  assert.match(main, /const cue = cueOf\(b\);[^\n]*\n\s*reader\.portrait\(cue \? cue\.src : null, cue\?\.place, cue\?\.alt\);/, '背景圖的畫面：新角色出半身立繪');
+  assert.match(main, /const portrait = day \? b\.who === 'deshu' : lk\.portrait;/, '店裡：德叔說話出德叔立繪');
+  assert.match(main, /const cue = day && !portrait \? cueOf\(b\) : null;/, '店裡：坤伯說話出坤伯半身');
+  assert.match(read('src/view/reader.js'), /src="\$\{artUrl\(src\)\}"/, '立繪網址由對照表產生（可載入 assets/art-v56/）');
   assert.match(main, /const face = b\.face === 'smile' \? 'char_deshu_smile' : PORTRAITS\.deshu\.src;/, '德叔微笑那兩句');
   assert.deepEqual(dayLines().filter((b) => b.face).map((b) => b.text), ['我相信妳一定可以的。', '如果包含找龍眼玩的貓客人，我們這三天總共來了三位客人。']);
   // 不拿阿哲的阿公、龍眼貓充數（對照表註解可以提到禁止使用的檔名，但不能當 src／planned）
@@ -439,26 +478,60 @@ test('舊存檔：v4.5 的第一～四天幕名接到新流程（不卡住）；
 });
 
 /* ---------- 美術 ---------- */
-test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀態；ready 的圖都在；暫代都寫明方式；不拿龍眼貓／阿公充數', () => {
+test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀態；ready 的圖都在（assets/art 或 assets/art-v56）；暫代都寫明方式；不拿龍眼貓／阿公充數', () => {
   const files = new Set(readdirSync(root('assets/art')));
+  const has = (ref) => existsSync(root(artUrl(ref)));
   for (const [id, s] of Object.entries(ART_MAP)) {
     assert.ok(s.use, `${id} 用途`);
     assert.ok('planned' in s, `${id} 預定鍵`);
     assert.ok(['ready', 'temp', 'none'].includes(s.status), `${id} 狀態`);
-    if (s.src) assert.ok(files.has(`${s.src}.webp`), `${id}：缺 ${s.src}.webp`);
+    if (s.src) assert.ok(has(refOf(id)), `${id}：缺 ${artUrl(refOf(id))}`);
+    for (const v of Object.keys(s.variants || {})) assert.ok(has(refOf(id, v)), `${id}／${v}：缺 ${artUrl(refOf(id, v))}`);
     if (s.status !== 'ready') assert.ok(s.temp, `${id} 暫代方式`);
-    if (/calico|kunbo/.test(id)) assert.ok(!s.src, `${id} 不用既有圖充數`);
+    if (s.dir) assert.ok(s.dir.startsWith('art-v56/'), `${id}：新圖只放 assets/art-v56/`);
   }
-  for (const n of ART_MAP_FILES) assert.ok(files.has(`${n}.webp`), n);
-  // 指定的缺圖都在表上、是暫代
-  for (const id of ['bg_stairs', 'bg_home', 'bg_atm', 'bg_store', 'bg_village', 'bg_kunyard']) assert.equal(ART_MAP[id].status, 'temp', id);
-  assert.equal(ART_MAP.bg_home.src, 'scene_v3_rain_room');
-  assert.match(ART_MAP.bg_home.temp, /雨天房/);
-  assert.equal(ART_MAP.bg_atm.src, null, '不拿辦公大廳冒充提款機');
-  for (const id of ['ch_landlord', 'ch_kunbo', 'ch_store_manager', 'ch_clerk']) assert.equal(ART_MAP[id].status, 'none', id);
-  assert.match(ART_MAP.ch_calico.temp, /剪影/);
+  for (const n of ART_MAP_FILES) assert.ok(has(n), n);
+  assert.equal(artUrl('scene_county_road'), 'assets/art/scene_county_road.webp', '舊圖仍在 assets/art/');
+  assert.equal(artUrl('art-v56/B/bg_v56_store_interior_portrait'), 'assets/art-v56/B/bg_v56_store_interior_portrait.webp');
+  // v5.6 定版背景：只用直式 1170×2532（_portrait；村子路用 _portrait_v2），拿掉 CSS 中性底
+  const BG = { bg_stairs: 'bg_v56_stairwell_portrait', bg_home: 'bg_v56_rental_room_day_portrait', bg_atm: 'bg_v56_bank_atm_portrait',
+    bg_store: 'bg_v56_store_interior_portrait', bg_village: 'bg_v56_village_lane_portrait_v2', bg_kunyard: 'bg_v56_kunbo_yard_portrait' };
+  for (const [id, f] of Object.entries(BG)) {
+    assert.equal(ART_MAP[id].status, 'ready', id);
+    assert.equal(srcOf(id), `art-v56/B/${f}`, id);
+    assert.deepEqual(webpSize(readFileSync(root(artUrl(srcOf(id))))), [1170, 2532], `${f} 是直式 1170×2532`);
+  }
+  for (const k of ['stairs', 'home', 'atm', 'store', 'village', 'kunyard']) assert.ok(PLACES[k].src, `${k} 不再是 CSS 中性底`);
+  assert.doesNotMatch(read('index.html'), /\.dy-css-(stairs|atm|store|village|kunyard)/, 'CSS 中性底拿掉');
+  // 角色：A 組底卡用 *_v2，差分在 variants/
+  const CH = { ch_landlord: ['char_v56_landlord_half_v2', ['nag', 'remind_rent', 'shoo']], ch_kunbo: ['char_v56_kunbo_half_v2', ['squint_bottle', 'sheepish', 'offer_longan']],
+    ch_store_manager: ['char_v56_store_manager_half_v2', ['scold_bento', 'exasperated']], ch_clerk: ['char_v56_store_clerk_half_v2', ['downcast', 'sorry_bow']],
+    ch_calico: ['cat_huaban_sit_v2', ['jump', 'walk', 'paw']] };
+  for (const [id, [base, vs]] of Object.entries(CH)) {
+    assert.equal(ART_MAP[id].status, 'ready', id);
+    assert.equal(srcOf(id), `art-v56/A/${base}`, id);
+    assert.deepEqual(Object.keys(ART_MAP[id].variants).sort(), [...vs].sort(), `${id} 差分`);
+    for (const v of vs) assert.match(refOf(id, v), /^art-v56\/A\/variants\//);
+    assert.equal(refOf(id, 'nope'), srcOf(id), '沒有的差分用底卡');
+  }
+  assert.match(srcOf('ch_calico'), /cat_huaban/, '花斑貓用 cat_huaban');
+  for (const id of ['ch_calico', 'ch_kunbo']) for (const v of [null, ...Object.keys(ART_MAP[id].variants)]) assert.doesNotMatch(refOf(id, v), /cat_longan|char_grandpa/, `${id} 不拿龍眼貓／阿公充數`);
+  // 小圖：C 組 prop_v56_*_v2
+  const MINI = { mini_stain: 'prop_v56_water_stain_v2', mini_passbook: 'prop_v56_passbook_drawer_v2', mini_hat: 'prop_v56_douli_v2', mini_label: 'prop_v56_empty_can_label_v2', mini_longan: 'prop_v56_dried_longan_v2' };
+  for (const [id, f] of Object.entries(MINI)) { assert.equal(ART_MAP[id].status, 'ready', id); assert.equal(srcOf(id), `art-v56/C/${f}`); }
   for (const k of Object.values(MINI_SLOTS)) assert.ok(ART_MAP[k], k);
-  assert.match(ART_MAP.mini_label.temp, /農藥/);
+  assert.match(ART_MAP.mini_label.use, /農藥/);
+  assert.deepEqual(webpSize(readFileSync(root(artUrl(srcOf('mini_label'))))), [1024, 1024], '空罐子小圖是正方形（疊字座標以 1024×1024 量）');
+  assert.match(miniHtml('label'), /assets\/art-v56\/C\/prop_v56_empty_can_label_v2\.webp[\s\S]*mn-on-art[^>]*>農藥</, '標籤留白處由程式疊「農藥」');
+  assert.match(read('index.html'), /\.pp-mini\.mini-label \.mn-on-art \{ left: 48\.6%; top: 68%;/);
+  // 超商海報：疊在後牆留白框（原圖 x 345–1037、y 567–857）
+  assert.match(read('index.html'), /\.dy-poster \{ position: absolute; left: 29\.5%; top: 22\.4%; width: 59\.1%; height: 11\.5%;/);
+  // 花斑貓：村子路跳下（jump）→ 坐（sit）→ 點了走（walk）
+  const view = code('src/view/days.js');
+  assert.match(view, /cat\.dataset\.pose = 'jump'/);
+  assert.match(view, /cat\.dataset\.pose = 'walk'/);
+  // 預載包含新圖
+  for (const r of ART_MAP_FILES.filter((x) => x.startsWith('art-v56/'))) assert.ok(DAY_ART.includes(r), `沒有預載 ${r}`);
   // 已有的直接用
   for (const [id, src] of [['bg_office', 'scene_office_night'], ['bg_mailbox', 'scene_mailboxes'], ['bg_road', 'scene_county_road'], ['bg_courtyard_night', 'scene_v3b_courtyard_night_v2'], ['bg_room_night', 'scene_v3b_room_night'], ['bg_bed_pov', 'scene_v3b_bed_pov_night']]) {
     assert.equal(ART_MAP[id].src, src);
@@ -467,10 +540,10 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   // 場景都從對照表來
   for (const [k, p] of Object.entries(PLACES)) {
     assert.ok(ART_MAP[p.slot], `${k} 對到 ${p.slot}`);
-    assert.equal(p.src, ART_MAP[p.slot].src, k);
+    assert.equal(p.src, srcOf(p.slot), k);
   }
   for (const act of D.DAY_ACTS.filter((a) => D.DAY_ACT_VIEW[a] === 'still')) for (const k of placesOf(D.DAY_LINES[act])) assert.ok(PLACES[k], `${act}：${k}`);
-  for (const n of DAY_ART) assert.ok(files.has(`${n}.webp`), `缺 ${n}.webp`);
+  for (const n of DAY_ART) assert.ok(n.includes('/') ? has(n) : files.has(`${n}.webp`), `缺 ${artUrl(n)}`);
   assert.match(read('src/main.js'), /preload\(\[\.\.\.new Set\(\[\.\.\.allArt\(\), \.\.\.DAY_ART\]\)\]\)/);
   // 洗臉：鏡子裡是帶缺點的角色卡
   assert.equal(YIJUN_CARD.flawed, 'char_v3b_yijun_card_flawed_v4');

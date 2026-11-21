@@ -5,14 +5,15 @@
 //   showCard()：只有一張字卡的幕（「第二天」「三天後」）。
 //   createProps()：疊在閱讀框上面的一層（#op-prop）：特寫卡（pp-card）、小圖（pp-mini：先疊上來，點一下才出句子）、要點的東西。店內 360 與整張背景圖都用這一層。
 // 美術：畫師原圖只讀不改（不重新壓縮、不縮圖）。圖從哪裡來、哪些是暫代，只查 view/art-map.js（換圖只改那裡）。
-//   缺的背景用 CSS 中性底；缺的角色不顯示立繪（只有名牌）；花斑貓是 CSS 剪影，不用龍眼貓圖；物件小圖不畫手。
+//   v5.6 新圖在 assets/art-v56/，舊圖仍在 assets/art/；網址一律由 art-map.js 的 artUrl() 產生。
+//   房東、坤伯、店長、店員是半身立繪（依台詞切差分，見 LINE_CUES）；花斑貓只用 cat_huaban_*，不用龍眼貓圖；物件小圖不畫手。
 import { DAY_TITLES, DAY_CARDS } from '../lines/days.js';
-import { OVERLAY_TEXT, srcOf } from './art-map.js';
+import { OVERLAY_TEXT, srcOf, refOf, artUrl, ART_MAP_FILES } from './art-map.js';
 import { play } from './audio.js';
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const art = (name) => `assets/art/${name}.webp`;
+const art = (ref) => artUrl(ref); // 舊圖檔名 → assets/art/；art-v56/… → assets/art-v56/…
 
 // 場景 → 對照表的哪一格（src 從 art-map 來；null＝CSS 中性底 .dy-css）
 //   tone：morning 早上／dusk 傍晚（只在顯示時疊一層光，不改原圖）；fit：wide＝橫式原圖（信箱）
@@ -22,13 +23,61 @@ export const PLACES = {
   basin: placeOf('bg_basin', { tone: 'morning', ambient: 'room', basin: true }), // 暫代：CSS 洗手台與鏡子
   road: placeOf('bg_road', { ambient: 'wind' }), // 下山、省道
   mailbox: placeOf('bg_mailbox', { fit: 'wide', ambient: 'wind' }), // 租屋處信箱（沿用開場第二幕）
-  stairs: placeOf('bg_stairs', { ambient: 'room' }), // 暫代：CSS 樓梯間
-  home: placeOf('bg_home', { ambient: 'room', home: true }), // 暫代：雨天房（不是八月房間）
-  atm: placeOf('bg_atm', { ambient: 'wind' }), // 暫代：CSS 騎樓提款機
-  store: placeOf('bg_store', { ambient: 'lobby', store: true }), // 暫代：CSS 超商
-  village: placeOf('bg_village', { ambient: 'wind', village: true }), // 暫代：CSS 村子路
-  kunyard: placeOf('bg_kunyard', { ambient: 'wind', yard: true }), // 暫代：CSS 坤伯院子
+  stairs: placeOf('bg_stairs', { ambient: 'room' }), // v5.6 定版：樓梯間
+  home: placeOf('bg_home', { ambient: 'room', home: true }), // v5.6 定版：八月的租屋房間
+  atm: placeOf('bg_atm', { ambient: 'wind' }), // v5.6 定版：銀行外的提款機
+  store: placeOf('bg_store', { ambient: 'lobby', store: true }), // v5.6 定版：超商（後牆留白框＝徵人海報）
+  village: placeOf('bg_village', { ambient: 'wind', village: true }), // v5.6 定版：村子路（_portrait_v2）
+  kunyard: placeOf('bg_kunyard', { ambient: 'wind', yard: true }), // v5.6 定版：坤伯院子
 };
+
+/* ---------- 新角色的半身立繪與差分（房東、坤伯、店長、店員、花斑貓） ---------- */
+// 說話的人 → 對照表的哪一格
+export const CHAR_SLOTS = { landlord: 'ch_landlord', kunbo: 'ch_kunbo', storeManager: 'ch_store_manager', clerk: 'ch_clerk', calico: 'ch_calico' };
+const CHAR_ALT = { landlord: '房東', kunbo: '坤伯', storeManager: '店長', clerk: '店員', calico: '花斑貓' };
+// 依台詞／動作切差分：句子原文 → [誰, 差分]。新角色自己開口但沒列在這裡的句子用底卡；
+// 別人講話或旁白時列在這裡的，也把那個角色帶出來（例如旁白「店員低著頭……」）。
+export const LINE_CUES = {
+  // 樓梯間：房東碎唸、趕人、提醒房租
+  '現在年輕人齁，動不動就請假……': ['landlord', 'nag'],
+  '我們以前齁，發燒也照樣去上班。': ['landlord', 'nag'],
+  '去吧，看到我就想跑。': ['landlord', 'shoo'],
+  '被他說中了。我有點不好意思，只好點點頭。': ['landlord', 'shoo'],
+  '記得下禮拜要交房租。': ['landlord', 'remind_rent'],
+  // 超商：店長罵過期便當、受不了；店員道歉、低頭
+  '這個昨天就過期了，你是沒在看喔？': ['storeManager', 'scold_bento'],
+  '客人拿到櫃檯才發現，你要我怎麼跟人家講？': ['storeManager', 'scold_bento'],
+  '講幾遍了，上架前先看日期，你到底有沒有在聽？': ['storeManager', 'exasperated'],
+  '對不起。': ['clerk', 'sorry_bow'],
+  '對不起有用的話，我還要請你來幹嘛？': ['storeManager', 'exasperated'],
+  '店員低著頭，手上還拿著那個過期的便當。': ['clerk', 'downcast'],
+  // 坤伯院子：瞇眼看罐子、不好意思
+  '蛤？': ['kunbo', 'squint_bottle'],
+  '旁邊這罐才是肥料，還沒開。': ['kunbo', 'squint_bottle'], // （畫面：坤伯把罐子拿過去，拿得很遠，瞇著眼睛看。）
+  '……我老花眼鏡放在屋裡啦。': ['kunbo', 'sheepish'],
+  '兩罐長得一模一樣，誰分得出來。': ['kunbo', 'sheepish'],
+  '這桶我本來就還沒有要用啊。': ['kunbo', 'sheepish'],
+  // 傍晚咖啡館：坤伯掏龍眼乾；花斑貓撥袋子裡的龍眼乾
+  '這個給妳們啦，我自己焙的龍眼乾。': ['kunbo', 'offer_longan'],
+  '早上那個齁……不要跟別人講捏。': ['kunbo', 'sheepish'],
+  '來，這顆給妳。': ['kunbo', 'offer_longan'],
+  '德叔，你也吃啦，站在那邊幹嘛。': ['kunbo', 'offer_longan'],
+  '花斑貓跳上椅子，用手去撥袋子裡的龍眼乾。': ['calico', 'paw'],
+  '一顆龍眼乾滾到桌上，牠自己嚇了一跳。': ['calico', 'paw'],
+};
+// 這一句要出誰的立繪：{ who, variant, src（參照）, alt, place } 或 null（德叔、我、旁白另外處理）
+export function cueOf(b) {
+  if (!b) return null;
+  const hit = LINE_CUES[b.text];
+  const who = hit ? hit[0] : b.who;
+  const slot = CHAR_SLOTS[who];
+  if (!slot) return null;
+  const variant = hit ? hit[1] : null;
+  return { who, variant, src: refOf(slot, variant), alt: CHAR_ALT[who], place: who === 'calico' ? 'cat' : 'half' };
+}
+const CALICO = { sit: refOf('ch_calico'), jump: refOf('ch_calico', 'jump'), walk: refOf('ch_calico', 'walk') };
+// 花斑貓的三個姿勢疊在一起，由 data-pose 決定顯示哪一張（sit 底卡／jump 跳下／walk 往前走）
+const calicoImgs = () => Object.entries(CALICO).map(([pose, ref]) => `<img class="cv-${pose}" src="${art(ref)}" alt="" aria-hidden="true">`).join('');
 // 怡君角色卡：缺點版用 flawed_v4（承峰 2026-11-14 17:02 換進遊戲）；第一天洗臉，鏡子裡是帶缺點的角色卡
 export const YIJUN_CARD = {
   base: 'char_v3b_yijun_card_v2',
@@ -40,7 +89,9 @@ export function yijunCardFor(act) {
   if (act === 'd1wake') return YIJUN_CARD.flawed;
   return YIJUN_CARD.base;
 }
-export const DAY_ART = [...new Set([...Object.values(PLACES).map((p) => p.src).filter(Boolean), YIJUN_CARD.flawed, 'key', 'char_deshu_smile'])];
+// 預載：場景、鏡子裡的角色卡、鑰匙、德叔微笑，加上 v5.6 定版圖（半身＋差分、花斑貓、小圖）
+export const DAY_ART = [...new Set([...Object.values(PLACES).map((p) => p.src).filter(Boolean), YIJUN_CARD.flawed, 'key', 'char_deshu_smile',
+  ...ART_MAP_FILES.filter((r) => r.startsWith('art-v56/'))])];
 
 // 這一幕會用到哪些場景（照出現順序）
 export function placesOf(lines) {
@@ -72,10 +123,10 @@ function placeHtml(key, act) {
     ${p.basin ? `<div class="dy-basin" aria-hidden="true"><div class="dy-mirror"><img class="dy-face" src="${art(yijunCardFor(act))}" alt="" aria-hidden="true"><span class="dy-fog"></span></div><div class="dy-sink"></div></div>
       <div class="dy-faucet" id="dy-faucet"></div><span class="dy-water" aria-hidden="true"></span>` : ''}
     ${key === 'mailbox' ? '<div class="dy-mailslot" id="dy-mailslot"><span class="dy-slip" aria-hidden="true"></span></div>' : ''}
-    ${p.home ? '<div class="dy-wallet" id="dy-wallet"><i></i><i></i></div><div class="dy-ddrawer" id="dy-ddrawer"><span class="dy-seal" aria-hidden="true"></span><span class="dy-book" aria-hidden="true"></span></div>' : ''}
+    ${p.home ? '<span class="dy-stainspot" aria-hidden="true"></span><div class="dy-wallet" id="dy-wallet"><i></i><i></i></div><div class="dy-ddrawer" id="dy-ddrawer"><span class="dy-seal" aria-hidden="true"></span><span class="dy-book" aria-hidden="true"></span></div>' : ''}
     ${p.store ? `<div class="dy-poster" id="dy-poster"><span>${esc(OVERLAY_TEXT.poster)}</span></div>` : ''}
-    ${p.village ? '<div class="dy-calico on-wall" id="dy-calico" aria-label="花斑貓"></div>' : ''}
-    ${p.yard ? '<div class="dy-bucket" aria-hidden="true"></div><div class="dy-emptycan" id="dy-emptycan"></div><div class="dy-fullcan" aria-hidden="true"></div><div class="dy-calico in-yard" aria-hidden="true"></div>' : ''}
+    ${p.village ? `<div class="dy-calico on-wall" id="dy-calico" aria-label="花斑貓" data-pose="sit">${calicoImgs()}</div>` : ''}
+    ${p.yard ? `<div class="dy-emptycan" id="dy-emptycan"></div><div class="dy-fullcan" aria-hidden="true"></div><div class="dy-calico in-yard" aria-hidden="true" data-pose="sit">${calicoImgs()}</div>` : ''}
   </div></div>`;
 }
 
@@ -126,7 +177,14 @@ export function showDay(root, act, api) {
     beat(i, look) {
       for (const p of el.querySelectorAll('.dy-place')) p.classList.toggle('on', p.dataset.place === look.place);
       el.classList.toggle('calico-yard', look.calico === 'yard');
-      el.classList.toggle('calico-wall', look.calico === 'wall');
+      // 花斑貓從圍牆上跳下來（jump），落地坐著（sit）；點了往前走（walk，見 effect）
+      const wall = look.calico === 'wall';
+      if (wall && !el.classList.contains('calico-wall')) {
+        const cat = el.querySelector('.dy-calico.on-wall');
+        if (cat && !el.classList.contains('calico-go')) { cat.dataset.pose = 'jump'; setTimeout(() => { if (cat.dataset.pose === 'jump') cat.dataset.pose = 'sit'; }, 900); }
+      }
+      el.classList.toggle('calico-wall', wall);
+      el.classList.toggle('mini-stain', look.mini === 'stain'); // 水痕小圖疊上來時，原圖上那一段（y 1110–1640）亮一下
       el.classList.toggle('can-taken', !!look.canTaken);
       el.classList.toggle('bucket-moved', !!look.bucketMoved);
       ctl.ambient = PLACES[look.place]?.ambient || ctl.ambient;
@@ -144,7 +202,13 @@ export function showDay(root, act, api) {
       if (name === 'wallet') { play('place'); setTimeout(() => play('buzz'), 700); on?.classList.add('counted'); return true; } // 把錢倒出來數，再看手機裡的戶頭餘額
       if (name === 'deskDrawer') { play('creak'); on?.classList.add('open'); return true; } // 拉開：印章在最裡面，旁邊有一本存摺
       if (name === 'poster') { play('page'); return true; } // 畫面拉近（特寫卡由 props 疊上來）
-      if (name === 'calico') { play('hop'); el.classList.add('calico-go'); return true; } // 貓往前走，她跟在後面
+      if (name === 'calico') { // 貓往前走，她跟在後面
+        play('hop');
+        const cat = el.querySelector('.dy-calico.on-wall');
+        if (cat) cat.dataset.pose = 'walk';
+        el.classList.add('calico-go');
+        return true;
+      }
       if (name === 'can') { play('place'); el.classList.add('can-up'); return true; } // 拿起來，把標籤轉到正面
       return true;
     },
@@ -182,6 +246,7 @@ const MINI_CSS = {
 };
 export function miniHtml(kind) {
   const src = srcOf(MINI_SLOTS[kind]);
+  // 空罐子：標籤留白（原圖 1024×1024 的 x 285–712、y 533–862），「農藥」由程式疊在留白中央（.mn-on-art）
   const overlay = kind === 'label' ? `<span class="pp-overlay mn-on-art">${esc(OVERLAY_TEXT.label)}</span>` : '';
   if (src) return `<img src="${art(src)}" alt="">${overlay}`; // 正式圖：字一樣由程式疊
   return MINI_CSS[kind] ? MINI_CSS[kind]() : '';

@@ -7,6 +7,7 @@
 import { SPEAKER_NAMES } from '../lines/opening.js';
 import { DAY_SPEAKERS } from '../lines/days.js';
 import { play } from './audio.js';
+import { artUrl } from './art-map.js';
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 export const TAP_GUARD_MS = 260; // 一句剛出來的一小段時間不收點（連點不會跳句）
@@ -23,7 +24,8 @@ export function lineHtml(text) {
 export const PORTRAIT_PLACE = {
   center: 'height:130%;top:7%',
   aside: 'height:100%;top:19%;left:77%', // 坐下窗景：杯子在左半邊桌上（約 x128–178），德叔站到右手邊
-  half: 'height:62%;top:22%', // 半身立繪（目前第一天起的新角色都還沒有立繪）
+  half: 'height:62%;top:22%', // 半身立繪（第一天起的新角色：房東、坤伯、店長、店員；v5.6 定版圖）
+  cat: 'height:auto;width:70%;top:40%', // 花斑貓（店裡撥龍眼乾；4:3 去背圖）
 };
 
 export function createReader(root, app) {
@@ -122,13 +124,14 @@ export function createReader(root, app) {
       root.hidden = false;
       root.classList.add('passive');
     },
-    // place：center＝站在畫面中間（預設）；aside＝坐下喝咖啡時站在右手邊、小一點，不擋住桌上的杯子
+    // place：center＝站在畫面中間（預設）；aside＝坐下喝咖啡時站在右手邊、小一點，不擋住桌上的杯子；half＝新角色半身；cat＝花斑貓
+    // src：舊圖檔名（assets/art/）或 art-v56/… 的參照（網址由 art-map.js 的 artUrl 產生）
     portrait(src, place = 'center', alt = '德叔') {
       const key = src ? `${src}|${place}` : '';
       if (portrait.dataset.src === key) return;
       portrait.dataset.src = key;
       if (!src) { portrait.innerHTML = ''; return; }
-      portrait.innerHTML = `<img class="enter" src="assets/art/${src}.webp" alt="${esc(alt)}" style="${PORTRAIT_PLACE[place] || PORTRAIT_PLACE.center}">`;
+      portrait.innerHTML = `<img class="enter" src="${artUrl(src)}" alt="${esc(alt)}" style="${PORTRAIT_PLACE[place] || PORTRAIT_PLACE.center}">`;
       portrait.querySelector('img').onerror = (e) => e.target.remove();
     },
     // 可選互動熱點：[{ id, label, rect(base) → {x,y,w,h}（相對 #app），onTap, repeat }]

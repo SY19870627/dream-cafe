@@ -1,0 +1,147 @@
+[
+  {
+    "path": "A/cat_huaban_sit_v2.webp",
+    "bytes": 13608,
+    "sha256": "5e32602074f57a8e9c1afa4ced9a14e72173c4f981706acf2c748da8b4264eff"
+  },
+  {
+    "path": "A/char_v56_kunbo_half_v2.webp",
+    "bytes": 116758,
+    "sha256": "68b1ec28c52b8ff89d434fa4eedc5c545088ba40425c576331de6b88b1f5856a"
+  },
+  {
+    "path": "A/char_v56_landlord_half_v2.webp",
+    "bytes": 103508,
+    "sha256": "60b50b386990bc337df6068632917af8741335aa272d999975d02386cdc43025"
+  },
+  {
+    "path": "A/char_v56_store_clerk_half_v2.webp",
+    "bytes": 101146,
+    "sha256": "62202b446fca915d0f3d1de044f534b1cbba75f452700bbb7dbf9baa6e63928e"
+  },
+  {
+    "path": "A/char_v56_store_manager_half_v2.webp",
+    "bytes": 143946,
+    "sha256": "5c5e26f806e48a69d4e2273a9b294a18b62694c257f4740a7e5bad57da832366"
+  },
+  {
+    "path": "A/variants/cat_huaban_jump.webp",
+    "bytes": 9774,
+    "sha256": "c15f3e3909ff22beeead5b0541a62b6269fb627ba75420d0d21cb7b2b0dcf00f"
+  },
+  {
+    "path": "A/variants/cat_huaban_paw.webp",
+    "bytes": 14906,
+    "sha256": "36f594cf0694fae587a36907c887b62f71fd6c61c7e4a56de8b7f3d1dff657f9"
+  },
+  {
+    "path": "A/variants/cat_huaban_walk.webp",
+    "bytes": 14524,
+    "sha256": "5c0e1a3d5a77f6ad4834fb2c2cdcbbae449fa350933d70fa7a2acafeb99586ab"
+  },
+  {
+    "path": "A/variants/char_v56_kunbo_half_offer_longan.webp",
+    "bytes": 129454,
+    "sha256": "38c9d960468049aabf1709a208eb3dece5cc4f8c414f4afc6977509b1e9db590"
+  },
+  {
+    "path": "A/variants/char_v56_kunbo_half_sheepish.webp",
+    "bytes": 127024,
+    "sha256": "47535b7628d558e27ebdc8a8ba1fe52c50a1a07be5bc4c455ba4e8131d4694ee"
+  },
+  {
+    "path": "A/variants/char_v56_kunbo_half_squint_bottle.webp",
+    "bytes": 111830,
+    "sha256": "1beb218fa885ff6330eef810c0a0189a37954bce8bbae17f14d3421e36398413"
+  },
+  {
+    "path": "A/variants/char_v56_landlord_half_nag.webp",
+    "bytes": 111154,
+    "sha256": "cac71bb86235a67c45954add8a912e0e3840bf61702e7d4e505e3c89ac0bb1f6"
+  },
+  {
+    "path": "A/variants/char_v56_landlord_half_remind_rent.webp",
+    "bytes": 110990,
+    "sha256": "4066abb9ffb9f60156d3782deceb17a6db664ffe903417d0592aca0316cd7d88"
+  },
+  {
+    "path": "A/variants/char_v56_landlord_half_shoo.webp",
+    "bytes": 113992,
+    "sha256": "5d6a0d7fe60265d1fda888a907ffdd3b1087cccacd21fb4e33b8698fcc9fa162"
+  },
+  {
+    "path": "A/variants/char_v56_store_clerk_half_downcast.webp",
+    "bytes": 104350,
+    "sha256": "37626bdb0fd650d2d90cd3ab46a73138ae1463084f17a878c8436b1852359e43"
+  },
+  {
+    "path": "A/variants/char_v56_store_clerk_half_sorry_bow.webp",
+    "bytes": 101550,
+    "sha256": "c85c87840364405fc095630d9bdddbfd557507f76f07e31b512e261567c706f2"
+  },
+  {
+    "path": "A/variants/char_v56_store_manager_half_exasperated.webp",
+    "bytes": 155558,
+    "sha256": "509284367cddd662c79f49acb092b2950626728439d97eb13426cfbcca061870"
+  },
+  {
+    "path": "A/variants/char_v56_store_manager_half_scold_bento.webp",
+    "bytes": 150066,
+    "sha256": "0f8fcf9d0b767656adeee73fc1f94c657e8dab092e7911beafc1b7c4f409c2ed"
+  },
+  {
+    "path": "B/bg_v56_bank_atm_portrait.webp",
+    "bytes": 730870,
+    "sha256": "c91f52748fec2873eb306cda9762cb077159ed3f6c71fa77237445a8b50f7f0b"
+  },
+  {
+    "path": "B/bg_v56_kunbo_yard_portrait.webp",
+    "bytes": 711772,
+    "sha256": "9ca4b7452a82869aa3c0728102b49347bfc817ce9016b2df996ad3a339478ba2"
+  },
+  {
+    "path": "B/bg_v56_rental_room_day_portrait.webp",
+    "bytes": 640456,
+    "sha256": "9006afae6399a64edcebe07cf4402495255a30e9ca3445c3760edbe836476fa5"
+  },
+  {
+    "path": "B/bg_v56_stairwell_portrait.webp",
+    "bytes": 593166,
+    "sha256": "0d9b80b45ad259e5f4d5a48259e0627df9936433610d50ec6ce2bef8757c4e2a"
+  },
+  {
+    "path": "B/bg_v56_store_interior_portrait.webp",
+    "bytes": 765052,
+    "sha256": "8767f842110ed0a307c54068ab378c04802c4f90c0e3167e5db1dea94b5fcd12"
+  },
+  {
+    "path": "B/bg_v56_village_lane_portrait_v2.webp",
+    "bytes": 768490,
+    "sha256": "e4fab71874b58ab0efc9cbfbe5642a95440687e9fdc7f661f17002d2ef0a5898"
+  },
+  {
+    "path": "C/prop_v56_douli_v2.webp",
+    "bytes": 87926,
+    "sha256": "d6b78cd2e88b07ae71bf030645f063570cf134a92ec1547ab49eeaf7328cfa0b"
+  },
+  {
+    "path": "C/prop_v56_dried_longan_v2.webp",
+    "bytes": 81250,
+    "sha256": "7824d94f133e426abaecd9240b3af3065099af72bccb092117f431ca902d9d47"
+  },
+  {
+    "path": "C/prop_v56_empty_can_label_v2.webp",
+    "bytes": 73208,
+    "sha256": "539c93cda9c09ed32da5f51764c73973536225c119f4cf620140c24bc5afe034"
+  },
+  {
+    "path": "C/prop_v56_passbook_drawer_v2.webp",
+    "bytes": 123378,
+    "sha256": "4d6976b4a24b0ad5f084e8449d70803a72144301c847aca3f9a498ab9fe82cc8"
+  },
+  {
+    "path": "C/prop_v56_water_stain_v2.webp",
+    "bytes": 132000,
+    "sha256": "283ebcae70f00827533136a9392468ba8d8c7207cacabf6824b59818480b2943"
+  }
+]

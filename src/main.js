@@ -9,7 +9,7 @@ import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, STORY_YAW, CAT_SPOTS, CUP, art
 import { Pano } from './view/pano.js';
 import { shopScene, TONE, WINDOW_TABLE, TABLE_CUP, SEATED, seatFit } from './view/shop.js';
 import { showOpening, showScene } from './view/opening.js';
-import { showDay, showCard, createProps, PLACES, DAY_ART, HOT_LABELS } from './view/days.js';
+import { showDay, showCard, createProps, PLACES, DAY_ART, HOT_LABELS, cueOf } from './view/days.js';
 import { createReader } from './view/reader.js';
 import { unlock, play, setAmbient, setEngine } from './view/audio.js';
 import { preload, img, ready } from './view/art.js';
@@ -465,7 +465,9 @@ async function openingShop(act) {
       first = false;
       // 晚上回來：德叔拿著掃把；坐下喝咖啡時德叔站到右手邊（aside），不擋住桌上的杯子；劇本寫德叔微笑的那一句用微笑的立繪
       const face = b.face === 'smile' ? 'char_deshu_smile' : PORTRAITS.deshu.src;
-      reader.portrait(portrait ? (act === 'stay' ? 'char_deshu_broom' : face) : null, act === 'coffee' ? 'aside' : 'center');
+      const cue = day && !portrait ? cueOf(b) : null; // 第一～四天：坤伯說話出半身立繪（依台詞切差分）；花斑貓撥龍眼乾
+      if (cue) reader.portrait(cue.src, cue.place, cue.alt);
+      else reader.portrait(portrait ? (act === 'stay' ? 'char_deshu_broom' : face) : null, act === 'coffee' ? 'aside' : 'center');
       cloth(!!lk.cloth);
     },
     gate: (name) => dayGate(name),
@@ -532,12 +534,13 @@ async function dayScene(act) {
   }
   let current = {};
   const done = await runLines(act, {
-    look: (i, lk) => {
+    look: (i, lk, b) => {
       current = lk;
       ctl.beat(i, lk);
       const amb = PLACES[lk.place]?.ambient || 'room';
       if (amb !== ambient) { ambient = amb; setAmbient(amb, amb === 'room' ? 1 : 0.6); }
-      reader.portrait(null); // 房東、店長、店員、坤伯、花斑貓還沒有立繪：只有名牌
+      const cue = cueOf(b); // 房東、店長、店員、坤伯：半身立繪，依台詞切差分（沒對上的句子用底卡）
+      reader.portrait(cue ? cue.src : null, cue?.place, cue?.alt);
     },
     gate: (name) => dayGate(name),
     // 字出來之前要先做的：小圖點一下；點存摺放進提款機；點錢包、抽屜、徵人海報、花斑貓、空罐子（場景上的熱點）
