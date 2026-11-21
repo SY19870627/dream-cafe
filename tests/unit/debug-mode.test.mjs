@@ -11,7 +11,6 @@ import * as S from '../../src/story/state.js';
 import { BUILD_TIME } from '../../src/version.js';
 import { taipeiStamp, formatVersion, versionParts, versionSource, BUILD_TIME_RE } from '../../src/debug/stamp.js';
 import { REPORT_ENDPOINT, REPORT_KEY } from '../../src/debug/config.js';
-import { CHOICE } from '../../src/story/state.js';
 
 const root = (p) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
 const read = (p) => readFileSync(root(p), 'utf8');
@@ -167,7 +166,7 @@ test('版本一致：面板「目前位置」、「版本與重來」、回報�
 
 /* ---------- 回報內容 ---------- */
 test('payload：從進度、這一句、裝置組出所有欄位；說話的人用 nameOf、台詞是純文字', () => {
-  const state = S.jumpState(S.newStoryState(), 'd2town', 3);
+  const state = S.jumpState(S.newStoryState(), 'd2cafe', 3);
   const beat = { who: 'yizhen', text: '<b>妳</b>還好嗎&amp;' };
   const nameOf = (w) => ({ yizhen: '宜蓁' }[w] || '');
   const p = buildPayload({ state, beat, nameOf, now: new Date('2026-11-14T01:02:03Z'), buildTime: '2026-11-14 20:05:31', moduleUrl: `https://raw.githack.com/SY19870627/dream-cafe/abc1234${'0'.repeat(33)}/src/debug/ui.js`, pageUrl: 'https://raw.githack.com/SY19870627/dream-cafe/abc1234/index.html?debug=1', device: '手機 iOS', category: '台詞', comment: '  這裡少一個字  ', screenshot: 'data:image/jpeg;base64,AAAA' });
@@ -175,7 +174,7 @@ test('payload：從進度、這一句、裝置組出所有欄位；說話的人�
   assert.equal(p.time, '2026-11-14T01:02:03.000Z');
   assert.equal(p.version, '2026-11-14 20:05:31（abc1234）');
   assert.equal(p.day, '第2天');
-  assert.equal(p.scene, 'd2town');
+  assert.equal(p.scene, 'd2cafe');
   assert.equal(p.line, 3);
   assert.equal(p.speaker, '宜蓁');
   assert.equal(p.text, '妳還好嗎&');
@@ -309,24 +308,17 @@ test('jumpState：每一幕都跳得到，結果與讀檔（normalize）一致�
   assert.equal(S.jumpState(base, 'done', 0), null);
 });
 
-test('jumpState：過了岔路補左右、過了存摺補選擇、跳進分支照那一支；停在關卡那一句要重做', () => {
+test('jumpState：過了岔路補左右；沒有存摺選擇（劇本 v5.6 拿掉）；停在關卡那一句要重做', () => {
   const s0 = S.newStoryState();
   assert.equal(S.jumpState(s0, 'fork', 0).opening.fork, null);
   assert.equal(S.jumpState(s0, 'temple', 0).opening.fork, 'left');
   assert.equal(S.jumpState({ ...s0, opening: { ...s0.opening, fork: 'right' } }, 'd1wake', 0).opening.fork, 'right');
-  assert.equal(S.jumpState(s0, CHOICE.act, CHOICE.line).opening.passbook, null);
-  assert.equal(S.jumpState(s0, 'd2wake', 0).opening.passbook, S.PASSBOOK_SIDES[0]);
-  const lines = S.ACT_LINES[CHOICE.act];
-  for (const side of S.PASSBOOK_SIDES) {
-    const i = lines.findIndex((b) => b.branch === side);
-    if (i < 0) continue;
-    const s = S.jumpState(s0, CHOICE.act, i);
-    assert.equal(s.opening.line, i);
-    assert.equal(s.opening.passbook, side);
-  }
+  assert.ok(!('passbook' in S.jumpState(s0, 'd2cafe', 0).opening), '不再有存摺選擇');
+  assert.equal(S.CHOICE, undefined);
+  assert.equal(S.PASSBOOK_SIDES, undefined);
   // 停在有關卡的那一句：不能直接翻過去
   for (const act of S.OPENING_ACTS) {
-    const i = (S.ACT_LINES[act] || []).findIndex((b) => b.gate && b.gate !== 'fork' && b.gate !== 'choice');
+    const i = (S.ACT_LINES[act] || []).findIndex((b) => b.gate && b.gate !== 'fork');
     if (i < 0 || i + 1 >= S.lineCount(act)) continue;
     const s = S.jumpState(s0, act, i);
     assert.equal(S.setOpeningLine(s, S.nextLine(s)), false, `${act} 第 ${i} 句的關卡要重做`);
@@ -337,9 +329,10 @@ test('jumpState：過了岔路補左右、過了存摺補選擇、跳進分支�
 test('跳關選單：列出 OPENING_ACTS 每一幕（照順序），每天第一幕帶章名', () => {
   const items = jumpGroups().flatMap((g) => g.items);
   assert.deepEqual(items.map((x) => x.act), S.OPENING_ACTS);
-  assert.deepEqual(jumpGroups().map((g) => g.name), ['開場', '第1天', '第2天', '第3天', '第4天', '待續']);
+  assert.deepEqual(jumpGroups().map((g) => g.name), ['開場', '第1天', '第2天', '第5天', '待續']);
   assert.match(actLabel('d1wake'), /第一天　最底下那個抽屜/);
-  assert.match(actLabel('d2shop'), /店裡（店內 360）/);
+  assert.match(actLabel('d2cafe'), /回咖啡館（店內 360）/);
+  assert.match(actLabel('d2card'), /字卡/);
   for (const it of items) assert.equal(it.lines, S.lineCount(it.act));
 });
 

@@ -4,7 +4,7 @@
 //     這些畫面的字由閱讀框（view/reader.js）一句一句出；畫面只負責「第 i 句時長什麼樣子」與互動關卡（推門、發動、按住騎、岔路、掉頭、點床）。
 // 開場這些畫面沒有「跳過」按鈕。只有睡前自白期間，閱讀框才會顯示「跳過自白」（view/reader.js）；其他幕與互動關卡都不能跳過。
 // 字全部來自 src/lines/opening.js。畫師原圖只讀不改（不重新壓縮、不縮圖）；夜路的路面是程式繪製，路上照到的東西用畫師原圖。
-import { RESIGNATIONS, RESIGNATION_MAIL, LETTER, OFFICE, TITLE, MAILBOX, ROAD, DEPART, TEMPLE } from '../lines/opening.js';
+import { RESIGNATION, RESIGNATION_MAIL, LETTER, OFFICE, TITLE, MAILBOX, ROAD, DEPART, TEMPLE } from '../lines/opening.js';
 import { play, setEngine } from './audio.js';
 import { img, ready } from './art.js';
 
@@ -44,16 +44,15 @@ export function showOpening(root, act, api) {
       <div class="op-monitor"><div class="op-mail">
         <div class="op-mail-head"><span>${OFFICE.to}${esc(m.to)}</span><span>${OFFICE.subject}${esc(m.subject)}</span></div>
         ${m.body.map((p) => `<p>${esc(p)}</p>`).join('')}
-        <p class="op-ending"><span class="op-ending-text"></span><span class="caret"></span></p>
+        <button type="button" class="op-ending op-reason" id="op-reason" aria-pressed="false"><span class="op-reason-label">${esc(OFFICE.reasonLabel)}</span><span class="op-ending-text"></span><span class="caret"></span></button>
         <p class="op-sign">${esc(OFFICE.signature)}</p>
       </div></div>
-      <p class="op-q">${OFFICE.question}</p>
-      <div class="op-choices">${RESIGNATIONS.map((r) => `<button type="button" data-id="${r.id}" aria-pressed="false">${esc(r.text)}</button>`).join('')}</div>
       <button type="button" id="op-send" class="primary" disabled>${OFFICE.send}</button>
       <div class="op-keys" aria-hidden="true">${OFFICE.keys}</div>`);
     let choice = null;
     let typing = 0;
     const send = el.querySelector('#op-send');
+    const reason = el.querySelector('#op-reason');
     const target = el.querySelector('.op-ending-text');
     const typeOut = async (text) => {
       const my = ++typing;
@@ -65,23 +64,24 @@ export function showOpening(root, act, api) {
         await sleep(55 + Math.random() * 45);
       }
     };
-    for (const b of el.querySelectorAll('.op-choices button')) {
-      b.onclick = () => {
-        choice = b.dataset.id;
-        for (const o of el.querySelectorAll('.op-choices button')) o.setAttribute('aria-pressed', String(o === b));
-        typeOut(b.textContent);
-        send.disabled = false;
-      };
-    }
+    // 事由欄：點一下打出固定那一句（不再三選一）；點過才能送出
+    reason.onclick = () => {
+      if (reason.disabled || choice) return;
+      choice = RESIGNATION.id;
+      reason.setAttribute('aria-pressed', 'true');
+      reason.classList.add('filled');
+      typeOut(RESIGNATION.text);
+      send.disabled = false;
+    };
     send.onclick = async () => {
-      if (!choice || send.disabled) return; // 沒選結尾不能送出
+      if (!choice || send.disabled) return; // 沒點過事由欄不能送出
       typing++;
-      target.textContent = RESIGNATIONS.find((r) => r.id === choice)?.text || '';
+      target.textContent = RESIGNATION.text;
       play('send');
       api.state.opening.resignation = choice;
       api.persist();
       send.disabled = true;
-      for (const b of el.querySelectorAll('.op-choices button')) b.disabled = true;
+      reason.disabled = true;
       const clock = el.querySelector('.op-clock');
       clock.classList.add('flip');
       await sleep(250);

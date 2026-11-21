@@ -9,12 +9,12 @@ import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, STORY_YAW, CAT_SPOTS, CUP, art
 import { Pano } from './view/pano.js';
 import { shopScene, TONE, WINDOW_TABLE, TABLE_CUP, SEATED, seatFit } from './view/shop.js';
 import { showOpening, showScene } from './view/opening.js';
-import { showDay, createProps, PLACES, DAY_ART } from './view/days.js';
+import { showDay, showCard, createProps, PLACES, DAY_ART, HOT_LABELS } from './view/days.js';
 import { createReader } from './view/reader.js';
 import { unlock, play, setAmbient, setEngine } from './view/audio.js';
 import { preload, img, ready } from './view/art.js';
 import { sceneAt } from './lines/opening.js';
-import { DAY_ACT_VIEW, DAY_TITLES } from './lines/days.js';
+import { DAY_ACT_VIEW, DAY_TITLES, tapsOf } from './lines/days.js';
 import { debugOn } from './debug/flag.js'; // 只有這個除錯檔是靜態載入；面板本身在 ?debug=1 時才動態 import()
 
 const $ = (id) => document.getElementById(id);
@@ -94,7 +94,8 @@ function cloth(on) {
 
 function opening() {
   const act = state.opening.act;
-  if (act === S.END_ACT) return openingScene('end'); // 第四天睡著之後：待續
+  if (act === S.END_ACT) return openingScene('end'); // 研發咖啡之後（帶咖啡去公司之前）：待續
+  if (DAY_ACT_VIEW[act] === 'card') return dayCard(act);
   if (DAY_ACT_VIEW[act] === 'shop') return openingShop(act);
   if (DAY_ACT_VIEW[act] === 'still') return dayScene(act);
   if (SHOP_ACTS.includes(act)) return openingShop(act);
@@ -124,16 +125,38 @@ function fallAsleep() {
   return fadeThen(go, '#0d0b0a', 1600);
 }
 
+// 「字出來之前要先做的互動」時畫面的樣子：還是上一句的地方、特寫卡與花斑貓，小圖不疊（小圖那一步才疊上來）
+function preLook(lines, i) {
+  const lk = sceneAt(lines, i);
+  if (i <= 0) return { ...lk, prop: null, mini: null };
+  const pv = sceneAt(lines, i - 1);
+  return { ...lk, place: pv.place ?? lk.place, prop: pv.prop ?? null, calico: pv.calico ?? null, mini: null };
+}
+
 // 一幕裡的句子：從存檔那一句接著；每一句說完點一下才出下一句（不點就停在這一句）
-// look(i, 畫面樣子, 句子)：把畫面擺成第 i 句的樣子；gate(name)：互動關卡；optional(name)：可選互動的熱點
+// look(i, 畫面樣子, 句子)：把畫面擺成第 i 句的樣子；gate(name)：互動關卡；optional(name)：可選互動的熱點；
+// tap(name)：這一句的字出來之前要先做的互動（lines/days.js 的 tap：小圖點一下、點錢包、點抽屜……），做完 resolve(true)。pause（停一拍）由這裡處理。
 // 回傳 true＝這一幕讀完；'slept'＝睡著了（自白最後一句，或點了「跳過自白」），已經存成下一幕；false＝換畫面了
-async function runLines(act, { look, gate, optional }) {
+async function runLines(act, { look, gate, optional, tap }) {
   const my = token;
   const lines = S.ACT_LINES[act];
   let i = state.opening.line;
   while (i >= 0 && i < lines.length) {
     const b = lines[i];
     const lk = sceneAt(lines, i);
+    for (const t of tapsOf(b)) { // 字先不出來：先做完這些（讀檔回到這一句要重做）
+      const shown = t === 'mini' ? lk : preLook(lines, i);
+      props.clear();
+      props.show(shown);
+      look(i, shown, b);
+      reader.clearHot();
+      reader.skip(false);
+      reader.hideBox();
+      reader.passive();
+      const ok = t === 'pause' ? await reader.next() : await tap?.(t, b);
+      reader.clearHot();
+      if (my !== token || !ok) return false;
+    }
     props.clear();
     props.show(lk);
     look(i, lk, b);
@@ -152,7 +175,7 @@ async function runLines(act, { look, gate, optional }) {
       reader.clearHot();
       reader.passive();
       ok = await gate(b.gate, b);
-      if (ok && my === token) S.passGate(state, b.gate); // 岔路、存摺兩個按鈕在 gate 裡已經記下選擇
+      if (ok && my === token) S.passGate(state, b.gate); // 岔路在 gate 裡已經記下選擇
     } else {
       reader.hot(b.optional ? optional(b.optional, b) : []);
       ok = await reader.next();
@@ -411,7 +434,7 @@ function openingShopScene(act, look) {
 
 async function openingShop(act) {
   const my = token;
-  const day = !!DAY_ACT_VIEW[act]; // 第一～四天的店裡：德叔開口的那一句出立繪
+  const day = !!DAY_ACT_VIEW[act]; // 第一天起的店裡：德叔開口的那一句出立繪（坤伯沒有立繪，只有名牌）
   setAmbient('shop', act === 'stay' ? 0.7 : 1);
   $('opening').hidden = true;
   const show = (lk, { yaw } = {}) => {
@@ -440,11 +463,17 @@ async function openingShop(act) {
       show(portrait && day ? { ...lk, deshu: null } : lk, first ? { yaw } : {});
       if (!first) pano.turnTo(yaw, 900);
       first = false;
-      // 晚上回來：德叔拿著掃把；坐下喝咖啡時德叔站到右手邊（aside），不擋住桌上的杯子
-      reader.portrait(portrait ? (act === 'stay' ? 'char_deshu_broom' : PORTRAITS.deshu.src) : null, act === 'coffee' ? 'aside' : 'center');
+      // 晚上回來：德叔拿著掃把；坐下喝咖啡時德叔站到右手邊（aside），不擋住桌上的杯子；劇本寫德叔微笑的那一句用微笑的立繪
+      const face = b.face === 'smile' ? 'char_deshu_smile' : PORTRAITS.deshu.src;
+      reader.portrait(portrait ? (act === 'stay' ? 'char_deshu_broom' : face) : null, act === 'coffee' ? 'aside' : 'center');
       cloth(!!lk.cloth);
     },
     gate: (name) => dayGate(name),
+    tap: (name) => { // 店裡：小圖點一下（斗笠、龍眼乾）、點包包裡的鑰匙放到吧台上
+      if (name === 'mini') return props.peek();
+      if (name === 'keyBar') return props.tapItem('keyBar');
+      return Promise.resolve(true);
+    },
     optional: (name) => {
       if (name === 'cat') {
         return [{ id: 'cat', label: '龍眼', rect: () => { const it = pano.scene?.items.find((x) => x.id === 'longan'); return it ? pano.project(it) : null; },
@@ -458,11 +487,6 @@ async function openingShop(act) {
         return [{ id: 'cup', label: '杯子', rect: cupRect,
           onTap: () => { sip.at = performance.now(); setTimeout(() => play('sip'), 350); setTimeout(() => play('place'), 1400); } }];
       }
-      if (name === 'stroke') { // 按住龍眼的頭，從頭順到尾巴：怡君的手入鏡、龍眼頂上來、呼嚕
-        props.optional('stroke', { rect: itemRect('longan'), onDone: () => { pet.at = performance.now(); pet.done = true; } });
-        return [];
-      }
-      if (name === 'keyGive') { props.optional('keyGive'); return []; } // 鑰匙拖向德叔：沒有接，回到手上
       return [];
     },
   });
@@ -478,7 +502,21 @@ const itemRect = (id) => () => {
   return it ? pano.project(it) : null;
 };
 
-/* ---------- 第一～四天：整張背景圖的畫面（view/days.js） ---------- */
+/* ---------- 字卡（「第二天」「三天後」）：只有一張卡，淡出後進下一幕 ---------- */
+async function dayCard(act) {
+  const my = token;
+  $('pano').hidden = true;
+  reader.hide();
+  props.hide();
+  setAmbient(null);
+  const ctl = showCard($('opening'), act);
+  sceneCtl = ctl;
+  const ok = await ctl.intro();
+  if (!ok || my !== token) return;
+  nextAct(act, '#0d0b0a', 650);
+}
+
+/* ---------- 第一天起：整張背景圖的畫面（view/days.js） ---------- */
 async function dayScene(act) {
   const my = token;
   const lines = S.ACT_LINES[act];
@@ -499,40 +537,34 @@ async function dayScene(act) {
       ctl.beat(i, lk);
       const amb = PLACES[lk.place]?.ambient || 'room';
       if (amb !== ambient) { ambient = amb; setAmbient(amb, amb === 'room' ? 1 : 0.6); }
-      reader.portrait(lk.portrait === 'agui' ? PORTRAITS.gui.src : null, 'half', '阿桂');
+      reader.portrait(null); // 房東、店長、店員、坤伯、花斑貓還沒有立繪：只有名牌
     },
     gate: (name) => dayGate(name),
-    optional: (name) => {
-      const label = { faucet: '水龍頭', switch: '電燈開關', mailbox: '信箱', drawer: '抽屜', clothes: '衣服', report: '報告' }[name];
-      if (label) {
-        const el = ctl.hot(name);
-        if (!el) return [];
-        return [{ id: name, label, rect: elRect(el), repeat: name === 'drawer' || name === 'clothes',
-          onTap: () => {
-            const fin = ctl.effect(name);
-            if (name === 'report') props.show({ ...current, prop: 'report' }); // 翻到第十二頁：一張表
-            return fin;
-          } }];
-      }
-      props.optional(name); // 拖曳類、疊在特寫卡上的（識別證刷閘門、輸入框、過片扳手、快門、對焦環）
-      return [];
+    // 字出來之前要先做的：小圖點一下；點存摺放進提款機；點錢包、抽屜、徵人海報、花斑貓、空罐子（場景上的熱點）
+    tap: (name) => {
+      if (name === 'mini') return props.peek();
+      if (name === 'atm') return props.tapItem('atm');
+      const el = ctl.hot(name);
+      if (!el) return Promise.resolve(true); // 找不到熱點也不卡住
+      return new Promise((res) => reader.hot([{ id: name, label: HOT_LABELS[name] || name, need: true, rect: elRect(el),
+        onTap: () => { ctl.effect(name); if (name === 'poster') props.show({ ...current, prop: 'poster' }); setTimeout(() => res(my === token), 650); } }]));
+    },
+    optional: (name) => { // 可選（不做也能翻頁）：水龍頭、信箱
+      const label = HOT_LABELS[name];
+      const el = label ? ctl.hot(name) : null;
+      if (!el) return [];
+      return [{ id: name, label, rect: elRect(el), onTap: () => ctl.effect(name) }];
     },
   });
   if (!done || my !== token) return;
-  if (done === 'slept') return fallAsleep(); // 睡著：已存成隔天早上（第四天是待續）
   reader.hide();
   props.hide();
   nextAct(act, '#1a1612', 750);
 }
 
-// 第一～四天的關卡（做完才往下）：存摺拖到櫃檯、識別證放到櫃檯、撕膠帶三次、倒片；存摺兩個按鈕要記下選擇
+// 第一天起的關卡（lines/days.js 目前沒有 gate；互動都是「字出來之前要先做的」tap）：保留給 props.gate 的拖曳類關卡
 async function dayGate(name) {
   const r = await props.gate(name);
-  if (name === 'choice') {
-    if (!r || !S.choosePassbook(state, r)) return false;
-    save();
-    return true;
-  }
   return r === true;
 }
 

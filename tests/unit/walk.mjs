@@ -1,15 +1,15 @@
 // 測試共用：照玩家的方式往前走一步（純邏輯，不開瀏覽器）。不是測試檔（npm test 只跑 *.test.mjs）。
-// 每一句「點一下」才往下；關卡要做完（passGate／chooseFork／choosePassbook）；可選互動一律不做；
-// 自白最後一句（sleep）＝睡著：sleepThrough 直接換到隔天早上。回傳這一步畫面上的那一句（沒有句子的幕回傳 null）。
+// 每一句「點一下」才往下；關卡要做完（passGate／chooseFork）；可選互動一律不做；
+// 「字出來之前要先做的互動」（lines/days.js 的 tap）是畫面的事，不擋句子進度，這裡當作做完了；
+// 自白最後一句（sleep）＝睡著：sleepThrough 直接換到下一幕。回傳這一步畫面上的那一句（沒有句子的幕回傳 null）。
 import assert from 'node:assert/strict';
 import * as S from '../../src/story/state.js';
 
-export function step(s, { side = 'left', passbook = 'show' } = {}) {
+export function step(s, { side = 'left' } = {}) {
   const act = s.opening.act;
   const b = (S.ACT_LINES[act] || [])[s.opening.line] || null;
   if (b) {
     if (b.gate === 'fork') assert.equal(S.chooseFork(s, side), true, `${act} 岔路`);
-    else if (b.gate === 'choice') assert.equal(S.choosePassbook(s, passbook), true, `${act} 存摺`);
     else if (b.gate) assert.equal(S.passGate(s, b.gate), true, `${act} ${b.gate}`);
     if (b.sleep) { assert.equal(S.sleepThrough(s), true, `${act} 睡著`); return b; }
     const n = S.nextLine(s);

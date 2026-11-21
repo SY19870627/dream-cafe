@@ -3,31 +3,34 @@
 // 每個轉移都要傳入「玩家眼前那一頁的 id」，跟存檔對不上就什麼都不做（回傳 false）：連點、換頁中的舊點擊都不會多推一頁。
 import { sequence, listChoices, END_ID } from './script.js';
 import { OPENING_LINES } from '../lines/opening.js';
-import { DAY_LINES, DAY_ACTS, PASSBOOK_CHOICES } from '../lines/days.js';
+import { DAY_LINES, DAY_ACTS } from '../lines/days.js';
 
-export const SCHEMA = 1; // 加了第一～四天仍是 1：新欄位（opening.passbook）讀舊檔時補預設，不因版本數字打回開頭
+export const SCHEMA = 1; // 換成劇本 v5.6 的第一天～研發咖啡仍是 1：舊幕名讀檔時接到新位置（LEGACY_ACTS），不因版本數字打回開頭
 // 可玩流程各幕（只往前；幕 id 會存進存檔，不要改名）：
 //   開場（劇本 v3.8／v3.9，第一晚自白 v4.4 A 版）：
 //   office 辦公室 → title 標題 → mailbox 信箱 → letter 信 → road 三合院外（傍晚，推門）→ deshu 店裡站著（到「泡好了」）
 //   → sit 店內 360 點椅子 → coffee 坐下喝咖啡（閱讀框）→ depart 三合院外（晚上，發動）→ ride 黑路（按住騎）→ fork 岔路
 //   → temple 工寮與土地公廟（掉頭回去）→ return 回三合院外（再推門）→ stay 店裡（晚上）→ room 庭埕、護龍房間、第一晚自白
-//   第一～四天（劇本 v4.4，lines/days.js）：每天 dNwake 早上 → dNshop 店裡 → dNtown 下山 → dNcafe 回店 → dNnight 睡前自白
-//   → tbc 待續（第四天睡著之後，這次切片到此）
+//   第一天～研發咖啡（劇本 v5.6，lines/days.js）：d1wake 護龍早上 → d1shop 店裡挽留 → d1town 下山、信箱、房東 → d1home 房間盤點
+//   → d1bank 提款機 → d1store 超商 → d2card 字卡「第二天」→ d2cafe 回咖啡館 → d5card 字卡「三天後」→ d5cafe 咖啡館
+//   → d5village 市調、坤伯院子 → d5thanks 坤伯來答謝 → d5brew 研發咖啡 → tbc 待續（帶咖啡去公司之前，這次切片到此）
+//   第一晚之後不再睡護龍、沒有睡前自白（只有開場的 room 有）。
 // 舊存檔的 end（舊版第一晚之後的待續）已不在列表裡：讀檔時接到第一天早上（d1wake）。
+// 舊版（劇本 v4.5）第一～四天的幕名不在列表裡：讀檔時照 LEGACY_ACTS 接到新流程裡最接近、不會卡住的位置（該幕第 0 句）。
 // 三天 AVG 模組保留，但只有 enterStory() 會進去，執行畫面不呼叫。
 export const END_ACT = 'tbc';
 export const LEGACY_END = 'end';
 export const OPENING_ACTS = ['office', 'title', 'mailbox', 'letter', 'road', 'deshu', 'sit', 'coffee', 'depart', 'ride', 'fork', 'temple', 'return', 'stay', 'room', ...DAY_ACTS, END_ACT];
 export const FORK_SIDES = ['left', 'right'];
-export const PASSBOOK_SIDES = PASSBOOK_CHOICES.map((c) => c.id);
-// 存摺兩個按鈕在哪一幕、哪一句
-export const CHOICE = (() => {
-  for (const act of DAY_ACTS) {
-    const line = DAY_LINES[act].findIndex((b) => b.gate === 'choice');
-    if (line >= 0) return { act, line };
-  }
-  return { act: null, line: -1 };
-})();
+// 舊版（劇本 v4.5）的幕 → 新流程的幕（從第 0 句開始）。
+//   d1cafe／d1night（舊：補完摺回店、睡前）→ d1store（超商下決心；新流程裡同一天剛補刷完）
+//   第二～四天（舊：洗把臉、公司、第十二頁、相機）→ d2card（字卡「第二天」，接著回咖啡館）
+export const LEGACY_ACTS = {
+  d1cafe: 'd1store', d1night: 'd1store',
+  d2wake: 'd2card', d2shop: 'd2card', d2town: 'd2card', d2night: 'd2card',
+  d3wake: 'd2card', d3shop: 'd2card', d3town: 'd2card', d3cafe: 'd2card', d3night: 'd2card',
+  d4wake: 'd2card', d4shop: 'd2card', d4town: 'd2card', d4cafe: 'd2card', d4night: 'd2card',
+};
 export const FIRST_PAGE = 'op-act4-1';
 // 每一幕的句子（開場＋第一～四天）
 export const ACT_LINES = { ...OPENING_LINES, ...DAY_LINES };
@@ -39,7 +42,7 @@ export function nextActOf(act) {
   const i = OPENING_ACTS.indexOf(act);
   return i >= 0 && i + 1 < OPENING_ACTS.length ? OPENING_ACTS[i + 1] : null;
 }
-// 有睡前自白的幕（room 與 dNnight）；自白是哪幾句
+// 有睡前自白的幕（只有開場的 room）；自白是哪幾句
 export const isNightAct = (act) => linesOf(act).some((b) => b.sleep);
 export const monoLines = (act) => linesOf(act).map((b, i) => (b.mono ? i : -1)).filter((i) => i >= 0);
 export const beatAt = (s) => linesOf(s.opening.act)[s.opening.line] || null;
@@ -49,7 +52,7 @@ export function newStoryState() {
   return {
     v: SCHEMA,
     phase: 'opening', // 執行畫面永遠是 opening（開場與第一～四天都在這裡）；story 只給保留的三天 AVG 模組（測試）用
-    opening: { act: 'office', resignation: null, name: '', line: 0, fork: null, passbook: null },
+    opening: { act: 'office', resignation: null, name: '', line: 0, fork: null },
     at: null, // 劇本目前這一頁的 id（phase === 'story' 時才有）
     choices: {}, // { share_tv: 'location'|'tv', note_share: 'note'|'warm' }
   };
@@ -60,11 +63,11 @@ export function newStoryState() {
 const cleared = new WeakMap();
 const here = (s) => `${s.opening.act}:${s.opening.line}`;
 const gateOpen = (s) => !beatAt(s)?.gate || cleared.get(s) === here(s);
-// 互動關卡做完（door 推門、hold 按住騎、turnback 掉頭、passbook 存摺拖到櫃檯、badge 識別證、tape 撕膠帶、rewind 倒片）。
-// 岔路與存摺兩個按鈕要用 chooseFork／choosePassbook（要記下選了哪一邊）。
+// 互動關卡做完（door 推門、hold 按住騎、turnback 掉頭）。岔路要用 chooseFork（要記下選了哪一邊）。
+// （第一天起「字出來之前要先做的互動」（lines/days.js 的 tap）不進這裡：字沒出來就翻不到下一句；讀檔回到那一句要重做。）
 export function passGate(s, name) {
   const b = beatAt(s);
-  if (s.phase !== 'opening' || !b || b.gate !== name || name === 'fork' || name === 'choice') return false;
+  if (s.phase !== 'opening' || !b || b.gate !== name || name === 'fork') return false;
   cleared.set(s, here(s));
   return true;
 }
@@ -98,14 +101,10 @@ export function setOpeningLine(s, n) {
 }
 // 舊名字（v3b 第一輪只記德叔三句）：現在每一幕都用同一個進度
 export const setDeshuLine = setOpeningLine;
-// 這一句之後要播哪一句（跳過沒選到的那一支）；這一幕沒有了回傳 -1
+// 這一句之後要播哪一句；這一幕沒有了回傳 -1
 export function nextLine(s) {
-  const lines = linesOf(s.opening.act);
-  for (let j = s.opening.line + 1; j < lines.length; j++) {
-    const br = lines[j].branch;
-    if (!br || br === s.opening.passbook) return j;
-  }
-  return -1;
+  const n = s.opening.line + 1;
+  return n < lineCount(s.opening.act) ? n : -1;
 }
 // 岔路：左或右（後面的字都一樣），只選一次
 export function chooseFork(s, side) {
@@ -114,15 +113,8 @@ export function chooseFork(s, side) {
   if (beatAt(s)?.gate === 'fork') cleared.set(s, here(s));
   return true;
 }
-// 第一天晚上：把存摺放上吧台（show）或收著（keep），只選一次；兩邊都接到第 1 杯
-export function choosePassbook(s, side) {
-  if (s.phase !== 'opening' || beatAt(s)?.gate !== 'choice' || s.opening.passbook != null || !PASSBOOK_SIDES.includes(side)) return false;
-  s.opening.passbook = side;
-  cleared.set(s, here(s));
-  return true;
-}
 // 睡著：自白（mono）裡的任何一句都可以直接睡著（自然讀到最後一句，或點「跳過自白」）。
-// 換到下一幕的第 0 句（隔天早上；第四天之後是待續）。呼叫的人接著存檔：這就是「睡著時自動存檔」的檢查點。
+// 換到下一幕的第 0 句（第一晚之後是第一天早上）。呼叫的人接著存檔：這就是「睡著時自動存檔」的檢查點。
 export function sleepThrough(s) {
   if (s.phase !== 'opening' || !isNightAct(s.opening.act) || !inMonologue(s)) return false;
   const next = nextActOf(s.opening.act);
@@ -134,7 +126,7 @@ export function sleepThrough(s) {
 }
 // 跳過本段自白：與自然睡著相同（剩下的自白不再一句一句出，直接睡著；呼叫的人存檔）
 export const skipMonologue = sleepThrough;
-// 第四天睡著之後：待續
+// 研發咖啡之後（帶咖啡去公司之前）：待續
 export const isOpeningEnd = (s) => s.phase === 'opening' && s.opening.act === END_ACT;
 // 執行畫面讀檔後再過一次：舊版存到三天故事裡的存檔（phase story）不接著播，回到開場開頭
 export function playable(s) {
@@ -215,25 +207,21 @@ export function normalize(raw, source) {
     let act = raw.opening.act;
     const legacyEnd = act === LEGACY_END && raw.phase !== 'story';
     if (legacyEnd) act = DAY_ACTS[0]; // 舊版的待續（第一晚已經睡著）：不卡在舊待續、不重開，接到第一天早上
+    const legacyDay = raw.phase !== 'story' && typeof act === 'string' && Object.prototype.hasOwnProperty.call(LEGACY_ACTS, act);
+    if (legacyDay) act = LEGACY_ACTS[act]; // 舊版第一～四天的幕：接到新流程（第 0 句）
     s.opening.act = OPENING_ACTS.includes(act) || act === 'done' ? act : 'office';
     s.opening.resignation = typeof raw.opening.resignation === 'string' ? raw.opening.resignation.slice(0, 20) : null;
     s.opening.name = typeof raw.opening.name === 'string' ? raw.opening.name.slice(0, 12) : '';
     // 句子進度：新存檔用 line，第一輪存檔用 deshuLine；夾在這一幕的句數之內
-    const rawLine = legacyEnd ? 0 : (raw.opening.line ?? raw.opening.deshuLine);
+    const rawLine = legacyEnd || legacyDay ? 0 : (raw.opening.line ?? raw.opening.deshuLine);
     const max = Math.max(0, lineCount(s.opening.act) - 1);
     s.opening.line = Math.max(0, Math.min(max, Math.floor(Number(rawLine)) || 0));
-    s.opening.fork = FORK_SIDES.includes(raw.opening.fork) ? raw.opening.fork : null;
-    s.opening.passbook = PASSBOOK_SIDES.includes(raw.opening.passbook) ? raw.opening.passbook : null; // 舊檔沒有這欄：補 null
+    s.opening.fork = FORK_SIDES.includes(raw.opening.fork) ? raw.opening.fork : null; // 舊檔的 passbook（v4.5 存摺選擇）不再保留
   }
   if (raw.phase !== 'story') {
     if (s.opening.act === 'done') { s.opening.act = 'sit'; s.opening.line = 0; }
     const at = OPENING_ACTS.indexOf(s.opening.act);
     if (at <= OPENING_ACTS.indexOf('fork')) s.opening.fork = null; // 還沒到岔路就不可能已經選了
-    // 存摺兩個按鈕：還沒走過那一句就不可能選過；停在沒選到（或還沒選）的那一支裡：回到按鈕那一句重選
-    const ci = OPENING_ACTS.indexOf(CHOICE.act);
-    if (at < ci || (at === ci && s.opening.line <= CHOICE.line)) s.opening.passbook = null;
-    const br = beatAt(s)?.branch;
-    if (br && br !== s.opening.passbook) { s.opening.line = CHOICE.line; s.opening.passbook = null; }
     return s;
   }
   s.phase = 'story';
@@ -274,8 +262,7 @@ export function normalize(raw, source) {
 
 /* ---------- 測試用跳關（只有網址帶 ?debug=1 的除錯面板會呼叫） ---------- */
 // 回傳一份新的進度（不改傳入的 s）：停在 act 的第 line 句（夾在句數之內），phase 一律是 opening。
-// 跳過的前提自動補上，讓那一幕能照常演：已經過了岔路就補左右（沿用原本的，沒有就 left）；
-// 已經過了存摺按鈕就補選擇（沿用原本的，沒有就第一個）；跳進某一支分支的句子就照那一支補。
+// 跳過的前提自動補上，讓那一幕能照常演：已經過了岔路就補左右（沿用原本的，沒有就 left）。
 // 關卡做完的記號（cleared）在新物件上是空的：停在關卡那一句就要重做。最後過一次 normalize，跟讀檔走同一套規則。
 // act 不在 OPENING_ACTS 裡回傳 null。
 export function jumpState(s, act, line = 0) {
@@ -284,11 +271,6 @@ export function jumpState(s, act, line = 0) {
   const at = OPENING_ACTS.indexOf(act);
   const max = Math.max(0, lineCount(act) - 1);
   const n = Math.max(0, Math.min(max, Math.floor(Number(line)) || 0));
-  const ci = OPENING_ACTS.indexOf(CHOICE.act);
-  const branch = linesOf(act)[n]?.branch;
-  let passbook = null;
-  if (branch) passbook = branch;
-  else if (at > ci || (at === ci && n > CHOICE.line)) passbook = PASSBOOK_SIDES.includes(prev.passbook) ? prev.passbook : PASSBOOK_SIDES[0];
   const raw = {
     v: SCHEMA,
     phase: 'opening',
@@ -298,7 +280,6 @@ export function jumpState(s, act, line = 0) {
       resignation: prev.resignation ?? null,
       name: prev.name ?? '',
       fork: at > OPENING_ACTS.indexOf('fork') ? (FORK_SIDES.includes(prev.fork) ? prev.fork : FORK_SIDES[0]) : null,
-      passbook,
     },
     at: null,
     choices: {},

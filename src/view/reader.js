@@ -12,7 +12,7 @@ const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&
 export const TAP_GUARD_MS = 260; // 一句剛出來的一小段時間不收點（連點不會跳句）
 export const SKIP_ARM_MS = 900; // 「跳過自白」出現後多久才收點
 export const SKIP_LABEL = '跳過自白';
-// 名牌：開場（德叔、我）＋第一～四天（行員、保全、宜蓁、經理、副總、協理、阿桂、訊息、便條）
+// 名牌：開場（德叔、我）＋第一天起（房東、坤伯、店長、店員）
 export const nameOf = (who) => (who ? SPEAKER_NAMES[who] || DAY_SPEAKERS[who] || '' : '');
 // 對白中間夾著的動作（劇本「……，」她比自己的下巴，「……」）：字照稿放，畫面上把夾在 」「 中間的那段用旁白的顏色
 export function lineHtml(text) {
@@ -23,7 +23,7 @@ export function lineHtml(text) {
 export const PORTRAIT_PLACE = {
   center: 'height:130%;top:7%',
   aside: 'height:100%;top:19%;left:77%', // 坐下窗景：杯子在左半邊桌上（約 x128–178），德叔站到右手邊
-  half: 'height:62%;top:22%', // 第一～四天的半身立繪（阿桂）
+  half: 'height:62%;top:22%', // 半身立繪（目前第一天起的新角色都還沒有立繪）
 };
 
 export function createReader(root, app) {
@@ -141,6 +141,7 @@ export function createReader(root, app) {
         el.className = 'opr-hotspot';
         el.setAttribute('aria-label', h.label);
         el.dataset.id = h.id;
+        if (h.need) el.dataset.need = '1'; // 字出來之前一定要點的（不是可選）
         el.onclick = (e) => {
           e.stopPropagation();
           if (el.disabled) return;

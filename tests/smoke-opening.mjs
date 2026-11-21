@@ -1,4 +1,5 @@
-// 開場冒煙（自動跑完，不用人盯）：用 Playwright 從辦公室一路玩到第一晚自白，點「跳過自白」接到第一天，每一幕截圖到 tests/output/opening/（不 commit）。
+// 開場冒煙（自動跑完，不用人盯）：用 Playwright 從辦公室一路玩到第一晚自白，點「跳過自白」接到第一天，
+// 再照劇本 v5.6 玩到研發咖啡之後的待續；每一幕截圖到 tests/output/opening/（不 commit）。
 // 執行：node tests/smoke-opening.mjs（約 1～2 分鐘）。任何一步不對或頁面丟錯就以非 0 結束。
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
@@ -59,12 +60,15 @@ try {
 
   // 第一幕
   if (await page.locator('#op-opening input, .op-office input').count()) fail('辦公室還有輸入框');
-  if (!(await page.locator('#op-send').isDisabled())) fail('沒選結尾「送出」卻能按');
+  if (!(await page.locator('#op-send').isDisabled())) fail('沒點事由欄「送出」卻能按');
   const sign = await page.locator('.op-sign').textContent();
   if (sign !== '陳怡君　敬上') fail(`署名不對：${sign}`);
-  await page.locator('.op-choices button').nth(2).click();
+  if (await page.locator('.op-choices button').count()) fail('事由還是三選一');
+  await page.locator('#op-reason').click(); // 事由欄：點一下打出固定那一句
   await sleep(1800);
-  if (await page.locator('#op-send').isDisabled()) fail('選了結尾「送出」仍不能按');
+  const reason = await page.locator('#op-reason').textContent();
+  if (reason !== '離職事由：從今天起，我單方面辭退您。') fail(`事由不對：${reason}`);
+  if (await page.locator('#op-send').isDisabled()) fail('點了事由欄「送出」仍不能按');
   await snap('office');
   await page.locator('#op-send').click();
   await sleep(600);
@@ -305,8 +309,51 @@ try {
   await page.reload();
   await sleep(1500);
   if ((await act()) !== 'd1wake') fail('重新整理後不在第一天早上');
+
+  // 第一天～研發咖啡（劇本 v5.6）：一路點到待續。字出來之前要先做的互動照做：
+  // 必點的熱點（錢包、抽屜、海報、花斑貓、空罐子：data-need）、疊在上面要點的東西（提款機的存摺、包包裡的鑰匙）、小圖（點一下才出字）、停一拍
+  const seenMini = [];
+  const seenNames = new Set();
+  const seenActs = [];
+  let sawCard2 = false;
+  for (let n = 0; n < 900; n++) {
+    const a = await act();
+    if (a === 'tbc') break;
+    if (seenActs.at(-1) !== a) seenActs.push(a);
+    const st = await page.evaluate(() => ({
+      need: [...document.querySelectorAll('.opr-hotspot[data-need="1"]')].filter((e) => !e.disabled && !e.hidden).map((e) => e.dataset.id),
+      item: [...document.querySelectorAll('.pp-tapitem')].filter((e) => !e.disabled).map((e) => e.dataset.id),
+      peek: !!document.querySelector('.pp-peek'),
+      mini: document.querySelector('.pp-mini.on')?.dataset.kind || '',
+      box: !!document.querySelector('#op-read:not([hidden]) .opr-box:not([hidden]) .st-text'),
+      name: document.querySelector('#op-read .st-name')?.textContent || '',
+      card: document.querySelector('.op-day.daycard .op-card:not(.out) p')?.textContent || '',
+    }));
+    if (st.name) seenNames.add(st.name);
+    if (st.card === '第二天' && !sawCard2) { sawCard2 = true; await snap('d2-card'); }
+    if (st.mini && !seenMini.includes(st.mini)) { seenMini.push(st.mini); await sleep(500); await snap(`mini-${st.mini}`); }
+    if (st.need.length) { await page.locator(`.opr-hotspot[data-need="1"][data-id="${st.need[0]}"]`).click(); await sleep(900); continue; }
+    if (st.item.length) { await page.locator(`.pp-tapitem[data-id="${st.item[0]}"]`).click(); await sleep(900); continue; }
+    if (st.peek) {
+      if (st.box) fail('小圖還沒點，字就先出來了');
+      await sleep(350);
+      await page.mouse.click(195, 200);
+      await sleep(500);
+      continue;
+    }
+    await tapRead();
+  }
+  await waitAct('tbc', 8000);
+  await sleep(2500);
+  await snap('tbc');
+  const want = ['d1wake', 'd1shop', 'd1town', 'd1home', 'd1bank', 'd1store', 'd2card', 'd2cafe', 'd5card', 'd5cafe', 'd5village', 'd5thanks', 'd5brew'];
+  for (const w of want) if (!seenActs.includes(w)) fail(`沒走到 ${w}（走過：${seenActs.join(' → ')}）`);
+  if (!sawCard2) fail('沒看到「第二天」字卡');
+  if (seenMini.join() !== 'stain,passbook,hat,label,longan') fail(`小圖不對：${seenMini.join()}`);
+  for (const nm of ['房東', '坤伯', '店長', '店員', '德叔', '我']) if (!seenNames.has(nm)) fail(`沒看到名牌：${nm}`);
+  if (!(await page.getByText('待續').first().isVisible())) fail('研發咖啡之後沒有待續');
   if (errors.length) fail(`頁面錯誤：\n${errors.join('\n')}`);
-  console.log(`OK：開場走到第一晚自白、跳過後接到第一天，截圖 ${shot} 張在 ${OUT}`);
+  console.log(`OK：開場走到第一晚自白、跳過後接到第一天，再一路玩到研發咖啡之後的待續，截圖 ${shot} 張在 ${OUT}`);
 } catch (e) {
   await snap('FAIL').catch(() => {});
   console.error('FAIL：', e.message);

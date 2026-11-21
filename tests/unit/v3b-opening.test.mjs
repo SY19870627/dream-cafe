@@ -39,7 +39,7 @@ test('稿件標記【待定】【待確認】【新增互動】都已拿掉；�
   const texts = [
     ...allLines().map((b) => b.text), OP.MAILBOX.caption, OP.MAILBOX.tap, OP.MAILBOX.shaken, OP.MAILBOX.boxLabel, OP.MAILBOX.next,
     OP.LETTER.title, OP.LETTER.greeting, ...OP.LETTER.paragraphs, OP.LETTER.closing, OP.LETTER.signature, OP.LETTER.attachment, OP.LETTER.after,
-    OP.ROAD.card, OP.ROAD.door, OP.DEPART.start, OP.TEMPLE.back, OP.OFFICE.signature, OP.OFFICE.question,
+    OP.ROAD.card, OP.ROAD.door, OP.DEPART.start, OP.TEMPLE.back, OP.OFFICE.signature, OP.OFFICE.reasonLabel, OP.RESIGNATION.text,
   ];
   for (const t of texts) {
     assert.ok(!MARKS.test(t), `還有標記：${t}`);
@@ -63,12 +63,34 @@ test('署名固定「陳怡君　敬上」，沒有輸入框（刪掉「可以�
   assert.doesNotMatch(view, /<input|op-name|可以不寫|placeholder/);
   assert.match(view, /<p class="op-sign">\$\{esc\(OFFICE\.signature\)\}<\/p>/);
   assert.doesNotMatch(read('index.html'), /op-sign input/);
-  // 送出要先選結尾：按鈕一開始 disabled，選了才解除；點擊時沒選就不做事
+  // 送出要先點過事由欄：按鈕一開始 disabled，點了事由欄才解除；點擊時沒點過就不做事
   assert.match(view, /id="op-send" class="primary" disabled/);
   assert.match(view, /if \(!choice \|\| send\.disabled\) return;/);
   assert.equal(OP.OFFICE.clock, '16:49');
   assert.equal(OP.OFFICE.clockAfter, '16:50');
-  assert.deepEqual(OP.RESIGNATIONS.map((r) => r.text), ['謝謝這些年的照顧。', '我要去追一個夢了。', '從今天起，我單方面辭退您。']);
+});
+
+test('劇本 v5.6 第一幕：離職事由固定「從今天起，我單方面辭退您。」（正體「辭」），不再三選一；先點事由欄才能送出', () => {
+  assert.equal(OP.RESIGNATION.text, '從今天起，我單方面辭退您。');
+  assert.ok(OP.RESIGNATION.text.includes('辭') && !OP.RESIGNATION.text.includes('辞'), '用正體「辭」');
+  assert.deepEqual(OP.RESIGNATIONS.map((r) => r.text), ['從今天起，我單方面辭退您。'], '只剩一句');
+  assert.equal(OP.OFFICE.reasonLabel, '離職事由：');
+  assert.ok(!('question' in OP.OFFICE), '「結尾要寫哪一句？」拿掉');
+  const view = code('src/view/opening.js');
+  assert.doesNotMatch(view, /op-choices|RESIGNATIONS\.map/, '沒有三選一的按鈕');
+  assert.match(view, /<button type="button" class="op-ending op-reason" id="op-reason"/);
+  assert.match(view, /reason\.onclick = \(\) => \{[\s\S]*?choice = RESIGNATION\.id;[\s\S]*?typeOut\(RESIGNATION\.text\);\s*send\.disabled = false;/, '點事由欄才填字、才能送出');
+  assert.match(view, /target\.textContent = RESIGNATION\.text;/);
+  assert.doesNotMatch(read('index.html'), /\.op-choices/);
+  // 標題畫面維持劇本原文
+  assert.deepEqual(OP.TITLE.lines, ['我單方面辭退老闆後，', '開了一間夢想中的咖啡店']);
+  // 劇本 v5.6 第一幕的引用區塊有這一句
+  const md = read('docs/劇本.md');
+  const act1 = md.slice(md.indexOf('## 第一幕'), md.indexOf('## 標題畫面'));
+  assert.ok(act1.includes(`${OP.OFFICE.reasonLabel}${OP.RESIGNATION.text}`));
+  assert.ok(act1.includes('申請人固定是陳怡君，沒有輸入框'));
+  const title = md.slice(md.indexOf('## 標題畫面'), md.indexOf('## 第二幕'));
+  for (const l of OP.TITLE.lines) assert.ok(title.includes(`> ${l}`), l);
 });
 
 test('第二幕：信箱旁白、只能點一次的「拿出信封」、新信全文（標題「信」、署名東山老屋　屋主）', () => {
@@ -472,7 +494,7 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   // 11. 晚上回店：德叔拿著掃把（店裡與立繪都是 broom）
   assert.equal(at('stay', 0).deshu, 'broom');
   assert.match(main, /broom: \{ pose: 'broom' \}/);
-  assert.match(main, /act === 'stay' \? 'char_deshu_broom' : PORTRAITS\.deshu\.src/);
+  assert.match(main, /act === 'stay' \? 'char_deshu_broom' : face/);
   // 12. 靠窗那張桌：畫師原圖取代程式畫的木桌；杯子仍是 prop_cup
   assert.match(main, /id: 'wintable'[^\n]*img: 'prop_v3b_window_table'/);
   assert.doesNotMatch(main, /drawTable|tex_wood_top/);

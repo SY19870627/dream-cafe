@@ -14,11 +14,9 @@
 //   optional：這一句可以多做的互動（不做也能點下一句）
 
 /* ---------- 第一幕　16:49 的辦公室 ---------- */
-export const RESIGNATIONS = [
-  { id: 'thanks', text: '謝謝這些年的照顧。' },
-  { id: 'dream', text: '我要去追一個夢了。' },
-  { id: 'fire', text: '從今天起，我單方面辭退您。' },
-];
+// 離職事由固定一句（劇本 v5.6：「離職事由：從今天起，我單方面辭退您。」），不再三選一；要先點過事由欄才能送出
+export const RESIGNATION = { id: 'fire', text: '從今天起，我單方面辭退您。' };
+export const RESIGNATIONS = [RESIGNATION]; // 舊名字：只剩這一句
 
 export const RESIGNATION_MAIL = {
   to: '經理',
@@ -33,7 +31,7 @@ export const RESIGNATION_MAIL = {
 export const OFFICE = {
   clock: '16:49',
   clockAfter: '16:50', // 按下送出，時鐘翻成 16:50
-  question: '結尾要寫哪一句？',
+  reasonLabel: '離職事由：', // 事由欄（點一下才填進固定那一句）
   signature: '陳怡君　敬上', // 署名固定，沒有輸入框
   send: '送出',
   keys: '喀噠、喀噠……',

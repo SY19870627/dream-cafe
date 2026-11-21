@@ -138,6 +138,15 @@ export function play(name) {
     case 'rewind': // 倒片：沙沙
       for (let i = 0; i < 4; i++) noise({ at: i * 0.06, dur: 0.05, gain: 0.06, freq: 3000, q: 1.2 });
       break;
+    // 劇本 v5.6：窗外的雞叫、樓梯間的拖鞋聲（都是合成）
+    case 'rooster': // 遠遠的雞叫：幾段往上滑再拉長的聲音
+      tone(520, { dur: 0.18, gain: 0.04, type: 'sawtooth', to: 780 });
+      tone(780, { at: 0.2, dur: 0.22, gain: 0.04, type: 'sawtooth', to: 900 });
+      tone(900, { at: 0.44, dur: 0.7, gain: 0.035, type: 'sawtooth', to: 620 });
+      break;
+    case 'slipper': // 拖鞋一步一步下樓
+      for (let i = 0; i < 6; i++) noise({ at: i * 0.38, dur: 0.08, gain: 0.08, freq: 600, q: 1.4 });
+      break;
     default: break;
   }
 }

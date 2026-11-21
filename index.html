@@ -108,10 +108,12 @@
   .op-ending { min-height: 1.6em; font-weight: 600; color: #1f3f6e; }
   .caret { display: inline-block; width: 2px; height: 1.1em; background: #2b2f36; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
   .op-sign { margin: 6px 0 0; text-align: right; font-size: 14.5px; }
-  .op-q { margin: 2px 0 0; font-size: 14px; opacity: .8; }
-  .op-choices { display: flex; flex-direction: column; gap: 8px; }
-  .op-choices button { text-align: left; background: rgba(246,239,226,.1); color: #f1ece2; border: 1px solid rgba(246,239,226,.35); box-shadow: none; font-weight: 500; }
-  .op-choices button[aria-pressed="true"] { background: #f1ece2; color: #1b1f27; border-color: #f1ece2; }
+  /* 離職事由欄：固定一句；點一下才打出來，點過才能送出 */
+  .op-reason { display: block; width: 100%; margin: 4px 0; padding: 6px 8px; text-align: left; font-size: 14.5px; line-height: 1.6; border-radius: 4px;
+    background: #fff; border: 1px dashed #8d9ab0; box-shadow: none; color: #1f3f6e; animation: doorcall 2.2s ease-in-out infinite; }
+  .op-reason.filled { border-style: solid; border-color: #c9d0db; animation: none; }
+  .op-reason:disabled { opacity: 1; cursor: default; }
+  .op-reason-label { color: #2b2f36; font-weight: 400; }
   .op-keys { align-self: center; font-size: 13px; color: #f1ece2; text-align: center; letter-spacing: 3px; padding: 2px 10px; border-radius: 10px;
     background: rgba(15,18,24,.55); animation: keys 2.4s ease-in-out infinite; }
   @keyframes keys { 0%, 100% { opacity: .8; } 50% { opacity: 1; } }
@@ -408,6 +410,80 @@
   .pp-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
   .pp-flash.go { animation: shot .35s ease-out; }
   @keyframes shot { from { opacity: .85; } to { opacity: 0; } }
+
+  /* ---------- 劇本 v5.6（第一天～研發咖啡）：暫代場景、熱點、小圖、新特寫卡（換圖見 src/view/art-map.js） ---------- */
+  /* 缺圖的背景：CSS 中性底（不畫人形；之後換正式圖只改 art-map.js） */
+  .dy-css { position: absolute; inset: 0; }
+  .dy-css-stairs { background: linear-gradient(160deg, rgba(255,240,210,.18) 0 18%, transparent 18% 100%), repeating-linear-gradient(170deg, #5a5650 0 46px, #4a4743 46px 52px), linear-gradient(#6b6760, #3c3a37); }
+  .dy-css-atm { background: linear-gradient(#e9e2d2 0 52%, #8f8b84 52% 100%); }
+  .dy-css-atm::before { content: ""; position: absolute; left: 30%; top: 24%; width: 40%; height: 40%; border-radius: 6px; background: linear-gradient(#5b6b7a, #3d4955); box-shadow: inset 0 0 0 6px #2f3944, 0 8px 18px rgba(0,0,0,.3); }
+  .dy-css-atm::after { content: ""; position: absolute; left: 0; right: 0; top: 52%; height: 6%; background: linear-gradient(rgba(255,250,235,.0), rgba(255,250,235,.35), rgba(255,250,235,0)); animation: heat 2.4s ease-in-out infinite; }
+  @keyframes heat { 50% { transform: translateY(-6%); opacity: .5; } }
+  .dy-css-store { background: linear-gradient(#f4f7f8 0 30%, transparent 30%), repeating-linear-gradient(90deg, #cfd8de 0 22%, #e8edef 22% 25%), linear-gradient(#dfe6ea, #b9c3c8); }
+  .dy-css-village { background: linear-gradient(#cfe0e6 0 34%, #b9ad97 34% 58%, #8f8676 58% 100%); }
+  .dy-css-kunyard { background: radial-gradient(60% 30% at 70% 30%, #4f6b3e, transparent 70%), radial-gradient(50% 26% at 20% 26%, #5b7746, transparent 70%), linear-gradient(#c7d8c9 0 30%, #a39678 30% 100%); }
+  /* 租屋房間：桌上的錢包、抽屜（拉開：印章在最裡面，旁邊有一本存摺） */
+  .dy-wallet { position: absolute; left: 60%; top: 55%; width: 16%; height: 5%; z-index: 1; border-radius: 4px; background: linear-gradient(#7a4a32, #5a3422); box-shadow: 0 3px 6px rgba(0,0,0,.35); }
+  .dy-wallet i { position: absolute; width: 60%; height: 70%; left: 10%; top: -40%; border-radius: 2px; background: #c7d6b8; opacity: 0; transition: opacity .4s, transform .5s; }
+  .dy-wallet i + i { left: 34%; background: #e6d7a8; }
+  .dy-place.counted .dy-wallet i { opacity: 1; transform: translateY(-60%) rotate(-8deg); }
+  .dy-ddrawer { position: absolute; left: 14%; top: 60%; width: 38%; height: 7%; z-index: 1; border-radius: 3px; background: linear-gradient(#8b6440, #6e4c2f); box-shadow: inset 0 0 0 3px #5a3d26; transition: transform .6s ease; }
+  .dy-place.open .dy-ddrawer { transform: translateY(45%); }
+  .dy-seal, .dy-book { position: absolute; top: 22%; height: 56%; opacity: 0; transition: opacity .4s .3s; }
+  .dy-seal { left: 70%; width: 8%; border-radius: 3px; background: #b23a2e; }
+  .dy-book { left: 40%; width: 22%; border-radius: 2px; background: #2f5a4a; }
+  .dy-place.open .dy-seal, .dy-place.open .dy-book { opacity: 1; }
+  /* 超商：門邊的徵人海報（字由程式疊） */
+  .dy-poster { position: absolute; left: 8%; top: 32%; width: 22%; height: 15%; z-index: 1; display: flex; align-items: center; justify-content: center; padding: 4px;
+    background: #fbfaf4; box-shadow: 0 3px 8px rgba(0,0,0,.3); transform: rotate(-2deg); font-size: 10px; font-weight: 700; color: #b0302a; text-align: center; line-height: 1.3; }
+  /* 花斑貓：中性剪影（灰色貓形輪廓），不用龍眼貓圖 */
+  .dy-calico { position: absolute; width: 16%; aspect-ratio: 4 / 3; z-index: 2; background: #4a4642; opacity: .85;
+    clip-path: polygon(10% 100%, 12% 55%, 4% 30%, 10% 22%, 18% 32%, 30% 30%, 36% 18%, 40% 34%, 78% 40%, 92% 30%, 96% 36%, 88% 52%, 90% 100%, 78% 100%, 74% 70%, 30% 70%, 24% 100%); }
+  .dy-calico.on-wall { left: 58%; top: 40%; opacity: 0; transition: opacity .6s, transform 1.4s ease; }
+  .op-day.calico-wall .dy-calico.on-wall { opacity: .85; }
+  .op-day.calico-go .dy-calico.on-wall { transform: translate(-120%, 30%); }
+  .dy-calico.in-yard { left: 18%; top: 52%; opacity: 0; transition: opacity .6s; }
+  .op-day.calico-yard .dy-calico.in-yard { opacity: .85; }
+  /* 坤伯的院子：水桶、空罐子（可點）、還沒開的那罐 */
+  .dy-bucket { position: absolute; left: 40%; top: 56%; width: 18%; height: 9%; border-radius: 0 0 30% 30%; background: linear-gradient(90deg, #3d6fa0, #5f92c2 50%, #3d6fa0); transition: left 1.2s ease; }
+  .op-day.bucket-moved .dy-bucket { left: 76%; }
+  .dy-emptycan, .dy-fullcan { position: absolute; top: 59%; width: 7%; height: 6%; border-radius: 3px; background: linear-gradient(90deg, #6f6a62, #cfc8ba 40%, #7c766c); }
+  .dy-emptycan { left: 60%; z-index: 1; transform: rotate(80deg); transition: transform .5s, opacity .5s; }
+  .op-day.can-up .dy-emptycan { transform: none; }
+  .op-day.can-taken .dy-emptycan { opacity: 0; }
+  .dy-fullcan { left: 69%; }
+  /* 字卡（「第二天」「三天後」）：沿用 .op-card */
+  .op-day.daycard { background: #0d0b0a; }
+
+  /* 小圖（#op-prop .pp-mini）：疊在原場景上，背景不切換；先疊上來，點一下才出句子；講完收掉。不畫手 */
+  .pp-mini { position: absolute; left: 50%; top: 12%; width: min(64vw, 250px); aspect-ratio: 1; transform: translateX(-50%) scale(.94); opacity: 0;
+    transition: opacity .45s, transform .45s; pointer-events: none; border-radius: 10px; overflow: hidden; background: #fbf5e8; border: 6px solid #fbf5e8;
+    box-shadow: 0 12px 30px rgba(20,10,5,.5); }
+  .pp-mini.on { opacity: 1; transform: translateX(-50%); }
+  .pp-mini.ask { animation: doorcall 2.2s ease-in-out infinite; }
+  .pp-mini > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pp-mini > div { position: absolute; inset: 0; }
+  .pp-overlay { font-weight: 700; letter-spacing: 2px; }
+  .mn-on-art { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 30px; color: #b0302a; }
+  .mn-stain { background: linear-gradient(#efe9dc 0 34%, #d9d1c0 34% 38%, #efe9dc 38%); }
+  .mn-stain i { position: absolute; left: 22%; top: 40%; width: 58%; height: 44%; border-radius: 48% 52% 40% 60% / 30% 40% 60% 70%; background: radial-gradient(closest-side, rgba(120,88,52,.45), rgba(120,88,52,.12) 70%, rgba(120,88,52,0)); }
+  .pp-mini .mn-passbook { position: absolute; inset: 14% 22%; width: auto; height: auto; }
+  .mn-hat { background: linear-gradient(#e9f0f2, #d5dfe2); }
+  .mn-hat i { position: absolute; left: 12%; right: 12%; top: 30%; height: 38%; background: linear-gradient(#d8bf86, #b89a5e); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  .mn-label { background: #9a948a; }
+  .mn-label .mn-tag { position: absolute; left: 14%; right: 14%; top: 30%; height: 40%; display: flex; align-items: center; justify-content: center; background: #f2ecd8;
+    box-shadow: inset 0 0 0 3px #c9bfa3; font-size: 34px; color: #b0302a; }
+  .mn-longan { background: #3a2a1e; }
+  .mn-longan i { position: absolute; left: 22%; top: 24%; width: 56%; height: 52%; border-radius: 50%; background: radial-gradient(circle at 40% 36%, #3d2a1c, #1f150e 70%); box-shadow: 0 0 0 10px #8a6038, 0 0 0 12px #6e4a2a; }
+  .mn-longan i + i { left: 56%; top: 54%; width: 24%; height: 22%; background: #8a6038; box-shadow: none; }
+  /* 特寫卡：徵人海報、測試品的紙袋（字由程式疊；薪水數字劇本沒寫，不疊） */
+  .pp-poster { width: 210px; height: 270px; display: flex; align-items: flex-start; justify-content: center; padding-top: 40px; background: #fbfaf4; box-shadow: 0 10px 22px rgba(0,0,0,.4); font-size: 24px; color: #b0302a; }
+  .pp-paperbag { width: 200px; height: 250px; display: flex; align-items: center; justify-content: center; padding: 0 30px; background: linear-gradient(#c79e6a, #b18556); box-shadow: 0 10px 22px rgba(0,0,0,.4), inset 0 22px 0 #a77c4e;
+    font-family: "Kaiti TC", "DFKai-SB", "BiauKai", serif; font-size: 22px; line-height: 1.6; color: #2b1d12; writing-mode: vertical-rl; }
+  .pp-paperbag .pp-overlay { letter-spacing: 4px; font-weight: 400; }
+  /* 點一下才出句子的整片點擊區（小圖疊上來時） */
+  .pp-peek { position: absolute; inset: 0; z-index: 1; padding: 0; background: transparent; box-shadow: none; border-radius: 0; cursor: pointer; }
+  .pp-tapitem { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -425,7 +501,7 @@
   <section id="log" hidden role="dialog" aria-label="回顧"><div class="log-paper" id="log-list"></div><div class="log-bar"><button id="log-close" type="button">回到原頁</button></div></section>
   <section id="opening" hidden></section>
   <section id="op-read" hidden aria-label="下一句"><div class="st-portrait opr-portrait"></div><div class="opr-hot"></div><div class="st-box opr-box" aria-live="polite"></div><button type="button" class="opr-skip" hidden></button></section>
-  <section id="op-prop" hidden><div class="pp-card"></div><span class="pp-film" aria-hidden="true"></span><div class="pp-extra"></div><div class="pp-flash"></div></section>
+  <section id="op-prop" hidden><div class="pp-card"></div><div class="pp-mini"></div><span class="pp-film" aria-hidden="true"></span><div class="pp-extra"></div><div class="pp-flash"></div></section>
   <div id="fade"></div>
   <div id="boot"></div>
 </div>

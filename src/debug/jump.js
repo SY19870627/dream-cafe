@@ -1,6 +1,6 @@
 // 跳關選單的內容（純邏輯）：每一幕的名字、有幾句。實際換進度用 story/state.js 的 jumpState。
 import { OPENING_ACTS, lineCount, END_ACT } from '../story/state.js';
-import { DAY_TITLES, DAY_ACT_VIEW } from '../lines/days.js';
+import { DAY_TITLES, DAY_ACT_VIEW, DAY_ACT_NAMES } from '../lines/days.js';
 
 // 開場各幕（幕 id 照 state.js 的註解）
 const OPENING_NAMES = {
@@ -9,17 +9,17 @@ const OPENING_NAMES = {
   temple: '工寮與土地公廟', return: '回三合院外', stay: '店裡（晚上）', room: '庭埕、房間、第一晚自白',
   [END_ACT]: '待續',
 };
-const DAY_PARTS = { wake: '早上', shop: '店裡', town: '下山', cafe: '回店', night: '睡前自白' };
-const VIEW_NAMES = { shop: '店內 360', still: '背景圖' };
+const VIEW_NAMES = { shop: '店內 360', still: '背景圖', card: '字卡' };
 
-// 一幕的顯示名：開場用上面的名字；第一～四天是「第N天 早上（背景圖）」，每天第一幕加章名
+// 一幕的顯示名：開場用上面的名字；第一天起用劇本段落名（lines/days.js 的 DAY_ACT_NAMES）＋畫面種類，有章名的幕加章名
 export function actLabel(act) {
   if (OPENING_NAMES[act]) return OPENING_NAMES[act];
   const m = /^d(\d+)(\w+)$/.exec(act);
   if (!m) return act;
   const title = DAY_TITLES[act];
   const view = VIEW_NAMES[DAY_ACT_VIEW[act]];
-  return `${title || `第${m[1]}天`}・${DAY_PARTS[m[2]] || m[2]}${view ? `（${view}）` : ''}`;
+  const name = DAY_ACT_NAMES[act] || `第${m[1]}天・${m[2]}`;
+  return `${title ? `${title}｜` : ''}${name}${view ? `（${view}）` : ''}`;
 }
 
 // 選單分組：開場一組、每一天一組；每一項 { act, label, lines }

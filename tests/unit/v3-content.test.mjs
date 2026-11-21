@@ -142,7 +142,7 @@ test('開場沿用第一版原字的部分一字不差（v3.8 改寫的句子另
   has(`to: '${OP.RESIGNATION_MAIL.to}'`);
   has(`subject: '${OP.RESIGNATION_MAIL.subject}'`);
   for (const p of OP.RESIGNATION_MAIL.body) has(`'${p}'`);
-  for (const v of [OP.OFFICE.clock, OP.OFFICE.clockAfter, OP.OFFICE.question, OP.OFFICE.send, OP.OFFICE.keys, OP.OFFICE.to, OP.OFFICE.subject]) has(v);
+  for (const v of [OP.OFFICE.clock, OP.OFFICE.clockAfter, OP.OFFICE.send, OP.OFFICE.keys, OP.OFFICE.to, OP.OFFICE.subject]) has(v); // 「結尾要寫哪一句？」隨三選一拿掉（劇本 v5.6 事由固定）
   has(OP.TITLE.lines.join('<br>'));
   has(OP.TITLE.sub);
   has(`>${OP.TITLE.next}<`);
