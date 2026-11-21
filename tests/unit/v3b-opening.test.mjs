@@ -1,7 +1,7 @@
-// v3b 開場（劇本 v3.8 第一幕～第四幕）：字與劇本逐字相同（拿掉稿件標記）、各幕各句只往前、存檔恢復、壞檔、
-// 互動關卡（推門／點椅子／發動／按住騎／左右岔路／掉頭回去／再推門）、可選互動略過也能走完、第一晚自白（v4.5 A 版）睡著後進第一天。
+// v3b 開場（劇本 v5.6 第一幕～第四幕）：字與 docs/劇本.md 逐字相同（拿掉稿件標記）、劇本沒有的字不上畫面、各幕各句只往前、存檔恢復、壞檔、
+// 互動關卡（推門／點椅子／發動／按住騎／左右岔路／掉頭／再推門）、可選互動略過也能走完、第一晚自白睡著後進第一天。
 // 第一～四天、睡著自動存檔、跳過自白、舊存檔相容在 v3b-days.test.mjs。
-// 只測純邏輯與靜態檔案，不開瀏覽器。劇本字在 src/lines/opening.js（tracked）；有 _agent 稿件時另外逐句對稿，沒有就略過。
+// 只測純邏輯與靜態檔案，不開瀏覽器。劇本字在 src/lines/opening.js；逐句對 docs/劇本.md（tracked）。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
@@ -37,9 +37,9 @@ function playOpening({ side = 'left', each = () => {} } = {}) {
 /* ---------- 字 ---------- */
 test('稿件標記【待定】【待確認】【新增互動】都已拿掉；括弧舞台指示不是字', () => {
   const texts = [
-    ...allLines().map((b) => b.text), OP.MAILBOX.caption, OP.MAILBOX.tap, OP.MAILBOX.shaken, OP.MAILBOX.boxLabel, OP.MAILBOX.next,
-    OP.LETTER.title, OP.LETTER.greeting, ...OP.LETTER.paragraphs, OP.LETTER.closing, OP.LETTER.signature, OP.LETTER.attachment, OP.LETTER.after,
-    OP.ROAD.card, OP.ROAD.door, OP.DEPART.start, OP.TEMPLE.back, OP.OFFICE.signature, OP.OFFICE.reasonLabel, OP.RESIGNATION.text,
+    ...allLines().map((b) => b.text), OP.LETTER.next,
+    OP.LETTER.title, OP.LETTER.greeting, ...OP.LETTER.paragraphs, OP.LETTER.closing, OP.LETTER.signature, OP.LETTER.after,
+    OP.ROAD.door, OP.DEPART.start, OP.OFFICE.applicant, OP.OFFICE.reasonLabel, OP.OFFICE.note, OP.RESIGNATION.text,
   ];
   for (const t of texts) {
     assert.ok(!MARKS.test(t), `還有標記：${t}`);
@@ -49,19 +49,25 @@ test('稿件標記【待定】【待確認】【新增互動】都已拿掉；�
   // 【待定】句去標記後正文照出
   const flat = allLines().map((b) => b.text);
   assert.ok(flat.includes('龍眼的耳朵往後壓了一下，沒有走。'));
-  assert.ok(flat.includes('椅子是木頭的，坐下去才知道腿有多痠。'));
   assert.ok(flat.includes('還沒打烊，位子自己挑。'));
   assert.equal(flat.at(-1), '我本來只想躺一下，燈還沒關就睡著了。', '開場最後一句（第一晚自白的最後一句，仍是睡著句）');
   // 舊第四幕兩句、第一版德叔三句不在可玩開場
   for (const old of [OP.ACT4_CUP, OP.ACT4_EMPTY, OP.SIT, ...OP.DESHU_ENTER]) assert.ok(!flat.includes(old), old);
 });
 
-test('署名固定「陳怡君　敬上」，沒有輸入框（刪掉「可以不寫」的簽名欄）', () => {
-  assert.equal(OP.OFFICE.signature, '陳怡君　敬上');
-  assert.ok(!('signPlaceholder' in OP.OFFICE));
+test('申請人固定陳怡君，沒有輸入框；表單只有事由、說明兩行（沒有收件人、主旨、郵件內文）', () => {
+  assert.equal(OP.OFFICE.applicant, '陳怡君');
+  assert.equal(OP.OFFICE.note, '說明：這件事我想了很久，今天決定說出來。');
+  assert.ok(!('signPlaceholder' in OP.OFFICE) && !('signature' in OP.OFFICE) && !('keys' in OP.OFFICE) && !('to' in OP.OFFICE) && !('subject' in OP.OFFICE));
+  assert.ok(!('RESIGNATION_MAIL' in OP), '郵件（經理您好、主旨辭呈、交接）拿掉');
   const view = read('src/view/opening.js');
-  assert.doesNotMatch(view, /<input|op-name|可以不寫|placeholder/);
-  assert.match(view, /<p class="op-sign">\$\{esc\(OFFICE\.signature\)\}<\/p>/);
+  assert.doesNotMatch(view, /<input|\bop-name\b|可以不寫|placeholder|op-mail-head|\bop-keys\b/);
+  assert.match(view, /<p class="op-note">\$\{esc\(OFFICE\.note\)\}<\/p>/);
+  assert.match(view, /<p class="op-sign">\$\{esc\(OFFICE\.applicant\)\}<\/p>/);
+  // 順序：事由欄 → 說明 → 申請人 → 送出
+  const office = view.slice(view.indexOf("if (act === 'office')"), view.indexOf("if (act === 'title')"));
+  const order = ['id="op-reason"', 'OFFICE.note', 'OFFICE.applicant', 'id="op-send"'].map((k) => office.indexOf(k));
+  assert.ok(order.every((x, i) => x > 0 && (i === 0 || x > order[i - 1])), `表單順序 ${order}`);
   assert.doesNotMatch(read('index.html'), /op-sign input/);
   // 送出要先點過事由欄：按鈕一開始 disabled，點了事由欄才解除；點擊時沒點過就不做事
   assert.match(view, /id="op-send" class="primary" disabled/);
@@ -82,8 +88,14 @@ test('劇本 v5.6 第一幕：離職事由固定「從今天起，我單方面�
   assert.match(view, /reason\.onclick = \(\) => \{[\s\S]*?choice = RESIGNATION\.id;[\s\S]*?typeOut\(RESIGNATION\.text\);\s*send\.disabled = false;/, '點事由欄才填字、才能送出');
   assert.match(view, /target\.textContent = RESIGNATION\.text;/);
   assert.doesNotMatch(read('index.html'), /\.op-choices/);
-  // 標題畫面維持劇本原文
+  // 標題畫面維持劇本原文；沒有按鈕字（不再有「下班」），點標題進入信
   assert.deepEqual(OP.TITLE.lines, ['我單方面辭退老闆後，', '開了一間夢想中的咖啡店']);
+  assert.equal(OP.TITLE.sub, '試玩版・台南東山');
+  assert.ok(!('next' in OP.TITLE), '標題沒有按鈕字');
+  assert.doesNotMatch(read('src/view/opening.js'), /下班/);
+  assert.match(view, /<div id="op-next" class="op-title-btn" role="button" tabindex="0">\s*<h1>\$\{TITLE\.lines\.map\(esc\)\.join\('<br>'\)\}<\/h1>\s*<p class="sub">\$\{TITLE\.sub\}<\/p>\s*<\/div>/, '標題整塊是按鈕（沒有按鈕字）');
+  assert.match(view, /enter\.onkeydown = \(e\) => \{ if \(e\.key === 'Enter' \|\| e\.key === ' '\)/, '鍵盤也能進入');
+  assert.match(view, /el\.querySelector\('#op-next'\)\.onclick = \(\) => api\.go\('letter'\);\s*return;/, '點標題直接接信（沒有信箱一幕）');
   // 劇本 v5.6 第一幕的引用區塊有這一句
   const md = read('docs/劇本.md');
   const act1 = md.slice(md.indexOf('## 第一幕'), md.indexOf('## 標題畫面'));
@@ -93,59 +105,96 @@ test('劇本 v5.6 第一幕：離職事由固定「從今天起，我單方面�
   for (const l of OP.TITLE.lines) assert.ok(title.includes(`> ${l}`), l);
 });
 
-test('第二幕：信箱旁白、只能點一次的「拿出信封」、新信全文（標題「信」、署名東山老屋　屋主）', () => {
-  assert.equal(OP.MAILBOX.caption, '我回到租屋處。信箱裡有一個牛皮紙信封。');
-  assert.equal(OP.MAILBOX.boxLabel, '拿出信封');
+test('第二幕「房間裡那封信」：標題「信」、劇本原文全文、信後旁白「其實我已經辭職了...」、按鈕「出發去東山」；沒有信箱一幕', () => {
   assert.equal(OP.LETTER.title, '信');
   assert.equal(OP.LETTER.greeting, '怡君：');
   assert.deepEqual(OP.LETTER.paragraphs, [
     '妳沒見過我，突然收到這種信，一定覺得奇怪。不想理它，放著也沒關係。',
     '我在台南東山有一間老三合院，住了很多年。正廳是一間咖啡館，現在還開著。',
-    '我年紀大了，現在不住那裡。店想交給妳經營，屋子也一起留給妳。那間屋子冬天曬得到太陽，坐起來是暖的。',
-    '若妳尚未辭職，請先辭職。這句不算條件，是我雞婆。',
+    '我沒有要強迫妳辭職，只是咖啡館比較遠，擔心妳應付不來。',
     '那邊有人在等妳。妳哪一天去，他都在。',
     '到了東山，找院子裡種一棵老龍眼樹、門上掛風鈴的那間三合院就是。鑰匙放在信封裡，屋子是妳的，鑰匙就是這個意思。門平常沒有鎖，到了用推的就好。',
   ]);
   assert.equal(OP.LETTER.closing, '祝　平安');
   assert.equal(OP.LETTER.signature, '東山老屋　屋主');
-  assert.equal(OP.LETTER.attachment, '附件：鑰匙一把');
-  assert.equal(OP.LETTER.after, '辭了。今天下午四點五十分。');
+  assert.equal(OP.LETTER.after, '其實我已經辭職了...');
+  assert.equal(OP.LETTER.next, '出發去東山');
+  assert.ok(!('attachment' in OP.LETTER), '「附件：鑰匙一把」拿掉');
+  assert.ok(!('MAILBOX' in OP), '信箱一幕的字（我回到租屋處、點信箱、搖起來、拿出信封）拿掉');
   const view = read('src/view/opening.js');
-  assert.doesNotMatch(view, /LAWYER_LETTER|律師信|溫度基金/);
-  assert.match(view, /if \(btn\.disabled\) return; \/\/ 只能點一次/);
-  assert.match(view, /<span class="op-box-label">\$\{MAILBOX\.boxLabel\}<\/span>/, '「拿出信封」看得到');
-  // 可選：點附件看鑰匙滑出（不點也能出發）
-  assert.match(view, /id="op-attach"/);
+  assert.doesNotMatch(view, /LAWYER_LETTER|律師信|溫度基金|MAILBOX|op-box-btn|op-env/);
+  assert.match(view, /<button type="button" id="op-next" class="primary">\$\{L\.next\}<\/button>/);
+  // 可選：點鑰匙圖示看鑰匙滑出（只有圖示，畫面上沒有字；不點也能出發）
+  assert.match(view, /<button type="button" class="op-attach" id="op-attach" aria-label="\$\{L\.keyLabel\}"><svg[^`]*?<\/svg><\/button>/);
   assert.match(view, /el\.querySelector\('#op-next'\)\.onclick = \(\) => api\.go\('road'\);/);
+  // 舊存檔停在信箱：直接接信（幕 id 留著，存檔不會壞）
+  assert.ok(S.OPENING_ACTS.includes('mailbox'));
+  assert.match(view, /if \(act === 'mailbox'\) \{ api\.go\('letter'\); return; \}/);
+  const s = S.newStoryState();
+  assert.equal(S.setOpeningAct(s, 'title'), true);
+  assert.equal(S.setOpeningAct(s, 'letter'), true, '標題可以直接換到信');
 });
 
-test('有 _agent 稿件時：開場每一句（旁白、對白、第一晚 A 版自白）照順序與劇本 v4.5 逐字相同（沒有就略過）', (t) => {
-  const p = root('_agent/v3b/script-v4.5.md');
-  if (!existsSync(p)) { t.skip('沒有 _agent 稿件'); return; }
-  const md = readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
-  const body = md.slice(md.indexOf('# 開場'), md.indexOf('# 【待定】第一天'));
+// docs/劇本.md「# 開場」到「# 第一天」：旁白／對白（照順序）、引用區塊（表單、標題、信）、互動裡的按鈕字
+function scriptOpening() {
+  const md = read('docs/劇本.md').replace(/\r\n/g, '\n');
+  const body = md.slice(md.indexOf('# 開場'), md.indexOf('# 第一天'));
   const strip = (x) => x.replace(/^(【(待定|待確認|新增互動)】)+/, '');
   const spoken = [];
   const quoted = [];
   for (const raw of body.split('\n')) {
     const line = raw.trim();
     if (!line || line.startsWith('#') || line.startsWith('---') || line.startsWith('（') || line.startsWith('**')) continue;
-    if (line.startsWith('>')) { const q = strip(line.replace(/^>\s*/, '')); if (q && !q.startsWith('（')) quoted.push(q); continue; }
+    if (line.startsWith('>')) { const q = strip(line.replace(/^>\s*/, '')); if (q && !q.startsWith('（')) quoted.push(q); continue; } // 空白引用行不是字
     const m = strip(line).match(/^(德叔|我)(（只有聲音）)?：「(.*)」$/);
     spoken.push(m ? { who: m[1] === '德叔' ? 'deshu' : 'me', text: m[3] } : { who: undefined, text: strip(line) });
   }
+  return { body, spoken, quoted };
+}
+
+test('開場每一句（旁白、對白、第一晚自白）照順序與 docs/劇本.md（v5.6）逐字相同；引用區塊與按鈕字也相同', () => {
+  const { body, spoken, quoted } = scriptOpening();
   const mine = [
-    { text: OP.MAILBOX.caption }, { text: OP.MAILBOX.shaken }, { text: OP.LETTER.after },
+    { text: OP.LETTER.after },
     ...['road', 'deshu', 'coffee', 'ride', 'fork', 'temple', 'return', 'stay', 'room'].flatMap((a) => L[a]),
   ].map((b) => ({ who: b.who, text: b.text }));
   assert.deepEqual(mine, spoken);
-  // 信、郵件、標題、結尾按鈕（引用區塊）
-  for (const q of [...OP.RESIGNATION_MAIL.body, ...OP.RESIGNATIONS.map((r) => r.text), ...OP.TITLE.lines, OP.TITLE.sub,
-    OP.LETTER.greeting, ...OP.LETTER.paragraphs, OP.LETTER.closing, OP.LETTER.signature]) assert.ok(quoted.includes(q), `稿件引用找不到：${q}`);
-  assert.ok(quoted.includes(`署名　${OP.OFFICE.signature}`));
-  for (const s of [OP.ROAD.card, OP.ROAD.door, OP.DEPART.start, OP.TEMPLE.back, OP.MAILBOX.tap, OP.MAILBOX.boxLabel, OP.MAILBOX.next, OP.LETTER.attachment, OP.LETTER.title, OP.TITLE.next]) {
-    assert.ok(body.includes(`「${s}」`), `稿件找不到「${s}」`);
+  assert.equal(spoken.at(-1).text, '我本來只想躺一下，燈還沒關就睡著了。');
+  // 表單、標題、信（引用區塊，照順序）
+  assert.deepEqual(quoted, [
+    `${OP.OFFICE.reasonLabel}${OP.RESIGNATION.text}`, OP.OFFICE.note,
+    ...OP.TITLE.lines, OP.TITLE.sub,
+    OP.LETTER.greeting, ...OP.LETTER.paragraphs, OP.LETTER.closing, OP.LETTER.signature,
+  ]);
+  // 申請人、開發者列、按鈕字與畫面標題（劇本的互動與舞台指示裡寫明的字）
+  assert.ok(body.includes(`申請人固定是${OP.OFFICE.applicant}`));
+  assert.ok(body.includes(`${OP.TITLE.credit}・${OP.TITLE.links.map((l) => l.text).join('・')}`));
+  for (const s of [OP.OFFICE.send, OP.LETTER.title, OP.LETTER.next, OP.ROAD.door, OP.DEPART.start]) assert.ok(body.includes(`「${s}」`), `劇本找不到「${s}」`);
+});
+
+test('劇本沒有的字不上畫面：舊信箱、舊信、舊郵件、「下班」「傍晚，東山。」「掉頭回去」與 A 節列出的舊句都拿掉', () => {
+  const { body } = scriptOpening();
+  const shown = JSON.stringify({ RESIGNATION: OP.RESIGNATION, OFFICE: OP.OFFICE, TITLE: OP.TITLE, LETTER: { ...OP.LETTER, keyLabel: undefined }, ROAD: OP.ROAD, DEPART: OP.DEPART, L });
+  const view = code('src/view/opening.js');
+  const old = [
+    '經理您好', '辭呈', '我會在月底前把手上的工作交接完畢', '陳怡君　敬上', '喀噠', '收件人：', '主旨：',
+    '"下班"', '我回到租屋處', '點信箱，把信封拿出來。', '搖起來，有鑰匙的聲音。', '拿出信封', '我年紀大了', '若妳尚未辭職', '辭了。今天下午四點五十分。', '附件：鑰匙一把',
+    '傍晚，東山。', '嗯。信是老老闆寫的。', '擦過去', '而妳是老闆。', '不用麻煩了。', '磨豆機響了，我後面的話沒講。',
+    '椅子是木頭的，坐下去才知道腿有多痠。', '公司那台機器的咖啡', '下去那段沒有路燈，騎慢一點。', '來的時候天還亮，我是跟著導航騎上來的，沒在記路。',
+    '找不到路下去', '被子', '我回去了，早上再過來。', '門閂', '德叔說他早上再過來', '掉頭回去', '待續',
+  ];
+  for (const o of old) {
+    assert.ok(!shown.includes(o), `開場字還有：${o}`);
+    assert.ok(!view.includes(o) || o === '待續', `開場畫面還有：${o}`); // 「待續」畫面留給研發咖啡之後（第一晚之後不用）
   }
+  // 畫面上每一串字都在劇本開場裡出現過（螢幕閱讀器用的 aria-label 除外）
+  for (const t of [...allLines().map((b) => b.text), OP.LETTER.after, OP.LETTER.next, OP.LETTER.title, ...OP.LETTER.paragraphs, OP.OFFICE.note, OP.OFFICE.applicant,
+    OP.OFFICE.reasonLabel + OP.RESIGNATION.text, OP.OFFICE.send, OP.OFFICE.clock, OP.OFFICE.clockAfter, ...OP.TITLE.lines, OP.TITLE.sub, OP.TITLE.credit, ...OP.TITLE.links.map((l) => l.text), OP.ROAD.door, OP.DEPART.start]) {
+    assert.ok(body.includes(t), `劇本開場沒有：${t}`);
+  }
+  // 掉頭與鑰匙特寫是只有圖示的按鈕（畫面上沒有字）
+  assert.match(view, /id="op-turnback" hidden aria-label="\$\{TEMPLE\.backLabel\}"><svg[^`]*?<\/svg><\/button>/);
+  assert.doesNotMatch(view, /op-card/, '三合院外沒有轉場字卡');
 });
 
 /* ---------- 推進、存檔恢復 ---------- */
@@ -254,7 +303,7 @@ test('互動關卡：推門（第一次與回來）、按住騎、岔路、掉�
   const gates = Object.fromEntries(Object.entries(L).map(([a, ls]) => [a, ls.map((b) => b.gate || null)]));
   assert.deepEqual(gates.road, [null, 'door', null], '兩句旁白後推門，推開才出「門一開……」');
   assert.deepEqual(gates.return, ['door'], '回來再推一次門');
-  assert.deepEqual(gates.ride, ['hold', 'hold', 'hold', 'hold']);
+  assert.deepEqual(gates.ride, ['hold', 'hold', 'hold']);
   assert.deepEqual(gates.fork, ['fork']);
   assert.deepEqual(gates.temple, [null, null, null, null, 'turnback']);
   assert.equal(S.lineCount('depart'), 0);
@@ -262,7 +311,8 @@ test('互動關卡：推門（第一次與回來）、按住騎、岔路、掉�
   assert.equal(L.road[2].text, '門一開，台階上的橘貓瞇著眼醒來，伸一個懶腰後，從我腳邊鑽進去。');
   assert.equal(OP.ROAD.door, '推門進去');
   assert.equal(OP.DEPART.start, '發動');
-  assert.equal(OP.TEMPLE.back, '掉頭回去');
+  assert.ok(!('back' in OP.TEMPLE), '掉頭按鈕沒有畫面字（劇本沒有「掉頭回去」）');
+  assert.equal(OP.TEMPLE.backLabel, '掉頭');
   const view = read('src/view/opening.js');
   // 推門：拖夠才開（同一個 pushDoor，第一次與回來都用它）；只點一下會晃一下回來；不用鑰匙
   assert.match(view, /if \(k >= 0\.75\) \{ start = null; panel\.style\.transition = ''; open\(\); \}/);
@@ -276,7 +326,7 @@ test('互動關卡：推門（第一次與回來）、按住騎、岔路、掉�
   assert.match(view, /aria-label="左邊的路"/);
   assert.match(view, /aria-label="右邊的路"/);
   assert.match(view, /\$\{DEPART\.start\}<\/button>/);
-  assert.match(view, /\$\{TEMPLE\.back\}<\/button>/);
+  assert.match(view, /aria-label="\$\{TEMPLE\.backLabel\}"><svg/);
   // 店內：點椅子才坐下，點其他地方不會坐下
   const main = code('src/main.js');
   assert.match(main, /if \(it\?\.id !== 'chairA'\) return;/);
@@ -470,7 +520,7 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   assert.match(main, /petting \? \{ img: 'cat_longan_headbump_v2' \}/);
   assert.match(main, /const HAND = \{ src: 'char_v3b_yijun_hand_v2'/);
   assert.match(main, /onTap: \(\) => \{ pet\.at = performance\.now\(\); pet\.done = true; play\('purr'\); \}/);
-  assert.equal(L.deshu[idx('deshu', '然後他整個身體靠上來，從頭到尾巴在我小腿上擦過去，掉頭再擦一次。')].optional, 'cat');
+  assert.equal(L.deshu[idx('deshu', '然後他整個身體靠上來，從頭到尾巴在我小腿上蹭過去，掉頭再蹭一次。')].optional, 'cat');
   // 9. 台階上伸懶腰再鑽進去
   assert.match(view, /class="op-step-cat stretch" src="\$\{art\('cat_longan_stretch_v3b_v2'\)\}"/);
   assert.match(css, /\.op-yard\.lit \.op-step-cat\.stretch \{ animation: catstretch/);
@@ -484,7 +534,7 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   assert.equal(at('deshu', idx('deshu', '龍眼的耳朵往後壓了一下，沒有走。')).cat, 'earsBack');
   assert.match(main, /earsBack: \{[^\n]*seq: \[\{ img: 'cat_longan_ears_back_v2'/);
   //    不點貓：坐在腳邊舔前腳
-  assert.equal(at('deshu', idx('deshu', '那隻貓叫龍眼，是這間三合院的主人，而妳是老闆。')).cat, 'feet');
+  assert.equal(at('deshu', idx('deshu', '那隻貓叫龍眼，是這間三合院的主人，而妳是新老闆。')).cat, 'feet');
   assert.match(main, /spot\.lick && !pet\.done \? 'cat_longan_lick_paw_v2'/);
   // 10. 傍晚台階用 sleep；回來換了一邊睡用 sleep_flip，不再 CSS 翻轉舊 sleep
   assert.match(view, /act === 'road' \? `<img class="op-step-cat" src="\$\{art\('cat_longan_sleep'\)\}"/);
@@ -711,17 +761,16 @@ test('坐下窗景 seatFit：390 閱讀框照舊；畫面很寬時桌子、杯�
   }
 });
 
-test('劇本 v3.9 留宿：德叔先說導航不準、老老闆交代留房間；我不再自己開口借住', () => {
+test('劇本 v5.6 留宿：德叔先說導航不準、老老闆交代留房間；我不再自己開口借住；德叔不說「早上再過來」', () => {
   assert.deepEqual(L.stay.map((b) => [b.who, b.text]), [
     [undefined, '德叔還在，拿著掃把。我剛才坐的那張椅子還沒收。'],
-    ['me', '我繞了半個多小時，找不到路下去。'],
+    ['me', '我繞了半個多小時，找不到回去的路。'],
     ['deshu', '這邊比較偏僻，導航可能會不太準。'],
     ['deshu', '老老闆交代過，要留一個房間讓妳睡。'],
     ['me', '留給我？'],
-    ['deshu', '右邊護龍第一間整理好了，被子下午曬過。'],
+    ['deshu', '右邊護龍第一間整理好了，棉被下午曬過。'],
     ['me', '我什麼都沒帶。'],
     ['deshu', '櫃子裡有毛巾。'],
-    ['deshu', '我回去了，早上再過來。門平常沒在鎖，妳要鎖的話，裡面有門閂。'],
   ]);
   assert.deepEqual(L.stay[2].set, { portrait: true, deshu: null }, '立繪在「導航」那句出來');
   assert.equal(L.stay[3].set, undefined);

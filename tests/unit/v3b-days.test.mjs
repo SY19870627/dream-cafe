@@ -47,17 +47,16 @@ test('第一晚 A 版自白：逐字、接在放鑰匙（可點床）之後、�
     '我穿過庭埕。龍眼跟到一半就坐下來，沒有再跟。',
     '房間不大。我把鑰匙從口袋拿出來，放在枕頭旁邊。',
     '外面有蟲在叫，遠一點的地方有狗叫了幾聲，又停了。',
-    '被子真的有曬過，德叔沒有騙我。',
+    '棉被真的有曬過，德叔沒有騙我。',
     '可是他說老老闆交代過，要留一個房間讓我睡。',
     '老老闆怎麼會知道我今天晚上回不去？',
     '我連老老闆是誰都還沒搞清楚，就先睡在他留給我的房間裡了。',
     '今天下班前我才跟公司說我不做了，現在躺在這裡，覺得那好像是好幾天以前的事。',
-    '德叔說他早上再過來，等他來了，我要先問他老老闆的事。',
     '我本來只想躺一下，燈還沒關就睡著了。',
   ]);
   assert.equal(room[1].optional, 'bed', '點床仍是可選');
-  assert.deepEqual(S.monoLines('room'), [2, 3, 4, 5, 6, 7, 8, 9], '第 2 句起是本段自白');
-  assert.deepEqual(room.map((b) => !!b.sleep), [false, false, false, false, false, false, false, false, false, true]);
+  assert.deepEqual(S.monoLines('room'), [2, 3, 4, 5, 6, 7, 8], '第 2 句起是本段自白');
+  assert.deepEqual(room.map((b) => !!b.sleep), [false, false, false, false, false, false, false, false, true]);
   for (let i = 2; i < room.length; i++) assert.equal(OP.sceneAt(room, i).lying, true, `第 ${i} 句是躺下視角`);
   assert.ok(!OP.sceneAt(room, 1).lying);
   for (const b of room) assert.ok(!MARKS.test(b.text) && !b.who, '旁白、沒有標記');
@@ -401,7 +400,7 @@ test('跳過自白的按鈕：與翻一句分開；點正文只翻一句；剛�
     assert.equal(r.waiting, true);
     box.dispatch('click');
     assert.equal(await p, true);
-    r.show({ text: '被子真的有曬過，德叔沒有騙我。', mono: true });
+    r.show({ text: '棉被真的有曬過，德叔沒有騙我。', mono: true });
     r.skip(true);
     tick(f.SKIP_ARM_MS);
     p = r.next();

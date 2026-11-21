@@ -108,6 +108,7 @@
   .op-ending { min-height: 1.6em; font-weight: 600; color: #1f3f6e; }
   .caret { display: inline-block; width: 2px; height: 1.1em; background: #2b2f36; vertical-align: -2px; animation: blink 1s steps(1) infinite; }
   .op-sign { margin: 6px 0 0; text-align: right; font-size: 14.5px; }
+  .op-note { margin: 4px 0 0; }
   /* 離職事由欄：固定一句；點一下才打出來，點過才能送出 */
   .op-reason { display: block; width: 100%; margin: 4px 0; padding: 6px 8px; text-align: left; font-size: 14.5px; line-height: 1.6; border-radius: 4px;
     background: #fff; border: 1px dashed #8d9ab0; box-shadow: none; color: #1f3f6e; animation: doorcall 2.2s ease-in-out infinite; }
@@ -122,7 +123,9 @@
   .op-title { background: #0b0c0f; justify-content: center; align-items: center; text-align: center; }
   .op-title h1 { margin: 0 0 6px; font-size: 25px; line-height: 1.5; font-weight: 700; letter-spacing: 1px; animation: floatin 2.4s ease-out both; }
   .op-title .sub { margin: 0 0 28px; font-size: 13px; opacity: .65; animation: floatin 2.4s .6s ease-out both; }
-  .op-title button.primary { min-width: 160px; animation: floatin 2s 1.2s ease-out both; }
+  /* 標題整塊就是按鈕（沒有按鈕字）：點標題進入下一幕 */
+  .op-title .op-title-btn { display: block; padding: 24px 12px; min-height: 44px; color: inherit; cursor: pointer; }
+  .op-title .op-title-btn:focus-visible { outline: 1px solid rgba(241,236,226,.4); outline-offset: 4px; }
   @keyframes floatin { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   .op-credit { position: absolute; left: 0; right: 0; bottom: 10px; display: flex; justify-content: center; align-items: center; gap: 2px; font-size: 12px; opacity: .6; }
   .op-credit a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; justify-content: center; padding: 0 8px; color: inherit; }

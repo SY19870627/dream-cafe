@@ -223,7 +223,7 @@ async function openingScene(act) {
     if (!ok || my !== token) return;
     return nextAct('depart', '#000', 900);
   }
-  if (act === 'road' && state.opening.line === 0) { // 傍晚，東山。（機車引擎聲，熄火）
+  if (act === 'road' && state.opening.line === 0) { // （機車引擎聲，熄火）只有聲音，沒有轉場字
     reader.hide();
     const ok = await ctl.intro();
     if (!ok || my !== token) return;

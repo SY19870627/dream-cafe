@@ -134,20 +134,16 @@ test('店裡：開場時椅子可點；帶回來的東西上架可點，龍眼�
   assert.deepEqual([...depths].sort((a, b) => a - b), depths);
 });
 
-test('開場沿用第一版原字的部分一字不差（v3.8 改寫的句子另由 v3b-opening 測試對劇本）', () => {
+test('開場沿用第一版原字的部分一字不差（劇本 v5.6 的開場另由 v3b-opening 測試逐字對 docs/劇本.md）', () => {
   const legacy = ['legacy/src/letters.js', 'legacy/src/opening.js', 'legacy/src/main.js'].map(read).join('\n');
   const script = read('legacy/docs/第一站劇本.md');
   const has = (s) => assert.ok(legacy.includes(s), `legacy 找不到：${s}`);
   for (const r of OP.RESIGNATIONS) { has(`{ id: '${r.id}', text: '${r.text}' }`); assert.ok(script.includes(`「${r.text}」`)); }
-  has(`to: '${OP.RESIGNATION_MAIL.to}'`);
-  has(`subject: '${OP.RESIGNATION_MAIL.subject}'`);
-  for (const p of OP.RESIGNATION_MAIL.body) has(`'${p}'`);
-  for (const v of [OP.OFFICE.clock, OP.OFFICE.clockAfter, OP.OFFICE.send, OP.OFFICE.keys, OP.OFFICE.to, OP.OFFICE.subject]) has(v); // 「結尾要寫哪一句？」隨三選一拿掉（劇本 v5.6 事由固定）
+  // 劇本 v5.6 的表單、標題、信都改成劇本原文；只剩時鐘、送出、標題兩行、連結、推門沿用第一版
+  for (const v of [OP.OFFICE.clock, OP.OFFICE.clockAfter, OP.OFFICE.send]) has(v);
   has(OP.TITLE.lines.join('<br>'));
   has(OP.TITLE.sub);
-  has(`>${OP.TITLE.next}<`);
   for (const l of OP.TITLE.links) has(`href="${l.href}"`);
-  for (const v of [OP.MAILBOX.tap, OP.MAILBOX.shaken, OP.MAILBOX.boxLabel, OP.MAILBOX.artLabel, OP.MAILBOX.next]) has(v);
   has(OP.ROAD.door);
   // 第一版的律師信、德叔三句、「先坐。」只留給舊模組（v3a、三天 AVG），原字不變；v3.8 可玩開場不顯示
   for (const p of OP.LAWYER_LETTER.paragraphs) { has(`'${p}'`); assert.ok(script.includes(p), `劇本找不到：${p}`); }

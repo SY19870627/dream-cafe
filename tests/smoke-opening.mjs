@@ -62,7 +62,10 @@ try {
   if (await page.locator('#op-opening input, .op-office input').count()) fail('辦公室還有輸入框');
   if (!(await page.locator('#op-send').isDisabled())) fail('沒點事由欄「送出」卻能按');
   const sign = await page.locator('.op-sign').textContent();
-  if (sign !== '陳怡君　敬上') fail(`署名不對：${sign}`);
+  if (sign !== '陳怡君') fail(`申請人不對：${sign}`);
+  if ((await page.locator('.op-note').textContent()) !== '說明：這件事我想了很久，今天決定說出來。') fail('說明欄不對');
+  const officeText = await page.locator('.op-office').innerText();
+  for (const o of ['經理您好', '辭呈', '交接', '收件人', '主旨', '喀噠']) if (officeText.includes(o)) fail(`辦公室還有劇本沒有的字：${o}`);
   if (await page.locator('.op-choices button').count()) fail('事由還是三選一');
   await page.locator('#op-reason').click(); // 事由欄：點一下打出固定那一句
   await sleep(1800);
@@ -76,18 +79,18 @@ try {
   await page.waitForSelector('.op-title.on', { timeout: 5000 });
   await sleep(2500);
   await snap('title');
-  await page.locator('#op-next').click();
+  if ((await page.locator('.op-title').innerText()).includes('下班')) fail('標題畫面還有「下班」');
+  await page.locator('#op-next').click(); // 點標題進入
 
-  // 第二幕
-  await page.waitForSelector('.op-mailbox.on #op-env');
-  await sleep(800);
-  await snap('mailbox');
-  await page.locator('#op-env').click();
-  await sleep(300);
-  if ((await page.locator('#op-cap').textContent()) !== '搖起來，有鑰匙的聲音。') fail('信箱旁白沒換');
+  // 第二幕：房間裡那封信（沒有信箱）
   await page.waitForSelector('.op-letter', { timeout: 5000 });
   await sleep(1000);
   if ((await page.locator('.op-letter h2').textContent()) !== '信') fail('信件標題不是「信」');
+  if ((await page.locator('.op-after').textContent()) !== '其實我已經辭職了...') fail('信後旁白不對');
+  if ((await page.locator('#op-next').textContent()) !== '出發去東山') fail('按鈕不是「出發去東山」');
+  const letterText = await page.locator('.op-letter').innerText();
+  if (!letterText.includes('我沒有要強迫妳辭職，只是咖啡館比較遠，擔心妳應付不來。')) fail('信少了劇本那一句');
+  for (const o of ['我年紀大了', '若妳尚未辭職', '附件']) if (letterText.includes(o)) fail(`信還有劇本沒有的字：${o}`);
   await snap('letter');
   await page.locator('#op-attach').click();
   await sleep(1700);
@@ -99,7 +102,8 @@ try {
   // 第三幕：三合院外
   await waitAct('road');
   await sleep(900);
-  await snap('road-card');
+  if (await page.getByText('傍晚，東山。').count()) fail('還有「傍晚，東山。」');
+  await snap('road-intro');
   await waitText('我把機車停在三合院外面，安全帽掛在後照鏡上。', 9000);
   await sleep(400);
   await snap('road');
@@ -185,11 +189,11 @@ try {
   });
   await page.mouse.click(seat.x, seat.y);
   await waitAct('coffee', 4000);
-  await waitText('椅子是木頭的，坐下去才知道腿有多痠。');
+  await waitText('這個杯子沒有人用，以後就是妳的。');
   await sleep(600);
   await snap('coffee');
   let sipped = false;
-  await readUntil('下去那段沒有路燈，騎慢一點。', async (cur) => {
+  await readUntil('出去那段路沒有路燈，騎車小心。', async (cur) => {
     if (cur.startsWith('他說完就回吧台') && !sipped) {
       const hot = page.locator('.opr-hotspot[data-id="cup"]');
       if (!(await hot.count())) fail('沒有可以點的杯子');
@@ -234,8 +238,6 @@ try {
   await holdOnce(1000); // 累積到了才翻
   await waitText('車燈只照得到前面一小塊柏油，兩邊是果園還是水溝，我看不出來。', 2000);
   await page.mouse.move(195, 300); await page.mouse.down(); await sleep(900); await snap('ride-hold'); await sleep(900); await page.mouse.up(); await sleep(300);
-  await waitText('來的時候天還亮，我是跟著導航騎上來的，沒在記路。', 2000);
-  await holdOnce(1800);
   await waitText('現在手機夾在龍頭上，導航一直轉圈圈，訊號剩一格。', 2000);
   await holdOnce(1800);
 
@@ -257,7 +259,8 @@ try {
   await readUntil('回三合院的路我還認得。', async (cur) => { if (cur === '那間廟我剛才經過了。') { await sleep(1200); await snap('temple'); } });
   await sleep(400);
   await tapRead();
-  if ((await text()) !== '回三合院的路我還認得。') fail('沒按掉頭回去就往下了');
+  if ((await text()) !== '回三合院的路我還認得。') fail('沒按掉頭就往下了');
+  if (((await page.locator('#op-turnback').textContent()) || '').trim()) fail('掉頭按鈕上有字（劇本沒有）');
   await page.locator('#op-turnback').click();
   await sleep(800);
   await snap('uturn');
@@ -276,7 +279,7 @@ try {
   await waitText('德叔還在，拿著掃把。我剛才坐的那張椅子還沒收。');
   await sleep(600);
   await snap('stay');
-  await readUntil('我回去了，早上再過來。門平常沒在鎖，妳要鎖的話，裡面有門閂。');
+  await readUntil('櫃子裡有毛巾。');
   await tapRead();
 
   // 庭埕、房間、睡著
@@ -296,7 +299,7 @@ try {
   if (await page.locator('.opr-skip').isHidden()) fail('自白期間沒有跳過按鈕');
   await snap('room-mono');
   await tapRead();
-  await waitText('被子真的有曬過，德叔沒有騙我。', 3000);
+  await waitText('棉被真的有曬過，德叔沒有騙我。', 3000);
   if ((await act()) !== 'room') fail('點正文就跳完自白了');
   await sleep(1100);
   await page.locator('.opr-skip').click();
