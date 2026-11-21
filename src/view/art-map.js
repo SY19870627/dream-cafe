@@ -1,4 +1,5 @@
-// 可玩流程（劇本 v5.6：第一天～研發咖啡）的素材對照表：每個 slot 一列，換正式圖時只改這裡。
+// 可玩流程（劇本 v5.8：開場～研發咖啡）的素材對照表：每個 slot 一列，換正式圖時只改這裡。
+// v5.8 新增的格子在下面「劇本 v5.8」各段（開場第二幕的房間與信封）；其餘沿用 v5.6 定版圖。
 // 圖放在兩個地方：v5.6 新圖在 assets/art-v56/，舊圖仍在 assets/art/，兩邊都不覆寫。
 // 欄位：
 //   id       ：slot 名（程式用的鍵）
@@ -32,12 +33,15 @@ export const ART_MAP = {
   bg_kunyard: { use: '坤伯家的院子（龍眼樹、水桶、空罐子）', planned: 'bg_v56_kunbo_yard_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_kunbo_yard_portrait' },
   bg_shop: { use: '咖啡館店內（沿用開場的店內 360）', planned: 'shop_pano', status: 'ready', src: null },
   bg_office: { use: '開場：辦公室', planned: 'scene_office_night', status: 'ready', src: 'scene_office_night' },
-  bg_sanheyuan_dusk: { use: '開場：三合院外（傍晚）', planned: 'scene_v3b_sanheyuan_dusk_v2', status: 'ready', src: 'scene_v3b_sanheyuan_dusk_v2' },
-  bg_sanheyuan_night: { use: '開場：三合院外（晚上）', planned: 'scene_v3b_sanheyuan_night_v2', status: 'ready', src: 'scene_v3b_sanheyuan_night_v2' },
+  bg_sanheyuan_dusk: { use: '開場：三合院外（傍晚）。劇本 v5.8 是「夜裡，東山。」，三合院外三幕都用晚上那張；這張不再出場（檔案留著）', planned: 'scene_v3b_sanheyuan_dusk_v2', status: 'ready', src: 'scene_v3b_sanheyuan_dusk_v2' },
+  bg_sanheyuan_night: { use: '開場：三合院外（夜裡到東山、晚上發動、晚上回來）', planned: 'scene_v3b_sanheyuan_night_v2', status: 'ready', src: 'scene_v3b_sanheyuan_night_v2' },
   bg_courtyard_night: { use: '開場：庭埕（晚上）', planned: 'scene_v3b_courtyard_night_v2', status: 'ready', src: 'scene_v3b_courtyard_night_v2' },
   bg_room_night: { use: '開場：護龍房間（晚上）', planned: 'scene_v3b_room_night', status: 'ready', src: 'scene_v3b_room_night' },
   bg_bed_pov: { use: '開場：躺下的視角', planned: 'scene_v3b_bed_pov_night', status: 'ready', src: 'scene_v3b_bed_pov_night' },
-
+  /* 劇本 v5.8（開場第二幕　房間裡那封信） */
+  bg_letter_room: { use: 'v5.8 第二幕：租屋處房間（回到家、包包放在床上、摺疊桌上的信）。劇本：畫面同第一天的房間',
+    planned: 'bg_v58_rental_room_evening_portrait', status: 'temp', dir: V56.B, src: 'bg_v56_rental_room_day_portrait',
+    temp: '沿用第一天的 v5.6 定版房間原圖（白天、八月）；CSS 疊一層傍晚色調（.op-letterroom .op-art::after）。原圖沒有摺疊桌上的信封，信封用 CSS 疊（pp_envelope）' },
   /* ---------- 角色 ---------- */
   ch_deshu: { use: '德叔立繪（店裡說話時）', planned: 'char_deshu_stand', status: 'ready', src: 'char_deshu_stand' },
   ch_deshu_smile: { use: '德叔微笑（「我相信妳一定可以的。」「如果包含找龍眼玩的貓客人……」）', planned: 'char_deshu_smile', status: 'ready', src: 'char_deshu_smile' },
@@ -54,7 +58,6 @@ export const ART_MAP = {
   ch_calico: { use: '花斑貓（村子路圍牆跳下、跟著走；院子；店裡撥龍眼乾）。不用龍眼貓圖', planned: 'cat_huaban_sit_v2', status: 'ready', dir: V56.A, src: 'cat_huaban_sit_v2',
     variants: { jump: 'cat_huaban_jump', walk: 'cat_huaban_walk', paw: 'cat_huaban_paw' } },
   ch_passerby: { use: '路過的客人（只在旁白提到）', planned: null, status: 'none', src: null, temp: '不出現' },
-
   /* ---------- 小圖（疊在原場景上；先疊上來，點一下才出句子，講完收掉；不畫手） ---------- */
   mini_stain: { use: '小圖：窗戶下的水痕', planned: 'prop_v56_water_stain_v2', status: 'ready', dir: V56.C, src: 'prop_v56_water_stain_v2' },
   mini_passbook: { use: '小圖：存摺（抽屜裡、爸幫我開的戶頭）', planned: 'prop_v56_passbook_drawer_v2', status: 'ready', dir: V56.C, src: 'prop_v56_passbook_drawer_v2' },
@@ -67,7 +70,11 @@ export const ART_MAP = {
   pp_passbook: { use: '存摺退出來（餘額十六萬）', planned: null, status: 'temp', src: null, temp: '既有 CSS .pp-passbook（不疊數字，劇本沒寫畫面上的字）' },
   pp_poster: { use: '超商的徵人海報（畫面拉近）；場景上的海報是背景後牆的留白框', planned: 'prop_v3b_store_poster', status: 'temp', src: null, temp: 'CSS 白紙海報，程式疊「誠徵門市人員」（劇本沒寫薪資數字，不疊薪水）' },
   pp_paperbag: { use: '測試品的紙袋（德叔寫上「提神醒腦，過目不忘」）', planned: 'prop_v3b_test_paperbag', status: 'temp', src: null, temp: 'CSS 牛皮紙袋，程式疊德叔寫的字' },
-  pp_key: { use: '包包裡的鑰匙（點了放到吧台上）', planned: 'key', status: 'ready', src: 'key' },
+  pp_key: { use: '鑰匙（第一天早上拖向德叔，沒有接、回到手上；第二天點包包裡的鑰匙放到吧台上）', planned: 'key', status: 'ready', src: 'key' },
+  /* 劇本 v5.8 */
+  pp_envelope: { use: '第二幕：摺疊桌上的牛皮紙信封（點了把信抽出來，只能點一次）', planned: 'prop_v58_envelope_desk', status: 'temp', src: null, temp: 'CSS 牛皮紙信封（.op-env），疊在房間原圖右邊小桌上' },
+  bg_cafe_bamboo: { use: '第一天早上店裡：吧台上攤著兩個竹篩，生豆鋪滿；德叔背後架子上自己放一格的杯子', planned: 'shop_pano_morning_beans', status: 'temp', src: null, temp: '沿用開場的店內 360（早上色溫，德叔挑豆姿勢 char_deshu_brew）；竹篩、生豆、架子上的杯子沒有另畫' },
+  ui_shop_look: { use: '坐下以後，閱讀框角落的「看看店裡」小按鈕；回到店內 360 自由看，按「回座位」回到原本那一句', planned: null, status: 'temp', src: null, temp: 'CSS 按鈕（.shop-look／.shop-back），第一次出現時發光加箭頭（▼）' },
 };
 
 // 程式疊在圖上的字（不指望圖上有字）

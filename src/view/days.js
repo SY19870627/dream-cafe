@@ -1,8 +1,9 @@
-// 第一天到研發咖啡的 DOM 畫面（劇本 v5.6）：
+// 第一天到研發咖啡的 DOM 畫面（劇本 v5.8；房東之後的畫面沿用 v5.6）：
 //   showDay()：整張背景圖的畫面（護龍早上、洗臉、下山、信箱、樓梯間、租屋房間、提款機、超商、村子路、坤伯院子）。
 //     字由閱讀框（view/reader.js）一句一句出；這裡只負責「第 i 句時長什麼樣子」與可點的位置
-//     （可選：水龍頭、信箱；字出來之前要先點的：錢包、抽屜、徵人海報、花斑貓、空罐子）。
-//   showCard()：只有一張字卡的幕（「第二天」「三天後」）。
+//     （可選：水龍頭；可點可不點、不點就不出那一句：信箱；字出來之前要先點的：錢包、抽屜、徵人海報、花斑貓、空罐子）。
+//   showCard()：只有一張字卡的幕（「第二天」「三天後」）；店裡開始的一天的章名卡。
+//   createProps().gate('keyGive')：第一天早上把鑰匙拖向德叔（沒有接，回到手上）。
 //   createProps()：疊在閱讀框上面的一層（#op-prop）：特寫卡（pp-card）、小圖（pp-mini：先疊上來，點一下才出句子）、要點的東西。店內 360 與整張背景圖都用這一層。
 // 美術：畫師原圖只讀不改（不重新壓縮、不縮圖）。圖從哪裡來、哪些是暫代，只查 view/art-map.js（換圖只改那裡）。
 //   v5.6 新圖在 assets/art-v56/，舊圖仍在 assets/art/；網址一律由 art-map.js 的 artUrl() 產生。
@@ -68,7 +69,7 @@ export const LINE_CUES = {
 // 這一句要出誰的立繪：{ who, variant, src（參照）, alt, place } 或 null（德叔、我、旁白另外處理）
 export function cueOf(b) {
   if (!b) return null;
-  const hit = LINE_CUES[b.text];
+  const hit = Object.prototype.hasOwnProperty.call(LINE_CUES, b.text) ? LINE_CUES[b.text] : null;
   const who = hit ? hit[0] : b.who;
   const slot = CHAR_SLOTS[who];
   if (!slot) return null;
@@ -130,12 +131,12 @@ function placeHtml(key, act) {
   </div></div>`;
 }
 
-/* ====================== 只有一張字卡的幕（「第二天」「三天後」） ====================== */
+/* ====================== 只有一張字卡的幕（「第二天」「三天後」）；店裡開始的一天的章名卡（第二天　回咖啡館）也用這個 ====================== */
 // 回傳 { intro() → 卡片淡出後 true（換畫面了 false）, stop() }
 export const CARD_MS = 1900;
-export function showCard(root, act) {
+export function showCard(root, act, text = DAY_CARDS[act] || '') {
   const { alive, stage } = makeStage(root);
-  const el = stage('day daycard', `<div class="op-card"><p>${esc(DAY_CARDS[act] || '')}</p></div>`);
+  const el = stage('day daycard', `<div class="op-card"><p>${esc(text)}</p></div>`);
   el.dataset.act = act;
   return {
     async intro() {
@@ -234,6 +235,7 @@ const CARD = {
   poster: () => `<div class="pp-poster"><span class="pp-overlay">${esc(OVERLAY_TEXT.poster)}</span></div>`,
   paperbag: () => `<div class="pp-paperbag"><span class="pp-overlay">${esc(OVERLAY_TEXT.paperbag)}</span></div>`,
 };
+export const KEY_HINT = '把鑰匙拿給德叔'; // 劇本 v5.8：引導照「通用提示規則」，提示字「把鑰匙拿給德叔」
 // 小圖（pp-mini）：疊在原場景上（背景不切換）；先疊上來，點一下才出下面的句子，講完收掉。不畫手。
 // 每一張對到 art-map.js 的 mini_* slot：有正式圖（status ready）就放原圖，沒有就用暫代的 CSS 形狀。
 export const MINI_SLOTS = { stain: 'mini_stain', passbook: 'mini_passbook', hat: 'mini_hat', label: 'mini_label', longan: 'mini_longan' };
@@ -471,6 +473,25 @@ export function createProps(layer, app) {
               finish(true);
               return true;
             },
+          });
+          return;
+        }
+        if (name === 'keyGive') { // 第一天早上：把鑰匙拖向德叔：他兩手都在豆子裡，沒有接，鑰匙回到手上；拖向吧台：檯面被竹篩佔滿，放不下去，一樣回到手上
+          const hint = document.createElement('p'); // 引導（通用提示規則）：鑰匙發光，箭頭指向德叔，提示字「把鑰匙拿給德叔」
+          hint.className = 'pp-hint';
+          hint.textContent = KEY_HINT;
+          extra.appendChild(hint);
+          const el = button('pp-drag key', '鑰匙', `<img src="${art('key')}" alt="">`);
+          const toDeshu = zone('to-deshu');
+          const toBar = zone('to-bar');
+          const inside = (r, z) => { const t = z.getBoundingClientRect(); const cx = r.left + r.width / 2; const cy = r.top + r.height / 2; return cx >= t.left && cx <= t.right && cy >= t.top && cy <= t.bottom; };
+          const back = () => { play('keys'); hint.remove(); setTimeout(() => finish(true), 700); return false; }; // 回到手上，再出下一句
+          draggable(el, {
+            target: () => { // 德叔或吧台都算拖過去了
+              const r = el.getBoundingClientRect();
+              return inside(r, toBar) ? toBar.getBoundingClientRect() : toDeshu.getBoundingClientRect();
+            },
+            onDrop: () => { el.disabled = true; return back(); },
           });
           return;
         }

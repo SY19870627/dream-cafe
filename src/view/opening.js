@@ -1,12 +1,14 @@
-// 開場的 DOM 畫面（劇本 v5.6 第一幕到第四幕）：
-//   showOpening()：16:49 的辦公室 → 標題（點標題進入）→ 信（整幕自己處理，換幕時呼叫 api.go；舊存檔的信箱一幕直接接信）
-//   showScene()：三合院外（傍晚／晚上）、黑路、岔路、工寮與土地公廟、庭埕與護龍房間、待續。
+// 開場的 DOM 畫面（劇本 v5.8 第一幕到第四幕）：
+//   showOpening()：16:49 的辦公室（離職申請單）→ 標題（按「下班」）→ 租屋處房間（點信封；幕 id 沿用 mailbox）→ 信（信後旁白一句一句點）
+//     整幕自己處理，換幕時呼叫 api.go
+//   showScene()：三合院外（夜裡、晚上）、黑路、岔路、工寮與土地公廟、庭埕與護龍房間、待續。
 //     這些畫面的字由閱讀框（view/reader.js）一句一句出；畫面只負責「第 i 句時長什麼樣子」與互動關卡（推門、發動、按住騎、岔路、掉頭、點床）。
 // 開場這些畫面沒有「跳過」按鈕。只有睡前自白期間，閱讀框才會顯示「跳過自白」（view/reader.js）；其他幕與互動關卡都不能跳過。
 // 字全部來自 src/lines/opening.js。畫師原圖只讀不改（不重新壓縮、不縮圖）；夜路的路面是程式繪製，路上照到的東西用畫師原圖。
-import { RESIGNATION, LETTER, OFFICE, TITLE, ROAD, DEPART, TEMPLE } from '../lines/opening.js';
+import { RESIGNATION, LETTER, ROOM_LETTER, OFFICE, TITLE, ROAD, DEPART, TEMPLE } from '../lines/opening.js';
 import { play, setEngine } from './audio.js';
 import { img, ready } from './art.js';
+import { artUrl, srcOf } from './art-map.js';
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -35,34 +37,39 @@ function makeStage(root) {
 /* ====================== 第一幕～第二幕（整幕自己處理） ====================== */
 // root：#opening；act：目前這一幕；api：{ state, go(act)（存檔並換幕）, persist() }
 export function showOpening(root, act, api) {
-  // 舊存檔停在信箱（劇本 v5.6 沒有這一幕）：直接接信
-  if (act === 'mailbox') { api.go('letter'); return; }
   const { alive, stage } = makeStage(root);
 
   if (act === 'office') {
-    // 表單只有劇本的兩行（事由、說明）與固定的申請人；沒有收件人、主旨、郵件內文
+    // 公司簽核系統的離職申請單（劇本 v5.8）：離職申請單、申請人（固定，沒有輸入框）、送簽對象、事由欄、說明、特休；沒有收件人、主旨、郵件內文
     const el = stage('office', `
       <div class="op-clock">${OFFICE.clock}</div>
       <div class="op-monitor"><div class="op-mail">
+        <p class="op-form-title">${esc(OFFICE.form)}</p>
+        <p class="op-sign">${esc(OFFICE.applicantLabel)}${esc(OFFICE.applicant)}</p>
+        <p class="op-to">${esc(OFFICE.toLabel)}${esc(OFFICE.to)}</p>
         <button type="button" class="op-ending op-reason" id="op-reason" aria-pressed="false"><span class="op-reason-label">${esc(OFFICE.reasonLabel)}</span><span class="op-ending-text"></span><span class="caret"></span></button>
         <p class="op-note">${esc(OFFICE.note)}</p>
-        <p class="op-sign">${esc(OFFICE.applicant)}</p>
+        <p class="op-leave">${esc(OFFICE.leave)}</p>
       </div></div>
+      <div class="op-keys" aria-hidden="true" hidden>${esc(OFFICE.keys)}</div>
       <button type="button" id="op-send" class="primary" disabled>${OFFICE.send}</button>`);
     let choice = null;
     let typing = 0;
     const send = el.querySelector('#op-send');
     const reason = el.querySelector('#op-reason');
     const target = el.querySelector('.op-ending-text');
+    const keys = el.querySelector('.op-keys');
     const typeOut = async (text) => {
       const my = ++typing;
       target.textContent = '';
+      keys.hidden = false; // 打字聲字樣：打字時才出現
       for (const ch of text) {
         if (my !== typing || !alive()) return;
         target.textContent += ch;
         if (ch.trim()) play('key');
         await sleep(55 + Math.random() * 45);
       }
+      if (my === typing) keys.hidden = true;
     };
     // 事由欄：點一下打出固定那一句（不再三選一）；點過才能送出
     reason.onclick = () => {
@@ -77,6 +84,7 @@ export function showOpening(root, act, api) {
       if (!choice || send.disabled) return; // 沒點過事由欄不能送出
       typing++;
       target.textContent = RESIGNATION.text;
+      keys.hidden = true;
       play('send');
       api.state.opening.resignation = choice;
       api.persist();
@@ -94,16 +102,55 @@ export function showOpening(root, act, api) {
   }
 
   if (act === 'title') {
-    // 沒有按鈕字：標題整塊就是按鈕（點標題進入下一幕）；開發者列照劇本放在畫面下方
+    // 按「下班」進入租屋處房間（不按就留在標題畫面）；開發者列照劇本放在畫面下方
     const el = stage('title', `
-      <div id="op-next" class="op-title-btn" role="button" tabindex="0">
+      <div class="op-title-block">
         <h1>${TITLE.lines.map(esc).join('<br>')}</h1>
         <p class="sub">${TITLE.sub}</p>
       </div>
+      <button type="button" id="op-next" class="primary">${TITLE.next}</button>
       <div class="op-credit">${TITLE.credit}・${TITLE.links.map((l) => `<a href="${l.href}" target="_blank" rel="noopener">${l.text}</a>`).join('・')}</div>`);
-    const enter = el.querySelector('#op-next');
-    enter.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enter.click(); } };
-    el.querySelector('#op-next').onclick = () => api.go('letter');
+    el.querySelector('#op-next').onclick = () => api.go('mailbox');
+    return;
+  }
+
+  if (act === 'mailbox') {
+    // 第二幕：租屋處房間（畫面同第一天的房間，暫代 v5.6 房間原圖疊傍晚色調）。旁白兩句（點一下換句）→ 操作提示、信封發光
+    // → 點信封（只能點一次）：鑰匙響一聲、旁白換句、提示消失，約一秒多後自動進信件畫面。不點就留在房間。
+    const R = ROOM_LETTER;
+    const el = stage('letterroom', `
+      <div class="op-art">
+        <img class="op-art-img" src="${artUrl(srcOf('bg_letter_room'))}" alt="">
+        <button type="button" class="op-env" id="op-env" aria-label="${R.envLabel}" disabled><span class="op-env-flap" aria-hidden="true"></span></button>
+      </div>
+      <p class="op-hint" id="op-hint" hidden>${esc(R.hint)}</p>
+      <div class="op-roombox" id="op-roombox" role="button" tabindex="0" aria-live="polite"><p class="op-caption" id="op-cap">${esc(R.lines[0])}</p><span class="st-more" aria-hidden="true">▾</span></div>`);
+    for (const im of el.querySelectorAll('img')) im.onerror = () => im.remove(); // 缺圖：留底色
+    const box = el.querySelector('#op-roombox');
+    const cap = box.querySelector('.op-caption');
+    const env = el.querySelector('#op-env');
+    const hint = el.querySelector('#op-hint');
+    let k = 0;
+    const more = () => {
+      if (k >= R.lines.length - 1) return;
+      k++;
+      play('tap');
+      cap.textContent = R.lines[k];
+      if (k === R.lines.length - 1) { box.classList.add('done'); env.disabled = false; env.classList.add('call'); hint.hidden = false; }
+    };
+    box.onclick = more;
+    box.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); more(); } };
+    env.onclick = async () => {
+      if (env.disabled) return;
+      env.disabled = true;
+      env.classList.remove('call');
+      env.classList.add('pulled');
+      play('keys');
+      cap.textContent = R.pulled;
+      hint.remove();
+      await sleep(1300);
+      if (alive()) api.go('letter');
+    };
     return;
   }
 
@@ -118,8 +165,8 @@ export function showOpening(root, act, api) {
         <p class="op-letter-sign">${esc(L.signature)}</p>
         <button type="button" class="op-attach" id="op-attach" aria-label="${L.keyLabel}"><svg width="40" height="18" viewBox="0 0 44 20" aria-hidden="true"><circle cx="9" cy="10" r="7" fill="none" stroke="#8a6d3b" stroke-width="3"/><path d="M16 10h26M34 10v6M39 10v5" stroke="#8a6d3b" stroke-width="3" fill="none"/></svg></button>
       </article>
-      <p class="op-caption op-after">${esc(L.after)}</p>
-      <button type="button" id="op-next" class="primary">${L.next}</button>
+      <button type="button" class="op-caption op-after" id="op-after"><span class="op-after-text">${esc(L.afterLines[0])}</span><span class="st-more" aria-hidden="true">▾</span></button>
+      <button type="button" id="op-next" class="primary" hidden>${L.next}</button>
       <div class="op-keyshot" id="op-keyshot" hidden aria-hidden="true">
         <div class="op-keyshot-in"><img class="envkey" src="${art('prop_v3b_envelope_key_v2')}" alt=""></div>
       </div>`);
@@ -133,6 +180,17 @@ export function showOpening(root, act, api) {
       play('keys');
     };
     shot.onclick = () => { shot.hidden = true; };
+    // 信後旁白：一句一句點，最後一句才出「出發去東山」（不按就留在信件畫面）
+    const after = el.querySelector('#op-after');
+    const afterText = after.querySelector('.op-after-text');
+    let k = 0;
+    after.onclick = () => {
+      if (k >= L.afterLines.length - 1) return;
+      k++;
+      play('tap');
+      afterText.textContent = L.afterLines[k];
+      if (k === L.afterLines.length - 1) { after.classList.add('done'); el.querySelector('#op-next').hidden = false; }
+    };
     el.querySelector('#op-next').onclick = () => api.go('road');
   }
 }
@@ -147,12 +205,13 @@ export function showScene(root, act, api) {
   let stopFns = [];
   const ctl = { beat() {}, gate: async () => false, hot: () => null, stop() { timers.forEach(clearTimeout); stopFns.forEach((f) => f()); stopFns = []; } };
 
-  /* ---------- 三合院外：傍晚（road）、晚上發動（depart）、晚上回來（return） ---------- */
+  /* ---------- 三合院外：夜裡到東山（road）、晚上發動（depart）、晚上回來（return）；劇本 v5.8 三幕都是晚上 ---------- */
   if (act === 'road' || act === 'depart' || act === 'return') {
-    const night = act !== 'road';
-    const el = stage(`yard${night ? ' night' : ''}${act === 'depart' ? ' no-box' : ''}`, `
+    // 轉場字「夜裡，東山。」與（機車引擎聲，熄火）：只在第一次到（第 0 句）；讀回存檔不再出
+    const introOn = act === 'road' && api.state.opening.line === 0 && !api.resumed;
+    const el = stage(`yard night${act === 'depart' ? ' no-box' : ''}`, `
       <div class="op-art">
-        <img class="op-art-img" src="${art(night ? 'scene_v3b_sanheyuan_night_v2' : 'scene_v3b_sanheyuan_dusk_v2')}" alt="">
+        <img class="op-art-img" src="${art('scene_v3b_sanheyuan_night_v2')}" alt="">
         <div class="op-glow door"></div>
         ${act === 'depart' ? `<img class="op-road-light" src="${art('prop_v3b_scooter_road_light_v2')}" alt="" aria-hidden="true">` : ''}
         <div class="op-scooter" aria-hidden="true">
@@ -168,10 +227,9 @@ export function showScene(root, act, api) {
         </div>
       </div>
       ${act === 'depart' ? `<button type="button" class="primary op-start" id="op-start">${DEPART.start}</button>` : ''}
+      ${act === 'road' ? `<div class="op-card" ${introOn ? '' : 'hidden'}><p>${esc(ROAD.card)}</p></div>` : ''}
 `);
     const doorWrap = el.querySelector('.op-door-wrap');
-    // （音效：機車引擎聲，熄火。）只有聲音，沒有轉場字（劇本 v5.6 沒有「傍晚，東山。」）；讀回存檔不再響
-    const introOn = act === 'road' && api.state.opening.line === 0 && !api.resumed;
     ctl.intro = async () => {
       if (!introOn) return true;
       play('engineStart');
@@ -179,6 +237,11 @@ export function showScene(root, act, api) {
       if (!alive()) return false;
       play('engineOff');
       await sleep(900);
+      if (!alive()) return false;
+      const card = el.querySelector('.op-card');
+      card.classList.add('out');
+      await sleep(800);
+      card.hidden = true;
       return alive();
     };
     // 門開了以後，疊上去的假門板（.op-door-wrap）不留在畫面上：剛推開時淡出（DOOR_FADE_MS），讀回存檔時直接藏起來，
@@ -230,7 +293,7 @@ export function showScene(root, act, api) {
       <div class="op-hold" hidden aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" class="bg"/><circle cx="32" cy="32" r="26" class="fg"/><path d="M26 22 L40 32 L26 42" class="arrow"/></svg></div>
       <button type="button" class="op-fork left" hidden aria-label="左邊的路"><span aria-hidden="true">‹</span></button>
       <button type="button" class="op-fork right" hidden aria-label="右邊的路"><span aria-hidden="true">›</span></button>
-      ${act === 'temple' ? `<button type="button" class="primary op-turnback" id="op-turnback" hidden aria-label="${TEMPLE.backLabel}"><svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M22 25V13a6 6 0 0 0-12 0v6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M5 15l5 6 5-6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` : ''}`);
+      ${act === 'temple' ? `<button type="button" class="primary op-turnback" id="op-turnback" hidden>${esc(TEMPLE.back)}</button>` : ''}`);
     const road = nightRoad(el.querySelector('.op-road-cv'), { fork: act === 'fork', side: api.state.opening.fork });
     stopFns.push(() => road.stop());
     // 遠處的狗叫，偶爾一聲

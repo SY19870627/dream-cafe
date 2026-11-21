@@ -4,7 +4,7 @@ import { DAY_TITLES, DAY_ACT_VIEW, DAY_ACT_NAMES } from '../lines/days.js';
 
 // 開場各幕（幕 id 照 state.js 的註解）
 const OPENING_NAMES = {
-  office: '辦公室', title: '標題', mailbox: '信箱', letter: '信', road: '三合院外（傍晚）', deshu: '店裡（德叔）',
+  office: '辦公室', title: '標題', mailbox: '房間裡那封信', letter: '信', road: '三合院外（夜裡）', deshu: '店裡（德叔）',
   sit: '店內 360 點椅子', coffee: '坐下喝咖啡', depart: '三合院外（晚上，發動）', ride: '黑路', fork: '岔路',
   temple: '工寮與土地公廟', return: '回三合院外', stay: '店裡（晚上）', room: '庭埕、房間、第一晚自白',
   [END_ACT]: '待續',

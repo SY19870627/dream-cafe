@@ -56,6 +56,10 @@ function reset() {
   renderedId = null;
   sceneCtl?.stop();
   sceneCtl = null;
+  looking = null; // 看看店裡：換畫面時不還原舊場景，直接收起
+  $('shop-look').hidden = true;
+  $('shop-back').hidden = true;
+  $('shop-look-hint').hidden = true;
   pano.pause(); // 店內 360 先停：要畫店裡的畫面會 setScene，迴圈再接著跑；其他畫面（DOM、字卡、夜路）不再疊著畫
   cloth(false);
   reader.hide();
@@ -147,6 +151,28 @@ async function runLines(act, { look, gate, optional, tap }) {
   while (i >= 0 && i < lines.length) {
     const b = lines[i];
     const lk = sceneAt(lines, i);
+    if (b.ifTap) { // 可點可不點（信箱）：熱點發光；點了才出這一句，點畫面其他地方就不出這一句，直接接下一句
+      props.clear();
+      props.show(lk);
+      look(i, lk, b);
+      reader.skip(false);
+      reader.hideBox();
+      const tapped = await new Promise((res) => {
+        reader.hot((optional?.(b.ifTap, b) || []).map((h) => ({ ...h, onTap: () => { h.onTap(); res('tap'); reader.cancel(); } })));
+        reader.next().then((v) => res(v ? 'skip' : false));
+      });
+      reader.clearHot();
+      if (my !== token || !tapped) return false;
+      if (tapped === 'tap') { await sleep(650); if (my !== token) return false; }
+      else { // 不點：這一句不出，直接接下一句（存檔照樣往前）
+        const n = S.nextLine(state);
+        if (n < 0) return true;
+        if (!S.setOpeningLine(state, n)) return false;
+        save();
+        i = n;
+        continue;
+      }
+    }
     for (const t of tapsOf(b)) { // 字先不出來：先做完這些（讀檔回到這一句要重做）
       const shown = t === 'mini' ? lk : preLook(lines, i);
       props.clear();
@@ -449,18 +475,35 @@ async function openingShop(act) {
     reader.hide();
     $('pano').classList.remove('reading');
     show({ deshu: 'stand', cat: 'feet', cup: true }, { yaw: 24 });
+    // 引導（通用提示規則）：一進 360 鏡頭先自動慢慢轉到椅子停一下，再交給玩家拖；提示字「點椅子坐下」（必做，不加「也可以直接翻頁」）
+    pano.turnTo(SIT_YAW, 1600);
+    setTimeout(() => { if (my === token) sitHint(true); }, 1900);
     onTap = (it) => {
       if (it?.id !== 'chairA') return;
       onTap = null;
+      sitHint(false);
       play('place');
       nextAct('sit', '#3a2a20');
     };
     return;
   }
+  if (day && state.opening.line === 0 && DAY_TITLES[act]) { // 店裡開始的一天（第二天　回咖啡館）：先出章名卡
+    reader.hide();
+    const card = showCard($('opening'), act, DAY_TITLES[act]);
+    sceneCtl = card;
+    const ok = await card.intro();
+    if (!ok || my !== token) return;
+    sceneCtl = null;
+    $('opening').hidden = true;
+  }
   $('pano').classList.add('reading');
+  const lookable = SHOP_LOOK_ACTS.includes(act) || day; // 坐下以後，人在店裡：閱讀框角落常駐「看看店裡」
   let first = true;
+  let lastLine = -1;
   const done = await runLines(act, {
     look: (i, lk, b) => {
+      if (lookable) shopLookOn(act, i !== lastLine && lastLine >= 0); // 翻頁後第一次引導不再出現
+      lastLine = i;
       const yaw = act === 'coffee' ? STORY_YAW : (lk.yaw ?? 0);
       const portrait = day ? b.who === 'deshu' : lk.portrait; // 第一～四天：德叔說話時出立繪，店面裡的德叔不畫（不會同時兩個德叔）
       show(portrait && day ? { ...lk, deshu: null } : lk, first ? { yaw } : {});
@@ -473,11 +516,18 @@ async function openingShop(act) {
       else reader.portrait(portrait ? (act === 'stay' ? 'char_deshu_broom' : face) : null, act === 'coffee' ? 'aside' : 'center');
       cloth(!!lk.cloth);
     },
-    gate: (name) => dayGate(name),
-    tap: (name) => { // 店裡：小圖點一下（斗笠、龍眼乾）、點包包裡的鑰匙放到吧台上
-      if (name === 'mini') return props.peek();
-      if (name === 'keyBar') return props.tapItem('keyBar');
-      return Promise.resolve(true);
+    gate: async (name) => { // 店裡的關卡（把鑰匙拖向德叔）：關卡期間不出「看看店裡」
+      shopLookOff();
+      const ok = await dayGate(name);
+      if (lookable && my === token) shopLookOn(act, true);
+      return ok;
+    },
+    tap: async (name) => { // 店裡：小圖點一下（斗笠、龍眼乾）、點包包裡的鑰匙放到吧台上
+      shopLookOff();
+      let ok = true;
+      if (name === 'mini') ok = await props.peek();
+      else if (name === 'keyBar') ok = await props.tapItem('keyBar');
+      return ok;
     },
     optional: (name) => {
       if (name === 'cat') {
@@ -496,10 +546,96 @@ async function openingShop(act) {
     },
   });
   cloth(false);
+  shopLookOff(true);
   if (!done || my !== token) return;
+  const last = S.ACT_LINES[act].at(-1);
+  if (last?.linger) { // 最後一句之後停一拍再淡出（德叔的微笑）：先存成下一幕（字卡出現前自動存檔），字收起來、立繪留著
+    if (!S.setOpeningAct(state, S.nextActOf(act))) return;
+    save();
+    reader.hideBox();
+    reader.passive();
+    await sleep(last.linger);
+    if (my !== token) return;
+    reader.hide();
+    props.hide();
+    return fadeThen(go, '#0d0b0a', 1100);
+  }
   reader.hide();
   if (day) { props.hide(); return nextAct(act, '#1a1612', 750); }
   nextAct(act, act === 'stay' ? '#0d0b0a' : act === 'coffee' ? '#000' : '#3a2a20', act === 'stay' ? 900 : 650);
+}
+
+/* ---------- 看看店裡（坐下以後，人在店裡）：閱讀框角落的小按鈕；點了回到店內 360 自由看，按「回座位」回到原本那一句，劇情不動 ---------- */
+// 第一次出現：按鈕發光、箭頭指著它，閱讀框上方一行提示。只出現一次（點過或翻頁後不再引導），按鈕照常留著。
+const SHOP_LOOK_ACTS = ['coffee', 'stay'];
+const SHOP_LOOK = { label: '看看店裡', back: '回座位', hint: '點「看看店裡」，可以四處看看。' };
+const SIT_YAW = 38; // 標「椅子」的那張椅子（chairA）在店內 360 的角度
+let lookGuide = 'pending'; // pending：還沒引導過／on：正在引導／done：引導過了（這次開著的頁面裡）
+let looking = null; // 正在看看店裡：{ scene, yaw, prop }（回座位時還原）
+function shopLookOn(act, turned) {
+  const btn = $('shop-look');
+  btn.textContent = SHOP_LOOK.label;
+  btn.hidden = false;
+  btn.onclick = (e) => { e.stopPropagation(); enterShopLook(act); };
+  if (lookGuide === 'on' && turned) lookGuide = 'done';
+  if (lookGuide === 'pending') lookGuide = 'on';
+  const guiding = lookGuide === 'on';
+  btn.classList.toggle('guide', guiding);
+  const h = $('shop-look-hint');
+  h.classList.remove('sit');
+  h.textContent = SHOP_LOOK.hint;
+  h.hidden = !guiding;
+}
+function endLookGuide() {
+  lookGuide = 'done';
+  $('shop-look').classList.remove('guide');
+  $('shop-look-hint').hidden = true;
+}
+// 收起「看看店裡」（關卡、小圖、換幕）；end：這一幕結束，引導算看過了
+function shopLookOff(end = false) {
+  if (looking) exitShopLook();
+  $('shop-look').hidden = true;
+  $('shop-look-hint').hidden = true;
+  if (end && lookGuide === 'on') endLookGuide();
+}
+function enterShopLook(act) {
+  if (looking) return;
+  if (lookGuide !== 'done') endLookGuide();
+  looking = { scene: pano.scene, yaw: pano.yaw, prop: $('op-prop').hidden, reading: $('pano').classList.contains('reading') };
+  const lk = sceneAt(S.ACT_LINES[act], state.opening.line);
+  const sc = openingShopScene('look', { ...lk, portrait: false, deshu: lk.deshu || 'stand', cup: act === 'coffee' ? true : lk.cup });
+  sc.locked = false;
+  $('op-read').hidden = true;
+  $('op-prop').hidden = true;
+  $('pano').classList.remove('reading');
+  pano.setScene(sc);
+  pano.enabled = true;
+  $('shop-look').hidden = true;
+  const back = $('shop-back');
+  back.textContent = SHOP_LOOK.back;
+  back.hidden = false;
+  back.onclick = (e) => { e.stopPropagation(); exitShopLook(); };
+  play('tap');
+}
+function exitShopLook() {
+  const L = looking;
+  if (!L) return;
+  looking = null;
+  $('shop-back').hidden = true;
+  $('pano').classList.toggle('reading', L.reading);
+  pano.setScene(L.scene, { yaw: L.yaw });
+  if (pano.scene) pano.scene.locked = true;
+  pano.enabled = false;
+  $('op-read').hidden = false;
+  $('op-prop').hidden = L.prop;
+  $('shop-look').hidden = false;
+}
+// 點椅子坐下的提示字（店內 360，閱讀框沒出來時）
+function sitHint(on) {
+  const h = $('shop-look-hint');
+  h.textContent = on ? '點椅子坐下' : '';
+  h.hidden = !on;
+  h.classList.toggle('sit', on);
 }
 // 店內 360 裡某個物件在畫面上的位置（熱點跟著它走）
 const itemRect = (id) => () => {

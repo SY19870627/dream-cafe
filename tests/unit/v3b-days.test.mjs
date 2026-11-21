@@ -1,7 +1,11 @@
-// v3b 第一天～研發咖啡（劇本 v5.6，docs/劇本.md；承峰 2026-11-21 定稿）：第一晚 A 版自白（開場）、正文逐字對稿、章名與字卡、
-// 新說話人名牌、德叔挽留 A 案、字出來之前要先做的互動（小圖點一下、錢包、抽屜、提款機、海報、鑰匙、花斑貓、空罐子、停一拍）、
-// 可選互動、不再睡護龍、舊存檔相容（v4.5 的幕名接到新位置）、素材對照表（art-map.js）。
+// v3b 第一天～研發咖啡（劇本 v5.8，承峰 2026-11-21 19:44 定稿）：第一晚自白（開場）、正文逐字對稿、章名與字卡、
+// 新說話人名牌、還鑰匙（騰不出空間／下次拿來；把鑰匙拖向德叔）、信箱可點可不點（不點仍接到房東）、房東只提醒下禮拜交房租、
+// 壓歲錢十六萬、超商下決心、字卡「第二天」、實習老闆、微笑停一拍後字卡「三天後」（字卡前自動存檔）、
+// 字出來之前要先做的互動（小圖點一下、錢包、抽屜、提款機、海報、鑰匙、花斑貓、空罐子、停一拍）、可選互動、不再睡護龍、
+// 作廢情節不在遊戲裡（定存、當天催租付清、存摺放上吧台、人資訊息、濾掛包、第二天的銀杏龍眼、親寫鑰匙句）、
+// 舊存檔相容（v4.5 與 v5.7 未提交版的幕名接到新位置）、素材對照表（art-map.js）。
 // 只測純邏輯與靜態檔案，不開瀏覽器；閱讀框（view/reader.js）用最小的假 DOM 測點擊與按鍵。
+// 劇本 v5.8 定稿在 _agent/v3b/script-v5.8.md（本機未追蹤）；沒有這個檔時，逐字對稿那幾項跳過，其他照測（重要句子另外寫死在下面）。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
@@ -10,7 +14,7 @@ import * as OP from '../../src/lines/opening.js';
 import * as D from '../../src/lines/days.js';
 import * as S from '../../src/story/state.js';
 import { load, persist, SAVE_KEY, OTHER_KEYS } from '../../src/story/save.js';
-import { PLACES, DAY_ART, YIJUN_CARD, yijunCardFor, placesOf, HOT_IDS, MINI_SLOTS, miniHtml, cueOf, LINE_CUES, CHAR_SLOTS } from '../../src/view/days.js';
+import { PLACES, DAY_ART, YIJUN_CARD, yijunCardFor, placesOf, HOT_IDS, MINI_SLOTS, miniHtml, cueOf, LINE_CUES, CHAR_SLOTS, KEY_HINT } from '../../src/view/days.js';
 import { ART_MAP, OVERLAY_TEXT, ART_MAP_FILES, artUrl, refOf, srcOf } from '../../src/view/art-map.js';
 import { nameOf } from '../../src/view/reader.js';
 import { step, walk } from './walk.mjs';
@@ -21,7 +25,7 @@ const code = (p) => read(p).replace(/\/\/.*$/gm, '');
 const SRC = JSON.parse(read('src/story/final-source.json'));
 const clone = (x) => JSON.parse(JSON.stringify(x));
 const reload = (s) => S.normalize(clone(s), SRC);
-const MARKS = /【(待定|待確認|新增互動)】|【小圖/;
+const MARKS = /【(待定|待確認|新增互動|不演出|已定|註)】|【小圖/;
 // 讀 WebP 檔頭的寬高（VP8／VP8L／VP8X）
 const webpSize = (buf) => {
   const kind = buf.toString('ascii', 12, 16);
@@ -37,99 +41,262 @@ const fakeStorage = () => {
 const at = (act, line = 0, extra = {}) => ({ v: 1, phase: 'opening', opening: { act, line, ...extra } });
 const dayLines = () => D.DAY_ACTS.flatMap((a) => D.DAY_LINES[a]);
 const find = (t) => { for (const a of D.DAY_ACTS) { const i = D.DAY_LINES[a].findIndex((b) => b.text === t); if (i >= 0) return { act: a, i, b: D.DAY_LINES[a][i] }; } return null; };
-const SCRIPT = read('docs/劇本.md').replace(/\r\n/g, '\n');
-const BODY = SCRIPT.slice(SCRIPT.indexOf('# 第一天　最底下那個抽屜'));
+const V58_PATH = '_agent/v3b/script-v5.8.md';
+const HAS58 = existsSync(root(V58_PATH));
+const V58 = HAS58 ? read(V58_PATH).replace(/\r\n/g, '\n') : '';
+const NO58 = HAS58 ? false : `沒有 ${V58_PATH}（劇本 v5.8 定稿，本機未追蹤）`;
+const BODY = V58.slice(V58.indexOf('\n# 第一天　最底下那個抽屜\n'));
+const STRIP = (x) => x.replace(/^(【(待定|待確認|新增互動)】)+/, '');
+const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/* ---------- 第一晚（開場）：不動 ---------- */
-test('第一晚 A 版自白：逐字、接在放鑰匙（可點床）之後、最後一句仍是睡著句；自白期間是躺下視角', () => {
+// 劇本正文的對白／旁白（照順序）：跳過標題、舞台指示（……）、引用、【小圖】
+function spokenOf(body) {
+  const names = Object.keys(D.SCRIPT_SPEAKERS).sort((a, b) => b.length - a.length).map(reEsc);
+  const re = new RegExp(`^(${names.join('|')})：「(.*)」$`);
+  const out = [];
+  for (const raw of body.split('\n')) {
+    const line = STRIP(raw.trim());
+    if (!line || line.startsWith('#') || line.startsWith('---') || line.startsWith('（') || line.startsWith('【') || line.startsWith('>') || line.startsWith('**')) continue;
+    const m = line.match(re);
+    out.push(m ? { who: D.SCRIPT_SPEAKERS[m[1]], text: m[2] } : { who: undefined, text: line });
+  }
+  return out;
+}
+
+/* ---------- 第一晚（開場） ---------- */
+test('第一晚自白（v5.8）：逐字、接在放鑰匙（可點床）之後、最後一句仍是睡著句；自白期間是躺下視角', () => {
   const room = OP.OPENING_LINES.room;
   assert.deepEqual(room.map((b) => b.text), [
     '我穿過庭埕。龍眼跟到一半就坐下來，沒有再跟。',
     '房間不大。我把鑰匙從口袋拿出來，放在枕頭旁邊。',
     '外面有蟲在叫，遠一點的地方有狗叫了幾聲，又停了。',
     '棉被真的有曬過，德叔沒有騙我。',
+    '蓋起來暖暖的，跟我在市區拿去投幣烘衣機、剛烘好拿出來的棉被一樣暖。',
     '可是他說老老闆交代過，要留一個房間讓我睡。',
     '老老闆怎麼會知道我今天晚上回不去？',
     '我連老老闆是誰都還沒搞清楚，就先睡在他留給我的房間裡了。',
     '今天下班前我才跟公司說我不做了，現在躺在這裡，覺得那好像是好幾天以前的事。',
+    '明天早上看到德叔，我要先問他老老闆的事。',
     '我本來只想躺一下，燈還沒關就睡著了。',
   ]);
   assert.equal(room[1].optional, 'bed', '點床仍是可選');
-  assert.deepEqual(S.monoLines('room'), [2, 3, 4, 5, 6, 7, 8], '第 2 句起是本段自白');
-  assert.deepEqual(room.map((b) => !!b.sleep), [false, false, false, false, false, false, false, false, true]);
+  assert.deepEqual(S.monoLines('room'), [2, 3, 4, 5, 6, 7, 8, 9, 10], '第 2 句起是本段自白');
+  assert.deepEqual(room.map((b) => !!b.sleep), [...Array(10).fill(false), true]);
   for (let i = 2; i < room.length; i++) assert.equal(OP.sceneAt(room, i).lying, true, `第 ${i} 句是躺下視角`);
   assert.ok(!OP.sceneAt(room, 1).lying);
   for (const b of room) assert.ok(!MARKS.test(b.text) && !b.who, '旁白、沒有標記');
 });
 
 /* ---------- 字 ---------- */
-test('劇本 v5.6 正文逐字：第一天起每一句對白／旁白照順序與 docs/劇本.md 相同（舞台指示、小圖、字卡、標題不是字）', () => {
-  const names = Object.keys(D.SCRIPT_SPEAKERS).sort((a, b) => b.length - a.length);
-  const re = new RegExp(`^(${names.join('|')})：「(.*)」$`);
-  const spoken = [];
-  for (const raw of BODY.split('\n')) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#') || line.startsWith('---') || line.startsWith('（') || line.startsWith('【') || line.startsWith('>')) continue;
-    const m = line.match(re);
-    spoken.push(m ? { who: D.SCRIPT_SPEAKERS[m[1]], text: m[2] } : { who: undefined, text: line });
-  }
+test('劇本 v5.8 正文逐字：第一天起每一句對白／旁白照順序與 _agent/v3b/script-v5.8.md 相同（舞台指示、小圖、字卡、標題、【待定】標記不是字）', { skip: NO58 }, () => {
+  const spoken = spokenOf(BODY);
   const mine = dayLines().map((b) => ({ who: b.who, text: b.text }));
   assert.equal(mine.length, spoken.length, '句數');
   assert.deepEqual(mine, spoken);
   assert.equal(mine.at(-1).text, '好，我帶去公司。', '寫到她說要帶咖啡去公司為止（公司那場不寫）');
+});
+
+test('字的規則：沒有標記、沒有舞台指示、前後沒有空白；說話人只有劇本有的', () => {
   for (const b of dayLines()) {
     assert.ok(!MARKS.test(b.text), `還有標記：${b.text}`);
     assert.ok(!/^（/.test(b.text) && !/）$/.test(b.text), `舞台指示變成字：${b.text}`);
     assert.equal(b.text, b.text.trim());
   }
+  const shown = [...Object.values(D.DAY_TITLES), ...Object.values(D.DAY_CARDS), KEY_HINT].join('\n');
+  assert.ok(!MARKS.test(shown), '章名、字卡、提示字沒有【待定】');
 });
 
-test('章名與字卡：第一天用劇本標題原文；「第二天」字卡在超商下決心之後、回咖啡館之前；「三天後」用標題原文', () => {
-  assert.deepEqual(D.DAY_TITLES, { d1wake: '第一天　最底下那個抽屜' });
-  assert.ok(SCRIPT.includes(`# ${D.DAY_TITLES.d1wake}`));
-  assert.equal(D.DAY_CARDS.d2card, '第二天');
-  assert.ok(BODY.includes('（字卡：第二天）'));
-  assert.equal(D.DAY_CARDS.d5card, '三天後');
-  assert.ok(BODY.includes('\n# 三天後\n'));
+test('章名與字卡：「第一天　最底下那個抽屜」「第二天　回咖啡館」用劇本原文；字卡「第二天」在超商下決心之後、「三天後」在「我相信妳一定可以的。」之後', () => {
+  assert.deepEqual(D.DAY_TITLES, { d1wake: '第一天　最底下那個抽屜', d2cafe: '第二天　回咖啡館' });
+  assert.deepEqual(D.DAY_CARDS, { d2card: '第二天', d5card: '三天後' });
+  if (HAS58) {
+    assert.ok(V58.includes(`\n# ${D.DAY_TITLES.d1wake}\n`));
+    assert.ok(V58.includes(`\n# ${D.DAY_TITLES.d2cafe}\n`));
+    assert.ok(BODY.includes('（字卡：第二天）'));
+    assert.ok(BODY.includes('（【待定】字卡：三天後）'));
+  }
   const all = [...Object.values(D.DAY_TITLES), ...Object.values(D.DAY_CARDS)];
-  for (const t of ['第二天　洗把臉', '第三天　第十二頁', '第四天　還剩十七張']) assert.ok(!all.includes(t), `舊章名：${t}`);
-  // 順序：超商（明天就回去找德叔吧）→ 字卡第二天 → 回咖啡館
+  for (const t of ['第二天　洗把臉', '第三天　第十二頁', '第四天　還剩十七張', '第二天　人資的訊息', '隔天早上']) assert.ok(!all.includes(t), `舊章名：${t}`);
+  // 順序：超商（明天就回去找德叔吧）→ 字卡第二天 → 回咖啡館 → 字卡三天後 → 三天後
   const acts = S.OPENING_ACTS;
   assert.equal(acts.indexOf('d2card'), acts.indexOf('d1store') + 1);
   assert.equal(acts.indexOf('d2cafe'), acts.indexOf('d2card') + 1);
+  assert.equal(acts.indexOf('d5card'), acts.indexOf('d2cafe') + 1, '「我相信妳一定可以的。」之後直接是字卡「三天後」（不加回住處、不加隔天早上）');
+  assert.equal(acts.indexOf('d5cafe'), acts.indexOf('d5card') + 1);
   assert.equal(D.DAY_LINES.d1store.at(-1).text, '明天就回去找德叔吧。');
   assert.equal(D.DAY_LINES.d2cafe[0].text, '戶頭裡有十六萬，我才敢回來這裡。');
+  assert.equal(D.DAY_LINES.d2cafe.at(-1).text, '我相信妳一定可以的。');
+  assert.equal(D.DAY_LINES.d5cafe[0].text, '德叔……我們這三天有幾位客人？');
   assert.equal(S.lineCount('d2card'), 0, '字卡沒有句子');
+  assert.equal(S.lineCount('d5card'), 0, '字卡沒有句子');
   assert.equal(D.DAY_ACT_VIEW.d2card, 'card');
-  // 畫面：字卡用 .op-card；main.js 的 card 幕淡出後進下一幕
-  assert.match(code('src/view/days.js'), /stage\('day daycard', `<div class="op-card"><p>\$\{esc\(DAY_CARDS\[act\] \|\| ''\)\}<\/p><\/div>`\)/);
+  assert.equal(D.DAY_ACT_VIEW.d5card, 'card');
+  // 畫面：字卡用 .op-card（字只放 DAY_CARDS 的字）；main.js 的 card 幕淡出後進下一幕；店裡開始的第二天先出章名卡
+  assert.match(code('src/view/days.js'), /export function showCard\(root, act, text = DAY_CARDS\[act\] \|\| ''\) \{/);
+  assert.match(code('src/view/days.js'), /stage\('day daycard', `<div class="op-card"><p>\$\{esc\(text\)\}<\/p><\/div>`\)/);
   assert.match(code('src/main.js'), /if \(DAY_ACT_VIEW\[act\] === 'card'\) return dayCard\(act\);/);
+  assert.match(code('src/main.js'), /if \(day && state\.opening\.line === 0 && DAY_TITLES\[act\]\) \{[\s\S]*?showCard\(\$\('opening'\), act, DAY_TITLES\[act\]\)/);
 });
 
-test('德叔挽留 A 案逐字；她說「那我……下次再來。」；這是唯一一次在護龍醒來', () => {
+test('字卡出現前自動存檔：超商最後一句 → 存成字卡「第二天」；德叔微笑停一拍之前先存成字卡「三天後」', () => {
+  const main = code('src/main.js');
+  // 一般換幕（超商 → 字卡第二天）：先換幕、存檔，才淡出
+  assert.match(main, /function nextAct\(from, color, ms\) \{\s*if \(!S\.setOpeningAct\(state, S\.nextActOf\(from\)\)\) return;\s*save\(\);\s*fadeThen\(go, color, ms\);/);
+  // 第二天最後一句：linger（微笑停一拍）。停之前先換幕、存檔；字收起來、立繪留著
+  const last = D.DAY_LINES.d2cafe.at(-1);
+  assert.equal(last.face, 'smile', '（畫面：德叔露出微笑。）');
+  assert.ok(last.linger >= 800 && last.linger <= 2500, `停一拍 ${last.linger}ms`);
+  assert.deepEqual(dayLines().filter((b) => b.linger).map((b) => b.text), ['我相信妳一定可以的。']);
+  assert.match(main, /if \(last\?\.linger\) \{[\s\S]*?if \(!S\.setOpeningAct\(state, S\.nextActOf\(act\)\)\) return;\s*save\(\);\s*reader\.hideBox\(\);[\s\S]*?await sleep\(last\.linger\);/);
+  // 存檔讀回：停在字卡（三天後）
+  const s = S.normalize(at('d2cafe', D.DAY_LINES.d2cafe.length - 1), SRC);
+  assert.equal(S.setOpeningAct(s, S.nextActOf('d2cafe')), true);
+  const st = fakeStorage();
+  persist(s, st);
+  assert.equal(load(SRC, st).opening.act, 'd5card');
+  const t = S.normalize(at('d1store', D.DAY_LINES.d1store.length - 1), SRC);
+  assert.equal(S.setOpeningAct(t, S.nextActOf('d1store')), true);
+  persist(t, st);
+  assert.equal(load(SRC, st).opening.act, 'd2card');
+});
+
+/* ---------- 第一天 ---------- */
+test('第一天早上（v5.8 補回）：水很冰、銅色的水龍頭；店裡：杯子收在架子上、德叔「不會啦……」、把鑰匙拖向德叔（沒有接）', () => {
+  assert.deepEqual(D.DAY_LINES.d1wake.map((b) => b.text), [
+    '我是被雞叫醒的。',
+    '雖然臨時在外面過夜，但這是我這半年睡得最好的一次。',
+    '手機還有百分之十一。充電器在租屋處，我昨天出門的時候沒想過會在外面過夜。',
+    '水很冰。',
+    '我關掉銅色的水龍頭抬起頭，木頭框的鏡子剛好照到我整張臉。',
+    '鼻梁和臉頰上的雀斑還是一樣多，從國中照鏡子發現後，就沒消退過。',
+    '黑眼圈好明顯，也是去年的某天發現後，就一直掛在上面。',
+    '衣服是昨天那套。我聞了一下袖口，還好。',
+  ]);
+  assert.equal(find('水很冰。').b.optional, 'faucet', '點水龍頭可選');
+  assert.equal(find('水很冰。').b.set.place, 'basin');
   const shop = D.DAY_LINES.d1shop.map((b) => [b.who, b.text]);
-  const has = (who, text) => assert.ok(shop.some(([w, t]) => w === who && t === text), `${who}：${text}`);
-  has('deshu', '這麼快就決定了阿？');
-  has('deshu', '要不要再考慮幾天？回來這裡喝幾杯咖啡，喝完再決定也不會太慢阿。');
-  has('deshu', '這裡隨時都歡迎妳。');
-  has('me', '那我……下次再來。');
-  assert.equal(D.DAY_ACT_VIEW.d1shop, 'shop');
-  // 只有第一天早上在護龍：之後不再起床、睡覺、睡護龍
-  const rooms = D.DAY_ACTS.filter((a) => D.DAY_ACT_VIEW[a] === 'still').flatMap((a) => placesOf(D.DAY_LINES[a]));
-  assert.deepEqual(rooms.filter((p) => p === 'roomMorning' || p === 'basin'), ['roomMorning', 'basin']);
-  for (const p of ['roomNight', 'bed', 'courtyard']) assert.ok(!rooms.includes(p), `不再睡護龍：${p}`);
-  for (const a of D.DAY_ACTS) assert.equal(S.isNightAct(a), false, `${a} 沒有睡前自白`);
-  for (const a of D.DAY_ACTS) assert.equal(S.monoLines(a).length, 0);
+  assert.deepEqual(shop.slice(0, 3).map(([, t]) => t), ['我昨天喝的那個杯子洗好了，收在德叔背後的架子上。', '別的杯子都是疊在一起的，只有那個自己放一格，把手朝右。', '德叔站在吧台後面挑豆，壞的丟鐵碗，頭沒抬。']);
+  assert.ok(shop.some(([w, t]) => w === 'deshu' && t === '不會啦，有睡好就好。那間本來就是留給妳的，不用跟我客氣。'));
 });
 
-test('不再有 v4.5 的雀斑消失、公司會議、相機、存摺放上吧台、定存等情節', () => {
-  for (const old of ['d1cafe', 'd1night', 'd2wake', 'd2shop', 'd2town', 'd2night', 'd3wake', 'd3town', 'd3night', 'd4wake', 'd4town', 'd4cafe', 'd4night']) {
+test('還鑰匙（v5.8）：「不好意思阿，我手騰不出空間來，妳先留著吧。」「那我……下次拿來。」；不用 v5.6 的挽留三句與「下次再來。」', () => {
+  const shop = D.DAY_LINES.d1shop;
+  const idx = (t) => shop.findIndex((b) => b.text === t);
+  const give = idx('我從口袋拿出鑰匙，遞過去。');
+  assert.equal(shop[give].gate, 'keyGive', '把鑰匙拖向德叔（關卡：拖過去才出下一句）');
+  assert.deepEqual([shop[give + 1].who, shop[give + 1].text], ['deshu', '不好意思阿，我手騰不出空間來，妳先留著吧。']);
+  assert.equal(shop[give + 2].text, '他兩隻手都是豆子的銀皮。吧台上也沒有一塊空的地方。');
+  assert.equal(shop[give + 3].text, '我拿著鑰匙站了一下。');
+  assert.deepEqual([shop[give + 4].who, shop[give + 4].text], ['me', '那我……下次拿來。']);
+  assert.equal(shop[give + 5].text, '鄉下的路碎石比較多，妳回去小心騎車阿。');
+  assert.equal(shop.at(-1).text, '我把鑰匙放回口袋。');
+  const all = dayLines().map((b) => b.text);
+  for (const old of ['這麼快就決定了阿？', '要不要再考慮幾天？回來這裡喝幾杯咖啡，喝完再決定也不會太慢阿。', '這裡隨時都歡迎妳。', '那我……下次再來。', '德叔看了一眼鑰匙，沒有伸手。']) {
+    assert.ok(!all.includes(old), `v5.6 挽留：${old}`);
+  }
+  assert.equal(D.DAY_ACT_VIEW.d1shop, 'shop');
+  // 畫面：拖向德叔或吧台都回到手上，再出下一句；提示字「把鑰匙拿給德叔」
+  assert.equal(KEY_HINT, '把鑰匙拿給德叔');
+  if (HAS58) assert.ok(BODY.includes(`提示字「${KEY_HINT}」`));
+  const view = code('src/view/days.js');
+  assert.match(view, /if \(name === 'keyGive'\) \{[\s\S]*?hint\.textContent = KEY_HINT;[\s\S]*?zone\('to-deshu'\)[\s\S]*?zone\('to-bar'\)/);
+  // 關卡：沒拖過去翻不到下一句；拖過去（passGate）才能往下
+  const s = S.normalize(at('d1shop', give), SRC);
+  assert.equal(S.setOpeningLine(s, give + 1), false, '沒拖鑰匙不能翻頁');
+  assert.equal(S.passGate(s, 'keyGive'), true);
+  assert.equal(S.setOpeningLine(s, give + 1), true);
+});
+
+test('信箱、房東：信箱可點可不點；不點也接到樓梯間拖鞋聲與房東整段（「記得下禮拜要交房租。」不省略），不從信箱直接進房間', () => {
+  const town = D.DAY_LINES.d1town;
+  const box = town.findIndex((b) => b.text === '信箱是空的，連傳單都沒有。');
+  assert.ok(box > 0);
+  assert.equal(town[box].ifTap, 'mailbox', '點了信箱才出這一句；不點就跳過這一句');
+  assert.equal(town[box].set.place, 'mailbox', '不點也先看到信箱畫面');
+  assert.ok(!town[box].optional && !town[box].gate && !town[box].tap);
+  // 信箱之後還在同一幕：拖鞋聲 → 房東整段 → 「好，我記得。」，才換到房間
+  const after = town.slice(box + 1).map((b) => [b.who, b.text]);
+  assert.deepEqual(after, [
+    [undefined, '聽到這個拖鞋聲，我就知道是房東。'],
+    [undefined, '要是早一分鐘上樓就好了。今天真的沒有力氣站著聽他講話。'],
+    ['landlord', '妳怎麼沒去上班？'],
+    ['landlord', '現在年輕人齁，動不動就請假……'],
+    ['landlord', '我們以前齁，發燒也照樣去上班。'],
+    ['me', '剛好有點事情要辦，我先去忙了。'],
+    ['landlord', '去吧，看到我就想跑。'],
+    [undefined, '被他說中了。我有點不好意思，只好點點頭。'],
+    ['landlord', '記得下禮拜要交房租。'],
+    ['me', '好，我記得。'],
+  ]);
+  assert.equal(town[box + 1].set.place, 'stairs');
+  assert.equal(S.nextActOf('d1town'), 'd1home');
+  // 不點信箱：從信箱那一句直接翻到拖鞋聲（同一幕），一路讀到「記得下禮拜要交房租。」才進房間
+  const s = S.normalize(at('d1town', box), SRC);
+  assert.equal(S.setOpeningLine(s, box + 1), true);
+  const seen = [];
+  while (s.opening.act === 'd1town') seen.push(step(s).text);
+  assert.ok(seen.includes('記得下禮拜要交房租。'));
+  assert.ok(!seen.includes('信箱是空的，連傳單都沒有。'));
+  assert.equal(s.opening.act, 'd1home');
+  // 畫面：ifTap 的熱點點了才出字；點畫面其他地方就不出這一句、存檔往前接下一句
+  const main = code('src/main.js');
+  assert.match(main, /if \(b\.ifTap\) \{[\s\S]*?reader\.hot\(\(optional\?\.\(b\.ifTap, b\)[\s\S]*?reader\.next\(\)\.then\(\(v\) => res\(v \? 'skip' : false\)\);[\s\S]*?const n = S\.nextLine\(state\);[\s\S]*?if \(!S\.setOpeningLine\(state, n\)\) return false;\s*save\(\);\s*i = n;\s*continue;/);
+  assert.ok(HOT_IDS.mailbox, '信箱有熱點');
+});
+
+test('房東只提醒下禮拜交房租；錢是爸開的戶頭、壓歲錢、活存十六萬、提款機補刷；超商下決心「先當實習的老闆」', () => {
+  const all = dayLines().map((b) => b.text);
+  for (const t of ['這本是……爸幫我開的戶頭。', '裡面存了幾年的壓歲錢，現在只好拿出來用了。', '先去補刷，看看還有多少。', '每一行都是一萬。', '裡面居然有十六萬！', '爸從來沒跟我講過有這麼多。',
+    '……可是如果不去，我大概會一直想這件事。', '不然……先試試看好了。', '先當實習的老闆試試看，不適合再說。', '明天就回去找德叔吧。']) assert.ok(all.includes(t), t);
+  assert.equal(find('每一行都是一萬。').act, 'd1bank');
+  assert.equal(find('每一行都是一萬。').b.tap, 'atm', '提款機：點存摺放進機器');
+  assert.equal(find('……可是如果不去，我大概會一直想這件事。').b.tap, 'pause', '超商：停一拍，點一下才繼續');
+  // 房東：沒有當天催繳、沒有當天付清
+  for (const w of ['這個月的房租，妳什麼時候要給我', '今天一定拿給您', '這個月的房租，您點一下。', '下個月不要再讓我來討。', '有錢就早點拿出來嘛']) assert.ok(!all.some((t) => t.includes(w)), w);
+});
+
+test('第二天回咖啡館：鑰匙放到吧台、確認沒找錯人、實習老闆、「我相信妳一定可以的。」；不加人資、濾掛包、銀杏龍眼、親寫鑰匙句、請假日期', () => {
+  assert.deepEqual(D.DAY_LINES.d2cafe.map((b) => [b.who, b.text]), [
+    [undefined, '戶頭裡有十六萬，我才敢回來這裡。'],
+    [undefined, '德叔在吧台後面擦杯子，今天吧台上是空的。'],
+    ['me', '德叔，鑰匙我帶來了。'],
+    ['me', '我想再確認一次，真的沒有找錯人嗎？'],
+    ['me', '我不會泡咖啡，也沒有開過店。'],
+    ['deshu', '突然要讓妳當老闆，想必壓力很大吧。'],
+    ['deshu', '造成妳的困擾，我很抱歉阿。'],
+    ['deshu', '不過這件事情是肯定的，就是妳要來繼承這家咖啡館。'],
+    ['me', '那……我有一個想法。'],
+    ['me', '我想先當實習老闆。'],
+    ['me', '店裡怎麼顧、咖啡怎麼泡，我先把這兩樣學起來。'],
+    ['me', '如果做了之後覺得自己不適合，我就不繼承。'],
+    ['me', '這樣可以嗎？'],
+    ['deshu', '我相信妳一定可以的。'],
+  ]);
+  assert.equal(find('德叔，鑰匙我帶來了。').b.tap, 'keyBar', '點包包裡的鑰匙，放到吧台上');
+  const before5 = D.DAY_ACTS.slice(0, D.DAY_ACTS.indexOf('d5card')).flatMap((a) => D.DAY_LINES[a]).map((b) => b.text).join('\n');
+  for (const w of ['銀杏', '濾掛', '人資', '特休', '第幾天', '離職日', '妳是這裡的老闆，鑰匙就交給老闆了']) assert.ok(!before5.includes(w), `三天後之前不該有：${w}`);
+  const all = dayLines().map((b) => b.text).join('\n');
+  assert.ok(!all.includes('妳是這裡的老闆，鑰匙就交給老闆了，有需要妳隨時可以回來。'), '親寫鑰匙句先不出現');
+  // 銀杏龍眼在三天後之後由她提出
+  assert.equal(find('就叫銀杏龍眼咖啡。').act, 'd5thanks');
+});
+
+test('不再有作廢情節：v4.5（雀斑消失、公司會議、相機）與 v5.7（定存、當天催租付清、再上山存摺放上吧台、人資訊息、濾掛包、騎回租屋處、隔天早上）', () => {
+  for (const old of ['d1cafe', 'd1night', 'd2wake', 'd2shop', 'd2town', 'd2night', 'd3wake', 'd3town', 'd3night', 'd4wake', 'd4town', 'd4cafe', 'd4night',
+    'd1rent', 'd1dusk', 'd1back', 'd1ride', 'd2home', 'd2back', 'd2ride', 'd3card', 'd3morn']) {
     assert.ok(!D.DAY_ACTS.includes(old), `舊幕 ${old}`);
   }
   const all = dayLines().map((b) => b.text).join('\n');
-  for (const w of ['定存', '把存摺放上吧台', '計數窗', '會議室', '第十二頁', '雀斑怎麼不見', '底片', '宜蓁', '協理']) assert.ok(!all.includes(w), w);
+  for (const w of ['定存', '把存摺放上吧台', '我把存摺拿出來，放在吧台上。', '行員', '資料袋', '樟腦丸', '濾掛', '識別證', '隔天早上，我九點多就到了。', '後來每天都是這樣。',
+    '計數窗', '會議室', '第十二頁', '雀斑怎麼不見', '底片', '宜蓁', '協理']) assert.ok(!all.includes(w), w);
   assert.equal(D.PASSBOOK_CHOICES, undefined, '存摺兩個按鈕拿掉');
-  assert.ok(!dayLines().some((b) => b.branch || b.gate || b.sleep || b.mono), '沒有分支、關卡、睡著、自白');
+  assert.ok(!dayLines().some((b) => b.branch || b.sleep || b.mono), '沒有分支、睡著、自白');
+  assert.deepEqual(dayLines().filter((b) => b.gate).map((b) => b.gate), ['keyGive'], '關卡只有把鑰匙拖向德叔');
+  for (const k of Object.keys(D.DAY_SPEAKERS)) assert.ok(['landlord', 'kunbo', 'storeManager', 'clerk'].includes(k), `多出來的說話人：${k}`);
+  // view 不再有 v5.7 的衣櫃、手機、銀行大廳、濾掛包
+  const view = code('src/view/days.js');
+  assert.doesNotMatch(view, /wardrobe|dy-reply|REPLY_TEXT|dripbag|bagopen|home57|homeDusk|bank:/);
+  assert.doesNotMatch(read('index.html'), /\.dy-wardrobe|\.dy-phone|\.pp-dripbag|\.op-ridehome|\.dy-css-bank/);
 });
 
 test('說話的人：房東、坤伯、店長、店員都有名牌與半身立繪（v5.6 定版，依台詞切差分）；開場的德叔、我照舊', () => {
@@ -166,7 +333,8 @@ test('說話的人：房東、坤伯、店長、店員都有名牌與半身立�
   assert.equal(cue('來，這顆給妳。').variant, 'offer_longan');
   assert.equal(cue('花斑貓跳上椅子，用手去撥袋子裡的龍眼乾。').src, 'art-v56/A/variants/cat_huaban_paw', '花斑貓撥龍眼乾');
   assert.equal(cueOf({ who: 'me', text: '好，我記得。' }), null, '我、旁白沒有立繪');
-  assert.equal(cueOf({ who: 'deshu', text: '這裡隨時都歡迎妳。' }), null, '德叔照舊由店內流程處理');
+  assert.equal(cueOf({ who: 'deshu', text: '不好意思阿，我手騰不出空間來，妳先留著吧。' }), null, '德叔照舊由店內流程處理');
+  assert.equal(cueOf({ who: undefined, text: 'constructor' }), null, '原型上的名字不會被當成台詞差分');
   const main = code('src/main.js');
   assert.match(main, /const cue = cueOf\(b\);[^\n]*\n\s*reader\.portrait\(cue \? cue\.src : null, cue\?\.place, cue\?\.alt\);/, '背景圖的畫面：新角色出半身立繪');
   assert.match(main, /const portrait = day \? b\.who === 'deshu' : lk\.portrait;/, '店裡：德叔說話出德叔立繪');
@@ -181,7 +349,7 @@ test('說話的人：房東、坤伯、店長、店員都有名牌與半身立�
 });
 
 /* ---------- 互動 ---------- */
-test('字出來之前要先做的互動（tap）照劇本的順序；可選互動只有水龍頭、信箱', () => {
+test('字出來之前要先做的互動（tap）照劇本的順序；可選互動只有水龍頭；信箱可點可不點', () => {
   const taps = dayLines().flatMap(D.tapsOf);
   assert.deepEqual(taps, ['mini', 'wallet', 'deskDrawer', 'mini', 'atm', 'poster', 'pause', 'keyBar', 'mini', 'calico', 'can', 'mini', 'mini']);
   const tapAt = (t) => find(t).b.tap;
@@ -195,10 +363,10 @@ test('字出來之前要先做的互動（tap）照劇本的順序；可選互�
   assert.deepEqual(tapAt('坤伯，這上面寫的是農藥。'), ['can', 'mini'], '點空罐子 → 標籤小圖點一下');
   // 可選（不點也能翻頁）
   const opt = dayLines().filter((b) => b.optional);
-  assert.deepEqual(opt.map((b) => b.optional), ['faucet', 'mailbox']);
-  assert.equal(opt[0].text, '鼻梁和臉頰上的雀斑還是一樣多，從國中照鏡子發現後，就沒消退過。');
-  assert.equal(opt[1].text, '信箱是空的，連傳單都沒有。');
+  assert.deepEqual(opt.map((b) => b.optional), ['faucet']);
+  assert.equal(opt[0].text, '水很冰。');
   for (const b of opt) assert.ok(!b.gate && !b.tap, `${b.optional} 不能擋住劇情`);
+  assert.deepEqual(dayLines().filter((b) => b.ifTap).map((b) => [b.ifTap, b.text]), [['mailbox', '信箱是空的，連傳單都沒有。']]);
   // 每個熱點都有元素
   for (const n of ['faucet', 'mailbox', 'wallet', 'deskDrawer', 'poster', 'calico', 'can']) assert.ok(HOT_IDS[n], n);
   for (const id of Object.values(HOT_IDS)) assert.match(read('src/view/days.js'), new RegExp(`id="${id}"`), id);
@@ -214,7 +382,6 @@ test('小圖五張：先疊上來（背景不切換）、點一下才出句子�
       assert.ok(lk.mini, `${act} 第 ${i} 句有小圖`);
       if (i > 0) assert.equal(lk.place, OP.sceneAt(lines, i - 1).place, `${act} 第 ${i} 句：背景不切換`);
       assert.ok(!OP.sceneAt(lines, Math.max(0, i - 1)).mini || i === 0, '前一句還沒有這張小圖');
-      // 講完收掉：之後同一幕有一句 mini 變回 null，不然就是這一幕結束（換幕時整層收起來）
       const off = lines.findIndex((x, j) => j > i && x.set && 'mini' in x.set && x.set.mini === null);
       assert.ok(off > i || OP.sceneAt(lines, lines.length - 1).mini === lk.mini, `${act}：${lk.mini} 會收掉`);
       minis.push(lk.mini);
@@ -227,7 +394,6 @@ test('小圖五張：先疊上來（背景不切換）、點一下才出句子�
   const w = find('窗戶下面那塊水痕好像又比上個月大了一點。');
   assert.equal(OP.sceneAt(D.DAY_LINES.d1home, w.i + 1).mini, 'stain');
   assert.equal(OP.sceneAt(D.DAY_LINES.d1home, w.i + 2).mini, null);
-  // 畫面：在既有 #op-prop 上加 .pp-mini（不拆既有特寫卡）；點一下才 resolve；字出來之前先做 tap
   const view = code('src/view/days.js');
   assert.match(read('index.html'), /<section id="op-prop" hidden><div class="pp-card"><\/div><div class="pp-mini"><\/div>/);
   assert.match(view, /peek\(\) \{/);
@@ -235,14 +401,12 @@ test('小圖五張：先疊上來（背景不切換）、點一下才出句子�
   const main = code('src/main.js');
   assert.match(main, /for \(const t of tapsOf\(b\)\) \{[\s\S]*?reader\.hideBox\(\);[\s\S]*?const ok = t === 'pause' \? await reader\.next\(\) : await tap\?\.\(t, b\);[\s\S]*?\}\s*props\.clear\(\);\s*props\.show\(lk\);/, '小圖／互動做完才出字');
   assert.match(main, /if \(name === 'mini'\) return props\.peek\(\);/);
-  // 物件小圖不畫手；暫代不拿無關道具（不用 longanBag／longanJar、不用舊 CSS 咖啡豆罐冒充標籤）
   for (const k of Object.keys(MINI_SLOTS)) {
     const html = miniHtml(k);
     assert.ok(html.length > 0, k);
     assert.doesNotMatch(html, /hand|pp-can|longanBag|longanJar/, k);
   }
   assert.match(miniHtml('label'), /農藥/, '空罐子的標籤由程式疊「農藥」');
-  // 既有特寫卡沒拆
   const css = read('index.html');
   for (const c of ['.pp-passbook {', '.pp-can {', '.pp-card.badge img', '.pp-bag {', '.pp-camera {']) assert.ok(css.includes(c), `既有特寫卡 ${c}`);
 });
@@ -250,7 +414,7 @@ test('小圖五張：先疊上來（背景不切換）、點一下才出句子�
 test('程式疊字：徵人海報「誠徵門市人員」（劇本沒寫薪資數字，不疊薪水）、空罐子「農藥」、紙袋「提神醒腦，過目不忘」', () => {
   assert.equal(OVERLAY_TEXT.poster, '誠徵門市人員');
   assert.doesNotMatch(OVERLAY_TEXT.poster, /\d|元|薪/);
-  assert.ok(BODY.includes('上面寫「誠徵門市人員」和薪水'));
+  if (HAS58) assert.ok(BODY.includes('上面寫「誠徵門市人員」和薪水'));
   assert.equal(OVERLAY_TEXT.label, '農藥');
   assert.equal(OVERLAY_TEXT.paperbag, '提神醒腦，過目不忘');
   assert.equal(find('「提神醒腦，過目不忘」').b.set.prop, 'paperbag');
@@ -258,6 +422,23 @@ test('程式疊字：徵人海報「誠徵門市人員」（劇本沒寫薪資�
   const view = read('src/view/days.js');
   assert.match(view, /poster: \(\) => `<div class="pp-poster"><span class="pp-overlay">\$\{esc\(OVERLAY_TEXT\.poster\)\}<\/span><\/div>`/);
   assert.match(view, /<div class="dy-poster" id="dy-poster"><span>\$\{esc\(OVERLAY_TEXT\.poster\)\}<\/span><\/div>/);
+});
+
+test('看看店裡（坐下以後，人在店裡）與點椅子坐下的引導：字照劇本；只在店裡；回座位回到原本那一句', () => {
+  const main = code('src/main.js');
+  assert.match(main, /const SHOP_LOOK = \{ label: '看看店裡', back: '回座位', hint: '點「看看店裡」，可以四處看看。' \};/);
+  if (HAS58) for (const t of ['看看店裡', '回座位', '點椅子坐下']) assert.ok(V58.includes(`「${t}」`), t);
+  if (HAS58) assert.ok(V58.includes('點「看看店裡」，可以四處看看。'));
+  assert.match(main, /const SHOP_LOOK_ACTS = \['coffee', 'stay'\];/, '坐下以後才有（店裡站著那一段沒有）');
+  assert.match(main, /const lookable = SHOP_LOOK_ACTS\.includes\(act\) \|\| day;/);
+  assert.match(main, /h\.textContent = on \? '點椅子坐下' : '';/);
+  assert.match(main, /pano\.turnTo\(SIT_YAW, 1600\);/, '一進 360 先自動轉到椅子');
+  // 回座位：還原原本的場景與角度，閱讀框回來；不動存檔
+  const exit = main.slice(main.indexOf('function exitShopLook()'), main.indexOf('function sitHint('));
+  assert.match(exit, /pano\.setScene\(L\.scene, \{ yaw: L\.yaw \}\);/);
+  assert.doesNotMatch(exit, /save\(|setOpeningLine|setOpeningAct/);
+  const html = read('index.html');
+  assert.match(html, /<button type="button" id="shop-look" class="shop-look" hidden><\/button><button type="button" id="shop-back" class="shop-back" hidden><\/button>/);
 });
 
 /* ---------- 流程 ---------- */
@@ -293,7 +474,6 @@ test('每一幕、每一句存檔讀回都在同一處（第一晚到研發咖�
     },
   });
   assert.ok(n > 150);
-  // 字出來之前的互動不進存檔：讀回停在那一句就要重做（畫面處理）；句子進度照樣能往前
   const w = find('繳完房租，剩下五千塊錢。');
   const s = S.normalize(at(w.act, w.i), SRC);
   assert.equal(S.setOpeningLine(s, w.i + 1), true);
@@ -438,7 +618,7 @@ test('跳過自白的版面：右上角、至少 44px、在閱讀框外；按鈕
 });
 
 /* ---------- 舊存檔相容 ---------- */
-test('舊存檔：v4.5 的第一～四天幕名接到新流程（不卡住）；舊待續 end 接到第一天早上；舊的存摺選擇不保留', () => {
+test('舊存檔：v4.5 與 v5.7（未提交版）的幕名接到新流程（不卡住）；舊待續 end 接到第一天早上；舊的存摺選擇不保留', () => {
   for (const [old, want] of Object.entries(S.LEGACY_ACTS)) {
     const r = S.playable(S.normalize(at(old, 5, { passbook: 'show', fork: 'left' }), SRC));
     assert.equal(r.opening.act, want, old);
@@ -454,6 +634,11 @@ test('舊存檔：v4.5 的第一～四天幕名接到新流程（不卡住）；
   for (const old of ['d2wake', 'd2shop', 'd2town', 'd2night', 'd3wake', 'd3shop', 'd3town', 'd3cafe', 'd3night', 'd4wake', 'd4shop', 'd4town', 'd4cafe', 'd4night']) {
     assert.equal(S.LEGACY_ACTS[old], 'd1wake', `${old} 從第一天早上重走`);
   }
+  // v5.7（中途停下、未提交）的幕：照劇情位置接到 v5.8 最近的下一幕
+  assert.deepEqual(
+    Object.fromEntries(['d1rent', 'd1dusk', 'd1back', 'd1ride', 'd2home', 'd2back', 'd2ride', 'd3card', 'd3morn'].map((k) => [k, S.LEGACY_ACTS[k]])),
+    { d1rent: 'd1store', d1dusk: 'd1store', d1back: 'd1store', d1ride: 'd2card', d2home: 'd2card', d2back: 'd2cafe', d2ride: 'd5card', d3card: 'd5card', d3morn: 'd5card' },
+  );
   assert.ok(!('d2cafe' in S.LEGACY_ACTS), 'd2cafe 跟新版同名，不放在對照表');
   // d2cafe 同名：新版存檔（沒有 passbook）照原樣；v4.5 舊檔（有 passbook，就算是 null）接到第一天早上
   const fresh = S.playable(S.normalize(at('d2cafe', 3, { fork: 'right', resignation: 'fire' }), SRC));
@@ -470,7 +655,6 @@ test('舊存檔：v4.5 的第一～四天幕名接到新流程（不卡住）；
     assert.ok(!('passbook' in o.opening));
     walk(o, { stop: S.isOpeningEnd });
   }
-  // 新版存過一次（normalize 掉 passbook）之後再讀：還是 d2cafe
   assert.equal(reload(fresh).opening.act, 'd2cafe');
   // 舊待續（第一晚已結束）：不卡在待續、不重開，接到第一天早上
   for (const raw of [at('end', 0), at('end', 7), { ...at('end', 0), opening: { act: 'end', resignation: 'fire', fork: 'left', deshuLine: 3 } }]) {
@@ -479,11 +663,16 @@ test('舊存檔：v4.5 的第一～四天幕名接到新流程（不卡住）；
     assert.equal(r.opening.line, 0);
     assert.equal(S.isOpeningEnd(r), false);
   }
-  // 沿用的幕名（d1wake、d1shop、d1town）：句子進度夾在新的句數之內
+  // 沿用的幕名：句子進度夾在新的句數之內（v5.6 存檔停在 d1shop 後段、d1town 信箱之後，照樣讀得回來、走得完）
   let r = S.normalize(at('d1town', 999), SRC);
   assert.equal(r.opening.line, D.DAY_LINES.d1town.length - 1);
   r = S.normalize(at('d2card', 3), SRC);
   assert.equal(r.opening.line, 0, '字卡沒有句子');
+  for (const [act, line] of [['d1shop', 14], ['d1wake', 5], ['d1town', 2], ['coffee', 12], ['ride', 2], ['stay', 7], ['room', 8], ['mailbox', 0], ['letter', 0]]) {
+    const o = S.playable(S.normalize(at(act, line, { fork: 'left' }), SRC));
+    assert.equal(o.opening.act, act);
+    walk(o, { stop: S.isOpeningEnd });
+  }
   // 開場中途：原幕原句
   r = S.playable(S.normalize(at('deshu', 12), SRC));
   assert.equal(r.opening.act, 'deshu');
@@ -492,9 +681,9 @@ test('舊存檔：v4.5 的第一～四天幕名接到新流程（不卡住）；
   const st = fakeStorage();
   st.setItem(SAVE_KEY, JSON.stringify(at('d3town', 40)));
   assert.equal(S.playable(load(SRC, st)).opening.act, 'd1wake');
-  // 新版字卡「第二天」本身照原樣
+  st.setItem(SAVE_KEY, JSON.stringify(at('d2back', 9)));
+  assert.equal(S.playable(load(SRC, st)).opening.act, 'd2cafe', 'v5.7 第二天回店 → v5.8 第二天回咖啡館');
   assert.equal(S.playable(S.normalize(at('d2card', 0), SRC)).opening.act, 'd2card');
-  // phase story（三天故事）的 d3town 不走舊幕對照，回開頭
   assert.deepEqual(S.playable(S.normalize({ ...at('d3town', 4), phase: 'story' }, SRC)), S.newStoryState());
   assert.deepEqual(S.normalize({ v: 2, phase: 'opening', opening: { act: 'd2cafe' } }, SRC), S.newStoryState(), '版本不是 1 才重來');
   assert.equal(S.SCHEMA, 1);
@@ -518,7 +707,6 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   for (const n of ART_MAP_FILES) assert.ok(has(n), n);
   assert.equal(artUrl('scene_county_road'), 'assets/art/scene_county_road.webp', '舊圖仍在 assets/art/');
   assert.equal(artUrl('art-v56/B/bg_v56_store_interior_portrait'), 'assets/art-v56/B/bg_v56_store_interior_portrait.webp');
-  // v5.6 定版背景：只用直式 1170×2532（_portrait；村子路用 _portrait_v2），拿掉 CSS 中性底
   const BG = { bg_room_morning: 'bg_v56_hulong_morning_portrait', bg_stairs: 'bg_v56_stairwell_portrait', bg_home: 'bg_v56_rental_room_day_portrait', bg_atm: 'bg_v56_bank_atm_portrait',
     bg_store: 'bg_v56_store_interior_portrait', bg_village: 'bg_v56_village_lane_portrait_v2', bg_kunyard: 'bg_v56_kunbo_yard_portrait' };
   for (const [id, f] of Object.entries(BG)) {
@@ -526,9 +714,13 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
     assert.equal(srcOf(id), `art-v56/B/${f}`, id);
     assert.deepEqual(webpSize(readFileSync(root(artUrl(srcOf(id))))), [1170, 2532], `${f} 是直式 1170×2532`);
   }
+  // v5.8 第二幕的房間：暫代第一天的房間原圖（劇本：畫面同第一天的房間）；信封 CSS
+  assert.equal(ART_MAP.bg_letter_room.status, 'temp');
+  assert.equal(srcOf('bg_letter_room'), srcOf('bg_home'));
+  assert.match(read('src/view/opening.js'), /artUrl\(srcOf\('bg_letter_room'\)\)/);
+  assert.equal(ART_MAP.pp_envelope.status, 'temp');
   for (const k of ['stairs', 'home', 'atm', 'store', 'village', 'kunyard']) assert.ok(PLACES[k].src, `${k} 不再是 CSS 中性底`);
   assert.doesNotMatch(read('index.html'), /\.dy-css-(stairs|atm|store|village|kunyard)/, 'CSS 中性底拿掉');
-  // 角色：A 組底卡用 *_v2，差分在 variants/
   const CH = { ch_landlord: ['char_v56_landlord_half_v2', ['nag', 'remind_rent', 'shoo']], ch_kunbo: ['char_v56_kunbo_half_v2', ['squint_bottle', 'sheepish', 'offer_longan']],
     ch_store_manager: ['char_v56_store_manager_half_v2', ['scold_bento', 'exasperated']], ch_clerk: ['char_v56_store_clerk_half_v2', ['downcast', 'sorry_bow']],
     ch_calico: ['cat_huaban_sit_v2', ['jump', 'walk', 'paw']] };
@@ -541,7 +733,6 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   }
   assert.match(srcOf('ch_calico'), /cat_huaban/, '花斑貓用 cat_huaban');
   for (const id of ['ch_calico', 'ch_kunbo']) for (const v of [null, ...Object.keys(ART_MAP[id].variants)]) assert.doesNotMatch(refOf(id, v), /cat_longan|char_grandpa/, `${id} 不拿龍眼貓／阿公充數`);
-  // 小圖：C 組 prop_v56_*_v2
   const MINI = { mini_stain: 'prop_v56_water_stain_v2', mini_passbook: 'prop_v56_passbook_drawer_v2', mini_hat: 'prop_v56_douli_v2', mini_label: 'prop_v56_empty_can_label_v2', mini_longan: 'prop_v56_dried_longan_v2' };
   for (const [id, f] of Object.entries(MINI)) { assert.equal(ART_MAP[id].status, 'ready', id); assert.equal(srcOf(id), `art-v56/C/${f}`); }
   for (const k of Object.values(MINI_SLOTS)) assert.ok(ART_MAP[k], k);
@@ -549,31 +740,24 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   assert.deepEqual(webpSize(readFileSync(root(artUrl(srcOf('mini_label'))))), [1024, 1024], '空罐子小圖是正方形（疊字座標以 1024×1024 量）');
   assert.match(miniHtml('label'), /assets\/art-v56\/C\/prop_v56_empty_can_label_v2\.webp[\s\S]*mn-on-art[^>]*>農藥</, '標籤留白處由程式疊「農藥」');
   assert.match(read('index.html'), /\.pp-mini\.mini-label \.mn-on-art \{ left: 48\.6%; top: 68%;/);
-  // 超商海報：疊在後牆留白框（原圖 x 345–1037、y 567–857）
   assert.match(read('index.html'), /\.dy-poster \{ position: absolute; left: 29\.5%; top: 22\.4%; width: 59\.1%; height: 11\.5%;/);
-  // 花斑貓：村子路跳下（jump）→ 坐（sit）→ 點了走（walk）
   const view = code('src/view/days.js');
   assert.match(view, /cat\.dataset\.pose = 'jump'/);
   assert.match(view, /cat\.dataset\.pose = 'walk'/);
-  // 預載包含新圖
   for (const r of ART_MAP_FILES.filter((x) => x.startsWith('art-v56/'))) assert.ok(DAY_ART.includes(r), `沒有預載 ${r}`);
-  // 已有的直接用
   for (const [id, src] of [['bg_office', 'scene_office_night'], ['bg_mailbox', 'scene_mailboxes'], ['bg_road', 'scene_county_road'], ['bg_courtyard_night', 'scene_v3b_courtyard_night_v2'], ['bg_room_night', 'scene_v3b_room_night'], ['bg_bed_pov', 'scene_v3b_bed_pov_night']]) {
     assert.equal(ART_MAP[id].src, src);
     assert.equal(ART_MAP[id].status, 'ready');
   }
-  // 場景都從對照表來
   for (const [k, p] of Object.entries(PLACES)) {
     assert.ok(ART_MAP[p.slot], `${k} 對到 ${p.slot}`);
     assert.equal(p.src, srcOf(p.slot), k);
   }
   for (const act of D.DAY_ACTS.filter((a) => D.DAY_ACT_VIEW[a] === 'still')) for (const k of placesOf(D.DAY_LINES[act])) assert.ok(PLACES[k], `${act}：${k}`);
   for (const n of DAY_ART) assert.ok(n.includes('/') ? has(n) : files.has(`${n}.webp`), `缺 ${artUrl(n)}`);
-  // 洗臉：鏡子裡是帶缺點的角色卡
   assert.equal(YIJUN_CARD.flawed, 'char_v3b_yijun_card_flawed_v4');
   assert.equal(yijunCardFor('d1wake'), YIJUN_CARD.flawed);
   assert.match(read('src/view/days.js'), /class="dy-face"/);
-  // 不以程式畫人形；音效都有定義、沒有外部音檔
   assert.doesNotMatch(code('src/view/days.js') + code('src/main.js'), /drawShape|granny|junior/);
   const audio = read('src/view/audio.js');
   for (const b of dayLines()) for (const n of b.sfx || []) assert.ok(audio.includes(`case '${n}':`), `沒有音效 ${n}`);

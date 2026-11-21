@@ -486,6 +486,52 @@
   /* 點一下才出句子的整片點擊區（小圖疊上來時） */
   .pp-peek { position: absolute; inset: 0; z-index: 1; padding: 0; background: transparent; box-shadow: none; border-radius: 0; cursor: pointer; }
   .pp-tapitem { cursor: pointer; }
+
+  /* ---------- 劇本 v5.8：開場（離職申請單、下班、房間裡那封信、信後旁白）、第一天早上把鑰匙拖向德叔、提示字 ---------- */
+  .op-form-title { margin: 0 0 6px; padding-bottom: 4px; font-size: 15.5px; font-weight: 700; letter-spacing: 3px; text-align: center; border-bottom: 1px solid #d6d9de; }
+  .op-mail .op-sign { margin: 0; text-align: left; }
+  .op-to { margin: 0; }
+  .op-leave { margin: 4px 0 0; }
+  .op-title-block { display: block; padding: 24px 12px 4px; }
+  .op-title #op-next { min-width: 160px; letter-spacing: 4px; animation: floatin 2s 1.2s ease-out both; }
+  /* 第二幕：租屋處房間（暫代 v5.6 房間原圖，疊傍晚色調）；桌上的牛皮紙信封；下方旁白框 */
+  .op-letterroom { padding: 0; background: #1c1712; }
+  .op-letterroom .op-art { top: -6%; }
+  .op-letterroom .op-art::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(235,140,70,.32), rgba(80,40,20,.42)); mix-blend-mode: multiply; }
+  .op-env { position: absolute; left: 77%; top: 45.2%; width: 15%; height: 5.6%; min-width: 44px; min-height: 44px; z-index: 2; padding: 0; background: transparent; box-shadow: none; border-radius: 6px; }
+  .op-env::before { content: ""; position: absolute; left: 10%; right: 10%; top: 30%; bottom: 18%; border-radius: 2px; background: linear-gradient(#d4ab78, #b88a55); box-shadow: 0 2px 4px rgba(0,0,0,.35); }
+  .op-env-flap { position: absolute; left: 10%; right: 10%; top: 30%; height: 30%; background: #a77a48; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+  .op-env.call { animation: doorcall 2.2s ease-in-out infinite; }
+  .op-env:disabled { opacity: 1; cursor: default; }
+  .op-env.pulled::after { content: ""; position: absolute; left: 22%; right: 22%; top: 0; height: 46%; background: #fbf8f1; box-shadow: 0 1px 3px rgba(0,0,0,.3); animation: rise .6s ease-out both; }
+  .op-roombox { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; min-height: var(--box-h); padding: 24px 22px calc(22px + env(safe-area-inset-bottom)); background: #fbf5e8;
+    border-top: 5px solid var(--wood); box-shadow: 0 -6px 20px rgba(30,15,5,.35); cursor: pointer; }
+  .op-roombox .op-caption { text-align: left; font-size: 19px; line-height: 1.6; color: #4b3a2e; opacity: 1; }
+  .op-roombox.done .st-more { visibility: hidden; }
+  .op-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--box-h) + 14px); z-index: 3; margin: 0; text-align: center; font-size: 15px; letter-spacing: 1px; color: #ffe7b0;
+    text-shadow: 0 1px 4px rgba(0,0,0,.8); animation: floatin .8s ease-out both; pointer-events: none; }
+  /* 信後旁白：一句一句點 */
+  button.op-after { flex: none; background: transparent; box-shadow: none; color: inherit; border-radius: 0; padding: 6px 8px; min-height: 44px; }
+  button.op-after .st-more { display: inline-block; margin-left: 6px; color: #f1ece2; }
+  button.op-after.done .st-more { visibility: hidden; }
+  /* 第一天早上：把鑰匙拖向德叔（或吧台）：兩個都算；提示字 */
+  .pp-zone.to-bar { left: 6%; top: 50%; width: 88%; height: 12%; }
+  .pp-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--box-h) + 124px); margin: 0; text-align: center; font-size: 15px; letter-spacing: 1px; color: #ffe7b0;
+    text-shadow: 0 1px 4px rgba(0,0,0,.85); pointer-events: none; animation: floatin .8s ease-out both; }
+  /* 閱讀框上方的提示字（摸摸龍眼、點床躺下、點椅子坐下）：只在那個熱點還沒點時出現 */
+  #op-read .opr-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--box-h) + 12px); z-index: 3; margin: 0; text-align: center; font-size: 15px; letter-spacing: 1px;
+    color: #ffe7b0; text-shadow: 0 1px 4px rgba(0,0,0,.85); pointer-events: none; animation: floatin .8s ease-out both; }
+  /* 看看店裡（坐下以後，人在店裡）：閱讀框角落的小按鈕；第一次出現時發光、箭頭指著它、上方一行提示；回座位 */
+  .shop-look { position: absolute; right: 12px; bottom: calc(var(--box-h) + 8px); z-index: 23; padding: 0 14px; font-size: 14px; letter-spacing: 1px; border-radius: 22px;
+    background: rgba(251,245,232,.94); color: #4b3a2e; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+  .shop-look.guide { animation: hotglow 1.8s ease-in-out infinite; }
+  .shop-look.guide::after { content: "▼"; position: absolute; left: 50%; top: -24px; transform: translateX(-50%); font-size: 16px; color: #ffe7b0; text-shadow: 0 1px 4px rgba(0,0,0,.85);
+    animation: bob 1s ease-in-out infinite; pointer-events: none; }
+  @keyframes bob { 0%, 100% { margin-top: 0; } 50% { margin-top: 5px; } }
+  .shop-back { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 23; min-width: 160px; letter-spacing: 2px; background: #f1ece2; color: #1b1f27; }
+  .shop-look-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--box-h) + 72px); z-index: 23; margin: 0; padding: 0 12px; text-align: center; font-size: 15px; letter-spacing: 1px;
+    color: #ffe7b0; text-shadow: 0 1px 4px rgba(0,0,0,.85); pointer-events: none; animation: floatin .8s ease-out both; }
+  .shop-look-hint.sit { bottom: 120px; }
 </style>
 </head>
 <body>
@@ -503,6 +549,7 @@
   <section id="log" hidden role="dialog" aria-label="回顧"><div class="log-paper" id="log-list"></div><div class="log-bar"><button id="log-close" type="button">回到原頁</button></div></section>
   <section id="opening" hidden></section>
   <section id="op-read" hidden aria-label="下一句"><div class="st-portrait opr-portrait"></div><div class="opr-hot"></div><div class="st-box opr-box" aria-live="polite"></div><button type="button" class="opr-skip" hidden></button></section>
+  <button type="button" id="shop-look" class="shop-look" hidden></button><button type="button" id="shop-back" class="shop-back" hidden></button><p id="shop-look-hint" class="shop-look-hint" hidden aria-hidden="true"></p>
   <section id="op-prop" hidden><div class="pp-card"></div><div class="pp-mini"></div><span class="pp-film" aria-hidden="true"></span><div class="pp-extra"></div><div class="pp-flash"></div></section>
   <div id="fade"></div>
   <div id="boot"></div>

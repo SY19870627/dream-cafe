@@ -1,8 +1,11 @@
-// 開場（第一幕到第四幕）的字：照 docs/劇本.md（v5.6）「# 開場」到第一晚最後一句，逐字相同（2026-11-21 對齊）。
+// 開場（第一幕到第四幕）的字：照劇本 v5.8（_agent/v3b/script-v5.8.md，承峰 2026-11-21 19:44 定稿）「# 開場」到第一晚最後一句，逐字相同。
+// v5.8 的開場是 v5.7 原字（v5.0 整段補回，【待定】句照演，標記不顯示）。
 // 規則：
 // - 畫面上的對白、旁白、信件、按鈕字、標題與劇本逐字相同；劇本沒有的字不放上畫面（只給螢幕閱讀器的 aria-label 除外）。
 // - 句首的【待定】【待確認】【新增互動】是稿件標記，這裡已拿掉，只留正文；引用區塊裡的空白行不是字。
 // - 劇本裡全形括弧（……）的畫面／聲音／互動指示不是字，不放進 text；演出寫在每一句的 set／sfx／gate／optional（只給畫面用）。
+//   例外：括弧裡用「」寫明要出現在畫面上的字（按鈕字「下班」「掉頭回去」、操作提示「點信封，把信拿出來。」、
+//   打字聲字樣「喀噠、喀噠……」、轉場字「夜裡，東山。」、提示字「摸摸龍眼」「點床躺下」）照「」裡的原字顯示。
 // - 開場到第一晚自白最後一句「我本來只想躺一下，燈還沒關就睡著了。」為止；第一天起在 lines/days.js。
 //
 // 每一句（beat）：
@@ -18,21 +21,29 @@
 export const RESIGNATION = { id: 'fire', text: '從今天起，我單方面辭退您。' };
 export const RESIGNATIONS = [RESIGNATION]; // 舊名字：只剩這一句
 
-// 表單：事由欄（點一下才打出固定那一句）→ 說明（劇本原文）→ 申請人（固定陳怡君，沒有輸入框）
+// 公司簽核系統的「離職申請單」：離職申請單 → 申請人：陳怡君（固定，沒有輸入框）→ 送簽對象：經理
+// → 離職事由（點一下才打出固定那一句）→ 說明 → 特休那一句 → 送出
 export const OFFICE = {
   clock: '16:49',
   clockAfter: '16:50', // 按下送出，時鐘翻成 16:50
+  form: '離職申請單',
+  applicantLabel: '申請人：',
+  applicant: '陳怡君', // 申請人固定，沒有輸入框
+  toLabel: '送簽對象：',
+  to: '經理',
   reasonLabel: '離職事由：', // 事由欄（點一下才填進固定那一句）
   note: '說明：這件事我想了很久，今天決定說出來。',
-  applicant: '陳怡君', // 申請人固定，沒有輸入框
+  leave: '我還有特休沒休完，會先把特休休完，離職日就是假休完的那一天。',
+  keys: '喀噠、喀噠……', // 打字聲字樣（劇本：打字聲字樣「喀噠、喀噠……」）：打字時才出現
   send: '送出',
 };
 
 /* ---------- 標題畫面 ---------- */
-// 沒有按鈕字：點標題（兩行標題與「試玩版・台南東山」整塊）進入下一幕
+// 按「下班」進入租屋處房間（不按就留在標題畫面）
 export const TITLE = {
   lines: ['我單方面辭退老闆後，', '開了一間夢想中的咖啡店'],
   sub: '試玩版・台南東山',
+  next: '下班',
   credit: '開發者 SY',
   links: [
     { text: 'GitHub', href: 'https://github.com/SY19870627' },
@@ -42,14 +53,21 @@ export const TITLE = {
 };
 
 /* ---------- 第二幕　房間裡那封信 ---------- */
-// 信：排版字，不露筆跡。標題「信」→ 信的內文 → 信後旁白 →「出發去東山」
-// （舊的信箱一幕拿掉：劇本 v5.6 沒有信箱、搖信封、拿出信封；存檔的幕 id 'mailbox' 留著，讀到就直接接信）
+// 租屋處房間（幕 id 沿用 'mailbox'，舊存檔不會壞）：旁白兩句 → 操作提示 → 點信封（只能點一次）→ 旁白換句 → 約一秒多後自動進信件畫面
+export const ROOM_LETTER = {
+  lines: ['我回到租屋處，進了房間，把包包放在床上。', '那封信放在摺疊桌上。牛皮紙信封早就拆開了，鑰匙我上次看完又放回信封裡。'],
+  hint: '點信封，把信拿出來。',
+  pulled: '我把信抽出來，從頭再看一遍。',
+  envLabel: '信封', // 只給螢幕閱讀器（aria-label），畫面上不出現
+};
+// 信：排版字，不露筆跡。標題「信」→ 信的內文 → 信後旁白（一句一句點）→「出發去東山」
 export const LETTER = {
   title: '信',
   greeting: '怡君：',
   paragraphs: [
     '妳沒見過我，突然收到這種信，一定覺得奇怪。不想理它，放著也沒關係。',
     '我在台南東山有一間老三合院，住了很多年。正廳是一間咖啡館，現在還開著。',
+    '我年紀大了，現在不住那裡。店想交給妳經營，屋子也一起留給妳。那間屋子冬天曬得到太陽，住下來很舒服，而咖啡館坐起來也是暖的。',
     '我沒有要強迫妳辭職，只是咖啡館比較遠，擔心妳應付不來。',
     '那邊有人在等妳。妳哪一天去，他都在。',
     '到了東山，找院子裡種一棵老龍眼樹、門上掛風鈴的那間三合院就是。鑰匙放在信封裡，屋子是妳的，鑰匙就是這個意思。門平常沒有鎖，到了用推的就好。',
@@ -57,15 +75,22 @@ export const LETTER = {
   closing: '祝　平安',
   signature: '東山老屋　屋主',
   after: '其實我已經辭職了...',
+  afterLines: [
+    '上次看到這一段的時候，我還在公司上班，看完就把信收起來了。',
+    '今天我把離職單送出去了，回到家又把信拿出來看一眼。',
+    '其實我已經辭職了...',
+    '我把信摺好放回桌上，鑰匙拿出來，放進外套口袋。',
+  ],
   next: '出發去東山',
   keyLabel: '鑰匙', // 可選的鑰匙特寫按鈕：只有圖示，這個字只給螢幕閱讀器（aria-label），畫面上不出現
 };
 
 /* ---------- 第三幕　東山、龍眼、推門、還沒打烊 ---------- */
-export const ROAD = { door: '推門進去' };
+// card：轉場字（只在第一次到、第 0 句）
+export const ROAD = { door: '推門進去', card: '夜裡，東山。' };
 export const DEPART = { start: '發動' };
-// 掉頭：只有圖示的按鈕（↶），畫面上沒有字；這個字只給螢幕閱讀器（aria-label）
-export const TEMPLE = { backLabel: '掉頭' };
+// 掉頭：按鈕字「掉頭回去」
+export const TEMPLE = { back: '掉頭回去' };
 
 // 店內的鏡頭：counter＝朝吧台（德叔）；cat＝朝靠窗那一側（我和龍眼，德叔只露出肩膀）
 const COUNTER = { yaw: 0 };
@@ -82,7 +107,7 @@ export const OPENING_LINES = {
   // 店裡（傍晚，站著）：先不出立繪，擦杯子聲 → 德叔只有聲音 → 立繪出現 → … → 泡好了
   deshu: [
     { text: '店裡的椅子都還沒收。吧台上一台磨豆機，旁邊排著洗好的杯子，後面有個人低著頭在擦杯子。',
-      set: { ...COUNTER, portrait: false, deshu: 'brew', cat: 'doorway', cloth: true, cup: false } },
+      set: { ...COUNTER, portrait: false, deshu: 'brew', cat: 'doorway', cloth: true, cup: false, night: 1 } }, // 夜裡到東山：窗外是夜色
     { who: 'deshu', text: '還沒打烊，位子自己挑。', voice: true },
     { text: '他抬頭，手上那塊布停在杯口。', set: { portrait: true, deshu: null, cloth: false } },
     { text: '他低頭把杯子放好，兩隻手在圍裙上抹了抹，才又看我。' },
@@ -111,6 +136,7 @@ export const OPENING_LINES = {
     { text: '德叔彎腰，從吧台下面拿出一個杯子，沖了水。吧台上那排洗好的，他沒有動。', set: { ...COUNTER, deshu: 'brew' }, sfx: ['rinse'] },
     // （音效：磨豆機，短短一陣。）→ 德叔開口；我本來要拒絕，話嚥了回去
     { who: 'deshu', text: '老闆要不要試一下咖啡？', sfx: ['grind'], wait: 900 },
+    { text: '德叔問完沒有等我回答，就把磨好的咖啡粉倒進濾杯。', set: { portrait: false, deshu: 'brew' } },
     { text: '我本來打算拒絕的話來不及說出口，嚥了回去。' },
     { text: '龍眼的耳朵往後壓了一下，沒有走。', set: { ...SIDE, cat: 'earsBack' } },
     // （畫面留在我和龍眼，德叔只看得到肩膀。水滾，接著很細的水聲，斷了一次，又接上。不能操作。）
@@ -120,18 +146,19 @@ export const OPENING_LINES = {
     { who: 'deshu', text: '泡好了。坐下喝看看。', set: { portrait: true, deshu: null } },
   ],
 
-  // 第四幕：坐下後的閱讀框（背景是看得到窗的店內夜景，窗外暗下來）
+  // 第四幕：坐下後的閱讀框（背景是看得到窗的店內夜景；夜裡到東山，窗外已經是黑的）
   coffee: [
-    { who: 'deshu', text: '這個杯子沒有人用，以後就是妳的。', set: { portrait: true, deshu: null, cat: 'feetSeated', night: 0.35 } },
+    { text: '椅子是木頭的，機車騎一個多小時，我屁股麻到現在。', set: { portrait: false, deshu: 'stand', cat: 'feetSeated', night: 1 } },
+    { who: 'deshu', text: '這個杯子沒有人用，以後就是妳的。', set: { portrait: true, deshu: null } },
     { text: '他說完就回吧台，拿起那塊布，接著擦剩下的杯子。', set: { portrait: false, deshu: 'stand', cloth: true }, optional: 'cup' },
-    { text: '燙。我吹了兩下才喝。', set: { cloth: false, night: 0.55 } },
+    { text: '燙。我吹了兩下才喝。', set: { cloth: false } },
     { text: '苦味很短，吞下去以後嘴裡是甜的。' },
     { text: '哇，好久沒喝到現沖的咖啡了，早上在公司的那杯咖啡，忙完回頭喝都冷掉了。' },
-    { text: '我兩隻手捧著杯子，沒有放下來。', set: { night: 0.75 } },
+    { text: '我兩隻手捧著杯子，沒有放下來。' },
     { text: '龍眼跳上對面那張椅子，踩兩圈，趴下。', set: { cat: 'across' }, sfx: ['hop'] },
     { who: 'me', text: '我今天只是先來看看。' },
     { who: 'deshu', text: '好。', set: { portrait: true, deshu: null } },
-    { text: '我把咖啡喝完，杯子留在桌上。', set: { portrait: false, deshu: 'stand', night: 1 }, sfx: ['place'] },
+    { text: '我把咖啡喝完，杯子留在桌上。', set: { portrait: false, deshu: 'stand' }, sfx: ['place'] },
     { who: 'me', text: '那我先回去了，改天再來。' },
     { who: 'deshu', text: '出去那段路沒有路燈，騎車小心。', set: { portrait: true, deshu: null } },
   ],
@@ -140,6 +167,7 @@ export const OPENING_LINES = {
   ride: [
     { text: '過了第一個彎，後照鏡裡就看不到那盞燈了。', gate: 'hold' },
     { text: '車燈只照得到前面一小塊柏油，兩邊是果園還是水溝，我看不出來。', gate: 'hold' },
+    { text: '來的時候天就已經黑了，我是跟著導航騎上來的，沒在記路。', gate: 'hold' },
     { text: '現在手機夾在龍頭上，導航一直轉圈圈，訊號剩一格。', gate: 'hold' },
   ],
   // 岔路：點左邊或右邊（哪一邊後面的字都一樣）
@@ -167,8 +195,9 @@ export const OPENING_LINES = {
     { who: 'deshu', text: '右邊護龍第一間整理好了，棉被下午曬過。' },
     { who: 'me', text: '我什麼都沒帶。' },
     { who: 'deshu', text: '櫃子裡有毛巾。' },
+    { who: 'deshu', text: '我也住在這間三合院，晚上有什麼事，妳喊一聲我就聽得到。門平常沒在鎖，妳要鎖的話，裡面有門閂。' },
   ],
-  // 庭埕 → 護龍的房間 → 躺下 → 第一晚睡前自白（劇本 v4.4，A 版）→ 睡著
+  // 庭埕 → 護龍的房間 → 躺下 → 第一晚睡前自白（劇本 v5.8）→ 睡著
   // 第 2 句起是自白（mono）：畫面是躺下的視角（lying）；自白期間有「跳過自白」。
   // 舊存檔停在第 2 句（舊的睡著句）會落到自白第一句：人已經躺下，接著看自白。
   // 最後一句（sleep）一出現就自動存檔成第一天早上。
@@ -177,10 +206,12 @@ export const OPENING_LINES = {
     { text: '房間不大。我把鑰匙從口袋拿出來，放在枕頭旁邊。', set: { place: 'room' }, optional: 'bed' },
     { text: '外面有蟲在叫，遠一點的地方有狗叫了幾聲，又停了。', set: { lying: true }, mono: true },
     { text: '棉被真的有曬過，德叔沒有騙我。', mono: true },
+    { text: '蓋起來暖暖的，跟我在市區拿去投幣烘衣機、剛烘好拿出來的棉被一樣暖。', mono: true },
     { text: '可是他說老老闆交代過，要留一個房間讓我睡。', mono: true },
     { text: '老老闆怎麼會知道我今天晚上回不去？', mono: true },
     { text: '我連老老闆是誰都還沒搞清楚，就先睡在他留給我的房間裡了。', mono: true },
     { text: '今天下班前我才跟公司說我不做了，現在躺在這裡，覺得那好像是好幾天以前的事。', mono: true },
+    { text: '明天早上看到德叔，我要先問他老老闆的事。', mono: true },
     { text: '我本來只想躺一下，燈還沒關就睡著了。', mono: true, sleep: true },
   ],
 };

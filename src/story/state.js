@@ -5,31 +5,36 @@ import { sequence, listChoices, END_ID } from './script.js';
 import { OPENING_LINES } from '../lines/opening.js';
 import { DAY_LINES, DAY_ACTS } from '../lines/days.js';
 
-// 存檔格式版本。換成劇本 v5.6 仍維持 1（不升版）：升版會把「正在玩 v5.6 開場／第一天」的新存檔也打回開頭。
-// 舊 v4.5 的存檔改由幕名判斷：舊幕名照 LEGACY_ACTS 接；跟新版同名的 d2cafe 用舊欄位分辨（isLegacyD2cafe）。
+// 存檔格式版本。換成劇本 v5.8 仍維持 1（不升版）：升版會把「正在玩的」新存檔也打回開頭。
+// 舊存檔改由幕名判斷：舊幕名照 LEGACY_ACTS 接；跟新版同名的 d2cafe 用 v4.5 的舊欄位分辨（isLegacyD2cafe）。
+// 幕名與 v5.6 相同（v5.8 只改字與互動），v5.6 存檔照原樣接著讀；句子進度夾在新的句數之內。
 export const SCHEMA = 1;
 // 可玩流程各幕（只往前；幕 id 會存進存檔，不要改名）：
-//   開場（劇本 v3.8／v3.9，第一晚自白 v4.4 A 版）：
-//   office 辦公室 → title 標題 → mailbox 信箱 → letter 信 → road 三合院外（傍晚，推門）→ deshu 店裡站著（到「泡好了」）
-//   → sit 店內 360 點椅子 → coffee 坐下喝咖啡（閱讀框）→ depart 三合院外（晚上，發動）→ ride 黑路（按住騎）→ fork 岔路
-//   → temple 工寮與土地公廟（掉頭回去）→ return 回三合院外（再推門）→ stay 店裡（晚上）→ room 庭埕、護龍房間、第一晚自白
-//   第一天～研發咖啡（劇本 v5.6，lines/days.js）：d1wake 護龍早上 → d1shop 店裡挽留 → d1town 下山、信箱、房東 → d1home 房間盤點
-//   → d1bank 提款機 → d1store 超商 → d2card 字卡「第二天」→ d2cafe 回咖啡館 → d5card 字卡「三天後」→ d5cafe 咖啡館
+//   開場（劇本 v5.8＝v5.7 原字）：
+//   office 辦公室（離職申請單）→ title 標題（下班）→ mailbox 租屋處房間、點信封（幕 id 沿用）→ letter 信 → road 三合院外（夜裡，推門）
+//   → deshu 店裡站著（到「泡好了」）→ sit 店內 360 點椅子 → coffee 坐下喝咖啡（閱讀框）→ depart 三合院外（晚上，發動）→ ride 黑路（按住騎）
+//   → fork 岔路 → temple 工寮與土地公廟（掉頭回去）→ return 回三合院外（再推門）→ stay 店裡（晚上）→ room 庭埕、護龍房間、第一晚自白
+//   第一天～研發咖啡（劇本 v5.8，lines/days.js）：d1wake 護龍早上 → d1shop 店裡（鑰匙沒還成）→ d1town 下山、信箱、房東 → d1home 房間盤點
+//   → d1bank 提款機 → d1store 超商 → d2card 字卡「第二天」→ d2cafe 第二天　回咖啡館 → d5card 字卡「三天後」→ d5cafe 咖啡館
 //   → d5village 市調、坤伯院子 → d5thanks 坤伯來答謝 → d5brew 研發咖啡 → tbc 待續（帶咖啡去公司之前，這次切片到此）
 //   第一晚之後不再睡護龍、沒有睡前自白（只有開場的 room 有）。
 // 舊存檔的 end（舊版第一晚之後的待續）已不在列表裡：讀檔時接到第一天早上（d1wake）。
-// 舊版（劇本 v4.5）第一～四天的幕名不在列表裡：讀檔時照 LEGACY_ACTS 接到新流程（該幕第 0 句）。
-// 舊第二～四天的劇情跟新版對不上，接到第一天早上（d1wake）重走新版第一天，不必重走開場辭職。
+// 舊版的幕名（v4.5、v5.7 未提交版）不在列表裡：讀檔時照 LEGACY_ACTS 接到新流程（該幕第 0 句）。
 // 三天 AVG 模組保留，但只有 enterStory() 會進去，執行畫面不呼叫。
 export const END_ACT = 'tbc';
 export const LEGACY_END = 'end';
 export const OPENING_ACTS = ['office', 'title', 'mailbox', 'letter', 'road', 'deshu', 'sit', 'coffee', 'depart', 'ride', 'fork', 'temple', 'return', 'stay', 'room', ...DAY_ACTS, END_ACT];
 export const FORK_SIDES = ['left', 'right'];
-// 舊版（劇本 v4.5）的幕 → 新流程的幕（從第 0 句開始）。
-//   d1cafe／d1night（舊：補完摺回店、睡前）→ d1store（超商下決心；新流程裡同一天剛補刷完）
-//   第二～四天（舊：洗把臉、公司、第十二頁、相機）→ d1wake（第一天早上，跟舊待續 end 同方向）
-//   舊 d2cafe 跟新版同名、已在 OPENING_ACTS 裡，不在這張表：見 isLegacyD2cafe
+// 拿掉的幕 → 新流程的幕（從第 0 句開始）。
+//   v4.5：d1cafe／d1night（補完摺回店、睡前）→ d1store（超商下決心；新流程裡同一天剛補刷完）
+//         第二～四天（洗把臉、公司、第十二頁、相機）→ d1wake（第一天早上，跟舊待續 end 同方向）
+//         舊 d2cafe 跟新版同名、已在 OPENING_ACTS 裡，不在這張表：見 isLegacyD2cafe
+//   v5.7（中途停下、未提交的實作；定存、當天付房租、再上山、人資訊息、濾掛包都已作廢）：照劇情位置接到 v5.8 最近的下一幕
+//         d1rent／d1dusk／d1back（補摺之後的同一天）→ d1store；d1ride（第一天騎回住處）、d2home（第二天開頭）→ d2card；
+//         d2back（第二天回店）→ d2cafe；d2ride、d3card、d3morn（第二天之後）→ d5card
 export const LEGACY_ACTS = {
+  d1rent: 'd1store', d1dusk: 'd1store', d1back: 'd1store', d1ride: 'd2card', d2home: 'd2card', d2back: 'd2cafe',
+  d2ride: 'd5card', d3card: 'd5card', d3morn: 'd5card',
   d1cafe: 'd1store', d1night: 'd1store',
   d2wake: 'd1wake', d2shop: 'd1wake', d2town: 'd1wake', d2night: 'd1wake',
   d3wake: 'd1wake', d3shop: 'd1wake', d3town: 'd1wake', d3cafe: 'd1wake', d3night: 'd1wake',

@@ -11,9 +11,11 @@ import { artUrl } from './art-map.js';
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 export const TAP_GUARD_MS = 260; // 一句剛出來的一小段時間不收點（連點不會跳句）
+// 可選互動的提示字（劇本 v5.8「引導照通用提示規則」寫明的字）：熱點出現時顯示在閱讀框上方，點過就收起來
+export const HOT_HINTS = { cat: '摸摸龍眼', bed: '點床躺下' };
 export const SKIP_ARM_MS = 900; // 「跳過自白」出現後多久才收點
 export const SKIP_LABEL = '跳過自白';
-// 名牌：開場（德叔、我）＋第一天起（房東、坤伯、店長、店員）
+// 名牌：開場（德叔、我）＋第一天起（房東、店長、店員、坤伯）
 export const nameOf = (who) => (who ? SPEAKER_NAMES[who] || DAY_SPEAKERS[who] || '' : '');
 // 對白中間夾著的動作（劇本「……，」她比自己的下巴，「……」）：字照稿放，畫面上把夾在 」「 中間的那段用旁白的顏色
 export function lineHtml(text) {
@@ -38,6 +40,19 @@ export function createReader(root, app) {
   let shownAt = 0;
   let hots = [];
   let raf = 0;
+  let hintEl = null; // 提示字（第一次要用時才建，不改 index.html 的版面）
+  const setHint = (text) => {
+    if (!text) { if (hintEl) hintEl.hidden = true; return; }
+    if (!hintEl) {
+      if (!globalThis.document || !root.appendChild) return;
+      hintEl = document.createElement('p');
+      hintEl.className = 'opr-hint';
+      hintEl.setAttribute('aria-hidden', 'true');
+      root.appendChild(hintEl);
+    }
+    hintEl.textContent = text;
+    hintEl.hidden = false;
+  };
 
   const finish = (ok) => {
     const p = pending;
@@ -138,6 +153,8 @@ export function createReader(root, app) {
     hot(list) {
       cancelAnimationFrame(raf);
       hotLayer.innerHTML = '';
+      const hinted = list.find((h) => HOT_HINTS[h.id]);
+      setHint(hinted ? HOT_HINTS[hinted.id] : null);
       hots = list.map((h) => {
         const el = document.createElement('button');
         el.type = 'button';
@@ -149,6 +166,7 @@ export function createReader(root, app) {
           e.stopPropagation();
           if (el.disabled) return;
           if (!h.repeat) el.disabled = true;
+          if (HOT_HINTS[h.id]) setHint(null); // 點過就不再提示
           const done = h.onTap();
           if (h.repeat && done) el.disabled = true; // 要點好幾次的（抽屜、撥衣服）：做完才收起來
         };
