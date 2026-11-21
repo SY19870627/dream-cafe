@@ -5,7 +5,9 @@ import { sequence, listChoices, END_ID } from './script.js';
 import { OPENING_LINES } from '../lines/opening.js';
 import { DAY_LINES, DAY_ACTS } from '../lines/days.js';
 
-export const SCHEMA = 1; // 換成劇本 v5.6 的第一天～研發咖啡仍是 1：舊幕名讀檔時接到新位置（LEGACY_ACTS），不因版本數字打回開頭
+// 存檔格式版本。換成劇本 v5.6 仍維持 1（不升版）：升版會把「正在玩 v5.6 開場／第一天」的新存檔也打回開頭。
+// 舊 v4.5 的存檔改由幕名判斷：舊幕名照 LEGACY_ACTS 接；跟新版同名的 d2cafe 用舊欄位分辨（isLegacyD2cafe）。
+export const SCHEMA = 1;
 // 可玩流程各幕（只往前；幕 id 會存進存檔，不要改名）：
 //   開場（劇本 v3.8／v3.9，第一晚自白 v4.4 A 版）：
 //   office 辦公室 → title 標題 → mailbox 信箱 → letter 信 → road 三合院外（傍晚，推門）→ deshu 店裡站著（到「泡好了」）
@@ -16,7 +18,8 @@ export const SCHEMA = 1; // 換成劇本 v5.6 的第一天～研發咖啡仍是 
 //   → d5village 市調、坤伯院子 → d5thanks 坤伯來答謝 → d5brew 研發咖啡 → tbc 待續（帶咖啡去公司之前，這次切片到此）
 //   第一晚之後不再睡護龍、沒有睡前自白（只有開場的 room 有）。
 // 舊存檔的 end（舊版第一晚之後的待續）已不在列表裡：讀檔時接到第一天早上（d1wake）。
-// 舊版（劇本 v4.5）第一～四天的幕名不在列表裡：讀檔時照 LEGACY_ACTS 接到新流程裡最接近、不會卡住的位置（該幕第 0 句）。
+// 舊版（劇本 v4.5）第一～四天的幕名不在列表裡：讀檔時照 LEGACY_ACTS 接到新流程（該幕第 0 句）。
+// 舊第二～四天的劇情跟新版對不上，接到第一天早上（d1wake）重走新版第一天，不必重走開場辭職。
 // 三天 AVG 模組保留，但只有 enterStory() 會進去，執行畫面不呼叫。
 export const END_ACT = 'tbc';
 export const LEGACY_END = 'end';
@@ -24,13 +27,18 @@ export const OPENING_ACTS = ['office', 'title', 'mailbox', 'letter', 'road', 'de
 export const FORK_SIDES = ['left', 'right'];
 // 舊版（劇本 v4.5）的幕 → 新流程的幕（從第 0 句開始）。
 //   d1cafe／d1night（舊：補完摺回店、睡前）→ d1store（超商下決心；新流程裡同一天剛補刷完）
-//   第二～四天（舊：洗把臉、公司、第十二頁、相機）→ d2card（字卡「第二天」，接著回咖啡館）
+//   第二～四天（舊：洗把臉、公司、第十二頁、相機）→ d1wake（第一天早上，跟舊待續 end 同方向）
+//   舊 d2cafe 跟新版同名、已在 OPENING_ACTS 裡，不在這張表：見 isLegacyD2cafe
 export const LEGACY_ACTS = {
   d1cafe: 'd1store', d1night: 'd1store',
-  d2wake: 'd2card', d2shop: 'd2card', d2town: 'd2card', d2night: 'd2card',
-  d3wake: 'd2card', d3shop: 'd2card', d3town: 'd2card', d3cafe: 'd2card', d3night: 'd2card',
-  d4wake: 'd2card', d4shop: 'd2card', d4town: 'd2card', d4cafe: 'd2card', d4night: 'd2card',
+  d2wake: 'd1wake', d2shop: 'd1wake', d2town: 'd1wake', d2night: 'd1wake',
+  d3wake: 'd1wake', d3shop: 'd1wake', d3town: 'd1wake', d3cafe: 'd1wake', d3night: 'd1wake',
+  d4wake: 'd1wake', d4shop: 'd1wake', d4town: 'd1wake', d4cafe: 'd1wake', d4night: 'd1wake',
 };
+// 舊 v4.5 的 d2cafe：幕名跟新版「第二天・回咖啡館」一樣，用 v4.5 才有的欄位分辨（存摺選擇 passbook；
+// normalize 不保留這個欄位，所以新版存過的檔不會有）。是舊檔就接到 d1wake；新版的 d2cafe 照原樣接著讀。
+export const isLegacyD2cafe = (raw) => !!raw && raw.phase !== 'story' && raw.opening?.act === 'd2cafe'
+  && Object.prototype.hasOwnProperty.call(raw.opening, 'passbook');
 export const FIRST_PAGE = 'op-act4-1';
 // 每一幕的句子（開場＋第一～四天）
 export const ACT_LINES = { ...OPENING_LINES, ...DAY_LINES };
@@ -207,8 +215,9 @@ export function normalize(raw, source) {
     let act = raw.opening.act;
     const legacyEnd = act === LEGACY_END && raw.phase !== 'story';
     if (legacyEnd) act = DAY_ACTS[0]; // 舊版的待續（第一晚已經睡著）：不卡在舊待續、不重開，接到第一天早上
-    const legacyDay = raw.phase !== 'story' && typeof act === 'string' && Object.prototype.hasOwnProperty.call(LEGACY_ACTS, act);
-    if (legacyDay) act = LEGACY_ACTS[act]; // 舊版第一～四天的幕：接到新流程（第 0 句）
+    const legacyD2cafe = isLegacyD2cafe(raw);
+    const legacyDay = legacyD2cafe || (raw.phase !== 'story' && typeof act === 'string' && Object.prototype.hasOwnProperty.call(LEGACY_ACTS, act));
+    if (legacyDay) act = legacyD2cafe ? DAY_ACTS[0] : LEGACY_ACTS[act]; // 舊版第一～四天的幕：接到新流程（第 0 句）
     s.opening.act = OPENING_ACTS.includes(act) || act === 'done' ? act : 'office';
     s.opening.resignation = typeof raw.opening.resignation === 'string' ? raw.opening.resignation.slice(0, 20) : null;
     s.opening.name = typeof raw.opening.name === 'string' ? raw.opening.name.slice(0, 12) : '';

@@ -70,13 +70,12 @@ export const CUP = { status: 'ready', src: 'prop_cup' };
 export const PANO_ART = [...SHOP_ART];
 export const OPENING_SCENES = [...OPENING_ART];
 
-// 這一版實際會載入的全部檔名（不重複）
+// 這一版執行畫面實際會顯示的「開場＋店內」檔名（不重複）。
+// 上面 BACKGROUNDS／PORTRAITS／FOCUS／OLD_LADY 的舊三天 AVG 圖（雨房、山屋、公司大廳、阿桂、宜蓁、四張 prop_v3_*、遠處的老太太）
+// 只有 phase === 'story' 才會畫，執行畫面不會進去，所以不算進來、開機也不等（對照表與檔案都留著，三天模組測試還在用）。
+// scene_county_road（第一天下山）由 view/days.js 的 DAY_ART 在背景預載，不在這裡。
 export function allArt() {
   const out = new Set([...PANO_ART, ...OPENING_SCENES]);
-  for (const b of Object.values(BACKGROUNDS)) if (b.src) out.add(b.src);
-  for (const p of Object.values(PORTRAITS)) if (p?.src) out.add(p.src);
-  for (const f of Object.values(FOCUS)) if (f?.src) out.add(f.src);
-  out.add(OLD_LADY.src);
   out.add(CUP.src);
   for (const c of Object.values(CAT_SPOTS)) out.add(c.img);
   return [...out];

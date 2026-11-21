@@ -35,6 +35,26 @@ export function preload(names) {
   })));
 }
 
+// 背景預載：閒置時（requestIdleCallback，沒有就 setTimeout）一小批一小批載，不跟眼前的畫面搶。全部載完（或載不到）就 resolve。
+export function preloadIdle(names, { batch = 3, idle } = {}) {
+  const wait = idle || ((fn) => (globalThis.requestIdleCallback ? globalThis.requestIdleCallback(fn, { timeout: 1500 }) : setTimeout(fn, 120)));
+  const list = [...new Set(names)];
+  return new Promise((done) => {
+    let i = 0;
+    const step = () => {
+      if (i >= list.length) return done();
+      const part = list.slice(i, i + batch);
+      i += batch;
+      preload(part).then(() => wait(step));
+    };
+    wait(step);
+  });
+}
+// 先開始載（不等）：換幕前叫一下，還沒輪到背景預載的圖馬上開始抓
+export function warm(names) {
+  for (const n of names) img(n);
+}
+
 export const SHOP_ART = [
   'char_deshu_stand', 'char_deshu_brew', 'char_deshu_serve', 'cat_longan_sleep', 'cat_longan_sit', 'backbar',
   'window_day_clear', 'chair', 'prop_cup', 'pendant_lamp', 'kettleSet', 'plant', 'radio', 'bookshelf', 'tex_counter_front',

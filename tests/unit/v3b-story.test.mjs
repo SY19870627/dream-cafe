@@ -392,9 +392,17 @@ test('美術對照表：劇本的每個 background／portrait／focus 都查得�
 });
 
 test('新到的十張 v3 美術都接進對照表；外出背景沿用 county_road；有圖就不畫灰色人形', () => {
+  // 對照表仍接著這些舊三天 AVG 圖（下面的 src 斷言），檔案也都在；但執行畫面不會進 phase === 'story'，
+  // 所以 allArt()（開機預載）不再算它們。scene_county_road 是第一天下山的背景，由 view/days.js 的 DAY_ART 在背景預載。
   const art = new Set(allArt());
+  const files = new Set(readdirSync(root('assets/art')));
   for (const n of ['scene_v3_rain_room', 'scene_v3_mountain_hut', 'scene_v3_office_lobby', 'char_v3_agui_half', 'char_v3_junior_half', 'char_v3_old_lady_far',
-    'prop_v3_old_notebook', 'prop_v3_id_badge', 'prop_v3_handover_folder', 'prop_v3_cloth_bag', 'scene_county_road']) assert.ok(art.has(n), n);
+    'prop_v3_old_notebook', 'prop_v3_id_badge', 'prop_v3_handover_folder', 'prop_v3_cloth_bag']) {
+    assert.ok(!art.has(n), `allArt 不含不會顯示的 ${n}`);
+    assert.ok(files.has(`${n}.webp`), `${n}.webp 留著`);
+  }
+  assert.ok(files.has('scene_county_road.webp'));
+  assert.equal(OLD_LADY.src, 'char_v3_old_lady_far');
   assert.equal(BACKGROUNDS.rainRoom.src, 'scene_v3_rain_room');
   assert.equal(BACKGROUNDS.hut.src, 'scene_v3_mountain_hut');
   assert.equal(BACKGROUNDS.companyLobby.src, 'scene_v3_office_lobby');

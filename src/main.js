@@ -4,15 +4,16 @@
 // 沒有泡咖啡操作、機關、佈置模式、溫度計、倒數、自動跨天：每一句都由玩家點（或 Enter／Space）推進。
 // 劇本規則在 story/script.js、讀到哪一頁與選項在 story/state.js（純邏輯，有單元測試）；美術代號只查 story/manifest.js。
 import * as S from './story/state.js';
-import { load, persist as saveTo } from './story/save.js';
-import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, STORY_YAW, CAT_SPOTS, CUP, artUrl, allArt } from './story/manifest.js';
+import { load, persist as saveTo, resetFromUrl } from './story/save.js';
+import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, STORY_YAW, CAT_SPOTS, CUP, artUrl } from './story/manifest.js';
 import { Pano } from './view/pano.js';
 import { shopScene, TONE, WINDOW_TABLE, TABLE_CUP, SEATED, seatFit } from './view/shop.js';
 import { showOpening, showScene } from './view/opening.js';
-import { showDay, showCard, createProps, PLACES, DAY_ART, HOT_LABELS, cueOf } from './view/days.js';
+import { showDay, showCard, createProps, PLACES, HOT_LABELS, cueOf } from './view/days.js';
 import { createReader } from './view/reader.js';
 import { unlock, play, setAmbient, setEngine } from './view/audio.js';
-import { preload, img, ready } from './view/art.js';
+import { preload, preloadIdle, warm, img, ready } from './view/art.js';
+import { BOOT_ART, LATER_ART, actArt } from './view/boot-art.js';
 import { sceneAt } from './lines/opening.js';
 import { DAY_ACT_VIEW, DAY_TITLES, tapsOf } from './lines/days.js';
 import { debugOn } from './debug/flag.js'; // 只有這個除錯檔是靜態載入；面板本身在 ?debug=1 時才動態 import()
@@ -48,12 +49,14 @@ function fadeThen(fn, color = '#1a1612', ms = 650) {
   return sleep(ms).then(() => { fn(); return sleep(80); }).then(() => f.classList.remove('on'));
 }
 
+// 換畫面：清掉上一個畫面的 UI 與流程（跟網址 ?reset=1 清存檔無關，那個在開機的 resetFromUrl）
 function reset() {
   token++;
   onTap = null;
   renderedId = null;
   sceneCtl?.stop();
   sceneCtl = null;
+  pano.pause(); // 店內 360 先停：要畫店裡的畫面會 setScene，迴圈再接著跑；其他畫面（DOM、字卡、夜路）不再疊著畫
   cloth(false);
   reader.hide();
   props.hide();
@@ -523,6 +526,7 @@ async function dayScene(act) {
   const my = token;
   const lines = S.ACT_LINES[act];
   $('pano').hidden = true;
+  warm(actArt(lines)); // 這一幕的背景如果背景預載還沒輪到，現在先開始抓
   const ctl = showDay($('opening'), act, { state, lines });
   sceneCtl = ctl;
   let ambient = null;
@@ -821,18 +825,21 @@ $('log').addEventListener('click', (e) => e.stopPropagation());
 $('log').addEventListener('pointerdown', (e) => e.stopPropagation());
 
 /* ---------- 開機 ---------- */
+// 順序：網址 ?reset=1 →（要的話）清存檔 → load() → playable() → save() → 只等開場＋店內的圖 → 開機畫面 → 背景載第一天以後的圖
 fetch('src/story/final-source.json')
   .then((r) => r.json())
   .then((json) => {
     source = json;
+    resetFromUrl(); // ?reset=1：清 dream-cafe.v3b、把 reset 從網址拿掉（debug=1 等其他參數留著）
     state = S.playable(load(source)); // 舊版存到三天故事裡的存檔：回到開場開頭（不接著播第一天）
     save();
-    return preload([...new Set([...allArt(), ...DAY_ART])]);
+    return preload(BOOT_ART);
   })
   .then(() => {
     $('boot').remove();
     go();
     if (debugOn(location.search)) startDebug();
+    preloadIdle(LATER_ART); // 第一天以後的圖：閒置時在背景載（換幕前 dayScene 還會再補那一幕的背景）
   });
 
 /* ---------- 除錯（網址帶 ?debug=1 才有；沒帶時不載入、不碰 DOM、不發請求） ---------- */

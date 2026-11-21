@@ -69,11 +69,36 @@ export class Pano {
     this.flash = new Map(); // 物件 id → 亮一下的開始時間
     this.boxes = [];
     this.enabled = true;
+    // running：下一幀還在排（rAF）。離開店面（換畫面、#pano 藏起來）時 pause() 真的停排；setScene／resume() 再開始。
+    this.running = false;
+    this.raf = 0;
+    this.loop = () => {
+      this.raf = 0;
+      if (!this.running) return;
+      if (this.c.hidden) { this.pause(); return; } // #pano 藏起來了：不再空畫
+      this.frame();
+      if (this.running) this.raf = requestAnimationFrame(this.loop);
+    };
     this.bind();
     this.resize();
     addEventListener('resize', () => this.resize());
-    const loop = () => { this.frame(); requestAnimationFrame(loop); };
-    requestAnimationFrame(loop);
+    this.resume();
+  }
+
+  // 停掉畫面迴圈（不再排下一幀）。場景留著：回店時 setScene／resume() 接著畫；舊的可點範圍清掉，暫停中點不到看不見的東西
+  pause() {
+    this.running = false;
+    if (this.raf) globalThis.cancelAnimationFrame?.(this.raf);
+    this.raf = 0;
+    this.boxes = [];
+  }
+
+  // 繼續畫（已經在跑就不重複排）；canvas 可能剛從 hidden 出來，先量一次大小
+  resume() {
+    if (this.running) return;
+    this.running = true;
+    this.resize();
+    this.raf = requestAnimationFrame(this.loop);
   }
 
   resize() {
@@ -91,6 +116,7 @@ export class Pano {
     this.resize(); // canvas 可能剛從 hidden 變成看得見
     if (yaw != null) { this.yaw = yaw; this.turn = null; }
     this.vel = 0;
+    this.resume(); // 回到店裡：畫面迴圈接著跑
   }
 
   // 鏡頭慢慢轉到某個角度（開場演出用；玩家拖曳時取消）

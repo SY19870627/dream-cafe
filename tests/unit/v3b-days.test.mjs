@@ -449,7 +449,29 @@ test('舊存檔：v4.5 的第一～四天幕名接到新流程（不卡住）；
     walk(r, { stop: S.isOpeningEnd }); // 接得上、走得到待續
   }
   assert.equal(S.LEGACY_ACTS.d1cafe, 'd1store');
-  assert.equal(S.LEGACY_ACTS.d4night, 'd2card');
+  assert.equal(S.LEGACY_ACTS.d1night, 'd1store', '同一天超商，不回辦公室');
+  assert.equal(S.LEGACY_ACTS.d4night, 'd1wake');
+  for (const old of ['d2wake', 'd2shop', 'd2town', 'd2night', 'd3wake', 'd3shop', 'd3town', 'd3cafe', 'd3night', 'd4wake', 'd4shop', 'd4town', 'd4cafe', 'd4night']) {
+    assert.equal(S.LEGACY_ACTS[old], 'd1wake', `${old} 從第一天早上重走`);
+  }
+  assert.ok(!('d2cafe' in S.LEGACY_ACTS), 'd2cafe 跟新版同名，不放在對照表');
+  // d2cafe 同名：新版存檔（沒有 passbook）照原樣；v4.5 舊檔（有 passbook，就算是 null）接到第一天早上
+  const fresh = S.playable(S.normalize(at('d2cafe', 3, { fork: 'right', resignation: 'fire' }), SRC));
+  assert.equal(fresh.opening.act, 'd2cafe', '新版「第二天・回咖啡館」不被誤傷');
+  assert.equal(fresh.opening.line, 3);
+  assert.equal(S.isLegacyD2cafe(at('d2cafe', 3)), false);
+  for (const passbook of ['show', 'hide', null]) {
+    const raw = at('d2cafe', 7, { passbook, fork: 'left' });
+    assert.equal(S.isLegacyD2cafe(raw), true);
+    const o = S.playable(S.normalize(raw, SRC));
+    assert.equal(o.opening.act, 'd1wake', `舊 d2cafe（passbook=${passbook}）`);
+    assert.equal(o.opening.line, 0);
+    assert.equal(o.opening.fork, 'left');
+    assert.ok(!('passbook' in o.opening));
+    walk(o, { stop: S.isOpeningEnd });
+  }
+  // 新版存過一次（normalize 掉 passbook）之後再讀：還是 d2cafe
+  assert.equal(reload(fresh).opening.act, 'd2cafe');
   // 舊待續（第一晚已結束）：不卡在待續、不重開，接到第一天早上
   for (const raw of [at('end', 0), at('end', 7), { ...at('end', 0), opening: { act: 'end', resignation: 'fire', fork: 'left', deshuLine: 3 } }]) {
     const r = S.playable(S.normalize(raw, SRC));
@@ -469,7 +491,11 @@ test('舊存檔：v4.5 的第一～四天幕名接到新流程（不卡住）；
   // fake localStorage：舊檔存進去、讀回接得上
   const st = fakeStorage();
   st.setItem(SAVE_KEY, JSON.stringify(at('d3town', 40)));
-  assert.equal(S.playable(load(SRC, st)).opening.act, 'd2card');
+  assert.equal(S.playable(load(SRC, st)).opening.act, 'd1wake');
+  // 新版字卡「第二天」本身照原樣
+  assert.equal(S.playable(S.normalize(at('d2card', 0), SRC)).opening.act, 'd2card');
+  // phase story（三天故事）的 d3town 不走舊幕對照，回開頭
+  assert.deepEqual(S.playable(S.normalize({ ...at('d3town', 4), phase: 'story' }, SRC)), S.newStoryState());
   assert.deepEqual(S.normalize({ v: 2, phase: 'opening', opening: { act: 'd2cafe' } }, SRC), S.newStoryState(), '版本不是 1 才重來');
   assert.equal(S.SCHEMA, 1);
   const old = S.enterStory(S.newStoryState());
@@ -543,7 +569,6 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   }
   for (const act of D.DAY_ACTS.filter((a) => D.DAY_ACT_VIEW[a] === 'still')) for (const k of placesOf(D.DAY_LINES[act])) assert.ok(PLACES[k], `${act}：${k}`);
   for (const n of DAY_ART) assert.ok(n.includes('/') ? has(n) : files.has(`${n}.webp`), `缺 ${artUrl(n)}`);
-  assert.match(read('src/main.js'), /preload\(\[\.\.\.new Set\(\[\.\.\.allArt\(\), \.\.\.DAY_ART\]\)\]\)/);
   // 洗臉：鏡子裡是帶缺點的角色卡
   assert.equal(YIJUN_CARD.flawed, 'char_v3b_yijun_card_flawed_v4');
   assert.equal(yijunCardFor('d1wake'), YIJUN_CARD.flawed);
