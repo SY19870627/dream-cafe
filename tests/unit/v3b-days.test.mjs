@@ -493,7 +493,7 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   assert.equal(artUrl('scene_county_road'), 'assets/art/scene_county_road.webp', '舊圖仍在 assets/art/');
   assert.equal(artUrl('art-v56/B/bg_v56_store_interior_portrait'), 'assets/art-v56/B/bg_v56_store_interior_portrait.webp');
   // v5.6 定版背景：只用直式 1170×2532（_portrait；村子路用 _portrait_v2），拿掉 CSS 中性底
-  const BG = { bg_stairs: 'bg_v56_stairwell_portrait', bg_home: 'bg_v56_rental_room_day_portrait', bg_atm: 'bg_v56_bank_atm_portrait',
+  const BG = { bg_room_morning: 'bg_v56_hulong_morning_portrait', bg_stairs: 'bg_v56_stairwell_portrait', bg_home: 'bg_v56_rental_room_day_portrait', bg_atm: 'bg_v56_bank_atm_portrait',
     bg_store: 'bg_v56_store_interior_portrait', bg_village: 'bg_v56_village_lane_portrait_v2', bg_kunyard: 'bg_v56_kunbo_yard_portrait' };
   for (const [id, f] of Object.entries(BG)) {
     assert.equal(ART_MAP[id].status, 'ready', id);

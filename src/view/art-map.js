@@ -20,7 +20,7 @@ const V56 = { A: 'art-v56/A', B: 'art-v56/B', C: 'art-v56/C' };
 
 export const ART_MAP = {
   /* ---------- 背景（整張直式圖，1170×2532） ---------- */
-  bg_room_morning: { use: '第一天早上：護龍房間（唯一一次在護龍醒來）', planned: 'scene_v3b_room_morning', status: 'temp', src: 'scene_v3b_room_night', temp: '護龍夜景原圖＋顯示時疊早晨色調（不改原圖）' },
+  bg_room_morning: { use: '第一天早上：護龍房間（唯一一次在護龍醒來）', planned: 'bg_v56_hulong_morning_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_hulong_morning_portrait' },
   bg_basin: { use: '第一天早上：洗臉（鏡子裡是帶缺點的角色卡）', planned: 'scene_v3b_basin_morning', status: 'temp', src: 'scene_v3b_room_night', temp: '護龍原圖上疊 CSS 洗手台與鏡子，鏡子裡放 char_v3b_yijun_card_flawed_v4' },
   bg_road: { use: '下山的路，接省道進市區', planned: 'scene_county_road', status: 'ready', src: 'scene_county_road' },
   bg_mailbox: { use: '租屋處信箱（可點，空的）', planned: 'scene_mailboxes', status: 'ready', src: 'scene_mailboxes' },

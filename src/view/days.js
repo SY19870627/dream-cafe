@@ -19,7 +19,7 @@ const art = (ref) => artUrl(ref); // 舊圖檔名 → assets/art/；art-v56/… 
 //   tone：morning 早上／dusk 傍晚（只在顯示時疊一層光，不改原圖）；fit：wide＝橫式原圖（信箱）
 const placeOf = (slot, extra = {}) => ({ slot, src: srcOf(slot), ...extra });
 export const PLACES = {
-  roomMorning: placeOf('bg_room_morning', { tone: 'morning', ambient: 'room' }), // 暫代：護龍夜景＋早晨色調
+  roomMorning: placeOf('bg_room_morning', { ambient: 'room' }), // 護龍早上定版背景，不再疊早晨色調
   basin: placeOf('bg_basin', { tone: 'morning', ambient: 'room', basin: true }), // 暫代：CSS 洗手台與鏡子
   road: placeOf('bg_road', { ambient: 'wind' }), // 下山、省道
   mailbox: placeOf('bg_mailbox', { fit: 'wide', ambient: 'wind' }), // 租屋處信箱（沿用開場第二幕）
