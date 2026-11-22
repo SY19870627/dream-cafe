@@ -1,7 +1,8 @@
 // 店內 2D 定景（取代已拔掉的店內環景；承峰 2026-11-21 20:48「把 3D 拿掉，查看店內景象的功能也拔除」，23:14 點頭的做法）。
 // 一張整張直式靜照（1170×2532）＋疊上去的德叔（不說話時）、龍眼、桌上的杯子、點椅子坐下的那張椅子、吧台檯面。
 // 背景圖只從 art-map.js 的常數來（換圖只改那裡的 src）：
-//   進門／站在店裡（deshu、sit、stay、第一天起的店裡）＝SHOP_STILL_NIGHT／SHOP_STILL_DAY → scene_shop_interior_night_lit_v2（承峰 2026-11-21 23:47 定版）
+//   進門／站在店裡（deshu、sit、stay、晚上回來）＝SHOP_STILL_NIGHT → scene_shop_interior_night_lit_v2（承峰 2026-11-21 23:47 定版）
+//   第一天起早上的店裡＝SHOP_STILL_DAY → art-v59/scene_shop_interior_day_v1（承峰 2026-11-22 17:20 接進遊戲；與 v2 同構圖，位置共用）
 //   點了椅子、坐下喝咖啡（coffee，opts.seated）＝SHOP_STILL_SEATED → scene_v3b_shop_window_night_seated（靠窗特寫）
 // 兩張的構圖不同，位置分兩套：*_STAND／SHOP_CHAIR／SHOP_BAR 對準 v2；SHOP_WINDOW／SHOP_CUP／CAT_2D.feetSeated／CAT_2D.across 對準靠窗特寫。
 // 位置都是 .op-art 的百分比（相對 1170×2532 整張圖）。
@@ -12,24 +13,25 @@ import { srcOf, artUrl, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY } fr
 const art = (ref) => artUrl(ref);
 
 /* ---------- 進門／站著：對準 scene_shop_interior_night_lit_v2 ---------- */
-// 點椅子坐下的目標：對準 scene_shop_interior_night_lit_v2 最靠近鏡頭、右側桌前、椅背朝鏡頭、紅墊的那張椅子
-// （約 x 760–1111、y 1139–1645，含靠背與椅座，方便點；承峰 23:47 定版後建議的熱區）
-export const SHOP_CHAIR = { left: 65, top: 45, width: 30, height: 20 };
-// v2 左側那扇窗的玻璃（約 x 25–355、y 470–955）：早上／傍晚在窗裡疊一層天色（原圖窗外是晚上）
+// 點椅子坐下的目標：對準 v2 左側靠窗那張桌的椅子（承峰 2026-11-22 17:15「坐下那一幕移到靠窗那張」）
+// （約 x 199–491、y 1089–1620，含靠背與椅座，方便點；椅座約 y 1310–1430）
+export const SHOP_CHAIR = { left: 17, top: 43, width: 25, height: 21 };
+// v2 左側那扇窗的玻璃（約 x 25–355、y 470–955）：傍晚在窗裡疊一層天色（原圖窗外是晚上；早上用白天圖，不疊）
 export const SHOP_WINDOW_STAND = { left: 2.1, top: 18.6, width: 28.2, height: 19.2 };
 // v2 右側吧台的檯面（一排白杯子與磨豆機那條檯面，約 x 440–1170、y 880–1015）：第二天「把鑰匙放到吧台」的放置目標
 export const SHOP_BAR = { left: 37.6, top: 34.8, width: 62.4, height: 5.3 };
 // 吧台檯面的高度（約 y 965）：德叔站在吧台後面時，這條線以下被吧台擋住（clip）
 const BAR_TOP = 38.1;
-// 桌上的杯子（prop_cup，站著看）：右側那張桌子靠左的桌角（約 x 760、桌面 y 1296），不被椅背擋住
-export const SHOP_CUP_STAND = { x: 65, y: 51.2, h: 3.6 };
+// 桌上的杯子（prop_cup，站著看）：左側靠窗桌面上、白色馬克杯盆栽的右手邊（盆栽右緣約 x 11%，杯身左緣約 x 18%，
+// 中間有空隙、不重疊）；杯底中心約 x 257、y 1258；整杯在桌面上，把手朝右
+export const SHOP_CUP_STAND = { x: 22.0, y: 49.7, h: 3.6 };
 // 德叔不說話時站在畫面裡的樣子（立繪出來時這裡不畫，不會同時兩個德叔）：腳底中心 x、腳底 y、身高（佔原圖高）
 // clip：這條 y 以下被吧台擋住（站在吧台後面；腳底在吧台後的地板約 y 1300）
 export const DESHU_2D = {
   stand: { img: 'char_deshu_stand', x: 85.5, y: 51.3, h: 24, clip: BAR_TOP }, // 吧台後面、磨豆機旁
   brew: { img: 'char_deshu_brew', x: 85.5, y: 51.3, h: 24, clip: BAR_TOP },
   broom: { img: 'char_deshu_broom', x: 38, y: 70, h: 41 }, // 晚上回來：拿著掃把，站在兩張桌子之間的地上
-  serveTable: { img: 'char_deshu_serve', x: 40, y: 67, h: 40 }, // 端杯子走到右側那張桌子旁（杯子在他右手邊的桌角）
+  serveTable: { img: 'char_deshu_serve', x: 40, y: 67, h: 40 }, // 端杯子走到兩張桌子之間（站位沿用舊值，這次沒改；杯子已改放在左側靠窗桌，見 SHOP_CUP_STAND）
 };
 // 龍眼：x＝貓圖中心、y＝腳線、w＝貓圖寬（佔原圖寬；貓圖都是 512×384、腳線對齊）。閱讀框蓋住原圖約 78% 以下，地上的位置放在框的上緣。
 // seq：照劇本換動作（每一步的原圖、停多久；dy 是貓圖高的比例、s 是放大）
@@ -70,10 +72,11 @@ let petted = false; // 這次開著的頁面裡摸過龍眼了（摸過就不再
 export function resetPet() { petted = false; }
 
 const pct = (n) => `${n}%`;
-// 第 i 句的天色：morning 早上／dusk 傍晚（night 0–1 越來越暗）／晚上（night 1：原圖的夜色，不再壓暗）
+// 第 i 句的天色：morning 早上（用白天正式圖 SHOP_STILL_DAY，光線與窗外已畫好，不疊：alpha 0）／
+// dusk 傍晚（夜圖上疊，night 0–1 越來越暗）／晚上（night 1：原圖的夜色，不再壓暗）
 export function skyOf(look = {}) {
   const night = look.night || 0;
-  if (look.tone === 'morning' && !night) return { kind: 'morning', alpha: 0.7 };
+  if (look.tone === 'morning' && !night) return { kind: 'morning', alpha: 0 };
   const alpha = Math.max(0, 1 - night) * 0.9;
   return { kind: 'dusk', alpha: Number(alpha.toFixed(3)) };
 }

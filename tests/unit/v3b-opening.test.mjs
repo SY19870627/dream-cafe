@@ -614,7 +614,8 @@ test('美術：用到的原圖都在 assets/art 且有預載；不再疊「175�
   const used = new Set([...OPENING_ART, ...SHOP_ART]);
   for (const m of (view + main).matchAll(/art\('([\w]+)'\)|img: '([\w]+)'|img\('([\w]+)'\)|src: '([\w]+)'/g)) used.add(m[1] || m[2] || m[3] || m[4]);
   for (const pose of ['stand', 'brew', 'serve', 'broom']) used.add(`char_deshu_${pose}`);
-  for (const n of used) assert.ok(files.has(`${n}.webp`), `缺 ${n}.webp`);
+  // 舊圖在 assets/art/；有斜線的參照（例：白天店內圖 art-v59/…）照 artUrl 在 assets/ 底下
+  for (const n of used) assert.ok(n.includes('/') ? existsSync(root(`assets/${n}.webp`)) : files.has(`${n}.webp`), `缺 ${n}.webp`);
   for (const n of ['key', 'cat_longan_walk', 'cat_longan_sleep', 'cat_longan_sit']) assert.ok(OPENING_ART.includes(n) || SHOP_ART.includes(n), `${n} 沒有預載`);
   // 店內 2D 定景用到的圖都開機預載；店內環景的貼圖不再預載
   const shopImgs = [srcOf(SHOP_STILL_NIGHT), srcOf(SHOP_STILL_SEATED), srcOf(SHOP_STILL_DAY), 'prop_cup', 'char_v3b_yijun_hand_v2', 'cat_longan_headbump_v2', 'cat_longan_lick_paw_v2',
@@ -791,8 +792,12 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   assert.match(shop, /srcOf\(stillOf\(look, seated\)\)/);
   assert.deepEqual(skyOf({ night: 1 }), { kind: 'dusk', alpha: 0 }, '晚上：原圖的夜色，不再疊壓暗濾鏡');
   assert.equal(skyOf({ tone: 'dusk', night: 0 }).alpha, 0.9);
-  assert.equal(skyOf({ tone: 'morning' }).kind, 'morning');
+  assert.equal(skyOf({ tone: 'dusk' }).alpha, 0.9, '傍晚（night 未設）仍在夜圖的窗上疊天色');
+  // 早上用白天正式圖（光線與窗外白天已畫好）：不再疊天色濾鏡
+  assert.deepEqual(skyOf({ tone: 'morning' }), { kind: 'morning', alpha: 0 }, '早上不疊天色');
   assert.equal(stillOf({ tone: 'morning' }), SHOP_STILL_DAY);
+  assert.equal(stillOf({ tone: 'dusk' }), SHOP_STILL_NIGHT, '傍晚仍用夜圖');
+  assert.equal(stillOf({ tone: 'dusk', night: 1 }), SHOP_STILL_NIGHT);
   assert.equal(stillOf({ night: 1 }), SHOP_STILL_NIGHT);
   assert.match(main, /showShop\(\$\('opening'\), act, \{ seated: act === 'coffee' \}\)/);
   // 劇本 v5.7：坐下後窗外已經是黑的（夜裡到東山）；店裡站著那一段窗外也是夜色
@@ -911,16 +916,31 @@ test('點貓的手（_v2）從上方伸進來、指尖落在頭頂（2D：CSS �
 test('店內 2D 定景：定版圖 v2 上的椅子（點椅子坐下的目標）、吧台、窗、杯子、德叔、龍眼都在圖內；坐下時德叔說話站右手邊', () => {
   assert.equal(ART_MAP[SHOP_STILL_NIGHT].status, 'ready');
   assert.equal(ART_MAP[SHOP_STILL_SEATED].status, 'ready');
-  assert.equal(ART_MAP[SHOP_STILL_DAY].status, 'temp', '早上正式圖未到');
+  assert.equal(ART_MAP[SHOP_STILL_DAY].status, 'ready', '早上用白天正式圖（承峰 2026-11-22 17:20）');
+  assert.ok(!('temp' in ART_MAP[SHOP_STILL_DAY]), '白天圖不再寫暫代');
   for (const r of [SHOP_CHAIR, SHOP_WINDOW, SHOP_WINDOW_STAND, SHOP_BAR]) {
     assert.ok(r.left >= 0 && r.top >= 0 && r.left + r.width <= 100 + 1e-9 && r.top + r.height <= 100, JSON.stringify(r));
   }
-  // 椅子：對準 v2 最靠近鏡頭、右側桌前、紅墊的那張（約 x 760–1111、y 1139–1645；椅座約 y 1220–1430 在熱區裡）
-  assert.deepEqual(SHOP_CHAIR, { left: 65, top: 45, width: 30, height: 20 });
-  assert.ok(SHOP_CHAIR.top <= (1220 / 2532) * 100 && SHOP_CHAIR.top + SHOP_CHAIR.height >= (1430 / 2532) * 100, '椅座在熱區裡');
-  assert.match(read('src/view/shop-still.js'), /點椅子坐下的目標：對準 scene_shop_interior_night_lit_v2/);
+  // 椅子：對準 v2 左側靠窗那張桌的椅子（承峰 17:15「坐下那一幕移到靠窗那張」；約 x 199–491、y 1089–1620；椅座約 y 1310–1430 在熱區裡）
+  assert.deepEqual(SHOP_CHAIR, { left: 17, top: 43, width: 25, height: 21 });
+  assert.ok(SHOP_CHAIR.top <= (1310 / 2532) * 100 && SHOP_CHAIR.top + SHOP_CHAIR.height >= (1430 / 2532) * 100, '椅座（y）在熱區裡');
+  assert.ok(SHOP_CHAIR.left <= (199 / 1170) * 100 + 0.5 && SHOP_CHAIR.left + SHOP_CHAIR.width >= (491 / 1170) * 100 - 0.5, '椅子（x）在熱區裡');
+  assert.ok(SHOP_CHAIR.left + SHOP_CHAIR.width < SHOP_BAR.left + 10 && SHOP_CHAIR.left < 35, '是左側靠窗那張，不是右側桌');
+  assert.match(read('src/view/shop-still.js'), /點椅子坐下的目標：對準 v2 左側靠窗那張桌的椅子/);
+  assert.doesNotMatch(read('src/view/shop-still.js'), /最靠近鏡頭、右側桌前/);
+  // 杯子（站著看）：靠窗桌面上、白色馬克杯盆栽（右緣約 x 11%）的右手邊，不重疊；杯底中心約 (257, 1258)，杯高 3.6
+  assert.deepEqual(SHOP_CUP_STAND, { x: 22.0, y: 49.7, h: 3.6 });
+  assert.ok(Math.abs(SHOP_CUP_STAND.x - (257 / 1170) * 100) < 0.5 && Math.abs(SHOP_CUP_STAND.y - (1258 / 2532) * 100) < 0.5);
+  {
+    // prop_cup 600×420、杯高 h（佔原圖高）：杯寬（佔原圖寬）＝h × 2532/1170 × 600/420；translateX(-50%) → 左緣 x − 寬/2
+    const w = SHOP_CUP_STAND.h * (2532 / 1170) * (600 / 420);
+    assert.ok(SHOP_CUP_STAND.x - w / 2 > 11 + 1, `杯子左緣 ${(SHOP_CUP_STAND.x - w / 2).toFixed(1)}% 離盆栽（右緣約 11%）有空隙`);
+    assert.ok(SHOP_CUP_STAND.x + w / 2 < (491 / 1170) * 100, '杯子在靠窗桌上');
+  }
   assert.deepEqual(webpSize(readFileSync(root('assets/art/scene_shop_interior_night_lit_v2.webp'))), [1170, 2532], '定版圖原尺寸');
-  assert.ok(SHOP_ART.includes('scene_shop_interior_night_lit_v2') && SHOP_ART.includes('scene_v3b_shop_window_night_seated'), '兩張店內圖都開機預載');
+  assert.equal(srcOf(SHOP_STILL_DAY), 'art-v59/scene_shop_interior_day_v1');
+  assert.deepEqual(webpSize(readFileSync(root('assets/art-v59/scene_shop_interior_day_v1.webp'))), [1170, 2532], '白天店內圖原尺寸');
+  assert.ok(SHOP_ART.includes('scene_shop_interior_night_lit_v2') && SHOP_ART.includes('scene_v3b_shop_window_night_seated') && SHOP_ART.includes('art-v59/scene_shop_interior_day_v1'), '三張店內圖都開機預載');
   // 吧台檯面（一排杯子與磨豆機，約 y 880–1015）；德叔站在吧台後面，檯面以下被擋住
   assert.ok(Math.abs(SHOP_BAR.top - (880 / 2532) * 100) < 1 && Math.abs(SHOP_BAR.top + SHOP_BAR.height - (1015 / 2532) * 100) < 1);
   for (const k of ['stand', 'brew']) {

@@ -28,6 +28,7 @@ export const PLACES = {
   stairs: placeOf('bg_stairs', { ambient: 'room' }), // v5.6 定版：樓梯間
   home: placeOf('bg_home', { ambient: 'room', home: true }), // v5.6 定版：八月的租屋房間
   atm: placeOf('bg_atm', { ambient: 'wind' }), // v5.6 定版：銀行外的提款機
+  black: placeOf('bg_black', { ambient: 'wind' }), // v5.9：提款機淡出後的黑底（src null → .dy-css-black，純黑；切到超商時 .dy-place 的 opacity 淡入）
   store: placeOf('bg_store', { ambient: 'lobby', store: true }), // 定版：超商（bg_v56_store_interior_seating_portrait；徵人海報是座位區後牆上那張有框的空白海報，程式疊字）
   village: placeOf('bg_village', { ambient: 'wind', village: true }), // v5.6 定版：村子路（_portrait_v2）
   kunyard: placeOf('bg_kunyard', { ambient: 'wind', yard: true }), // v5.6 定版：坤伯院子

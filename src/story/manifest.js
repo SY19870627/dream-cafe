@@ -7,10 +7,11 @@ import { SHOP_ART, OPENING_ART } from '../view/art.js';
 import { srcOf, SHOP_STILL_NIGHT, SHOP_STILL_DAY } from '../view/art-map.js';
 
 export const ART_DIR = 'assets/art/';
-export const artUrl = (name) => `${ART_DIR}${name}.webp`;
+// 帶資料夾的參照（例：店內白天圖 art-v59/scene_shop_interior_day_v1）在 assets/ 底下照子路徑（與 view/art-map.js 的 artUrl 一致）
+export const artUrl = (name) => (String(name).includes('/') ? `assets/${name}.webp` : `${ART_DIR}${name}.webp`);
 
 // 背景：都是整張直式背景（1170×2532，下方約 30% 會被閱讀框蓋住）。
-// 店內環景已拔掉（承峰 2026-11-21 20:48）：店內也是靜照（kind: 'still'），用 art-map.js 的店內定景（SHOP_STILL_DAY／SHOP_STILL_NIGHT；早上暫用晚上的定版圖）
+// 店內環景已拔掉（承峰 2026-11-21 20:48）：店內也是靜照（kind: 'still'），用 art-map.js 的店內定景（SHOP_STILL_DAY／SHOP_STILL_NIGHT；早上是 art-v59 的白天正式圖）
 export const BACKGROUNDS = {
   shopMorning: { status: 'ready', kind: 'still', src: srcOf(SHOP_STILL_DAY), tone: 'morning', ambient: 'shop', base: '#2a1d16' },
   shopEvening: { status: 'ready', kind: 'still', src: srcOf(SHOP_STILL_NIGHT), tone: 'dusk', ambient: 'shop', base: '#2a1d16' },

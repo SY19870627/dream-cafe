@@ -286,6 +286,65 @@ test('房東只提醒下禮拜交房租；錢是爸開的戶頭、壓歲錢、�
   for (const w of ['這個月的房租，妳什麼時候要給我', '今天一定拿給您', '這個月的房租，您點一下。', '下個月不要再讓我來討。', '有錢就早點拿出來嘛']) assert.ok(!all.some((t) => t.includes(w)), w);
 });
 
+test('承峰 2026-11-22 17:15 核准的三處補句：超商轉場（黑底三句＋進門一句）、斗笠鋪陳、坤伯離開；原句一字不改', () => {
+  // 3a. 超商轉場：提款機淡出到黑底，三句在黑底上；第四句淡入超商、進門音效
+  const store = D.DAY_LINES.d1store;
+  assert.deepEqual(store.slice(0, 5).map((b) => [b.who, b.text]), [
+    [undefined, '我離開提款機，往回家的方向走。'],
+    [undefined, '外面很熱，走沒多久就一身汗。'],
+    [undefined, '前面有一間超商。進去吹個冷氣，順便買瓶水好了。'],
+    [undefined, '我才剛走進去，就聽到店裡有人講話很大聲。'],
+    ['storeManager', '這個昨天就過期了，你是沒在看喔？'],
+  ]);
+  assert.equal(store[0].set.place, 'black', '前三句在黑底');
+  for (let i = 0; i < 3; i++) assert.equal(OP.sceneAt(store, i).place, 'black', `第 ${i} 句黑底`);
+  assert.equal(store[3].set.place, 'store', '第四句淡入超商');
+  assert.deepEqual(store[3].sfx, ['ding'], '進門音效移到第四句');
+  assert.ok(!store[4].sfx && !store[4].set, '店長那句不再帶進門音效、不再換場景');
+  for (let i = 3; i < store.length; i++) assert.equal(OP.sceneAt(store, i).place, 'store');
+  assert.deepEqual(placesOf(store), ['black', 'store']);
+  assert.equal(PLACES.black.src, null, '黑底不用圖');
+  assert.equal(ART_MAP[PLACES.black.slot].status, 'none');
+  const html = read('index.html');
+  assert.match(html, /\.dy-place\[data-place="black"\], \.dy-css\.dy-css-black \{ background: #000; \}/, '黑底是純黑，不是淺色的 .dy-css 底');
+  assert.match(html, /\.dy-place \{ position: absolute; inset: 0; opacity: 0; transition: opacity \.9s; \}/, '黑底切到超商有淡入');
+  assert.match(code('src/main.js'), /nextAct\(act, act === 'd1bank' \? '#000' : '#1a1612', 750\);/, '提款機 → 超商淡出到黑');
+  // 3b. 斗笠鋪陳：德叔「妳等一下。」→ 旁白 → 斗笠小圖與德叔原句
+  const cafe = D.DAY_LINES.d5cafe;
+  const ask = cafe.findIndex((b) => b.text === '德叔，我去附近問問看，大家為什麼不來喝咖啡。');
+  assert.deepEqual(cafe.slice(ask, ask + 4).map((b) => [b.who, b.text]), [
+    ['me', '德叔，我去附近問問看，大家為什麼不來喝咖啡。'],
+    ['deshu', '妳等一下。'],
+    [undefined, '德叔走到門邊，拿了一樣東西回來。'],
+    ['deshu', '好阿。太陽很大，這頂妳戴著。'],
+  ]);
+  assert.deepEqual(cafe[ask + 3].set, { mini: 'hat' });
+  assert.equal(cafe[ask + 3].tap, 'mini', '斗笠小圖仍要點一下');
+  assert.ok(!cafe[ask + 1].set && !cafe[ask + 2].set, '鋪陳兩句不先疊斗笠');
+  // 3c. 坤伯離開：「五告讚。」→ 手按肚子 → 「……歹勢，我先來走。」→ 門沒關好（門與風鈴）→ 我「德叔，這一杯其實……」
+  const brew = D.DAY_LINES.d5brew;
+  const good = brew.findIndex((b) => b.text === '五告讚。');
+  assert.deepEqual(brew.slice(good, good + 5).map((b) => [b.who, b.text]), [
+    ['kunbo', '五告讚。'],
+    [undefined, '話才講完，坤伯的手就按到肚子上。'],
+    ['kunbo', '……歹勢，我先來走。'],
+    [undefined, '他走得很快，門都沒關好。'],
+    ['me', '德叔，這一杯其實……'],
+  ]);
+  assert.deepEqual(brew[good + 3].sfx, ['door', 'bell'], '推門出去：門與風鈴');
+  assert.deepEqual(brew.slice(good + 5, good + 8).map((b) => [b.who, b.text]), [
+    ['deshu', '用了坤伯的龍眼乾加上我調配的比例，在這個村里敢說難喝，大概會被趕出村吧。'],
+    ['me', '……那我不敢說了。'],
+    ['deshu', '我再調調看阿。'],
+  ]);
+  // 新句旁邊用註解標【待定】，字裡不帶
+  const src = read('src/lines/days.js');
+  for (const t of ['我離開提款機，往回家的方向走。', '外面很熱，走沒多久就一身汗。', '前面有一間超商。進去吹個冷氣，順便買瓶水好了。', '我才剛走進去，就聽到店裡有人講話很大聲。',
+    '妳等一下。', '德叔走到門邊，拿了一樣東西回來。', '話才講完，坤伯的手就按到肚子上。', '……歹勢，我先來走。', '他走得很快，門都沒關好。']) {
+    assert.match(src, new RegExp(`text: '${reEsc(t)}'[^\\n]*// 【待定】`), `${t} 旁標【待定】`);
+  }
+});
+
 test('第二天回咖啡館：鑰匙放到吧台、確認沒找錯人、實習老闆、「我相信妳一定可以的。」；不加人資、濾掛包、銀杏龍眼、親寫鑰匙句、請假日期', () => {
   assert.deepEqual(D.DAY_LINES.d2cafe.map((b) => [b.who, b.text]), [
     [undefined, '戶頭裡有十六萬，我才敢回來這裡。'],
@@ -778,7 +837,8 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
     if (s.src) assert.ok(has(refOf(id)), `${id}：缺 ${artUrl(refOf(id))}`);
     for (const v of Object.keys(s.variants || {})) assert.ok(has(refOf(id, v)), `${id}／${v}：缺 ${artUrl(refOf(id, v))}`);
     if (s.status !== 'ready') assert.ok(s.temp, `${id} 暫代方式`);
-    if (s.dir) assert.ok(s.dir.startsWith('art-v56/'), `${id}：新圖只放 assets/art-v56/`);
+    // 新圖只放 assets/art-v56/；例外：白天店內圖 bg_shop_day 在 assets/art-v59/（承峰 2026-11-22 17:20）
+    if (s.dir) assert.ok(s.dir.startsWith('art-v56/') || (id === 'bg_shop_day' && s.dir === 'art-v59'), `${id}：新圖只放 assets/art-v56/（白天店內圖在 art-v59）`);
   }
   for (const n of ART_MAP_FILES) assert.ok(has(n), n);
   assert.equal(artUrl('scene_county_road'), 'assets/art/scene_county_road.webp', '舊圖仍在 assets/art/');
@@ -855,15 +915,20 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   assert.match(read('index.html'), /\.dy-place\.open \.dy-mb-hole \{ opacity: 1; \}/, '打開後是深色空格口');
   assert.match(read('index.html'), /\.dy-place\.open \.dy-mb-door \{ transform: rotateY\(-72deg\); \}/);
   // 店內 2D 定景：進門／站著用定版圖 scene_shop_interior_night_lit_v2（承峰 2026-11-21 23:47「店內圖定版」）；
-  // 早上正式圖未到，暫用同一張 v2；坐下喝咖啡用靠窗特寫（換圖只改 art-map.js 的 src）
+  // 早上用白天正式圖 art-v59/scene_shop_interior_day_v1（承峰 2026-11-22 17:20）；坐下喝咖啡用靠窗特寫（換圖只改 art-map.js 的 src）
   assert.equal(ART_MAP.bg_shop_night.src, 'scene_shop_interior_night_lit_v2');
   assert.equal(ART_MAP.bg_shop_night.status, 'ready');
   assert.ok(!/佔位|重畫中/.test(JSON.stringify(ART_MAP.bg_shop_night)), '定版圖不再寫佔位／重畫中');
-  assert.equal(ART_MAP.bg_shop_day.src, 'scene_shop_interior_night_lit_v2');
-  assert.match(ART_MAP.bg_shop_day.temp, /早上正式圖未到/);
+  assert.equal(ART_MAP.bg_shop_day.status, 'ready');
+  assert.equal(ART_MAP.bg_shop_day.dir, 'art-v59');
+  assert.equal(ART_MAP.bg_shop_day.src, 'scene_shop_interior_day_v1', '早上不再用夜景');
+  assert.ok(!('temp' in ART_MAP.bg_shop_day) && !/早上正式圖未到/.test(JSON.stringify(ART_MAP.bg_shop_day)), '不再寫暫代');
+  assert.equal(srcOf('bg_shop_day'), 'art-v59/scene_shop_interior_day_v1');
+  assert.equal(artUrl(srcOf('bg_shop_day')), 'assets/art-v59/scene_shop_interior_day_v1.webp');
+  assert.deepEqual(webpSize(readFileSync(root('assets/art-v59/scene_shop_interior_day_v1.webp'))), [1170, 2532], '白天店內圖是直式 1170×2532');
   assert.equal(ART_MAP.bg_shop_seated.src, 'scene_v3b_shop_window_night_seated', '坐下喝咖啡仍用靠窗特寫');
-  // 只接 v2 這一張；art-1121 的第一版店內圖不進專案
-  assert.deepEqual(ART_MAP_FILES.filter((r) => /scene_shop_interior/.test(r)), ['scene_shop_interior_night_lit_v2']);
+  // 夜景只接 v2 這一張（art-1121 的第一版店內圖不進專案）；白天圖在 art-v59，不進 assets/art
+  assert.deepEqual(ART_MAP_FILES.filter((r) => /scene_shop_interior/.test(r)).sort(), ['art-v59/scene_shop_interior_day_v1', 'scene_shop_interior_night_lit_v2']);
   assert.deepEqual(readdirSync(root('assets/art')).filter((f) => /^scene_shop_interior/.test(f)), ['scene_shop_interior_night_lit_v2.webp'], '只有定版 v2 在 assets/art/');
   assert.ok(!('ui_shop_look' in ART_MAP) && !('bg_shop' in ART_MAP), '環景與「看看店裡」的格子拿掉');
   const view = code('src/view/days.js');

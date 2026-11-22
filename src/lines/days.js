@@ -178,9 +178,14 @@ export const DAY_LINES = {
     { who: 'me', text: '太好了，就算真的辭職，也不用急著馬上找工作了。' },
     { text: '我站在提款機前面，大大吐了一口氣。', set: { prop: null } },
   ],
+  // （畫面：提款機圖淡出到黑底。下面三句在黑底上出。）→ 淡入超商店內圖（進門音效）
   // 回家路上的超商（進去吹冷氣，順便買水）：店長罵店員 → 點座位區的徵人海報 → 停一拍 → 下決心
   d1store: [
-    { who: 'storeManager', text: '這個昨天就過期了，你是沒在看喔？', set: { place: 'store', prop: null, mini: null }, sfx: ['ding'] },
+    { text: '我離開提款機，往回家的方向走。', set: { place: 'black', prop: null, mini: null } }, // 【待定】
+    { text: '外面很熱，走沒多久就一身汗。' }, // 【待定】
+    { text: '前面有一間超商。進去吹個冷氣，順便買瓶水好了。' }, // 【待定】
+    { text: '我才剛走進去，就聽到店裡有人講話很大聲。', set: { place: 'store' }, sfx: ['ding'] }, // 【待定】
+    { who: 'storeManager', text: '這個昨天就過期了，你是沒在看喔？' },
     { who: 'storeManager', text: '客人拿到櫃檯才發現，你要我怎麼跟人家講？' },
     { who: 'storeManager', text: '講幾遍了，上架前先看日期，你到底有沒有在聽？' },
     { who: 'clerk', text: '對不起。' },
@@ -254,6 +259,8 @@ export const DAY_LINES = {
     { text: '我也不知道有沒有用。' },
     { text: '……還是去問問看好了，問一下也不會怎樣。' },
     { who: 'me', text: '德叔，我去附近問問看，大家為什麼不來喝咖啡。' },
+    { who: 'deshu', text: '妳等一下。' }, // 【待定】
+    { text: '德叔走到門邊，拿了一樣東西回來。' }, // 【待定】
     // （德叔從門邊拿了一頂斗笠給我。）【小圖：斗笠】
     { who: 'deshu', text: '好阿。太陽很大，這頂妳戴著。', set: { mini: 'hat' }, tap: 'mini' },
   ],
@@ -318,8 +325,11 @@ export const DAY_LINES = {
     { text: '很苦，後面還有一個怪味，我吞不太下去。' },
     // （畫面：她還沒開口，坤伯直接把杯子拿過去，整杯喝完。）
     { who: 'kunbo', text: '五告讚。', sfx: ['sip'] },
+    { text: '話才講完，坤伯的手就按到肚子上。' }, // 【待定】
+    { who: 'kunbo', text: '……歹勢，我先來走。' }, // 【待定】
     // （畫面：坤伯捂著肚子，推門出去了。）
-    { who: 'me', text: '德叔，這一杯其實……', sfx: ['door', 'bell'] },
+    { text: '他走得很快，門都沒關好。', sfx: ['door', 'bell'] }, // 【待定】推門出去：門與風鈴
+    { who: 'me', text: '德叔，這一杯其實……' },
     { who: 'deshu', text: '用了坤伯的龍眼乾加上我調配的比例，在這個村里敢說難喝，大概會被趕出村吧。' },
     { who: 'me', text: '……那我不敢說了。' },
     { who: 'deshu', text: '我再調調看阿。' },

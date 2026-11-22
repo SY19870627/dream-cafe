@@ -37,6 +37,8 @@ export const ART_MAP = {
   // 熱點 .dy-poster 對準外框，程式只在紙面疊「誠徵門市人員」（不疊薪水、不再疊 CSS 白紙）。
   // 舊圖 bg_v56_store_interior_portrait.webp 原樣留在 assets/art-v56/B/，只是不再引用。
   bg_store: { use: '回家路上的超商內部（座位區後牆上有框的空白徵人海報，程式在紙面疊「誠徵門市人員」）', planned: 'bg_v56_store_interior_seating_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_store_interior_seating_portrait' },
+  // v5.9 超商轉場：提款機淡出到黑底，三句旁白在黑底上出，再淡入超商（承峰 2026-11-22 17:15「超商轉場照用」）
+  bg_black: { use: '提款機之後、超商之前的黑底（三句旁白在黑底上出）', planned: null, status: 'none', src: null, temp: '不用圖：純 CSS 黑底（.dy-css-black）' },
   bg_village: { use: '三天後：村子的路（一戶一戶敲門；花斑貓從圍牆上跳下來）', planned: 'bg_v56_village_lane_portrait_v2', status: 'ready', dir: V56.B, src: 'bg_v56_village_lane_portrait_v2' },
   bg_kunyard: { use: '坤伯家的院子（龍眼樹、水桶、空罐子）', planned: 'bg_v56_kunbo_yard_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_kunbo_yard_portrait' },
   // 店內 2D 定景（店內環景與「看看店裡」已拔掉，承峰 2026-11-21 20:48）。見下面 SHOP_STILL_NIGHT／SHOP_STILL_DAY／SHOP_STILL_SEATED。
@@ -45,8 +47,9 @@ export const ART_MAP = {
   bg_shop_night: { use: '晚上、燈亮著的店內：進門、點椅子坐下、晚上回來、坤伯答謝、研發咖啡', planned: 'scene_shop_interior_night_lit_v2', status: 'ready', src: 'scene_shop_interior_night_lit_v2' },
   // 點了椅子坐下（coffee）之後：靠窗坐下的特寫（杯子、對面椅子上的龍眼、窗的位置對準這張；檔案原樣留著，不覆寫）
   bg_shop_seated: { use: '坐下喝咖啡：靠窗坐下的特寫（桌上的杯子、對面椅子上的龍眼）', planned: 'scene_v3b_shop_window_night_seated', status: 'ready', src: 'scene_v3b_shop_window_night_seated' },
-  bg_shop_day: { use: '早上的店內：第一天挑豆、第二天回店、三天後', planned: 'bg_shop_day_bar', status: 'temp', src: 'scene_shop_interior_night_lit_v2',
-    temp: '早上正式圖未到：暫用晚上的店內定版圖（看得到吧台，比舊佔位合適；色調仍是晚上，窗外仍是夜色）。有早上圖再只改這裡的 src' },
+  // 早上店內正式圖 scene_shop_interior_day_v1（承峰 2026-11-22 17:20「白天店內圖可以，接進遊戲」；1170×2532，放在 assets/art-v59/，不進 assets/art）。
+  // 與夜景 v2 同構圖（椅子、吧台、窗的位置沿用 *_STAND／SHOP_CHAIR／SHOP_BAR）；早晨光線與窗外白天已畫在圖上，不再疊天色。
+  bg_shop_day: { use: '早上的店內：第一天挑豆、第二天回店、三天後', planned: 'scene_shop_interior_day_v1', status: 'ready', dir: 'art-v59', src: 'scene_shop_interior_day_v1' },
   bg_office: { use: '開場：辦公室', planned: 'scene_office_night', status: 'ready', src: 'scene_office_night' },
   bg_sanheyuan_dusk: { use: '開場：三合院外（傍晚）。劇本 v5.8 是「夜裡，東山。」，三合院外三幕都用晚上那張；這張不再出場（檔案留著）', planned: 'scene_v3b_sanheyuan_dusk_v2', status: 'ready', src: 'scene_v3b_sanheyuan_dusk_v2' },
   bg_sanheyuan_night: { use: '開場：三合院外（夜裡到東山、晚上發動、晚上回來）', planned: 'scene_v3b_sanheyuan_night_v2', status: 'ready', src: 'scene_v3b_sanheyuan_night_v2' },
@@ -88,13 +91,13 @@ export const ART_MAP = {
   pp_key: { use: '鑰匙（第一天早上拖向德叔，沒有接、回到手上；第二天點包包裡的鑰匙放到吧台上）', planned: 'key', status: 'ready', src: 'key' },
   /* 劇本 v5.8 */
   pp_envelope: { use: '第二幕：摺疊桌上的牛皮紙信封（點了把信抽出來，只能點一次）', planned: 'prop_v58_envelope_desk', status: 'temp', src: null, temp: 'CSS 牛皮紙信封（.op-env），疊在房間原圖右邊小桌上' },
-  bg_cafe_bamboo: { use: '第一天早上店裡：吧台上攤著兩個竹篩，生豆鋪滿；德叔背後架子上自己放一格的杯子', planned: 'bg_shop_day_bar_beans', status: 'temp', src: null, temp: '用店內 2D 定景的早上佔位（SHOP_STILL_DAY）；竹篩、生豆、架子上的杯子沒有另畫' },
+  bg_cafe_bamboo: { use: '第一天早上店裡：吧台上攤著兩個竹篩，生豆鋪滿；德叔背後架子上自己放一格的杯子', planned: 'bg_shop_day_bar_beans', status: 'temp', src: null, temp: '用店內 2D 定景的早上底圖（SHOP_STILL_DAY，已換成白天正式圖 scene_shop_interior_day_v1）；竹篩、生豆、架子上的杯子沒有另畫' },
 };
 
 // 店內定景。換圖只改 src（不要改 id）。
 // SHOP_STILL_NIGHT：晚上、燈亮、進門／點椅子坐下之前／晚上回來／答謝／研發 → scene_shop_interior_night_lit_v2（定版）
 // SHOP_STILL_SEATED：點了椅子、坐下喝咖啡（coffee）→ scene_v3b_shop_window_night_seated（靠窗特寫）
-// SHOP_STILL_DAY：早上店裡（第一天挑豆、第二天回店、三天後）。早上正式圖未到，暫與夜景用同一張 v2（色調仍是晚上）。
+// SHOP_STILL_DAY：早上店裡（第一天挑豆、第二天回店、三天後）→ art-v59/scene_shop_interior_day_v1（白天正式圖，不疊天色）。
 export const SHOP_STILL_NIGHT = 'bg_shop_night';
 export const SHOP_STILL_SEATED = 'bg_shop_seated';
 export const SHOP_STILL_DAY = 'bg_shop_day';

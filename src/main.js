@@ -422,7 +422,7 @@ async function dayScene(act) {
   if (!done || my !== token) return;
   reader.hide();
   props.hide();
-  nextAct(act, '#1a1612', 750);
+  nextAct(act, act === 'd1bank' ? '#000' : '#1a1612', 750); // v5.9：提款機淡出到黑底，超商那一幕前三句在黑底上
 }
 
 // 第一天起的關卡（lines/days.js 目前沒有 gate；互動都是「字出來之前要先做的」tap）：保留給 props.gate 的拖曳類關卡

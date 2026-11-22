@@ -379,12 +379,14 @@ test('美術對照表：劇本的每個 background／portrait／focus 都查得�
   }
   for (const f of focus) assert.ok(f in FOCUS, f);
   const files = new Set(readdirSync(root('assets/art')));
-  for (const name of allArt()) assert.ok(files.has(`${name}.webp`), `缺 ${name}.webp`);
+  // 舊圖在 assets/art/；帶資料夾的參照（店內白天圖 art-v59/…）在 assets/ 底下照子路徑
+  const exists = (name) => (name.includes('/') ? existsSync(root(`assets/${name}.webp`)) : files.has(`${name}.webp`));
+  for (const name of allArt()) assert.ok(exists(name), `缺 ${name}.webp`);
   for (const group of [BACKGROUNDS, PORTRAITS, FOCUS]) {
     for (const [k, v] of Object.entries(group)) {
       if (!v) continue;
       assert.ok(['ready', 'none'].includes(v.status), k);
-      if (v.status === 'ready' && v.src) assert.ok(files.has(`${v.src}.webp`), k);
+      if (v.status === 'ready' && v.src) assert.ok(exists(v.src), k);
       assert.notEqual(v.kind, 'pano', `${k}：店內環景已拔掉`);
       if (v.status === 'none') assert.ok(!v.src && v.fallback, `${k}：沒有圖就不能要圖，要寫 fallback`);
     }
