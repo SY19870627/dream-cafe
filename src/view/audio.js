@@ -1,19 +1,239 @@
-// 音效：全部用 WebAudio 即時合成，不用外部音檔。
-// 瀏覽器要求第一次觸控之後才能出聲：unlock() 掛在第一次 pointerdown。
+// 音效與環境聲：全部用 WebAudio 即時合成，不用外部音檔。
+// 背景音樂：曲目表在 story/music.js（音檔路徑只寫在那裡），用 <audio>（ogg＋mp3 兩個 source）接進同一個 AudioContext 的音樂支線。
+// 瀏覽器要求第一次觸控之後才能出聲：unlock() 掛在 pointerdown／pointerup／touchend／click／keydown（main.js）。
+// 支線：master 0.6 → { sfx／環境聲（直接接 master，增益數字照舊）、music 0.4 }。靜音＝master 0.15 秒降到 0，音樂暫停。
+import { TRACKS } from '../story/music.js'; // 【待定】
+
 let ctx = null;
 let master = null;
 let ambient = null; // { name, stop() }
+const MASTER = 0.6;
+const MUSIC_BUS = 0.4; // 【待定】音樂支線預設；100%＝這個值
+// 淡入淡出秒數（照 v5.9 音樂計畫，不要自己改）
+export const MUSIC_FADE = { out: 1.5, in: 2, first: 2.5, level: 1, mute: 0.15, loop: 3 }; // 【待定】
+let musicBus = null; // 【待定】
+let muted = false; // 【待定】
+let hidden = false; // 【待定】分頁切走
 
 export function unlock() {
-  if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+  if (ctx) { // 【待定】iOS 來電回來是 interrupted；切回分頁後也可能是 suspended
+    if (!hidden && (ctx.state === 'suspended' || ctx.state === 'interrupted')) ctx.resume()?.catch?.(() => {}); // 【待定】
+    blessPool(); // 【待定】
+    wakeMusic(); // 【待定】
+    return; // 【待定】
+  } // 【待定】
   const AC = globalThis.AudioContext || globalThis.webkitAudioContext;
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = 0.6;
+  master.gain.value = muted ? 0 : MASTER; // 【待定】
   master.connect(ctx.destination);
+  musicBus = ctx.createGain(); // 【待定】
+  musicBus.gain.value = MUSIC_BUS; // 【待定】
+  musicBus.connect(master); // 【待定】
+  ctx.onstatechange = () => { if (ctx.state === 'running') wakeMusic(); }; // 【待定】
+  blessPool(); // 【待定】
   if (pendingAmbient) setAmbient(pendingAmbient, pendingLevel);
+  applyMusic(); // 【待定】解鎖前記著的音樂（pending）：第一次出聲 2.5 秒淡入
 }
+
+/* ---------- 背景音樂 ---------- */
+// 同時最多三個 <audio>（換曲時舊曲淡出＋新曲淡入，加上非循環曲自己接回開頭的那一段）。
+// 三個元素在玩家第一次點擊時先「點過一次 play」（iOS 要每個元素在手勢裡播過，之後換曲才不會被擋）。
+const POOL = 3; // 【待定】
+let pool = []; // 【待定】{ el, gain, voice }
+let voices = []; // 【待定】{ id, name, slot, level, dying, held }
+let musicTarget = null; // 【待定】{ track, level } 或 null；尚未解鎖時就是 pending
+let firstSound = true; // 【待定】解鎖後第一次出聲用 2.5 秒
+let voiceId = 0; // 【待定】
+let silentUrl = null; // 【待定】
+
+// 一小段無聲的 PCM（只在記憶體裡，給 iOS 在手勢裡先播一次用）
+function silence() { // 【待定】
+  if (silentUrl) return silentUrl; // 【待定】
+  const n = 800; // 【待定】
+  const v = new DataView(new ArrayBuffer(44 + n * 2)); // 【待定】
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }; // 【待定】
+  str(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); str(8, 'WAVE'); str(12, 'fmt '); // 【待定】
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); // 【待定】
+  v.setUint32(28, 16000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); str(36, 'data'); v.setUint32(40, n * 2, true); // 【待定】
+  try { silentUrl = URL.createObjectURL(new Blob([v.buffer], { type: 'audio/wav' })); } catch { silentUrl = ''; } // 【待定】
+  return silentUrl; // 【待定】
+} // 【待定】
+
+function makeSlot() { // 【待定】
+  const el = document.createElement('audio'); // 【待定】不放進 DOM、沒有 controls，畫面上沒有下載入口
+  el.preload = 'none'; // 【待定】換到這首才開始抓
+  el.setAttribute('playsinline', ''); // 【待定】
+  const gain = ctx.createGain(); // 【待定】
+  gain.gain.value = 0; // 【待定】
+  try { ctx.createMediaElementSource(el).connect(gain); } catch { /* 不支援就沒有音樂 */ } // 【待定】
+  gain.connect(musicBus); // 【待定】
+  return { el, gain, voice: null, blessed: false }; // 【待定】
+} // 【待定】
+
+// 在玩家的點擊裡，把還沒播過的元素都先播一下無聲（之後換曲不需要手勢）
+function blessPool() { // 【待定】
+  if (!ctx || typeof document === 'undefined') return; // 【待定】
+  while (pool.length < POOL) pool.push(makeSlot()); // 【待定】
+  for (const s of pool) { // 【待定】
+    if (s.blessed || s.voice) continue; // 【待定】
+    const url = silence(); // 【待定】
+    if (!url) continue; // 【待定】
+    s.el.src = url; // 【待定】
+    const p = s.el.play(); // 【待定】
+    s.blessed = true; // 【待定】
+    p?.then?.(() => { if (!s.voice) { s.el.pause(); clearSrc(s.el); } }, () => { s.blessed = false; }); // 【待定】
+  } // 【待定】
+} // 【待定】
+
+function clearSrc(el) { // 【待定】停掉並不再緩衝
+  el.pause(); // 【待定】
+  el.removeAttribute('src'); // 【待定】
+  while (el.firstChild) el.firstChild.remove(); // 【待定】
+  try { el.load(); } catch { /* 已清 */ } // 【待定】
+} // 【待定】
+
+function setSources(el, t) { // 【待定】ogg 先、mp3 備用（Safari）
+  clearSrc(el); // 【待定】
+  const { ogg, mp3 } = t.files; // 【待定】音檔路徑只在曲目表（src/story/music.js）
+  for (const [type, src] of [['audio/ogg', ogg], ['audio/mpeg', mp3]]) { // 【待定】
+    const s = document.createElement('source'); // 【待定】
+    s.type = type; // 【待定】
+    s.src = src; // 【待定】
+    el.appendChild(s); // 【待定】
+  } // 【待定】
+  el.preload = 'auto'; // 【待定】
+  el.load(); // 【待定】
+} // 【待定】
+
+function ramp(g, to, sec) { // 【待定】
+  const t = ctx.currentTime; // 【待定】
+  g.gain.cancelScheduledValues(t); // 【待定】
+  g.gain.setValueAtTime(g.gain.value, t); // 【待定】
+  g.gain.linearRampToValueAtTime(to, t + sec); // 【待定】
+} // 【待定】
+
+function startVoice(name, level, fadeIn) { // 【待定】
+  const t = TRACKS[name]; // 【待定】
+  if (!t) return null; // 【待定】
+  while (pool.length < POOL) pool.push(makeSlot()); // 【待定】
+  let slot = pool.find((s) => !s.voice); // 【待定】
+  if (!slot) { // 【待定】都在用：收掉最舊的那個正在淡出的
+    const old = voices.find((v) => v.dying) || voices[0]; // 【待定】
+    releaseVoice(old); // 【待定】
+    slot = old.slot; // 【待定】
+  } // 【待定】
+  const v = { id: ++voiceId, name, slot, level, dying: false, held: false, looped: false }; // 【待定】
+  slot.voice = v; // 【待定】
+  slot.blessed = true; // 【待定】
+  setSources(slot.el, t); // 【待定】
+  slot.el.loop = !!t.loop; // 【待定】官方循環軌
+  slot.el.ontimeupdate = t.loop ? null : () => selfLoop(v); // 【待定】非循環軌：快結束時自己接回開頭
+  slot.gain.gain.cancelScheduledValues(ctx.currentTime); // 【待定】
+  slot.gain.gain.setValueAtTime(0, ctx.currentTime); // 【待定】
+  ramp(slot.gain, level, fadeIn); // 【待定】
+  slot.el.play()?.catch?.(() => {}); // 【待定】
+  voices.push(v); // 【待定】
+  return v; // 【待定】
+} // 【待定】
+
+// 非循環曲剩約 3 秒：第二個 <audio> 從頭淡入，這一個淡出
+function selfLoop(v) { // 【待定】
+  const el = v.slot.el; // 【待定】
+  if (v.dying || v.looped || v.slot.voice !== v || !(el.duration > MUSIC_FADE.loop * 2)) return; // 【待定】
+  if (el.duration - el.currentTime > MUSIC_FADE.loop) return; // 【待定】
+  v.looped = true; // 【待定】
+  startVoice(v.name, v.level, MUSIC_FADE.loop); // 【待定】
+  fadeOutVoice(v, MUSIC_FADE.loop); // 【待定】
+} // 【待定】
+
+function fadeOutVoice(v, sec) { // 【待定】
+  if (v.dying) return; // 【待定】
+  v.dying = true; // 【待定】
+  ramp(v.slot.gain, 0, sec); // 【待定】
+  setTimeout(() => releaseVoice(v), sec * 1000 + 120); // 【待定】
+} // 【待定】
+
+function releaseVoice(v) { // 【待定】
+  if (!v || v.slot.voice !== v) { voices = voices.filter((x) => x !== v); return; } // 【待定】
+  v.slot.el.ontimeupdate = null; // 【待定】
+  v.slot.gain.gain.cancelScheduledValues(ctx.currentTime); // 【待定】
+  v.slot.gain.gain.setValueAtTime(0, ctx.currentTime); // 【待定】
+  clearSrc(v.slot.el); // 【待定】
+  v.slot.voice = null; // 【待定】
+  voices = voices.filter((x) => x !== v); // 【待定】
+} // 【待定】
+
+// 依 musicTarget 調整正在播的曲子（同一首只改音量；換曲交叉淡化；換到無音樂就淡出）
+function applyMusic() { // 【待定】
+  if (!ctx) return; // 【待定】尚未解鎖：musicTarget 先記著
+  if (muted || hidden) { // 【待定】靜音／分頁切走：不開新曲；暫停中的舊曲若已不是目標就收掉（不再緩衝）
+    for (const v of [...voices]) if (v.dying || !musicTarget || v.name !== musicTarget.track) releaseVoice(v); // 【待定】
+    return; // 【待定】
+  } // 【待定】
+  const live = voices.filter((v) => !v.dying); // 【待定】
+  const tgt = musicTarget; // 【待定】
+  if (!tgt) { for (const v of live) fadeOutVoice(v, MUSIC_FADE.out); return; } // 【待定】
+  const same = live.filter((v) => v.name === tgt.track); // 【待定】
+  if (same.length) { // 【待定】
+    for (const v of live) if (v.name !== tgt.track) fadeOutVoice(v, MUSIC_FADE.out); // 【待定】
+    for (const v of same) { // 【待定】
+      if (v.held || v.slot.el.paused) { v.held = false; v.slot.el.play()?.catch?.(() => {}); } // 【待定】
+      if (v.level !== tgt.level) { v.level = tgt.level; ramp(v.slot.gain, tgt.level, MUSIC_FADE.level); } // 【待定】
+    } // 【待定】
+    return; // 【待定】
+  } // 【待定】
+  for (const v of live) fadeOutVoice(v, MUSIC_FADE.out); // 【待定】
+  startVoice(tgt.track, tgt.level, firstSound ? MUSIC_FADE.first : MUSIC_FADE.in); // 【待定】
+  firstSound = false; // 【待定】
+} // 【待定】
+
+function holdMusic() { // 【待定】暫停（靜音、分頁切走）：淡出中的直接收掉，其餘暫停原地
+  for (const v of [...voices]) { // 【待定】
+    if (v.dying) { releaseVoice(v); continue; } // 【待定】
+    v.held = true; // 【待定】
+    v.slot.el.pause(); // 【待定】
+  } // 【待定】
+} // 【待定】
+
+function wakeMusic() { // 【待定】
+  if (!ctx || muted || hidden) return; // 【待定】
+  applyMusic(); // 【待定】
+} // 【待定】
+
+// 設定這一刻應該播的音樂：null＝不放；{ track, level }（level 是音樂支線的相對音量）
+export function setMusic(spec) { // 【待定】
+  const next = spec && TRACKS[spec.track] ? { track: spec.track, level: spec.level ?? 1 } : null; // 【待定】
+  if (next?.track === musicTarget?.track && next?.level === musicTarget?.level) return; // 【待定】
+  musicTarget = next; // 【待定】
+  applyMusic(); // 【待定】
+} // 【待定】
+// 同一首只改音量（1 秒）
+export function setMusicLevel(level) { // 【待定】
+  if (musicTarget) setMusic({ ...musicTarget, level }); // 【待定】
+} // 【待定】
+export const musicNow = () => (musicTarget ? { ...musicTarget } : null); // 【待定】
+export const isUnlocked = () => !!ctx; // 【待定】
+export const isMuted = () => muted; // 【待定】
+
+// 全部靜音（音樂、音效、環境聲）：約 0.15 秒；靜音時音樂暫停、不開新曲
+export function setMuted(on) { // 【待定】
+  muted = !!on; // 【待定】
+  if (!ctx) return; // 【待定】解鎖時 master 會照 muted 設
+  ramp(master, muted ? 0 : MASTER, MUSIC_FADE.mute); // 【待定】
+  if (muted) setTimeout(() => { if (muted) holdMusic(); }, MUSIC_FADE.mute * 1000 + 30); // 【待定】
+  else wakeMusic(); // 【待定】
+} // 【待定】
+
+// 分頁切走：暫停；回來：恢復（靜音中就不恢復音樂）
+export function setHidden(on) { // 【待定】
+  hidden = !!on; // 【待定】
+  if (!ctx) return; // 【待定】
+  if (hidden) { holdMusic(); ctx.suspend?.()?.catch?.(() => {}); return; } // 【待定】
+  ctx.resume?.()?.catch?.(() => {}); // 【待定】iOS 可能要等下一次點擊（unlock 會再 resume）
+  wakeMusic(); // 【待定】
+} // 【待定】
 
 function tone(freq, { at = 0, dur = 0.3, type = 'sine', gain = 0.2, attack = 0.005, to = null } = {}) {
   if (!ctx) return;

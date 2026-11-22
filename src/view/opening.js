@@ -160,7 +160,11 @@ export function showOpening(root, act, api) {
         <p class="sub">${TITLE.sub}</p>
       </div>
       <button type="button" id="op-next" class="primary">${TITLE.next}</button>
-      <div class="op-credit">${TITLE.credit}・${TITLE.links.map((l) => `<a href="${l.href}" target="_blank" rel="noopener">${l.text}</a>`).join('・')}</div>`);
+      <div class="op-credit">
+        <div class="op-credit-row">${esc(TITLE.credit)}</div>
+        <div class="op-credit-row">${TITLE.links.map((l) => `<a href="${l.href}" target="_blank" rel="noopener">${l.text}</a>`).join('・')}</div>
+        <div class="op-staff">${[...TITLE.staff, TITLE.music.label, ...TITLE.music.lines, TITLE.music.source].map((t) => `<p>${esc(t)}</p>`).join('')}<p class="op-credit-note">${esc(TITLE.music.note)}</p></div>
+      </div>`); // 【待定】製作人員分行（同一塊署名）；第一行「製作：SY」，三個連結移到下一行（承峰 11/22 22:52）
     el.querySelector('#op-next').onclick = () => api.go('t4card');
     return;
   }

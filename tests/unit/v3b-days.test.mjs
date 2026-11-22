@@ -742,7 +742,7 @@ test('跳過自白的版面：右上角、至少 44px、在閱讀框外；按鈕
   assert.match(html, /<button type="button" class="opr-skip" hidden><\/button><\/section>/);
   const css = html.match(/#op-read \.opr-skip \{([^}]*)\}/)[1];
   assert.match(css, /top: calc\(12px/);
-  assert.match(css, /right: 12px/);
+  assert.match(css, /right: 58px/, '右上角讓出靜音鍵（#mute，44px）的位置'); // 【待定】
   assert.match(css, /min-height: 44px/);
   assert.match(css, /pointer-events: auto/);
   assert.doesNotMatch(css, /bottom:/, '不靠近下方的閱讀框');

@@ -46,12 +46,20 @@ export const TITLE = {
   lines: ['我單方面辭退老闆後，', '開了一間夢想中的咖啡店'],
   sub: '試玩版・台南東山',
   next: '下班',
-  credit: '開發者 SY',
+  credit: '製作：SY', // 【待定】承峰 2026-11-22 22:52「名單第一行改成製作：SY，連結移下一行」
   links: [
     { text: 'GitHub', href: 'https://github.com/SY19870627' },
     { text: 'Threads', href: 'https://www.threads.com/@ye.c.feng' },
     { text: '方格子', href: 'https://vocus.cc/user/@SY19870627' },
   ],
+  // 製作人員（11/14 定的順序；同一塊署名裡分行，不另做一幕）。作曲者一首一行，のる兩首分開寫，不寫成合寫
+  staff: ['協作：小葉家的個人助理（Grok Bot）', '劇本協作：Claude', '程式協作：Claude'], // 【待定】
+  music: { // 【待定】曲名與作者對 story/music.js 的 TRACKS（單元測試核對）
+    label: '音樂：', // 【待定】
+    lines: ['窓辺のドロップス — すもち', '夏空へ — ハヤシユウ', 'Chill Out Lounge — のる', 'Sweet Dreams — のる'], // 【待定】
+    source: '出處：DOVA-SYNDROME（OpenTracks）', // 【待定】
+    note: '請勿將遊戲內音檔另行下載或改作他用', // 【待定】OpenTracks 2026-11-20 公告的建議
+  }, // 【待定】
 };
 
 /* ---------- 倒數字卡（劇本 v5.9，承峰 2026-11-22 02:07／02:09 定的用語） ---------- */

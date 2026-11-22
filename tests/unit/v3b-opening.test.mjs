@@ -5,7 +5,8 @@
 // 補回的句子另外寫死在下面）。docs/劇本.md 仍是 v5.6，開場已不再對它。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { TRACKS } from '../../src/story/music.js';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import * as OP from '../../src/lines/opening.js';
@@ -330,7 +331,8 @@ test('開場每一句（收到信、信後旁白、特休前一晚、第三幕�
   ]);
   // 申請人、開發者列、按鈕字、操作提示、打字聲字樣、轉場字、提示字（劇本的互動與舞台指示裡寫明的字）
   assert.ok(body.includes(`申請人固定是${OP.OFFICE.applicant}`));
-  assert.ok(body.includes(`${OP.TITLE.credit}・${OP.TITLE.links.map((l) => l.text).join('・')}`));
+  assert.equal(OP.TITLE.credit, '製作：SY'); // 【待定】承峰 11/22 22:52：第一行「製作：SY」，連結移下一行
+  assert.ok(body.includes(`（畫面下方：${OP.TITLE.credit}；下一行：${OP.TITLE.links.map((l) => l.text).join('・')}）`), '劇本標題畫面的署名要是「製作：SY」，連結在下一行'); // 【待定】
   for (const s of [OP.OFFICE.send, OP.OFFICE.keys, OP.TITLE.next, OP.ROOM_LETTER.hint, OP.LETTER.title, OP.EVE.next, OP.ROAD.card, OP.ROAD.door, OP.DEPART.start, OP.TEMPLE.back, '摸摸龍眼', '點床躺下']) {
     assert.ok(body.includes(`「${s}」`), `劇本找不到「${s}」`);
   }
@@ -604,15 +606,33 @@ test('不出現佈置模式、溫度計、沖煮操作介面；畫面不要求�
   assert.doesNotMatch(code('src/view/opening.js'), /需要鑰匙|上鎖|locked/);
 });
 
-test('音效全部用 WebAudio 合成且都有定義；沒有外部音檔', () => {
+test('音效與環境聲用 WebAudio 合成且都有定義；音樂檔都登記在曲目表（story/music.js）', () => {
   const audio = read('src/view/audio.js');
   const names = new Set(['engineStart', 'engineOff', 'rev', 'dog', 'purr', 'creak', 'cloth', 'boil', 'thinPour', 'keys', 'door', 'bell', 'place', 'sip', 'tap', 'key', 'send', 'grind']);
   for (const b of allLines()) for (const n of b.sfx || []) names.add(n);
   for (const n of names) assert.ok(audio.includes(`case '${n}':`), `沒有音效 ${n}`);
   assert.match(audio, /name === 'engine'/);
   assert.match(audio, /export function setEngine\(/);
-  assert.ok(!existsSync(root('assets/audio')));
-  for (const f of ['src/main.js', 'src/view/opening.js']) assert.doesNotMatch(read(f), /\.(mp3|ogg|wav|m4a)\b/);
+  // 音檔路徑只准在曲目資料檔：入口、畫面、音效程式都不寫
+  for (const f of ['src/main.js', 'src/view/opening.js', 'src/view/audio.js', 'index.html']) assert.doesNotMatch(read(f), /\.(mp3|ogg|wav|m4a)\b/, f);
+  // assets/audio 裡的網頁音檔與曲目表一對一：每首 ogg＋mp3，外加 CREDITS.md；不多不少
+  const want = new Set(['CREDITS.md']);
+  for (const [k, t] of Object.entries(TRACKS)) {
+    assert.deepEqual(t.files, { ogg: `assets/audio/${k}.ogg`, mp3: `assets/audio/${k}.mp3` }, k);
+    want.add(`${k}.ogg`);
+    want.add(`${k}.mp3`);
+  }
+  const files = readdirSync(root('assets/audio'));
+  assert.deepEqual(new Set(files), want, '多了或少了音檔');
+  let total = 0;
+  for (const f of files) {
+    if (f === 'CREDITS.md') continue;
+    assert.match(f, /\.(mp3|ogg)$/, `只准 .mp3／.ogg：${f}`);
+    const size = statSync(root(`assets/audio/${f}`)).size;
+    assert.ok(size > 0 && size <= 4 * 1024 * 1024, `${f} 超過 4 MB`);
+    total += size;
+  }
+  assert.ok(total <= 20 * 1024 * 1024, `音檔總量 ${total} 超過 20 MB`);
 });
 
 test('美術：用到的原圖都在 assets/art 且有預載；不再疊「175」', () => {

@@ -11,7 +11,9 @@ import { showDay, showCard, createProps, PLACES, HOT_LABELS, cueOf } from './vie
 import { showShop, resetPet } from './view/shop-still.js';
 import { createReader } from './view/reader.js';
 import { GATE_HINTS, tapHint } from './view/hints.js';
-import { unlock, play, setAmbient, setEngine } from './view/audio.js';
+import { unlock, play, setAmbient, setEngine, setMusic, setMuted, isMuted, setHidden } from './view/audio.js';
+import { musicAt } from './story/music.js'; // 【待定】每一幕／每一句的音樂（曲目表與路徑只在那個檔）
+import { loadAudioPref, saveAudioPref } from './story/audio-pref.js'; // 【待定】靜音選擇（獨立鍵 dream-cafe.audio，不寫進存檔）
 import { preload, preloadIdle, warm } from './view/art.js';
 import { BOOT_ART, LATER_ART, actArt } from './view/boot-art.js';
 import { sceneAt, OPENING_CARDS } from './lines/opening.js';
@@ -37,6 +39,25 @@ const shown = { bg: null, portrait: null, focus: null }; // 目前畫面上的�
 
 addEventListener('pointerdown', unlock, { capture: true });
 addEventListener('keydown', unlock, { capture: true });
+for (const ev of ['pointerup', 'touchend', 'click']) addEventListener(ev, unlock, { capture: true }); // 【待定】iOS 有時只認 touchend／click 這類手勢
+document.addEventListener('visibilitychange', () => setHidden(document.hidden)); // 【待定】切走分頁暫停、回來恢復（靜音中不恢復音樂）
+// 這一幕第 line 句的音樂（titled：章名卡已出現）
+const music = (act, line, opt) => setMusic(musicAt(act, line, opt)); // 【待定】
+
+/* ---------- 靜音鍵（右上角；全部靜音：音樂、音效、環境聲） ---------- */
+const muteBtn = $('mute'); // 【待定】
+const showMute = () => { const m = isMuted(); muteBtn.classList.toggle('off', m); muteBtn.setAttribute('aria-pressed', String(!m)); }; // 【待定】aria-pressed＝聲音開著
+setMuted(loadAudioPref().muted); // 【待定】
+showMute(); // 【待定】
+for (const ev of ['pointerdown', 'pointerup', 'touchend', 'mousedown', 'keydown']) muteBtn.addEventListener(ev, (e) => e.stopPropagation()); // 【待定】不讓這一下變成翻頁
+muteBtn.addEventListener('click', (e) => { // 【待定】
+  e.preventDefault(); // 【待定】
+  e.stopPropagation(); // 【待定】
+  setMuted(!isMuted()); // 【待定】
+  saveAudioPref({ muted: isMuted() }); // 【待定】
+  showMute(); // 【待定】
+  muteBtn.blur(); // 【待定】焦點離開：之後按 Enter 不會又切換靜音
+}); // 【待定】
 
 function fadeThen(fn, color = '#1a1612', ms = 650) {
   const f = $('fade');
@@ -98,6 +119,7 @@ function opening() {
     const card = S.resumeCardOf(state);
     if (card) return replayCard(card);
   }
+  music(act, state.opening.line); // 【待定】進幕那一刻的音樂（讀檔落在幕中間也對得上：幕內切點照句子算）
   if (act === S.END_ACT) return openingScene('end'); // 研發咖啡之後（帶咖啡去公司之前）：待續
   if (DAY_ACT_VIEW[act] === 'card') return dayCard(act);
   if (OPENING_CARDS[act]) return dayCard(act, OPENING_CARDS[act]); // 開場的倒數字卡（前 4 天、前 2 天）
@@ -122,6 +144,7 @@ async function replayCard(card) {
   reader.hide();
   props.hide();
   setAmbient(null);
+  music(card, 0); // 【待定】字卡播「下一幕開場那一刻」的音樂狀態（尚未解鎖就先記著，第一次點擊後 2.5 秒淡入）
   const ctl = showCard($('opening'), card, S.CARD_TEXTS[card]);
   sceneCtl = ctl;
   const ok = await ctl.intro();
@@ -200,6 +223,7 @@ async function runLines(act, { look, gate, optional, tap }) {
     props.clear();
     props.show(lk);
     look(i, lk, b);
+    music(act, i, { titled: true }); // 【待定】幕內切點（d1store 下決心那句升回 100%、d5thanks 入夜那句換 cafe）：跟畫面同一拍
     for (const n of b.sfx || []) play(n);
     if (b.wait) { // 先聽聲音，字晚一點出來
       reader.hideBox();
@@ -389,6 +413,7 @@ async function dayScene(act) {
   if (state.opening.line === 0 && DAY_TITLES[act]) { // 每天開頭：章名卡
     reader.hide();
     setAmbient('room');
+    music(act, 0, { titled: true }); // 【待定】章名卡出現時：d1wake 的 day 2 秒淡入（開場先靜）
     const ok = await ctl.intro();
     if (!ok || my !== token) return;
   }
