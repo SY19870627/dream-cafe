@@ -1,6 +1,6 @@
 // 開機與效能（承峰 2026-11-21「四項照建議修」）：
 //   1-A 網址 ?reset=1 在 load() 之前清 dream-cafe.v3b，清完把 reset 從網址拿掉（其他參數留著）
-//   2-A 店內 360 離開店面時真的停排 rAF（pano.running），回店 setScene／resume 再跑
+//   2-A 店內環景已拔掉（承峰 2026-11-21 20:48）：沒有常駐的 rAF 迴圈
 //   2-B 分段預載：開機只等開場＋店內的圖；第一天以後與 art-v56 在背景載；allArt() 不含不會顯示的舊三天 AVG 圖
 // 只測純邏輯與靜態檔案，不開瀏覽器。
 import test from 'node:test';
@@ -12,21 +12,11 @@ const root = (p) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
 const read = (p) => readFileSync(root(p), 'utf8');
 const code = (p) => read(p).replace(/\/\/.*$/gm, '');
 
-// Pano 在 node 裡跑：假的 rAF（記下排了哪些、可以手動跑一幀）、假 canvas
-const rafQueue = new Map();
-let rafId = 0;
-globalThis.requestAnimationFrame = (fn) => { rafId += 1; rafQueue.set(rafId, fn); return rafId; };
-globalThis.cancelAnimationFrame = (id) => { rafQueue.delete(id); };
-const tick = () => { const fns = [...rafQueue.values()]; rafQueue.clear(); for (const fn of fns) fn(performance.now()); };
 globalThis.addEventListener ??= () => {};
-globalThis.devicePixelRatio ??= 1;
 globalThis.Image ??= class { constructor() { this.complete = false; this.naturalWidth = 0; } };
-const mockCtx = () => new Proxy({}, { get: (_, k) => (k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : k === 'measureText' ? () => ({ width: 40 }) : () => {}), set: () => true });
-const fakeCanvas = () => ({ hidden: false, getContext: () => mockCtx(), getBoundingClientRect: () => ({ left: 0, top: 0, width: 390, height: 844 }), addEventListener() {}, setPointerCapture() {} });
 
 const { SAVE_KEY, OTHER_KEYS, load, persist, wantsReset, searchWithoutReset, resetFromUrl } = await import('../../src/story/save.js');
 const S = await import('../../src/story/state.js');
-const { Pano } = await import('../../src/view/pano.js');
 const { allArt, BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY } = await import('../../src/story/manifest.js');
 const { OPENING_ART, SHOP_ART } = await import('../../src/view/art.js');
 const { DAY_ART, PLACES } = await import('../../src/view/days.js');
@@ -100,61 +90,19 @@ test('?reset=1：main.js 開機順序是 reset → load → playable → save �
   assert.doesNotMatch(main, /function resetFromUrl/, '不在 main.js 另外定義');
 });
 
-/* ---------- 2-A 店內 360 的 rAF 暫停／繼續 ---------- */
-test('Pano：建好就在跑；pause 後真的不再排 rAF；setScene／resume 再跑；暫停中 turnTo、點擊不壞', () => {
-  rafQueue.clear();
-  const c = fakeCanvas();
-  const pano = new Pano(c);
-  assert.equal(pano.running, true, '建好就在跑');
-  assert.equal(rafQueue.size, 1);
-  pano.setScene({ items: [{ id: 'a', angle: 0, depth: 0.5, y: 0.8, h: 0.3, img: 'chair', aspect: 1, hit: true }] });
-  assert.equal(rafQueue.size, 1, '已經在跑：setScene 不重複排');
-  tick();
-  assert.equal(rafQueue.size, 1, '每一幀排下一幀');
-  assert.ok(pano.boxes.length > 0);
-
-  pano.pause();
-  assert.equal(pano.running, false);
-  assert.equal(rafQueue.size, 0, 'cancelAnimationFrame：沒有排著的幀');
-  tick();
-  assert.equal(rafQueue.size, 0, '暫停後不再排');
-  assert.equal(pano.boxes.length, 0, '暫停中沒有舊的可點範圍');
-  assert.ok(pano.scene, '場景留著，回店能接著畫');
-  pano.turnTo(40, 10);
-  let tapped;
-  pano.onTap = (it) => { tapped = it; };
-  assert.doesNotThrow(() => pano.tapAt(10, 10));
-  assert.equal(tapped, null);
-  pano.pause(); // 重複暫停沒事
-  assert.equal(rafQueue.size, 0);
-
-  pano.resume();
-  assert.equal(pano.running, true);
-  assert.equal(rafQueue.size, 1);
-  pano.resume();
-  assert.equal(rafQueue.size, 1, '重複 resume 不疊兩條迴圈');
-  pano.pause();
-  pano.setScene({ items: [] }, { yaw: 12 });
-  assert.equal(pano.running, true, 'setScene 回店：又在跑');
-  assert.equal(pano.yaw, 12);
-  assert.equal(rafQueue.size, 1);
-
-  // #pano 藏起來：下一幀自己停
-  c.hidden = true;
-  tick();
-  assert.equal(pano.running, false);
-  assert.equal(rafQueue.size, 0);
-  c.hidden = false;
-  pano.setScene({ items: [] });
-  assert.equal(pano.running, true);
-});
-
-test('Pano：main.js 換畫面（reset）時暫停，店內畫面 setScene 時繼續', () => {
+/* ---------- 2-A 店內環景已拔掉（承峰 2026-11-21 20:48）：沒有常駐的動畫迴圈 ---------- */
+test('店內環景（canvas 2.5D）已拔掉：沒有 Pano、沒有 #pano；店內 2D 定景不排 rAF；換畫面時停掉店內的計時器', () => {
+  for (const f of ['src/view/pano.js', 'src/view/scenes.js', 'src/view/shop.js']) assert.ok(!existsSync(root(f)), `${f} 應該刪掉`);
   const main = code('src/main.js');
+  assert.doesNotMatch(main, /Pano|pano|requestAnimationFrame/);
+  assert.doesNotMatch(read('index.html'), /id="pano"|#pano/);
+  assert.doesNotMatch(code('src/view/shop-still.js'), /requestAnimationFrame|getContext/);
+  assert.match(code('src/view/shop-still.js'), /stop\(\) \{ clearTimers\(\); clearTimeout\(petTimer\); \}/);
+  // 換畫面（reset）：停掉目前畫面（店內 2D 定景也是 sceneCtl）
   const reset = main.match(/function reset\(\) \{([\s\S]*?)\n\}/)[1];
-  assert.match(reset, /pano\.pause\(\);/);
-  assert.match(code('src/view/pano.js'), /setScene\([\s\S]*?this\.resume\(\);/);
-  assert.match(code('src/view/pano.js'), /cancelAnimationFrame/);
+  assert.match(reset, /sceneCtl\?\.stop\(\);/);
+  assert.match(main, /const shop = showShop\(\$\('opening'\), act, \{ seated: act === 'coffee' \}\);[^\n]*\n\s*sceneCtl = shop;/);
+  assert.doesNotMatch(read('package.json'), /"three"/, '沒有 three.js');
 });
 
 /* ---------- 2-B 分段預載 ---------- */
@@ -182,7 +130,12 @@ test('開機預載：只等開場＋店內的圖；不含舊三天 AVG、不含 
     assert.ok(LATER_ART.includes(r), `${r} 在背景預載`);
     assert.ok(existsSync(root(artUrl(r))), `${r} 檔案在`);
   }
-  for (const p of Object.values(PLACES)) if (p.src) assert.ok(!BOOT_ART.includes(p.src) || OPENING_ART.includes(p.src), `開機不等第一天的背景 ${p.src}`);
+  for (const p of Object.values(PLACES)) if (p.src) assert.ok(!BOOT_ART.includes(p.src) || OPENING_ART.includes(p.src) || SHOP_ART.includes(p.src), `開機不等第一天的背景 ${p.src}`);
+  // 店內環景的貼圖不再預載（檔案留著）
+  for (const n of ['backbar', 'tex_wall_plaster', 'tex_floor_wood', 'tex_counter_front', 'tex_wood_top', 'pendant_lamp', 'kettleSet', 'bookshelf', 'radio', 'window_day_clear', 'chair']) {
+    assert.ok(!BOOT_ART.includes(n) && !LATER_ART.includes(n), `${n} 不再預載`);
+    assert.ok(existsSync(root(`assets/art/${n}.webp`)), `${n}.webp 檔案留著`);
+  }
   // 第一天下山的縣道還是會載（背景清單），只是開機不等
   assert.ok(DAY_ART.includes('scene_county_road') && LATER_ART.includes('scene_county_road'));
   assert.ok(!BOOT_ART.includes('scene_county_road'));

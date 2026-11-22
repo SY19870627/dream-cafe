@@ -329,10 +329,22 @@ test('jumpState：過了岔路補左右；沒有存摺選擇（劇本 v5.6 拿�
 test('跳關選單：列出 OPENING_ACTS 每一幕（照順序），每天第一幕帶章名', () => {
   const items = jumpGroups().flatMap((g) => g.items);
   assert.deepEqual(items.map((x) => x.act), S.OPENING_ACTS);
-  assert.deepEqual(jumpGroups().map((g) => g.name), ['開場', '第1天', '第2天', '第5天', '待續']);
-  assert.match(actLabel('d1wake'), /第一天　最底下那個抽屜/);
-  assert.match(actLabel('d2cafe'), /回咖啡館（店內 360）/);
+  assert.deepEqual(jumpGroups().map((g) => g.name), ['開場', '我單方面辭退老闆前 4 天', '我單方面辭退老闆前 2 天', '我單方面辭退老闆前 1 天', '我單方面辭退老闆當天　16:49', '第二天', '三天後', '待續']);
+  assert.match(actLabel('d1wake'), /^最底下那個抽屜｜護龍早上、洗臉/, '「第一天」標籤改成事件名');
+  assert.doesNotMatch(items.map((x) => x.label).join('\n'), /第一天/);
+  assert.match(actLabel('d2cafe'), /回咖啡館（店內定景）/);
+  assert.equal(actLabel('sit'), '店內點椅子');
+  assert.match(actLabel('d1town'), /（背景圖）/);
+  for (const it of items) assert.doesNotMatch(it.label, /360/, `${it.act}：店內環景已拔掉`);
   assert.match(actLabel('d2card'), /字卡/);
+  // 新增的跳點：收信、特休前一晚、接回場（還有四張倒數字卡）
+  assert.match(actLabel('mailbox'), /收信/);
+  assert.match(actLabel('eve'), /特休前一晚/);
+  assert.match(actLabel('resend'), /接回/);
+  for (const a of ['t4card', 't2card', 't1card', 't0card']) assert.match(actLabel(a), /^字卡：我單方面辭退老闆/, a);
+  // 保留「第二天」「三天後」
+  assert.deepEqual(jumpGroups().find((g) => g.name === '第二天').items.map((x) => x.act), ['d2card', 'd2cafe']);
+  assert.equal(jumpGroups().find((g) => g.name === '三天後').items[0].act, 'd5card');
   for (const it of items) assert.equal(it.lines, S.lineCount(it.act));
 });
 

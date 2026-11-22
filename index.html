@@ -15,9 +15,6 @@
     -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
   /* 手機直立：寬螢幕上也維持直式比例 */
   #app { position: relative; height: 100%; max-width: calc(100vh * 9 / 19.5); margin: 0 auto; overflow: hidden; background: #2a1d16; }
-  #pano { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
-  /* 閱讀時店面只畫在閱讀框上方，吧台和桌上的杯子不會被框蓋住 */
-  #pano.reading { height: calc(100% - var(--box-h) + 14px); }
   [hidden] { display: none !important; }
   button { font: inherit; min-height: 44px; min-width: 44px; border-radius: 12px; border: 0; padding: 10px 16px; cursor: pointer;
     background: var(--paper); color: var(--ink); box-shadow: 0 2px 8px rgba(0,0,0,.25); }
@@ -69,12 +66,6 @@
   .st-choices { position: absolute; left: 16px; right: 16px; z-index: 4; display: flex; flex-direction: column; gap: 12px; cursor: default; }
   .st-choices button { min-height: 56px; font-size: 18px; line-height: 1.5; text-align: left; padding: 12px 18px; background: #fbf5e8;
     border: 2px solid var(--wood); box-shadow: 0 6px 18px rgba(30,15,5,.4); animation: rise .35s ease-out both; }
-  /* 環視（店內可選）：故事層收起，只留回到故事與回顧 */
-  #look { position: absolute; left: 0; right: 0; top: 0; z-index: 6; display: flex; justify-content: flex-end; gap: 8px;
-    padding: calc(8px + env(safe-area-inset-top)) 10px 8px; pointer-events: none; }
-  #look > * { pointer-events: auto; }
-  #look .hint { margin-right: auto; align-self: center; font-size: 13px; color: #f6efe2; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; }
-  #look button { font-size: 15px; padding: 8px 14px; background: rgba(251,245,232,.92); }
   /* 回顧：蓋住整個畫面，點不穿 */
   #log { position: absolute; inset: 0; z-index: 25; display: flex; flex-direction: column; background: rgba(28,20,14,.72); cursor: default; }
   .log-paper { flex: 1; margin: calc(12px + env(safe-area-inset-top)) 12px 0; padding: 18px 18px 8px; overflow-y: auto; border-radius: 10px 10px 0 0;
@@ -179,6 +170,11 @@
   .opr-hotspot:disabled { animation: none; opacity: 0; pointer-events: none; }
   @keyframes hotglow { 0%, 100% { box-shadow: inset 0 0 10px rgba(255,236,190,.15), 0 0 0 0 rgba(255,236,190,0); }
     50% { box-shadow: inset 0 0 18px rgba(255,236,190,.4), 0 0 22px 4px rgba(255,236,190,.45); } }
+  /* 通用提示規則：目標物呼吸光圈加箭頭（▼ 指著熱點，點過就跟著熱點一起收起來） */
+  .opr-hotspot::after { content: "▼"; position: absolute; left: 50%; top: -26px; transform: translateX(-50%); font-size: 16px; line-height: 1; color: #ffe7b0;
+    text-shadow: 0 1px 4px rgba(0,0,0,.85); animation: bob 1s ease-in-out infinite; pointer-events: none; }
+  .opr-hotspot:disabled::after { content: none; }
+  @keyframes bob { 0%, 100% { margin-top: 0; } 50% { margin-top: 5px; } }
   /* 三合院外（傍晚／晚上） */
   .op-yard { padding: 0; background: #1f1a22; }
   .op-art { position: absolute; left: 50%; top: -9%; height: 100%; aspect-ratio: 1170 / 2532; transform: translateX(-50%); overflow: hidden; }
@@ -316,12 +312,18 @@
   .dy-water { position: absolute; left: 49%; top: 51%; width: 1.2%; height: 6%; background: rgba(210,230,240,.8); opacity: 0; z-index: 2; }
   .dy-place.washing .dy-water { animation: water 2.2s ease-in-out both; }
   @keyframes water { 10%, 80% { opacity: 1; } }
-  /* 信箱：鐵片門打開（第四天裡面有一張粉紅色的單子） */
-  .dy-mailslot { position: absolute; left: 38%; top: 40%; width: 26%; height: 12%; z-index: 1; }
-  .dy-mailslot::before { content: ""; position: absolute; inset: 0; background: #20201e; opacity: 0; transition: opacity .4s; }
-  .dy-place.open .dy-mailslot::before { opacity: .85; }
-  .dy-slip { position: absolute; left: 22%; top: 30%; width: 56%; height: 40%; background: #f3b8c6; transform: rotate(-4deg); opacity: 0; transition: opacity .4s .2s; }
-  .op-day[data-act="d4town"] .dy-place.open .dy-slip { opacity: 1; }
+  /* 第一天的空信箱（art-map.js 的 bg_mailbox＝定版圖 scene_mailboxes_empty，1950×1200 橫圖，門都關著、沒有信封）：
+     這一幕專用橫式圖框（1950/1200），整張圖放進框裡（contain，不切掉左右的門）；熱點與格口的百分比都相對原圖。
+     可點的那一格（#dy-mailslot，位置由 days.js 的 MAILBOX_HOT_CELL 寫在 style）點了門往外打開，裡面是深色的空格口。不出信封、不出單子 */
+  .dy-place.mbox { background: #1b1d1b; }
+  .dy-place.mbox .op-art { top: 9%; height: auto; width: min(100%, calc(58vh * 1950 / 1200)); aspect-ratio: 1950 / 1200; }
+  .dy-place.mbox .op-art-img { object-fit: contain; }
+  .dy-mailslot { position: absolute; z-index: 1; }
+  .dy-mb-hole { position: absolute; border-radius: 2px; background: #161718; box-shadow: inset 0 6px 10px rgba(0,0,0,.85); perspective: 400px; opacity: 0; transition: opacity .15s; }
+  .dy-mb-door { position: absolute; inset: 0; border-radius: 2px; background: linear-gradient(#b3bdb4, #97a29a); box-shadow: inset 0 0 0 2px #7b857d; transform-origin: 0 50%; transition: transform .6s ease; }
+  .dy-mb-door::after { content: ""; position: absolute; left: 12%; width: 70%; top: 18%; height: 11%; border-radius: 2px; background: #1f2221; }
+  .dy-place.open .dy-mb-hole { opacity: 1; }
+  .dy-place.open .dy-mb-door { transform: rotateY(-72deg); }
   /* 衣櫃最底層的抽屜（卡住，再點一次才拉得開）；撥開衣服，底下露出資料袋 */
   .dy-drawer { position: absolute; left: 8%; top: 56%; width: 44%; height: 9%; z-index: 1; border-radius: 3px;
     background: linear-gradient(#8b6440, #6e4c2f); box-shadow: inset 0 0 0 3px #5a3d26; transition: transform .6s ease; }
@@ -431,9 +433,13 @@
   .dy-seal { left: 70%; width: 8%; border-radius: 3px; background: #b23a2e; }
   .dy-book { left: 40%; width: 22%; border-radius: 2px; background: #2f5a4a; }
   .dy-place.open .dy-seal, .dy-place.open .dy-book { opacity: 1; }
-  /* 超商：後牆的留白框（原圖 x 345–1037、y 567–857）＝徵人海報，字由程式疊（不疊薪水）；點海報的熱點就是這個框 */
-  .dy-poster { position: absolute; left: 29.5%; top: 22.4%; width: 59.1%; height: 11.5%; z-index: 1; display: flex; align-items: center; justify-content: center;
-    font-size: 3.4vh; font-weight: 700; color: #a8302a; letter-spacing: .22em; text-align: center; line-height: 1.2; text-shadow: 0 1px 0 rgba(255,250,235,.6); }
+  /* 超商（定版 bg_v56_store_interior_seating_portrait，承峰 2026-11-22「超商圖定版」）：座位區後牆、吧台上方、窗戶左側畫好一張有框的空白海報。
+     熱點＝海報外框（原圖 x 348–646、y 569–977）；字疊在紙面（原圖 x 358–638、y 580–967）＝外框內縮 左 3.356%／上 2.696%／右 2.685%／下 2.451%。
+     不再疊 CSS 白紙、膠帶、也不旋轉（不蓋住原圖海報）。程式只疊「誠徵門市人員」（不疊薪水）；提示字「點座位區的徵人海報」（view/hints.js 的 POSTER_HINT）。
+     .op-art 的比例就是 1170/2532，object-fit: cover 不裁切，百分比直接對到原圖。 */
+  .dy-poster { position: absolute; left: 29.744%; top: 22.472%; width: 25.47%; height: 16.114%; z-index: 1; container-type: size; }
+  .dy-poster .pp-overlay { position: absolute; left: 3.356%; top: 2.696%; right: 2.685%; bottom: 2.451%; display: flex; align-items: center; justify-content: center;
+    font-size: 1.9vh; font-size: 12cqh; font-weight: 700; color: #a8302a; letter-spacing: .12em; line-height: 1; writing-mode: vertical-rl; pointer-events: none; }
   /* 花斑貓（cat_huaban_*；不用龍眼貓圖）：村子路從圍牆上跳下來（jump）→ 落地坐著（sit）→ 點了往前走（walk）；院子裡坐著 */
   .dy-calico { position: absolute; aspect-ratio: 4 / 3; z-index: 2; opacity: 0; }
   .dy-calico img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transition: opacity .25s; }
@@ -452,8 +458,10 @@
   .op-day.can-up .dy-emptycan { transform: none; }
   .op-day.can-taken .dy-emptycan { opacity: 0; }
   .dy-fullcan { left: 25%; top: 76.6%; width: 4.2%; height: 3.6%; }
-  /* 字卡（「第二天」「三天後」）：沿用 .op-card */
+  /* 字卡（「第二天」「三天後」、倒數字卡）：沿用 .op-card */
   .op-day.daycard { background: #0d0b0a; }
+  /* 倒數字卡（「我單方面辭退老闆前 4 天」「我單方面辭退老闆當天　16:49」）：整句讀得清楚；放不下就換行（字不改），數字不拆開 */
+  .op-day.daycard.long .op-card p { max-width: calc(100% - 48px); font-size: 20px; line-height: 1.7; letter-spacing: 3px; text-align: center; word-break: normal; overflow-wrap: anywhere; }
 
   /* 小圖（#op-prop .pp-mini）：疊在原場景上，背景不切換；先疊上來，點一下才出句子；講完收掉。不畫手 */
   .pp-mini { position: absolute; left: 50%; top: 12%; width: min(64vw, 250px); aspect-ratio: 1; transform: translateX(-50%) scale(.94); opacity: 0;
@@ -514,42 +522,71 @@
   button.op-after { flex: none; background: transparent; box-shadow: none; color: inherit; border-radius: 0; padding: 6px 8px; min-height: 44px; }
   button.op-after .st-more { display: inline-block; margin-left: 6px; color: #f1ece2; }
   button.op-after.done .st-more { visibility: hidden; }
+  /* 接回場：旁白在送出鍵的位置；想起信上那一句用信的字體 */
+  .op-office.resend button.op-after { color: #f1ece2; font-size: 16px; line-height: 1.7; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+  .op-office.resend button.op-after.quote { font-family: "PMingLiU", "MingLiU", "Songti TC", "Noto Serif TC", serif; }
+  .op-office.resend #op-next { min-width: 160px; letter-spacing: 4px; animation: floatin 1s ease-out both; }
+  /* 特休前一晚：同一間房間；「出發去東山」在旁白框上方 */
+  .op-letterroom.eve .op-env { pointer-events: none; }
+  .op-letterroom.eve #op-next { position: absolute; left: 50%; bottom: calc(var(--box-h) + 18px); z-index: 4; min-width: 160px; transform: translateX(-50%); letter-spacing: 2px; }
   /* 第一天早上：把鑰匙拖向德叔（或吧台）：兩個都算；提示字 */
   .pp-zone.to-bar { left: 6%; top: 50%; width: 88%; height: 12%; }
   .pp-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--box-h) + 124px); margin: 0; text-align: center; font-size: 15px; letter-spacing: 1px; color: #ffe7b0;
     text-shadow: 0 1px 4px rgba(0,0,0,.85); pointer-events: none; animation: floatin .8s ease-out both; }
-  /* 閱讀框上方的提示字（摸摸龍眼、點床躺下、點椅子坐下）：只在那個熱點還沒點時出現 */
-  #op-read .opr-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--box-h) + 12px); z-index: 3; margin: 0; text-align: center; font-size: 15px; letter-spacing: 1px;
+  /* 閱讀框上方的提示字（通用提示規則，字在 src/view/hints.js）：只在那個熱點／關卡還沒做時出現；可選的「（也可以直接翻頁）」小一號 */
+  #op-read .opr-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--box-h) + 12px); z-index: 3; margin: 0; padding: 0 12px; text-align: center; font-size: 15px; letter-spacing: 1px;
     color: #ffe7b0; text-shadow: 0 1px 4px rgba(0,0,0,.85); pointer-events: none; animation: floatin .8s ease-out both; }
-  /* 看看店裡（坐下以後，人在店裡）：閱讀框角落的小按鈕；第一次出現時發光、箭頭指著它、上方一行提示；回座位 */
-  .shop-look { position: absolute; right: 12px; bottom: calc(var(--box-h) + 8px); z-index: 23; padding: 0 14px; font-size: 14px; letter-spacing: 1px; border-radius: 22px;
-    background: rgba(251,245,232,.94); color: #4b3a2e; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
-  .shop-look.guide { animation: hotglow 1.8s ease-in-out infinite; }
-  .shop-look.guide::after { content: "▼"; position: absolute; left: 50%; top: -24px; transform: translateX(-50%); font-size: 16px; color: #ffe7b0; text-shadow: 0 1px 4px rgba(0,0,0,.85);
-    animation: bob 1s ease-in-out infinite; pointer-events: none; }
-  @keyframes bob { 0%, 100% { margin-top: 0; } 50% { margin-top: 5px; } }
-  .shop-back { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 23; min-width: 160px; letter-spacing: 2px; background: #f1ece2; color: #1b1f27; }
-  .shop-look-hint { position: absolute; left: 0; right: 0; bottom: calc(var(--box-h) + 72px); z-index: 23; margin: 0; padding: 0 12px; text-align: center; font-size: 15px; letter-spacing: 1px;
-    color: #ffe7b0; text-shadow: 0 1px 4px rgba(0,0,0,.85); pointer-events: none; animation: floatin .8s ease-out both; }
-  .shop-look-hint.sit { bottom: 120px; }
+  #op-read .opr-hint small { font-size: 12px; letter-spacing: 0; opacity: .9; }
+  /* 沒有閱讀框的時候（點椅子坐下）：提示字放低，不蓋在椅子上 */
+  #op-read.nobox .opr-hint { bottom: calc(14% + env(safe-area-inset-bottom)); }
+  /* 第二天：把鑰匙放到吧台（框上寫「吧台」）。在店內定景上由 days.js 依吧台檯面（shop-still.js 的 SHOP_BAR）改成 px 位置；
+     下面的百分比只是量不到吧台時的退路 */
+  .pp-zone.bar-drop { left: 14%; top: 44%; width: 72%; height: 11%; }
+  .pp-zone.bar-drop::after { content: attr(data-label); position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 14px; letter-spacing: 4px;
+    color: #ffe7b0; text-shadow: 0 1px 4px rgba(0,0,0,.85); }
+
+  /* ---------- 店內 2D 定景（src/view/shop-still.js；店內環景已拔掉） ----------
+     背景是 art-map.js 的 SHOP_STILL_NIGHT／SHOP_STILL_DAY（進門／站著：scene_shop_interior_night_lit_v2）與
+     SHOP_STILL_SEATED（坐下喝咖啡：scene_v3b_shop_window_night_seated）；
+     座標都是 .op-art 的百分比＝原圖（1170×2532）上的位置。燈是亮的：不再疊壓暗的濾鏡 */
+  .op-shop { padding: 0; background: #1c130d; --cat-h: .3466%; } /* --cat-h：貓圖（512×384）寬 1% 時，高佔原圖高的比例（.75 × 1170 ÷ 2532） */
+  .sh-cam { position: absolute; inset: 0; transition: transform .9s ease; transform-origin: 62% 62%; }
+  .op-shop[data-frame="side"] .sh-cam { transform: scale(1.07); } /* 靠窗那一側：往窗邊推近一點 */
+  .sh-sky { position: absolute; mix-blend-mode: screen; pointer-events: none; opacity: 0; transition: opacity 1.2s; }
+  .sh-sky[data-kind="dusk"] { background: linear-gradient(rgba(235,150,90,1), rgba(170,110,110,.75) 45%, rgba(90,70,60,.5)); }
+  .sh-sky[data-kind="morning"] { background: linear-gradient(rgba(190,215,235,.95), rgba(230,225,200,.7)); }
+  .sh-deshu { position: absolute; width: auto; transform: translateX(-50%); pointer-events: none; filter: drop-shadow(0 4px 8px rgba(30,15,5,.45)); }
+  .sh-chair, .sh-bar { position: absolute; z-index: 1; pointer-events: none; }
+  .sh-cup { position: absolute; width: auto; transform: translateX(-50%); transform-origin: 50% 100%; pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
+  .sh-cup.sip { animation: sip 1.5s ease-in-out; }
+  @keyframes sip { 50% { translate: -60% -120%; scale: 1.35; } }
+  .sh-cat { position: absolute; aspect-ratio: 512 / 384; z-index: 2; pointer-events: none; }
+  .sh-cat.flip { scale: -1 1; }
+  .sh-cat.bob { animation: catbob .3s ease-in-out infinite alternate; }
+  @keyframes catbob { from { translate: 0 0; } to { translate: 0 -1.8%; } }
+  .sh-cat-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transform-origin: 50% 100%; }
+  /* 摸頭：怡君的手（char_v3b_yijun_hand_v2，800×600）與貓圖同比例，指尖 (332,147) 對準頂頭圖的頭頂 (205,58)；袖口淡掉，從上方伸進來再收回去 */
+  .sh-hand { position: absolute; left: -24.8%; top: -23.2%; width: 156.25%; height: auto; opacity: 0; pointer-events: none;
+    -webkit-mask-image: linear-gradient(transparent, #000 8%); mask-image: linear-gradient(transparent, #000 8%); }
+  .sh-hand.go { animation: pethand 2.8s ease-in-out both; }
+  @keyframes pethand { 0% { opacity: 0; transform: translateY(-32%); } 18% { opacity: 1; transform: none; } 30% { transform: translate(1.2%, -.7%); }
+    42% { transform: translate(-1%, .6%); } 54% { transform: translate(1.2%, -.7%); } 66% { transform: translate(-1%, .6%); } 82% { opacity: 1; transform: none; }
+    100% { opacity: .4; transform: translateY(-32%); } }
 </style>
 </head>
 <body>
 <div id="app">
-  <canvas id="pano" aria-label="店內"></canvas>
   <section id="story" hidden>
     <div class="st-bg" id="st-bg"></div>
     <div class="st-portrait" id="st-portrait"></div>
     <div class="st-focus" id="st-focus"></div>
-    <div class="st-top" id="st-top"><span class="st-scene" id="st-scene"></span><button id="st-look" type="button" hidden>環視</button><button id="st-log" type="button">回顧</button></div>
+    <div class="st-top" id="st-top"><span class="st-scene" id="st-scene"></span><button id="st-log" type="button">回顧</button></div>
     <div class="st-choices" id="st-choices" hidden></div>
     <div class="st-box" id="st-box" aria-live="polite"></div>
   </section>
-  <section id="look" hidden><span class="hint">左右拖曳看看店裡</span><button id="look-back" type="button">回到故事</button><button id="look-log" type="button">回顧</button></section>
   <section id="log" hidden role="dialog" aria-label="回顧"><div class="log-paper" id="log-list"></div><div class="log-bar"><button id="log-close" type="button">回到原頁</button></div></section>
   <section id="opening" hidden></section>
   <section id="op-read" hidden aria-label="下一句"><div class="st-portrait opr-portrait"></div><div class="opr-hot"></div><div class="st-box opr-box" aria-live="polite"></div><button type="button" class="opr-skip" hidden></button></section>
-  <button type="button" id="shop-look" class="shop-look" hidden></button><button type="button" id="shop-back" class="shop-back" hidden></button><p id="shop-look-hint" class="shop-look-hint" hidden aria-hidden="true"></p>
   <section id="op-prop" hidden><div class="pp-card"></div><div class="pp-mini"></div><span class="pp-film" aria-hidden="true"></span><div class="pp-extra"></div><div class="pp-flash"></div></section>
   <div id="fade"></div>
   <div id="boot"></div>

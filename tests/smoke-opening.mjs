@@ -1,5 +1,6 @@
-// 開場冒煙（自動跑完，不用人盯）：用 Playwright 從辦公室一路玩到第一晚自白，點「跳過自白」接到第一天，
-// 再照劇本 v5.8 玩第一天（不點信箱也接到房東）、字卡「第二天」、第二天回咖啡館、字卡「三天後」、三天後到研發咖啡之後的待續；
+// 開場冒煙（自動跑完，不用人盯）：用 Playwright 照劇本 v5.9（字卡倒數版）從辦公室、標題、字卡「前 4 天」、收到信、字卡「前 2 天」、
+// 特休前一晚一路玩到第一晚自白，點「跳過自白」接字卡「前 1 天」與「最底下那個抽屜」，
+// 再玩第一天（不點信箱也接到房東）、歸零字卡、接回場（自動送出、下班）、字卡「第二天」、第二天回咖啡館、字卡「三天後」、三天後到研發咖啡之後的待續；
 // 每一幕截圖到 tests/output/opening/（不 commit）。
 // 執行：node tests/smoke-opening.mjs（約 1～2 分鐘）。任何一步不對或頁面丟錯就以非 0 結束。
 import { chromium } from 'playwright';
@@ -88,24 +89,42 @@ try {
   if ((await page.locator('#op-next').textContent()) !== '下班') fail('標題畫面的按鈕不是「下班」');
   await page.locator('#op-next').click(); // 按「下班」
 
-  // 第二幕：房間裡那封信（租屋處房間 → 點信封 → 信）
-  await waitAct('mailbox');
+  // 倒數字卡（劇本 v5.9）：標題的「下班」先出「我單方面辭退老闆前 4 天」，再進租屋處
+  const cardText = () => page.evaluate(() => document.querySelector('.op-day.daycard .op-card:not(.out) p')?.textContent || '');
+  const waitCard = async (t, ms = 5000) => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) { if ((await cardText()) === t) return; await sleep(100); }
+    fail(`等不到字卡：${t}（畫面上是：${await cardText()}）`);
+  };
+  // 字卡整句都在畫面裡（換行可以，不被裁掉）
+  const cardFits = () => page.evaluate(() => { const p = document.querySelector('.op-day.daycard .op-card p'); const r = p?.getBoundingClientRect(); return !!r && r.left >= 0 && r.right <= innerWidth && p.scrollWidth <= p.clientWidth + 1; });
+  await waitAct('t4card', 3000);
+  await waitCard('我單方面辭退老闆前 4 天');
+  if (!(await cardFits())) fail('字卡「前 4 天」超出畫面');
+  await snap('card-t4');
+
+  // 第二幕：收到信（第一次收到；租屋處房間 → 點信封 → 信）
+  await waitAct('mailbox', 6000);
   await page.waitForSelector('.op-letterroom.on', { timeout: 5000 });
   await sleep(900);
   const cap = () => page.locator('#op-cap').textContent();
-  if ((await cap()) !== '我回到租屋處，進了房間，把包包放在床上。') fail(`房間第一句不對：${await cap()}`);
+  if ((await cap()) !== '我下班回到租屋處，進了房間，把包包放在床上。') fail(`房間第一句不對：${await cap()}`);
   if (!(await page.locator('#op-env').isDisabled())) fail('旁白還沒讀完就能點信封');
   await snap('letter-room');
   await page.locator('#op-roombox').click();
   await sleep(500);
-  if ((await cap()) !== '那封信放在摺疊桌上。牛皮紙信封早就拆開了，鑰匙我上次看完又放回信封裡。') fail('房間第二句不對');
+  if ((await cap()) !== '今天我收到一封信。牛皮紙信封，拿起來裡面有東西在響。') fail('房間第二句不對');
+  if (!(await page.locator('#op-env').isDisabled())) fail('旁白還沒讀完就能點信封');
+  await page.locator('#op-roombox').click();
+  await sleep(500);
+  if ((await cap()) !== '我在摺疊桌前坐下來，把信封放在桌上。') fail('房間第三句不對');
   if ((await page.locator('#op-hint').textContent()) !== '點信封，把信拿出來。' || !(await page.locator('#op-hint').isVisible())) fail('沒有操作提示「點信封，把信拿出來。」');
   const envBox = await page.locator('#op-env').boundingBox();
   if (envBox.width < 44 || envBox.height < 44) fail('信封熱點小於 44px');
   await snap('letter-room-hint');
   await page.locator('#op-env').click();
   await sleep(300);
-  if ((await cap()) !== '我把信抽出來，從頭再看一遍。') fail('點信封後旁白沒換');
+  if ((await cap()) !== '我把信抽出來，從頭看起。') fail('點信封後旁白沒換');
   if (await page.locator('#op-hint').count()) fail('點信封後提示沒消失');
   await waitAct('letter', 4000); // 約一秒多後自動進入信件畫面
   await page.waitForSelector('.op-letter', { timeout: 5000 });
@@ -114,21 +133,42 @@ try {
   const letterText = await page.locator('.op-letter').innerText();
   for (const t of ['我年紀大了，現在不住那裡。店想交給妳經營，屋子也一起留給妳。那間屋子冬天曬得到太陽，住下來很舒服，而咖啡館坐起來也是暖的。', '我沒有要強迫妳辭職，只是咖啡館比較遠，擔心妳應付不來。']) if (!letterText.includes(t)) fail(`信少了劇本那一句：${t}`);
   for (const o of ['若妳尚未辭職', '附件']) if (letterText.includes(o)) fail(`信還有劇本沒有的字：${o}`);
-  if (await page.locator('#op-next').isVisible()) fail('信後旁白還沒讀完就出現「出發去東山」');
   await snap('letter');
   await page.locator('#op-attach').click();
   await sleep(1700);
   if (!(await page.evaluate(() => { const im = document.querySelector('#op-keyshot:not([hidden]) .envkey'); return im?.complete && im.naturalWidth === 1024 && im.src.includes('prop_v3b_envelope_key_v2'); }))) fail('鑰匙特寫不是 prop_v3b_envelope_key_v2 原圖');
   await snap('letter-key');
   await page.locator('#op-keyshot').click();
-  const after = ['上次看到這一段的時候，我還在公司上班，看完就把信收起來了。', '今天我把離職單送出去了，回到家又把信拿出來看一眼。', '其實我已經辭職了...', '我把信摺好放回桌上，鑰匙拿出來，放進外套口袋。'];
+  const after = ['信裡說，台南東山有一間老三合院，正廳是咖啡館，屋子和店都想交給我。', '寫信的人我沒見過，東山我也沒去過。', '辭職這件事，我沒有想過。', '我把信摺好，和信封一起放在摺疊桌上。鑰匙留在信封裡。'];
   for (let i = 0; i < after.length; i++) {
     const t = ((await page.locator('#op-after').textContent()) || '').replace('▾', '');
     if (t !== after[i]) fail(`信後旁白第 ${i + 1} 句不對：${t}`);
     if (i < after.length - 1) { await sleep(350); await page.locator('#op-after').click(); await sleep(200); }
   }
-  if ((await page.locator('#op-next').textContent()) !== '出發去東山') fail('按鈕不是「出發去東山」');
+  if (await page.getByText('出發去東山').count()) fail('信件畫面還有「出發去東山」');
+  if (await page.getByText('其實我已經辭職了...').count()) fail('信件畫面還有「其實我已經辭職了...」');
   await snap('letter-after');
+  await sleep(350);
+  await page.locator('#op-after').click(); // 最後一句再點一下：淡出
+
+  // 字卡「我單方面辭退老闆前 2 天」→ 特休前一晚
+  await waitAct('t2card', 4000);
+  await waitCard('我單方面辭退老闆前 2 天', 6000);
+  if (!(await cardFits())) fail('字卡「前 2 天」超出畫面');
+  await snap('card-t2');
+  await waitAct('eve', 6000);
+  await page.waitForSelector('.op-letterroom.eve.on', { timeout: 5000 });
+  await sleep(900);
+  const eve = ['那封信一直擺在摺疊桌上。', '今天人資來問我，特休一天都沒請，要不要先放幾天。', '我說，去年的也是，一天都沒請，全部放著沒用。我先請了明天一天。', '明天不用上班。我想去看一眼，那間咖啡館是不是真的在那裡。', '我把鑰匙從信封裡拿出來，放進外套口袋。信留在桌上。'];
+  for (let i = 0; i < eve.length; i++) {
+    if ((await cap()) !== eve[i]) fail(`特休前一晚第 ${i + 1} 句不對：${await cap()}`);
+    if (i < eve.length - 1) {
+      if (await page.locator('#op-next').isVisible()) fail('旁白還沒讀完就出現「出發去東山」');
+      await sleep(350); await page.locator('#op-roombox').click(); await sleep(300);
+    }
+  }
+  if ((await page.locator('#op-next').textContent()) !== '出發去東山') fail('按鈕不是「出發去東山」');
+  await snap('eve');
   await page.locator('#op-next').click();
 
   // 第三幕：三合院外（夜裡，東山。）
@@ -142,6 +182,8 @@ try {
   await snap('road');
   await tapRead();
   await waitText('正廳的窗亮著一盞燈，門口的台階上睡著一隻橘貓。');
+  await sleep(300);
+  if ((await page.locator('#op-read .opr-hint').textContent()) !== '把門推開' || !(await page.locator('#op-read .opr-hint').isVisible())) fail('推門沒有提示字「把門推開」');
   await page.locator('#op-door').click(); // 只點一下：門晃一下，不會開
   await sleep(900);
   if ((await text()) !== '正廳的窗亮著一盞燈，門口的台階上睡著一隻橘貓。') fail('點一下門就開了');
@@ -188,7 +230,7 @@ try {
       if (!(await hot.count())) fail('沒有可以點的貓');
       const b = await hot.boundingBox();
       if (b.width < 44 || b.height < 44) fail('貓的熱點小於 44px');
-      if ((await page.locator('#op-read .opr-hint').textContent()) !== '摸摸龍眼') fail('沒有提示字「摸摸龍眼」');
+      if ((await page.locator('#op-read .opr-hint').textContent()) !== '摸摸龍眼（也可以直接翻頁）') fail('沒有提示字「摸摸龍眼（也可以直接翻頁）」');
       await hot.click();
       petted = true;
       await sleep(300);
@@ -203,41 +245,28 @@ try {
   await waitText('泡好了。坐下喝看看。');
   await tapRead();
 
-  // 第四幕：點椅子（一進 360 鏡頭先自動慢慢轉到椅子，停一下再出提示字「點椅子坐下」）
+  // 第四幕：點椅子（店內 2D 定景；那張看得到的椅子發光加箭頭，提示字「點椅子坐下」；不自動坐下、不轉鏡頭）
   await waitAct('sit');
-  await sleep(2400);
+  await sleep(1200);
   await snap('sit');
-  if ((await page.locator('#shop-look-hint').textContent()) !== '點椅子坐下' || !(await page.locator('#shop-look-hint').isVisible())) fail('沒有提示字「點椅子坐下」');
-  await page.mouse.click(60, 300); // 點其他地方不會坐下
+  if ((await page.locator('#op-read .opr-hint').textContent()) !== '點椅子坐下' || !(await page.locator('#op-read .opr-hint').isVisible())) fail('沒有提示字「點椅子坐下」');
+  if (await page.locator('#pano, #shop-look, #shop-back, #shop-look-hint').count()) fail('店內環景／看看店裡還在');
+  const chair = page.locator('.opr-hotspot[data-id="chair"]');
+  if (!(await chair.count())) fail('沒有可以點的椅子');
+  const cb = await chair.boundingBox();
+  if (cb.width < 44 || cb.height < 44) fail('椅子的熱點小於 44px');
+  await page.mouse.click(30, 120); // 點其他地方不會坐下
   await sleep(500);
   if ((await act()) !== 'sit') fail('點別的地方也坐下了');
-  await sleep(300);
-  const seat = await page.evaluate(() => {
-    // 找畫面上發光的椅子：掃描 canvas 不實際，改用已知角度推算位置（鏡頭自動轉到 38 度、椅子在 38 度：畫面正中）
-    const W = innerWidth > 390 ? 390 : innerWidth;
-    const H = innerHeight;
-    const s = 0.65 + 0.7 * 0.63;
-    const h = 0.3 * H * s;
-    return { x: W / 2, y: 0.9 * H - h / 2 };
-  });
-  await page.mouse.click(seat.x, seat.y);
+  await sleep(2500);
+  if ((await act()) !== 'sit') fail('不點椅子也自動坐下了');
+  await chair.click();
   await waitAct('coffee', 4000);
   await waitText('椅子是木頭的，機車騎一個多小時，我屁股麻到現在。');
   await sleep(600);
   await snap('coffee');
-  // 看看店裡：第一次出現時發光、上方一行提示；點了回到店內 360，按「回座位」回到原本那一句
-  if ((await page.locator('#shop-look').textContent()) !== '看看店裡' || !(await page.locator('#shop-look').isVisible())) fail('坐下後沒有「看看店裡」');
-  if (!(await page.locator('#shop-look.guide').count())) fail('「看看店裡」第一次出現沒有發光');
-  if ((await page.locator('#shop-look-hint').textContent()) !== '點「看看店裡」，可以四處看看。') fail('沒有「看看店裡」的提示');
-  await page.locator('#shop-look').click();
-  await sleep(700);
-  if (await page.locator('#op-read').isVisible()) fail('看看店裡時閱讀框還在');
-  if ((await page.locator('#shop-back').textContent()) !== '回座位') fail('沒有「回座位」');
-  await snap('coffee-look');
-  await page.locator('#shop-back').click();
-  await sleep(600);
-  if ((await text()) !== '椅子是木頭的，機車騎一個多小時，我屁股麻到現在。' || (await act()) !== 'coffee') fail('回座位後不是原本那一句');
-  if (await page.locator('#shop-look-hint').isVisible()) fail('點過「看看店裡」還在引導');
+  // 「看看店裡／回座位」已拔掉（承峰 2026-11-21 20:48）
+  if (await page.getByText('看看店裡').count()) fail('坐下後還有「看看店裡」');
   await tapRead();
   await waitText('這個杯子沒有人用，以後就是妳的。');
   let sipped = false;
@@ -245,6 +274,7 @@ try {
     if (cur.startsWith('他說完就回吧台') && !sipped) {
       const hot = page.locator('.opr-hotspot[data-id="cup"]');
       if (!(await hot.count())) fail('沒有可以點的杯子');
+      if ((await page.locator('#op-read .opr-hint').textContent()) !== '點杯子喝一口（也可以直接翻頁）') fail('沒有提示字「點杯子喝一口（也可以直接翻頁）」');
       await hot.click();
       sipped = true;
       await sleep(700);
@@ -276,6 +306,7 @@ try {
   await waitAct('ride');
   await waitText('過了第一個彎，後照鏡裡就看不到那盞燈了。');
   await sleep(500);
+  if ((await page.locator('#op-read .opr-hint').textContent()) !== '按住畫面，往前騎') fail('沒有提示字「按住畫面，往前騎」');
   await snap('ride');
   await page.mouse.click(195, 300); // 點一下不會往前
   await sleep(500);
@@ -295,6 +326,7 @@ try {
   await waitAct('fork');
   await waitText('前面是岔路，兩邊都沒有路牌。');
   await sleep(900);
+  if ((await page.locator('#op-read .opr-hint').textContent()) !== '點左邊或右邊的路') fail('沒有提示字「點左邊或右邊的路」');
   await snap('fork');
   await page.locator('.op-fork.left').click();
   await waitAct('temple', 5000);
@@ -341,7 +373,7 @@ try {
   await waitText('房間不大。我把鑰匙從口袋拿出來，放在枕頭旁邊。');
   await sleep(1200);
   await snap('room');
-  if ((await page.locator('#op-read .opr-hint').textContent()) !== '點床躺下') fail('沒有提示字「點床躺下」');
+  if ((await page.locator('#op-read .opr-hint').textContent()) !== '點床躺下（也可以直接翻頁）') fail('沒有提示字「點床躺下（也可以直接翻頁）」');
   await page.locator('.opr-hotspot[data-id="bed"]').click();
   // 第一晚自白（劇本 v5.7）：躺下視角；右上角有獨立的「跳過自白」
   await waitText('外面有蟲在叫，遠一點的地方有狗叫了幾聲，又停了。', 3000);
@@ -354,15 +386,25 @@ try {
   if ((await act()) !== 'room') fail('點正文就跳完自白了');
   await sleep(1100);
   await page.locator('.opr-skip').click();
-  await waitAct('d1wake', 4000); // 跳過自白：睡著並存檔，接著是第一天早上（不再停在待續）
+  // 跳過自白：睡著並存檔 → 字卡「我單方面辭退老闆前 1 天」→ 章名「最底下那個抽屜」（拿掉「第一天」）
+  await waitAct('t1card', 4000);
+  await waitCard('我單方面辭退老闆前 1 天', 6000);
+  if (!(await cardFits())) fail('字卡「前 1 天」超出畫面');
+  await snap('card-t1');
+  await waitAct('d1wake', 8000);
   await sleep(1800);
   await snap('d1-title');
   const body = await page.evaluate(() => document.body.innerText);
-  if (!body.includes('第一天')) fail('沒有接到第一天');
+  if (!body.includes('最底下那個抽屜')) fail('沒有接到「最底下那個抽屜」');
+  if (body.includes('第一天')) fail('章名還有「第一天」');
   if (body.includes('待續')) fail('第一晚之後還停在待續');
+  // 重新整理（讀檔落在倒數之後）：先重出這一段最近的字卡「前 1 天」，再回第一天早上；存檔不動
   await page.reload();
-  await sleep(1500);
+  await waitCard('我單方面辭退老闆前 1 天', 5000);
   if ((await act()) !== 'd1wake') fail('重新整理後不在第一天早上');
+  await snap('card-t1-resumed');
+  await sleep(4000);
+  if ((await act()) !== 'd1wake') fail('重出字卡後存檔被改了');
 
   // 第一天～研發咖啡（劇本 v5.8）：一路點到待續。互動照做：
   // 必點的熱點（錢包、抽屜、徵人海報、花斑貓、空罐子：data-need）、要拖的東西（鑰匙拖向德叔）、疊在上面要點的東西（提款機的存摺、包包裡的鑰匙）、小圖（點一下才出字）
@@ -373,13 +415,41 @@ try {
   const seenTexts = new Set();
   const seenTitles = new Set();
   const seenCards = new Set();
-  if (body.includes('第一天　最底下那個抽屜')) seenTitles.add('第一天　最底下那個抽屜'); // 跳過自白後已經看到第一天的章名卡
+  if (body.includes('最底下那個抽屜')) seenTitles.add('最底下那個抽屜'); // 跳過自白後已經看到章名卡
   let dragged = 0;
   let sawMailbox = false;
+  let resent = false;
   for (let n = 0; n < 1200; n++) {
     const a = await act();
     if (a === 'tbc') break;
     if (seenActs.at(-1) !== a) seenActs.push(a);
+    if (a === 'resend' && !resent) { // 接回場：同一張已填好的單、不能點；自動送出（16:49 → 16:50）→ 四拍（送出去了／我想起信上的那一句／信上原句（信的字體）／其實我已經辭職了...）→ 「下班」→ 字卡「第二天」
+      resent = true;
+      await page.waitForSelector('.op-office.resend.on', { timeout: 5000 });
+      if ((await page.locator('.op-clock').textContent()) !== '16:49') fail('接回場一開始不是 16:49');
+      if ((await page.locator('#op-reason').textContent()) !== '離職事由：從今天起，我單方面辭退您。') fail('接回場的事由沒有已經填好');
+      if (!(await page.locator('#op-reason').isDisabled()) || !(await page.locator('#op-send').isDisabled())) fail('接回場還能點事由或送出');
+      await snap('resend-1649');
+      const t0 = Date.now();
+      while ((await page.locator('.op-clock').textContent()) !== '16:50') { if (Date.now() - t0 > 6000) fail('接回場沒有自動翻成 16:50'); await sleep(100); }
+      await page.locator('#op-after').waitFor({ state: 'visible', timeout: 4000 });
+      const lines = ['送出去了。', '我想起信上的那一句。', '我沒有要強迫妳辭職，只是咖啡館比較遠，擔心妳應付不來。', '其實我已經辭職了...'];
+      for (let i = 0; i < lines.length; i++) {
+        const t = ((await page.locator('#op-after').textContent()) || '').replace('▾', '');
+        if (t !== lines[i]) fail(`接回場第 ${i + 1} 句不對：${t}`);
+        const quote = await page.locator('#op-after').evaluate((e) => e.classList.contains('quote'));
+        if (quote !== (i === 2)) fail(`接回場第 ${i + 1} 句的信的字體不對（只有信上原句那一拍用）`);
+        if (i < lines.length - 1) {
+          if (await page.locator('#op-next').isVisible()) fail('接回場旁白還沒讀完就出現「下班」');
+          await sleep(350); await page.locator('#op-after').click(); await sleep(250);
+        }
+      }
+      if ((await page.locator('#op-next').textContent()) !== '下班') fail('接回場的按鈕不是「下班」');
+      await snap('resend-1650');
+      await page.locator('#op-next').click();
+      await waitAct('d2card', 3000);
+      continue;
+    }
     const st = await page.evaluate(() => ({
       need: [...document.querySelectorAll('.opr-hotspot[data-need="1"]')].filter((e) => !e.disabled && !e.hidden).map((e) => e.dataset.id),
       item: [...document.querySelectorAll('.pp-tapitem')].filter((e) => !e.disabled).map((e) => e.dataset.id),
@@ -401,11 +471,57 @@ try {
       await sleep(400);
       if (!(await page.locator('.opr-hotspot[data-id="mailbox"]').count())) fail('信箱畫面沒有可以點的信箱');
       if (st.box) fail('信箱還沒點，「信箱是空的……」就先出來了');
+      if ((await page.locator('#op-read .opr-hint').textContent()) !== '點信箱看看（也可以直接上樓）') fail('信箱沒有提示字「點信箱看看（也可以直接上樓）」');
+      // 第一天的空信箱：定版圖 scene_mailboxes_empty（門都關著、沒信封），整張放進 1950/1200 的圖框；不引用帶信封的 scene_mailboxes.webp；格口裡沒有信封
+      const mb = await page.evaluate(() => {
+        const on = document.querySelector('.dy-place.on[data-place="mailbox"]');
+        const img = on?.querySelector('.op-art-img');
+        const frame = on?.querySelector('.op-art')?.getBoundingClientRect();
+        return {
+          src: img?.getAttribute('src') || '', w: img?.naturalWidth || 0, fit: img ? getComputedStyle(img).objectFit : '',
+          ratio: frame && frame.height ? frame.width / frame.height : 0,
+          old: document.querySelectorAll('img[src*="scene_mailboxes.webp"]').length,
+          extra: document.querySelectorAll('.dy-slip, .dy-mbwall, .dy-mailslot img, .dy-mb-hole *:not(.dy-mb-door)').length,
+        };
+      });
+      if (!mb.src.endsWith('assets/art/scene_mailboxes_empty.webp') || mb.w !== 1950) fail(`信箱不是定版空信箱圖：${JSON.stringify(mb)}`);
+      if (mb.fit !== 'contain' || Math.abs(mb.ratio - 1950 / 1200) > 0.02) fail(`信箱圖框不是整張放進 1950/1200：${JSON.stringify(mb)}`);
+      if (mb.old || mb.extra) fail(`信箱還引用舊的帶信封圖，或格口裡長了東西：${JSON.stringify(mb)}`);
       await snap('d1-mailbox');
+    }
+    if (st.need.length) { // 必做的熱點：閱讀框上方有提示字（不加「也可以直接翻頁」）
+      const hint = (await page.locator('#op-read .opr-hint').textContent()) || '';
+      if (!hint || hint.includes('也可以直接')) fail(`必點的 ${st.need[0]} 沒有提示字或加了小字：${hint}`);
+      if (st.need[0] === 'poster') {
+        if (hint !== '點座位區的徵人海報') fail(`徵人海報提示字不是「點座位區的徵人海報」：${hint}`);
+        // 定版超商圖：熱點對準座位區後牆海報外框（原圖 1170×2532 的 x348–646、y569–977），字落在紙面裡（x358–638、y580–967）
+        const pg = await page.evaluate(() => {
+          const on = document.querySelector('.dy-place.on');
+          const art = on?.querySelector('.op-art')?.getBoundingClientRect();
+          const box = on?.querySelector('.dy-poster')?.getBoundingClientRect();
+          const span = on?.querySelector('.dy-poster .pp-overlay');
+          const r = document.createRange(); if (span) r.selectNodeContents(span);
+          const txt = span ? r.getBoundingClientRect() : null;
+          const img = on?.querySelector('.op-art-img');
+          const f = (b) => b && art ? [(b.left - art.left) / art.width * 1170, (b.top - art.top) / art.height * 2532, (b.right - art.left) / art.width * 1170, (b.bottom - art.top) / art.height * 2532].map(Math.round) : null;
+          return { src: img?.getAttribute('src') || '', box: f(box), txt: f(txt), text: span?.textContent || '' };
+        });
+        if (!pg.src.endsWith('assets/art-v56/B/bg_v56_store_interior_seating_portrait.webp')) fail(`超商不是定版座位區圖：${pg.src}`);
+        const near = (a, b) => a && a.every((v, i) => Math.abs(v - b[i]) <= 6);
+        if (!near(pg.box, [348, 569, 646, 977])) fail(`徵人海報熱點沒對準外框：${JSON.stringify(pg)}`);
+        if (!pg.txt || pg.txt[0] < 358 || pg.txt[1] < 580 || pg.txt[2] > 638 || pg.txt[3] > 967) fail(`徵人海報的字超出紙面：${JSON.stringify(pg)}`);
+        if (pg.text !== '誠徵門市人員') fail(`徵人海報疊字不對：${pg.text}`);
+        await snap('d1-poster');
+      }
     }
     if (st.mini && !seenMini.includes(st.mini)) { seenMini.push(st.mini); await sleep(500); await snap(`mini-${st.mini}`); }
     if (st.need.length) { await page.locator(`.opr-hotspot[data-need="1"][data-id="${st.need[0]}"]`).click(); await sleep(900); continue; }
-    if (st.item.length) { await page.locator(`.pp-tapitem[data-id="${st.item[0]}"]`).click(); await sleep(900); continue; }
+    if (st.item.length) {
+      const want = { atm: '把存摺放進提款機', keyBar: '把鑰匙放到吧台' }[st.item[0]];
+      if (want && (await page.locator('#op-read .opr-hint').textContent()) !== want) fail(`沒有提示字「${want}」`);
+      if (st.item[0] === 'keyBar') { if (!(await page.locator('.pp-zone.bar-drop').count())) fail('鑰匙放到吧台沒有放置目標'); await snap('d2-keybar'); }
+      await page.locator(`.pp-tapitem[data-id="${st.item[0]}"]`).click(); await sleep(900); continue;
+    }
     if (st.drag) { // 拖到第一個目標區（鑰匙 → 德叔；存摺 → 櫃檯）
       await sleep(400);
       await snap(`drag-${a}`);
@@ -434,20 +550,23 @@ try {
   await waitAct('tbc', 8000);
   await sleep(2500);
   await snap('tbc');
-  const want = ['d1wake', 'd1shop', 'd1town', 'd1home', 'd1bank', 'd1store', 'd2card', 'd2cafe', 'd5card', 'd5cafe', 'd5village', 'd5thanks', 'd5brew'];
+  const want = ['d1wake', 'd1shop', 'd1town', 'd1home', 'd1bank', 'd1store', 'resend', 'd2card', 'd2cafe', 'd5card', 'd5cafe', 'd5village', 'd5thanks', 'd5brew'];
   for (const w of want) if (!seenActs.includes(w)) fail(`沒走到 ${w}（走過：${seenActs.join(' → ')}）`);
   for (const old of ['d1rent', 'd1dusk', 'd1back', 'd1ride', 'd2home', 'd2back', 'd2ride', 'd3card', 'd3morn']) if (seenActs.includes(old)) fail(`還走到 v5.7 的 ${old}`);
   if (seenActs.indexOf('d5card') !== seenActs.indexOf('d2cafe') + 1) fail(`「我相信妳一定可以的。」之後不是字卡「三天後」：${seenActs.join(' → ')}`);
-  for (const c of ['第二天', '第二天　回咖啡館', '三天後']) if (!seenCards.has(c)) fail(`沒看到字卡：${c}（看到：${[...seenCards].join('／')}）`);
+  if (seenActs.indexOf('resend') < seenActs.indexOf('d1store') || seenActs.indexOf('resend') > seenActs.indexOf('d2card')) fail(`接回場不在超商與字卡「第二天」之間：${seenActs.join(' → ')}`);
+  for (const c of ['我單方面辭退老闆當天　16:49', '第二天', '第二天　回咖啡館', '三天後']) if (!seenCards.has(c)) fail(`沒看到字卡：${c}（看到：${[...seenCards].join('／')}）`);
   for (const c of seenCards) if (c.includes('【')) fail(`字卡露出標記：${c}`);
-  if (!seenTitles.has('第一天　最底下那個抽屜')) fail(`沒看到章名：第一天　最底下那個抽屜（看到：${[...seenTitles].join('／')}）`);
+  if (!seenTitles.has('最底下那個抽屜')) fail(`沒看到章名：最底下那個抽屜（看到：${[...seenTitles].join('／')}）`);
   if (dragged < 1) fail('沒有拖鑰匙給德叔');
   if (seenMini.join() !== 'stain,passbook,hat,label,longan') fail(`小圖不對：${seenMini.join()}`);
   for (const nm of ['房東', '店長', '店員', '坤伯', '德叔', '我']) if (!seenNames.has(nm)) fail(`沒看到名牌：${nm}`);
   // 不點信箱：不出「信箱是空的……」，但房東整段照出
   if (seenTexts.has('信箱是空的，連傳單都沒有。')) fail('沒點信箱卻出了「信箱是空的……」');
   for (const t of ['聽到這個拖鞋聲，我就知道是房東。', '記得下禮拜要交房租。', '不好意思阿，我手騰不出空間來，妳先留著吧。', '那我……下次拿來。', '水很冰。',
-    '裡面居然有十六萬！', '先當實習的老闆試試看，不適合再說。', '我想先當實習老闆。', '我相信妳一定可以的。', '德叔……我們這三天有幾位客人？']) if (!seenTexts.has(t)) fail(`沒看到：${t}`);
+    '裡面居然有十六萬！', '先當實習的老闆試試看，不適合再說。', '公司那邊，不管適不適合，我都不做了。', '明天先回去上班，把離職單送出去。再回來找德叔。',
+    '我想先當實習老闆。', '我相信妳一定可以的。', '德叔……我們這三天有幾位客人？']) if (!seenTexts.has(t)) fail(`沒看到：${t}`);
+  if (seenTexts.has('明天就回去找德叔吧。')) fail('超商結尾還是「明天就回去找德叔吧。」');
   for (const t of ['妳是這裡的老闆，鑰匙就交給老闆了，有需要妳隨時可以回來。', '這麼快就決定了阿？', '那我……下次再來。', '後來每天都是這樣。']) if (seenTexts.has(t)) fail(`作廢的句子出現了：${t}`);
   if ([...seenTexts].some((t) => /定存|濾掛|人資|【/.test(t))) fail('作廢情節或標記出現了');
   if (!(await page.getByText('待續').first().isVisible())) fail('研發咖啡之後沒有待續');

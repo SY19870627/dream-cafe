@@ -4,32 +4,35 @@
 //     （可選：水龍頭；可點可不點、不點就不出那一句：信箱；字出來之前要先點的：錢包、抽屜、徵人海報、花斑貓、空罐子）。
 //   showCard()：只有一張字卡的幕（「第二天」「三天後」）；店裡開始的一天的章名卡。
 //   createProps().gate('keyGive')：第一天早上把鑰匙拖向德叔（沒有接，回到手上）。
-//   createProps()：疊在閱讀框上面的一層（#op-prop）：特寫卡（pp-card）、小圖（pp-mini：先疊上來，點一下才出句子）、要點的東西。店內 360 與整張背景圖都用這一層。
+//   createProps()：疊在閱讀框上面的一層（#op-prop）：特寫卡（pp-card）、小圖（pp-mini：先疊上來，點一下才出句子）、要點的東西。店內 2D 定景與整張背景圖都用這一層。
 // 美術：畫師原圖只讀不改（不重新壓縮、不縮圖）。圖從哪裡來、哪些是暫代，只查 view/art-map.js（換圖只改那裡）。
 //   v5.6 新圖在 assets/art-v56/，舊圖仍在 assets/art/；網址一律由 art-map.js 的 artUrl() 產生。
 //   房東、坤伯、店長、店員是半身立繪（依台詞切差分，見 LINE_CUES）；花斑貓只用 cat_huaban_*，不用龍眼貓圖；物件小圖不畫手。
 import { DAY_TITLES, DAY_CARDS } from '../lines/days.js';
-import { OVERLAY_TEXT, srcOf, refOf, artUrl, ART_MAP_FILES } from './art-map.js';
+import { OVERLAY_TEXT, srcOf, refOf, artUrl, ART_MAP_FILES, SHOP_STILL_NIGHT } from './art-map.js';
 import { play } from './audio.js';
+import { MUST_HINTS } from './hints.js';
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const art = (ref) => artUrl(ref); // 舊圖檔名 → assets/art/；art-v56/… → assets/art-v56/…
 
 // 場景 → 對照表的哪一格（src 從 art-map 來；null＝CSS 中性底 .dy-css）
-//   tone：morning 早上／dusk 傍晚（只在顯示時疊一層光，不改原圖）；fit：wide＝橫式原圖（信箱）
+//   tone：morning 早上／dusk 傍晚（只在顯示時疊一層光，不改原圖）；fit：mbox＝信箱這一幕專用的橫式圖框（1950/1200，整張放進框裡）
 const placeOf = (slot, extra = {}) => ({ slot, src: srcOf(slot), ...extra });
 export const PLACES = {
   roomMorning: placeOf('bg_room_morning', { ambient: 'room' }), // 護龍早上定版背景，不再疊早晨色調
   basin: placeOf('bg_basin', { tone: 'morning', ambient: 'room', basin: true }), // 暫代：CSS 洗手台與鏡子
   road: placeOf('bg_road', { ambient: 'wind' }), // 下山、省道
-  mailbox: placeOf('bg_mailbox', { fit: 'wide', ambient: 'wind' }), // 租屋處信箱（沿用開場第二幕）
+  mailbox: placeOf('bg_mailbox', { ambient: 'wind', fit: 'mbox' }), // 租屋處信箱：定版空信箱 scene_mailboxes_empty（橫圖，門都關著、沒信封；不再用帶信封的 scene_mailboxes.webp）
   stairs: placeOf('bg_stairs', { ambient: 'room' }), // v5.6 定版：樓梯間
   home: placeOf('bg_home', { ambient: 'room', home: true }), // v5.6 定版：八月的租屋房間
   atm: placeOf('bg_atm', { ambient: 'wind' }), // v5.6 定版：銀行外的提款機
-  store: placeOf('bg_store', { ambient: 'lobby', store: true }), // v5.6 定版：超商（後牆留白框＝徵人海報）
+  store: placeOf('bg_store', { ambient: 'lobby', store: true }), // 定版：超商（bg_v56_store_interior_seating_portrait；徵人海報是座位區後牆上那張有框的空白海報，程式疊字）
   village: placeOf('bg_village', { ambient: 'wind', village: true }), // v5.6 定版：村子路（_portrait_v2）
   kunyard: placeOf('bg_kunyard', { ambient: 'wind', yard: true }), // v5.6 定版：坤伯院子
+  // 店內 2D 定景（畫面由 view/shop-still.js 畫，德叔、龍眼、杯子疊在上面；這裡只登記背景給預載與對照）
+  shop: placeOf(SHOP_STILL_NIGHT, { ambient: 'shop' }),
 };
 
 /* ---------- 新角色的半身立繪與差分（房東、坤伯、店長、店員、花斑貓） ---------- */
@@ -101,7 +104,7 @@ export function placesOf(lines) {
   return out;
 }
 
-function makeStage(root) {
+export function makeStage(root) {
   root.hidden = false;
   const token = (root._token = (root._token || 0) + 1);
   const alive = () => root._token === token;
@@ -117,15 +120,30 @@ function makeStage(root) {
   return { alive, stage };
 }
 
+// 第一天的空信箱：定版圖 scene_mailboxes_empty（1950×1200 橫圖，8 欄 × 6 列，門都關著、沒有信封）。
+// 這一幕的圖框是 1950/1200（.dy-place.mbox，整張圖放進框裡、不裁），所以百分比＝相對「原圖」的位置。
+// 可點的是中間偏右、第 3 列（由上往下、從 0 算）第 6 欄那一格：原圖約 x 1183–1375、y 620–738。
+// 點了這一格的門往外打開，裡面是深色的空格口（不長信封、不出單子）。熱點比格子各邊多 MAILBOX_PAD，方便點。
+export const MAILBOX_HOT_CELL = { left: 60.7, top: 51.7, width: 9.8, height: 9.8 };
+export const MAILBOX_PAD = 1;
+const pct = (n) => `${+n.toFixed(2)}%`;
+function mailboxSlot() {
+  const c = MAILBOX_HOT_CELL, p = MAILBOX_PAD;
+  const w = c.width + 2 * p, h = c.height + 2 * p;
+  const hit = `left:${pct(c.left - p)};top:${pct(c.top - p)};width:${pct(w)};height:${pct(h)}`;
+  const hole = `left:${pct((p / w) * 100)};top:${pct((p / h) * 100)};width:${pct((c.width / w) * 100)};height:${pct((c.height / h) * 100)}`;
+  return `<div class="dy-mailslot" id="dy-mailslot" style="${hit}"><span class="dy-mb-hole" style="${hole}" aria-hidden="true"><span class="dy-mb-door"></span></span></div>`;
+}
+
 function placeHtml(key, act) {
   const p = PLACES[key];
   return `<div class="dy-place${p.tone ? ` ${p.tone}` : ''}${p.fit ? ` ${p.fit}` : ''}" data-place="${key}" data-slot="${p.slot}"><div class="op-art">
     ${p.src ? `<img class="op-art-img" src="${art(p.src)}" alt="">` : `<div class="dy-css dy-css-${key}" aria-hidden="true"></div>`}
     ${p.basin ? `<div class="dy-basin" aria-hidden="true"><div class="dy-mirror"><img class="dy-face" src="${art(yijunCardFor(act))}" alt="" aria-hidden="true"><span class="dy-fog"></span></div><div class="dy-sink"></div></div>
       <div class="dy-faucet" id="dy-faucet"></div><span class="dy-water" aria-hidden="true"></span>` : ''}
-    ${key === 'mailbox' ? '<div class="dy-mailslot" id="dy-mailslot"><span class="dy-slip" aria-hidden="true"></span></div>' : ''}
+    ${key === 'mailbox' ? mailboxSlot() : ''}
     ${p.home ? '<span class="dy-stainspot" aria-hidden="true"></span><div class="dy-wallet" id="dy-wallet"><i></i><i></i></div><div class="dy-ddrawer" id="dy-ddrawer"><span class="dy-seal" aria-hidden="true"></span><span class="dy-book" aria-hidden="true"></span></div>' : ''}
-    ${p.store ? `<div class="dy-poster" id="dy-poster"><span>${esc(OVERLAY_TEXT.poster)}</span></div>` : ''}
+    ${p.store ? `<div class="dy-poster" id="dy-poster"><span class="pp-overlay">${esc(OVERLAY_TEXT.poster)}</span></div>` : ''}
     ${p.village ? `<div class="dy-calico on-wall" id="dy-calico" aria-label="花斑貓" data-pose="sit">${calicoImgs()}</div>` : ''}
     ${p.yard ? `<div class="dy-emptycan" id="dy-emptycan"></div><div class="dy-fullcan" aria-hidden="true"></div><div class="dy-calico in-yard" aria-hidden="true" data-pose="sit">${calicoImgs()}</div>` : ''}
   </div></div>`;
@@ -138,6 +156,7 @@ export function showCard(root, act, text = DAY_CARDS[act] || '') {
   const { alive, stage } = makeStage(root);
   const el = stage('day daycard', `<div class="op-card"><p>${esc(text)}</p></div>`);
   el.dataset.act = act;
+  if ([...text].length > 8) el.classList.add('long'); // 倒數字卡（我單方面辭退老闆前 N 天）比較長：字小一點、字距收一點，必要時換行，字不改
   return {
     async intro() {
       await sleep(CARD_MS);
@@ -235,7 +254,7 @@ const CARD = {
   poster: () => `<div class="pp-poster"><span class="pp-overlay">${esc(OVERLAY_TEXT.poster)}</span></div>`,
   paperbag: () => `<div class="pp-paperbag"><span class="pp-overlay">${esc(OVERLAY_TEXT.paperbag)}</span></div>`,
 };
-export const KEY_HINT = '把鑰匙拿給德叔'; // 劇本 v5.8：引導照「通用提示規則」，提示字「把鑰匙拿給德叔」
+export const KEY_HINT = MUST_HINTS.keyGive; // 劇本 v5.8：引導照「通用提示規則」，提示字「把鑰匙拿給德叔」（字在 view/hints.js）
 // 小圖（pp-mini）：疊在原場景上（背景不切換）；先疊上來，點一下才出下面的句子，講完收掉。不畫手。
 // 每一張對到 art-map.js 的 mini_* slot：有正式圖（status ready）就放原圖，沒有就用暫代的 CSS 形狀。
 export const MINI_SLOTS = { stain: 'mini_stain', passbook: 'mini_passbook', hat: 'mini_hat', label: 'mini_label', longan: 'mini_longan' };
@@ -559,7 +578,8 @@ export function createProps(layer, app) {
       });
     },
     // 字出來之前要點的東西（疊在 #op-prop 上的按鈕）：atm＝點存摺放進提款機、keyBar＝點包包裡的鑰匙放到吧台上。點了 resolve(true)
-    tapItem(name) {
+    // opts.target：店內定景上的吧台檯面元素（shop-still.js 的 hot('bar')）；有的話虛線框就框在畫面上真正的吧台上
+    tapItem(name, opts = {}) {
       return new Promise((resolve) => {
         let settled = false;
         const finish = (ok) => { if (settled) return; settled = true; resolve(ok); };
@@ -567,15 +587,29 @@ export function createProps(layer, app) {
         const el = button(`pp-drag pp-tapitem ${isBook ? 'book' : 'key'}`, isBook ? '存摺' : '鑰匙',
           isBook ? '<div class="pp-passbook"><i></i><i></i><i></i></div>' : `<img src="${art('key')}" alt="">`);
         el.dataset.id = name;
-        el.onclick = async (e) => {
-          e.stopPropagation();
+        // 鑰匙放到吧台：虛線框「吧台」框在店內定版圖（v2）右側吧台的檯面上（一排杯子與磨豆機）；點鑰匙或把鑰匙拖進框裡都算。
+        // 量不到吧台（例如不在店內定景）才退回 CSS 的預設位置
+        const bar = isBook ? null : zone('bar-drop');
+        if (bar) bar.dataset.label = '吧台';
+        const t = bar && opts.target?.getBoundingClientRect();
+        if (t && t.width) {
+          const b0 = base(); // #op-prop 鋪滿 app
+          const h = Math.max(44, t.height); // 檯面很薄：框至少 44 高，置中在檯面上
+          Object.assign(bar.style, { left: `${Math.round(t.left - b0.left)}px`, top: `${Math.round(t.top - b0.top + t.height / 2 - h / 2)}px`,
+            width: `${Math.round(t.width)}px`, height: `${Math.round(h)}px` });
+          bar.classList.add('on-bar');
+        }
+        const place = async () => {
           if (el.disabled) return;
           el.disabled = true;
           el.classList.add('placed');
+          bar?.classList.add('ok');
           if (isBook) play('place'); else play('keys'); // 存摺放進機器／鑰匙放到吧台上
           await sleep(500);
           finish(true);
         };
+        if (bar) draggable(el, { target: () => bar.getBoundingClientRect(), onDrop: () => { place(); return true; } });
+        el.onclick = (e) => { e.stopPropagation(); place(); };
         cleanups.push(() => finish(false));
       });
     },

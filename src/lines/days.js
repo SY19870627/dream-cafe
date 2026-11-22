@@ -1,3 +1,9 @@
+import { COUNTDOWN, LETTER } from './opening.js';
+
+// 劇本 v5.9（_agent/v3b/script-v5.9.md：v5.8 ＋ v4 倒數字卡版 ＋ 承峰 2026-11-22 02:07／02:09 字卡用語）：
+// 字卡「我單方面辭退老闆前 1 天」→「# 最底下那個抽屜」起到超商（印章、提款機、超商三處改句，超商結尾改兩句）
+// → 字卡「我單方面辭退老闆當天　16:49」→ 接回 16:49 的辦公室（RESEND）→ 字卡「第二天」→ 之後 v5.8 原字到「我：「好，我帶去公司。」」。
+// 以下是 v5.8 時的說明（段落仍適用）：
 // 第一天到研發咖啡的字：劇本 v5.8（_agent/v3b/script-v5.8.md，承峰 2026-11-21 19:44 定稿）正文
 // 「# 第一天　最底下那個抽屜」起到「我：「好，我帶去公司。」」。
 // - 第一天開頭到下山進市區：v5.7 原字（v5.0 補回；【待定】句照演，標記不顯示）。還鑰匙是「不好意思阿，我手騰不出空間來，妳先留著吧。」
@@ -14,12 +20,14 @@
 // - 章節小標（## 信箱、房東／## 房間、盤點／## 提款機／## 超商／## 市調…）不上畫面；上畫面的只有每天的章名與字卡。
 //
 // 每一幕是一個存檔點（幕 id 是穩定的英文短名，加在 story/state.js 的 OPENING_ACTS 後面，只往前）。
-// view：still＝整張背景圖的畫面（view/days.js）；shop＝店內 360（沿用開場的店面、德叔、龍眼）；card＝只有一張字卡（沒有句子）
+// view：still＝整張背景圖的畫面；card＝只有一張字卡（沒有句子）。
+//   店裡的幕（第一句 set.place 是 'shop'）也是 still：背景是店內 2D 定景（view/shop-still.js，圖見 art-map.js 的 SHOP_STILL_NIGHT／SHOP_STILL_DAY），
+//   德叔、龍眼、杯子疊在上面；其他地方用 view/days.js 的 showDay。店內環景已拔掉（承峰 2026-11-21 20:48）。
 // 每一句（beat）除了開場就有的 who／text／set／sfx／wait／gate／optional，另外有：
 //   tap：這一句的字出來「之前」要先做的互動（字先不出來；做完才出這一句）。可以是一個或依序好幾個：
 //     mini      小圖已經疊上來，玩家點一下才出句子（set.mini 決定是哪一張小圖）
 //     pause     停一拍，玩家點一下才繼續
-//     wallet    點桌上的錢包　　deskDrawer 點抽屜　　atm 點存摺放進提款機　　poster 點門邊的徵人海報
+//     wallet    點桌上的錢包　　deskDrawer 點抽屜　　atm 點存摺放進提款機　　poster 點座位區的徵人海報
 //     keyBar    點包包裡的鑰匙，放到吧台上　　calico 點花斑貓　　can 點地上的空罐子
 //   ifTap：可點可不點、不點就不出這一句（mailbox：點了信箱才出「信箱是空的……」；不點直接接樓梯間的拖鞋聲與房東）
 //   gate：keyGive 把鑰匙拖向德叔（他兩手都在豆子裡，沒有接；拖向吧台也放不下，一樣回到手上）
@@ -39,36 +47,63 @@ export const SCRIPT_SPEAKERS = {
 };
 
 // 章名卡：每天開頭用劇本標題原文（背景圖的畫面用 showDay 的 .op-card；店裡開始的一天用 showCard）
+// v5.9：「最底下那個抽屜」拿掉「第一天」（前面先出倒數字卡「我單方面辭退老闆前 1 天」）
 export const DAY_TITLES = {
-  d1wake: '第一天　最底下那個抽屜',
+  d1wake: '最底下那個抽屜',
   d2cafe: '第二天　回咖啡館',
 };
-// 只有一張字卡的幕（view: card）：「（字卡：第二天）」畫面只顯示「第二天」；「# 三天後」用劇本標題原文
+// 只有一張字卡的幕（view: card）：倒數字卡（字在 lines/opening.js 的 COUNTDOWN）、「（字卡：第二天）」畫面只顯示「第二天」；「# 三天後」用劇本標題原文
 export const DAY_CARDS = {
+  t1card: COUNTDOWN.t1card,
+  t0card: COUNTDOWN.t0card,
   d2card: '第二天',
   d5card: '三天後',
 };
 
-// 店內鏡頭：counter＝朝吧台；side＝朝靠窗那一側（桌子、龍眼）
-const COUNTER = { yaw: 0 };
-const SIDE = { yaw: 40 };
+/* ---------- 接回場（幕 id 'resend'）：歸零字卡之後，回到開場同一間辦公室 ---------- */
+// 時鐘 16:49，事由（親寫句）和說明已在欄位裡；玩家不能點事由、不能按送出。送出音效和翻鐘自動播一次（跟開場同一份），停在 16:50。
+// 然後四拍一句一句點：送出去了 →（【待定】旁白）我想起信上的那一句 → 信上原句（親寫原字，信的字體）→ 其實我已經辭職了...（親寫原字）
+// → 最後一句才出「下班」→ 字卡「第二天」。信的字體那一拍是 RESEND.quoteAt。
+// 這一幕沒有閱讀框的句子（lineCount 0）：讀檔落在這一幕中間，從開頭重播自動送出。
+export const RESEND = {
+  lines: [
+    '送出去了。',
+    '我想起信上的那一句。', // 【待定】v4 第四節第 10 處原句
+    LETTER.paragraphs[3], // 我沒有要強迫妳辭職，只是咖啡館比較遠，擔心妳應付不來。（信上原句）
+    '其實我已經辭職了...',
+  ],
+  quoteAt: 2, // 信上原句那一拍：用信的字體
+  next: '下班',
+};
 
+// 店內 2D 定景的畫面：counter＝吧台那一側（整張）；side＝靠窗那一側（桌子、龍眼，畫面往窗邊推近一點）。
+// 兩個都用同一張店內定版圖（scene_shop_interior_night_lit_v2，看得到吧台與左側的窗；side 只是往窗邊推近一點）。
+const COUNTER = { frame: 'counter' };
+const SIDE = { frame: 'side' };
+const SHOP = { place: 'shop' };
+
+// view：still 背景圖／card 字卡／office 接回場（開場同一間辦公室的 DOM 畫面，view/opening.js 的 showOpening）
 export const DAY_ACT_VIEW = {
-  d1wake: 'still', d1shop: 'shop', d1town: 'still', d1home: 'still', d1bank: 'still', d1store: 'still',
-  d2card: 'card', d2cafe: 'shop',
-  d5card: 'card', d5cafe: 'shop', d5village: 'still', d5thanks: 'shop', d5brew: 'shop',
+  t1card: 'card',
+  d1wake: 'still', d1shop: 'still', d1town: 'still', d1home: 'still', d1bank: 'still', d1store: 'still',
+  t0card: 'card', resend: 'office',
+  d2card: 'card', d2cafe: 'still',
+  d5card: 'card', d5cafe: 'still', d5village: 'still', d5thanks: 'still', d5brew: 'still',
 };
 export const DAY_ACTS = Object.keys(DAY_ACT_VIEW);
-// 跳關選單、回報用的幕名（劇本段落）
+// 跳關選單、回報用的幕名（劇本段落）。v5.9：原「第一天」那段改用事件名（前面是字卡「我單方面辭退老闆前 1 天」）
 export const DAY_ACT_NAMES = {
-  d1wake: '第一天・護龍早上、洗臉', d1shop: '第一天・店裡（鑰匙沒還成）', d1town: '第一天・下山、信箱、房東',
-  d1home: '第一天・房間、盤點', d1bank: '第一天・提款機', d1store: '第一天・超商',
+  t1card: '字卡：我單方面辭退老闆前 1 天',
+  d1wake: '護龍早上、洗臉', d1shop: '店裡（鑰匙沒還成）', d1town: '下山、信箱、房東',
+  d1home: '房間、盤點', d1bank: '提款機', d1store: '超商',
+  t0card: '字卡：我單方面辭退老闆當天　16:49', resend: '接回：16:49 的辦公室（自動送出）',
   d2card: '字卡：第二天', d2cafe: '第二天・回咖啡館',
   d5card: '字卡：三天後', d5cafe: '三天後・咖啡館', d5village: '三天後・市調、坤伯院子', d5thanks: '三天後・坤伯來答謝', d5brew: '研發咖啡',
 };
 
 export const DAY_LINES = {
-  /* ====================== 第一天　最底下那個抽屜 ====================== */
+  /* ====================== （字卡：我單方面辭退老闆前 1 天）→ 最底下那個抽屜 ====================== */
+  t1card: [],
   // 護龍，早上（窗外有雞叫，遠處有機車發動的聲音）→ 洗手台（可點水龍頭；鏡子裡是帶缺點的角色卡；不點她自己開水，劇情照走）
   d1wake: [
     { text: '我是被雞叫醒的。', set: { place: 'roomMorning', prop: null, mini: null }, sfx: ['rooster'] },
@@ -83,7 +118,7 @@ export const DAY_LINES = {
   // 咖啡店內（早上，沿用開場）：吧台上攤著兩個竹篩，生豆鋪滿；爐子沒開。德叔挑豆（豆子一顆一顆丟進鐵碗）
   // → 把鑰匙拖向德叔（他兩手都在豆子裡，沒有接；拖向吧台也放不下，一樣回到手上）
   d1shop: [
-    { text: '我昨天喝的那個杯子洗好了，收在德叔背後的架子上。', set: { ...COUNTER, tone: 'morning', deshu: 'brew', cat: 'nap', cup: false, portrait: false } },
+    { text: '我昨天喝的那個杯子洗好了，收在德叔背後的架子上。', set: { ...SHOP, ...COUNTER, tone: 'morning', deshu: 'brew', cat: 'nap', cup: false, portrait: false } },
     { text: '別的杯子都是疊在一起的，只有那個自己放一格，把手朝右。' },
     { text: '德叔站在吧台後面挑豆，壞的丟鐵碗，頭沒抬。', sfx: ['tick'] },
     { who: 'me', text: '德叔早。' },
@@ -126,7 +161,7 @@ export const DAY_LINES = {
     { who: 'me', text: '雖然德叔有說我是咖啡館老闆，但應該是開玩笑的吧。' },
     { who: 'me', text: '哪有人會隨便找一個不認識的人當老闆。' },
     { who: 'me', text: '而且我連泡咖啡都不會。' },
-    { who: 'me', text: '對了，先找看看印章還在嗎，辦離職手續的時候會用到。' },
+    { who: 'me', text: '……先找看看印章還在嗎。哪天真的要辦離職手續，會用到。' },
     { who: 'me', text: '印章還在。', tap: 'deskDrawer' },
     { who: 'me', text: '這本是……爸幫我開的戶頭。', set: { mini: 'passbook' }, tap: 'mini' },
     { who: 'me', text: '裡面存了幾年的壓歲錢，現在只好拿出來用了。' },
@@ -140,10 +175,10 @@ export const DAY_LINES = {
     { text: '我一直以為只有小時候那幾年。' },
     { who: 'me', text: '裡面居然有十六萬！', set: { prop: 'passbook' }, sfx: ['beep'] },
     { who: 'me', text: '爸從來沒跟我講過有這麼多。' },
-    { who: 'me', text: '太好了，不用急著馬上找工作了。' },
+    { who: 'me', text: '太好了，就算真的辭職，也不用急著馬上找工作了。' },
     { text: '我站在提款機前面，大大吐了一口氣。', set: { prop: null } },
   ],
-  // 回家路上的超商（進去吹冷氣，順便買水）：店長罵店員 → 點門邊的徵人海報 → 停一拍 → 下決心
+  // 回家路上的超商（進去吹冷氣，順便買水）：店長罵店員 → 點座位區的徵人海報 → 停一拍 → 下決心
   d1store: [
     { who: 'storeManager', text: '這個昨天就過期了，你是沒在看喔？', set: { place: 'store', prop: null, mini: null }, sfx: ['ding'] },
     { who: 'storeManager', text: '客人拿到櫃檯才發現，你要我怎麼跟人家講？' },
@@ -154,7 +189,7 @@ export const DAY_LINES = {
     { text: '後面排隊的人都在看手機，沒有人講話。' },
     { who: 'me', text: '領這種餓不死、穿不暖的薪水，還要被這樣罵。', set: { prop: 'poster' }, tap: 'poster' },
     { who: 'me', text: '光在旁邊聽，我的胃就縮起來了。', set: { prop: null } },
-    { who: 'me', text: '就算再找一份工作，大概還是這樣吧。' },
+    { who: 'me', text: '就算辭職再找一份工作，大概還是這樣吧。' },
     { who: 'me', text: '再找一份，再被罵，再找一份……我真的要一直這樣下去嗎？' },
     { who: 'me', text: '……德叔如果是認真的呢？' },
     { who: 'me', text: '說不定真的能順利繼承。' },
@@ -168,15 +203,21 @@ export const DAY_LINES = {
     { who: 'me', text: '……可是如果不去，我大概會一直想這件事。', tap: 'pause' },
     { who: 'me', text: '不然……先試試看好了。' },
     { who: 'me', text: '先當實習的老闆試試看，不適合再說。' },
-    { who: 'me', text: '明天就回去找德叔吧。' },
+    { who: 'me', text: '公司那邊，不管適不適合，我都不做了。' },
+    { who: 'me', text: '明天先回去上班，把離職單送出去。再回來找德叔。' },
   ],
 
+  /* ====================== （字卡：我單方面辭退老闆當天　16:49）→ 接回 16:49 的辦公室 ====================== */
+  // 進字卡之前（超商最後一句之後）已自動存檔。接回場的字在 RESEND（DOM 畫面自己出，不走閱讀框）
+  t0card: [],
+  resend: [],
+
   /* ====================== （字卡：第二天）→ 第二天　回咖啡館 ====================== */
-  // 字卡只顯示「第二天」；進字卡之前（超商最後一句之後）已自動存檔
+  // 字卡只顯示「第二天」；進字卡之前（接回場按「下班」）已自動存檔
   d2card: [],
   // 第二天，咖啡館：章名「第二天　回咖啡館」→ 點包包裡的鑰匙放到吧台上 → 實習老闆。不加人資訊息、濾掛包、銀杏龍眼、親寫鑰匙句
   d2cafe: [
-    { text: '戶頭裡有十六萬，我才敢回來這裡。', set: { ...SIDE, tone: 'morning', deshu: 'stand', cat: 'nap', cup: false, portrait: false, prop: null, mini: null }, sfx: ['bell'] },
+    { text: '戶頭裡有十六萬，我才敢回來這裡。', set: { ...SHOP, ...SIDE, tone: 'morning', deshu: 'stand', cat: 'nap', cup: false, portrait: false, prop: null, mini: null }, sfx: ['bell'] },
     { text: '德叔在吧台後面擦杯子，今天吧台上是空的。', set: { ...COUNTER, cloth: true } },
     { who: 'me', text: '德叔，鑰匙我帶來了。', set: { cloth: false }, tap: 'keyBar' },
     { who: 'me', text: '我想再確認一次，真的沒有找錯人嗎？' },
@@ -198,7 +239,7 @@ export const DAY_LINES = {
   d5card: [],
   // 三天後，咖啡館
   d5cafe: [
-    { who: 'me', text: '德叔……我們這三天有幾位客人？', set: { ...COUNTER, tone: 'morning', deshu: 'stand', cat: 'nap', cup: false, portrait: false, prop: null, mini: null } },
+    { who: 'me', text: '德叔……我們這三天有幾位客人？', set: { ...SHOP, ...COUNTER, tone: 'morning', deshu: 'stand', cat: 'nap', cup: false, portrait: false, prop: null, mini: null } },
     { who: 'deshu', text: '如果包含找龍眼玩的貓客人，我們這三天總共來了三位客人。', face: 'smile' },
     { text: '這三天來過的客人，我都記得。', set: { ...SIDE } },
     { text: '一位是晚上來喝咖啡的阿伯，德叔叫他坤伯。' },
@@ -238,7 +279,7 @@ export const DAY_LINES = {
   ],
   // 傍晚，咖啡館：坤伯推門進來，手上提著一個袋子 →【小圖：龍眼乾】→ 銀杏龍眼咖啡
   d5thanks: [
-    { who: 'kunbo', text: '這個給妳們啦，我自己焙的龍眼乾。', set: { ...COUNTER, tone: 'dusk', deshu: 'stand', cat: 'nap', cup: false, portrait: false, prop: null, mini: null }, sfx: ['door', 'bell'] },
+    { who: 'kunbo', text: '這個給妳們啦，我自己焙的龍眼乾。', set: { ...SHOP, ...COUNTER, tone: 'dusk', deshu: 'stand', cat: 'nap', cup: false, portrait: false, prop: null, mini: null }, sfx: ['door', 'bell'] },
     { who: 'kunbo', text: '早上那個齁……不要跟別人講捏。' },
     { who: 'me', text: '好，我不會講。' },
     { who: 'kunbo', text: '啊不要站著，來，吃看看啦。' },
@@ -272,7 +313,7 @@ export const DAY_LINES = {
   ],
   // 另一天晚上，吧台：排了好幾個杯子，坤伯坐在旁邊 → 試到好喝 → 紙袋上寫字 → 帶去公司
   d5brew: [
-    { who: 'deshu', text: '第一版好了，妳喝喝看。', set: { ...COUNTER, tone: 'dusk', night: 1, deshu: 'brew', cat: 'nap', cup: false, portrait: false, prop: null, mini: null }, sfx: ['thinPour'] },
+    { who: 'deshu', text: '第一版好了，妳喝喝看。', set: { ...SHOP, ...COUNTER, tone: 'dusk', night: 1, deshu: 'brew', cat: 'nap', cup: false, portrait: false, prop: null, mini: null }, sfx: ['thinPour'] },
     { text: '我喝了一口。', sfx: ['sip'] },
     { text: '很苦，後面還有一個怪味，我吞不太下去。' },
     // （畫面：她還沒開口，坤伯直接把杯子拿過去，整杯喝完。）
@@ -297,6 +338,9 @@ export const DAY_LINES = {
     { who: 'me', text: '好，我帶去公司。' },
   ],
 };
+
+// 店裡的幕（背景是店內 2D 定景，main.js 交給 openingShop）：第一句 set.place 是 'shop'
+export const SHOP_STILL_ACTS = DAY_ACTS.filter((a) => DAY_LINES[a]?.[0]?.set?.place === 'shop');
 
 // 這一句字出來之前要做的互動（照順序）
 export const tapsOf = (b) => (b?.tap ? [].concat(b.tap) : []);

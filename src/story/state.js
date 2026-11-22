@@ -2,38 +2,58 @@
 // 存檔只記「目前這一頁的 id」和「已選的答案」；回顧紀錄從這兩樣推出來，所以不會重複、也不會出現沒走的那一支。
 // 每個轉移都要傳入「玩家眼前那一頁的 id」，跟存檔對不上就什麼都不做（回傳 false）：連點、換頁中的舊點擊都不會多推一頁。
 import { sequence, listChoices, END_ID } from './script.js';
-import { OPENING_LINES } from '../lines/opening.js';
-import { DAY_LINES, DAY_ACTS } from '../lines/days.js';
+import { OPENING_LINES, OPENING_CARDS } from '../lines/opening.js';
+import { DAY_LINES, DAY_ACTS, DAY_CARDS } from '../lines/days.js';
 
-// 存檔格式版本。換成劇本 v5.8 仍維持 1（不升版）：升版會把「正在玩的」新存檔也打回開頭。
-// 舊存檔改由幕名判斷：舊幕名照 LEGACY_ACTS 接；跟新版同名的 d2cafe 用 v4.5 的舊欄位分辨（isLegacyD2cafe）。
-// 幕名與 v5.6 相同（v5.8 只改字與互動），v5.6 存檔照原樣接著讀；句子進度夾在新的句數之內。
-export const SCHEMA = 1;
-// 可玩流程各幕（只往前；幕 id 會存進存檔，不要改名）：
-//   開場（劇本 v5.8＝v5.7 原字）：
-//   office 辦公室（離職申請單）→ title 標題（下班）→ mailbox 租屋處房間、點信封（幕 id 沿用）→ letter 信 → road 三合院外（夜裡，推門）
-//   → deshu 店裡站著（到「泡好了」）→ sit 店內 360 點椅子 → coffee 坐下喝咖啡（閱讀框）→ depart 三合院外（晚上，發動）→ ride 黑路（按住騎）
-//   → fork 岔路 → temple 工寮與土地公廟（掉頭回去）→ return 回三合院外（再推門）→ stay 店裡（晚上）→ room 庭埕、護龍房間、第一晚自白
-//   第一天～研發咖啡（劇本 v5.8，lines/days.js）：d1wake 護龍早上 → d1shop 店裡（鑰匙沒還成）→ d1town 下山、信箱、房東 → d1home 房間盤點
-//   → d1bank 提款機 → d1store 超商 → d2card 字卡「第二天」→ d2cafe 第二天　回咖啡館 → d5card 字卡「三天後」→ d5cafe 咖啡館
+// 存檔格式版本。劇本 v5.9（倒數字卡版）升成 2：幕的順序變了（加了字卡、特休前一晚、接回場）。
+// 版本 1 的存檔不打回開頭，照 V1_ACTS 對回最近的場次開頭（見 normalize）；1、2 以外的版本才從頭開始。
+// 舊存檔另外由幕名判斷：舊幕名照 LEGACY_ACTS 接；跟新版同名的 d2cafe 用 v4.5 的舊欄位分辨（isLegacyD2cafe）。
+export const SCHEMA = 2;
+// 可玩流程各幕（只往前；幕 id 會存進存檔，不要改名）。劇本 v5.9 的玩家順序：
+//   office 辦公室（離職申請單，玩家自己點事由、按送出）→ title 標題（下班）
+//   → t4card 字卡「我單方面辭退老闆前 4 天」→ mailbox 租屋處房間、第一次收到信、點信封（幕 id 沿用）→ letter 信（讀完淡出）
+//   → t2card 字卡「我單方面辭退老闆前 2 天」→ eve 特休前一晚（出發去東山）
+//   → road 三合院外（夜裡，推門）→ deshu 店裡站著（到「泡好了」）→ sit 店內 2D 定景點椅子 → coffee 坐下喝咖啡（閱讀框）
+//   → depart 三合院外（晚上，發動）→ ride 黑路（按住騎）→ fork 岔路 → temple 工寮與土地公廟（掉頭回去）→ return 回三合院外（再推門）
+//   → stay 店裡（晚上）→ room 庭埕、護龍房間、第一晚自白
+//   → t1card 字卡「我單方面辭退老闆前 1 天」→ d1wake 護龍早上（章名「最底下那個抽屜」）→ d1shop 店裡（鑰匙沒還成）
+//   → d1town 下山、信箱、房東 → d1home 房間盤點 → d1bank 提款機 → d1store 超商
+//   → t0card 字卡「我單方面辭退老闆當天　16:49」→ resend 接回：同一間辦公室自動送出、按「下班」
+//   → d2card 字卡「第二天」→ d2cafe 第二天　回咖啡館 → d5card 字卡「三天後」→ d5cafe 咖啡館
 //   → d5village 市調、坤伯院子 → d5thanks 坤伯來答謝 → d5brew 研發咖啡 → tbc 待續（帶咖啡去公司之前，這次切片到此）
 //   第一晚之後不再睡護龍、沒有睡前自白（只有開場的 room 有）。
-// 舊存檔的 end（舊版第一晚之後的待續）已不在列表裡：讀檔時接到第一天早上（d1wake）。
+// 舊存檔的 end（舊版第一晚之後的待續）已不在列表裡：讀檔時接到第一晚之後（t1card，字卡後是第一天早上）。
 // 舊版的幕名（v4.5、v5.7 未提交版）不在列表裡：讀檔時照 LEGACY_ACTS 接到新流程（該幕第 0 句）。
 // 三天 AVG 模組保留，但只有 enterStory() 會進去，執行畫面不呼叫。
 export const END_ACT = 'tbc';
 export const LEGACY_END = 'end';
-export const OPENING_ACTS = ['office', 'title', 'mailbox', 'letter', 'road', 'deshu', 'sit', 'coffee', 'depart', 'ride', 'fork', 'temple', 'return', 'stay', 'room', ...DAY_ACTS, END_ACT];
+export const OPENING_ACTS = ['office', 'title', 't4card', 'mailbox', 'letter', 't2card', 'eve', 'road', 'deshu', 'sit', 'coffee', 'depart', 'ride', 'fork', 'temple', 'return', 'stay', 'room', ...DAY_ACTS, END_ACT];
+// 只有一張字卡的幕 → 卡上的字（開場的倒數兩張＋第一天起的倒數兩張、第二天、三天後）
+export const CARD_TEXTS = { ...OPENING_CARDS, ...DAY_CARDS };
+export const isCardAct = (act) => Object.prototype.hasOwnProperty.call(CARD_TEXTS, act);
+// 讀檔（開機後第一次進畫面）時，先重出「這一段最近的字卡」再回原句：回傳那張字卡的幕 id；沒有就 null。
+// 開場（office、title，還沒有字卡）不出；停在字卡本身不另外再出（字卡自己會演）；待續不出。
+export function resumeCardOf(s) {
+  if (!s || s.phase !== 'opening') return null;
+  const act = s.opening.act;
+  if (act === END_ACT || isCardAct(act)) return null;
+  const i = OPENING_ACTS.indexOf(act);
+  for (let j = i - 1; j >= 0; j--) if (isCardAct(OPENING_ACTS[j])) return OPENING_ACTS[j];
+  return null;
+}
+// 版本 1（劇本 v5.8 以前）的存檔：原「第二天」開頭（字卡「第二天」、第二天回咖啡館第 0 句）對到歸零字卡之前，
+// 讓玩家補看接回場；其他幕名在 v5.9 仍是同一個場景，照原幕原句接著讀。
+export const V1_TO_T0 = ['d2card'];
 export const FORK_SIDES = ['left', 'right'];
 // 拿掉的幕 → 新流程的幕（從第 0 句開始）。
 //   v4.5：d1cafe／d1night（補完摺回店、睡前）→ d1store（超商下決心；新流程裡同一天剛補刷完）
 //         第二～四天（洗把臉、公司、第十二頁、相機）→ d1wake（第一天早上，跟舊待續 end 同方向）
 //         舊 d2cafe 跟新版同名、已在 OPENING_ACTS 裡，不在這張表：見 isLegacyD2cafe
 //   v5.7（中途停下、未提交的實作；定存、當天付房租、再上山、人資訊息、濾掛包都已作廢）：照劇情位置接到 v5.8 最近的下一幕
-//         d1rent／d1dusk／d1back（補摺之後的同一天）→ d1store；d1ride（第一天騎回住處）、d2home（第二天開頭）→ d2card；
-//         d2back（第二天回店）→ d2cafe；d2ride、d3card、d3morn（第二天之後）→ d5card
+//         d1rent／d1dusk／d1back（補摺之後的同一天）→ d1store；d1ride（第一天騎回住處）、d2home（第二天開頭）→ t0card
+//         （v5.9：原「第二天」開頭對到歸零字卡之前，補看接回場）；d2back（第二天回店）→ d2cafe；d2ride、d3card、d3morn（第二天之後）→ d5card
 export const LEGACY_ACTS = {
-  d1rent: 'd1store', d1dusk: 'd1store', d1back: 'd1store', d1ride: 'd2card', d2home: 'd2card', d2back: 'd2cafe',
+  d1rent: 'd1store', d1dusk: 'd1store', d1back: 'd1store', d1ride: 't0card', d2home: 't0card', d2back: 'd2cafe',
   d2ride: 'd5card', d3card: 'd5card', d3morn: 'd5card',
   d1cafe: 'd1store', d1night: 'd1store',
   d2wake: 'd1wake', d2shop: 'd1wake', d2town: 'd1wake', d2night: 'd1wake',
@@ -215,14 +235,20 @@ export function history(source, s) {
 // 格式不對：從頭開始。欄位壞了：補預設。選項只留「目前頁之前就已經選過」的。
 export function normalize(raw, source) {
   const s = newStoryState();
-  if (!raw || typeof raw !== 'object' || raw.v !== SCHEMA) return s;
+  if (!raw || typeof raw !== 'object' || (raw.v !== SCHEMA && raw.v !== 1)) return s;
   if (raw.opening && typeof raw.opening === 'object') {
     let act = raw.opening.act;
     const legacyEnd = act === LEGACY_END && raw.phase !== 'story';
-    if (legacyEnd) act = DAY_ACTS[0]; // 舊版的待續（第一晚已經睡著）：不卡在舊待續、不重開，接到第一天早上
+    if (legacyEnd) act = DAY_ACTS[0]; // 舊版的待續（第一晚已經睡著）：不卡在舊待續、不重開，接到第一晚之後（字卡「前 1 天」→ 第一天早上）
     const legacyD2cafe = isLegacyD2cafe(raw);
-    const legacyDay = legacyD2cafe || (raw.phase !== 'story' && typeof act === 'string' && Object.prototype.hasOwnProperty.call(LEGACY_ACTS, act));
+    let legacyDay = legacyD2cafe || (raw.phase !== 'story' && typeof act === 'string' && Object.prototype.hasOwnProperty.call(LEGACY_ACTS, act));
     if (legacyDay) act = legacyD2cafe ? DAY_ACTS[0] : LEGACY_ACTS[act]; // 舊版第一～四天的幕：接到新流程（第 0 句）
+    // 版本 1：停在原「第二天」開頭（字卡「第二天」，或第二天回咖啡館第 0 句）→ 歸零字卡之前，補看接回場
+    if (raw.v === 1 && !legacyDay && raw.phase !== 'story'
+      && (V1_TO_T0.includes(act) || (act === 'd2cafe' && !(Math.floor(Number(raw.opening.line)) > 0)))) {
+      act = 't0card';
+      legacyDay = true;
+    }
     s.opening.act = OPENING_ACTS.includes(act) || act === 'done' ? act : 'office';
     s.opening.resignation = typeof raw.opening.resignation === 'string' ? raw.opening.resignation.slice(0, 20) : null;
     s.opening.name = typeof raw.opening.name === 'string' ? raw.opening.name.slice(0, 12) : '';

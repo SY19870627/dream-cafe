@@ -99,7 +99,7 @@ export async function start(hooks) {
       sceneAria: '幕',
       jumpHint: '跳關會覆蓋這台裝置的存檔；岔路、存摺選擇自動補上，停在關卡那一句要重做。',
       jumpFail: '跳不過去（幕名不對）',
-      shotLost: '截圖少了店內 360 畫面（瀏覽器不讓讀取）',
+      shotLost: '截圖少了部分畫面（瀏覽器不讓讀取）',
     },
   });
 }

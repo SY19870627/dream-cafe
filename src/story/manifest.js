@@ -4,14 +4,16 @@
 //   none  —— 沒有原圖：用 fallback 寫的方式表現（背景局部放大、中性的 CSS 形狀），不另外畫人形、不生圖。
 // 交新圖時只改這裡：把該格改成 status:'ready', src:'檔名'。
 import { SHOP_ART, OPENING_ART } from '../view/art.js';
+import { srcOf, SHOP_STILL_NIGHT, SHOP_STILL_DAY } from '../view/art-map.js';
 
 export const ART_DIR = 'assets/art/';
 export const artUrl = (name) => `${ART_DIR}${name}.webp`;
 
-// 背景：店內用 360 店面（畫師材質與家具），外出用整張直式背景（1170×2532，下方約 30% 會被閱讀框蓋住）
+// 背景：都是整張直式背景（1170×2532，下方約 30% 會被閱讀框蓋住）。
+// 店內環景已拔掉（承峰 2026-11-21 20:48）：店內也是靜照（kind: 'still'），用 art-map.js 的店內定景（SHOP_STILL_DAY／SHOP_STILL_NIGHT；早上暫用晚上的定版圖）
 export const BACKGROUNDS = {
-  shopMorning: { status: 'ready', kind: 'pano', tone: 'morning', ambient: 'shop' },
-  shopEvening: { status: 'ready', kind: 'pano', tone: 'dusk', ambient: 'shop' },
+  shopMorning: { status: 'ready', kind: 'still', src: srcOf(SHOP_STILL_DAY), tone: 'morning', ambient: 'shop', base: '#2a1d16' },
+  shopEvening: { status: 'ready', kind: 'still', src: srcOf(SHOP_STILL_NIGHT), tone: 'dusk', ambient: 'shop', base: '#2a1d16' },
   rainRoom: { status: 'ready', kind: 'image', src: 'scene_v3_rain_room', ambient: 'rain', base: '#3a2c22' },
   hut: { status: 'ready', kind: 'image', src: 'scene_v3_mountain_hut', ambient: 'heater', base: '#3b2b20' },
   road: { status: 'ready', kind: 'image', src: 'scene_county_road', ambient: 'wind', base: '#1f1a22' },
@@ -55,19 +57,17 @@ export const OLD_LADY = {
   },
 };
 
-// 店內故事鏡頭：固定朝吧台；龍眼的位置（貓圖沿用 sleep／sit）
-export const STORY_YAW = -6;
+// 三天 AVG 劇本方向（story/direction.js）裡龍眼位置的名字。店內環景拔掉後不再畫（店內是靜照），只留名字與貓圖給劇本方向檢查
 export const CAT_SPOTS = {
-  shelfSleep: { angle: -33, depth: 0.46, y: 0.5, h: 0.07, img: 'cat_longan_sleep' },
-  shelfSit: { angle: -33, depth: 0.46, y: 0.5, h: 0.08, img: 'cat_longan_sit' },
-  floor: { angle: 14, depth: 0.6, y: 0.88, h: 0.09, img: 'cat_longan_sit' },
-  table: { angle: 22, depth: 0.82, y: 0.97, h: 0.1, img: 'cat_longan_sit' }, // 第三天回店：窗台、她的位子旁邊（sit）
+  shelfSleep: { img: 'cat_longan_sleep' },
+  shelfSit: { img: 'cat_longan_sit' },
+  floor: { img: 'cat_longan_sit' },
+  table: { img: 'cat_longan_sit' }, // 第三天回店：窗台、她的位子旁邊（sit）
 };
-// 桌上的杯子：已經在桌上的生活道具（不做沖煮、不點喝）
-export const CUP = { status: 'ready', src: 'prop_cup' };
 
-// 店內 360 用到的畫師圖（scenes.js 的 shopScene 依名字取用）；開場用到的原圖（view/opening.js）
-export const PANO_ART = [...SHOP_ART];
+// 店內 2D 定景用到的圖（view/shop-still.js：店內佔位靜照、德叔、龍眼、杯子、摸頭的手）；開場用到的原圖（view/opening.js）。
+// 店內環景的貼圖（吧台、牆、地板材質、吊燈、書架……）不再預載（檔案留在 assets/art，只是不再引用）。
+export const SHOP_STILL_IMAGES = [...SHOP_ART];
 export const OPENING_SCENES = [...OPENING_ART];
 
 // 這一版執行畫面實際會顯示的「開場＋店內」檔名（不重複）。
@@ -75,8 +75,5 @@ export const OPENING_SCENES = [...OPENING_ART];
 // 只有 phase === 'story' 才會畫，執行畫面不會進去，所以不算進來、開機也不等（對照表與檔案都留著，三天模組測試還在用）。
 // scene_county_road（第一天下山）由 view/days.js 的 DAY_ART 在背景預載，不在這裡。
 export function allArt() {
-  const out = new Set([...PANO_ART, ...OPENING_SCENES]);
-  out.add(CUP.src);
-  for (const c of Object.values(CAT_SPOTS)) out.add(c.img);
-  return [...out];
+  return [...new Set([...SHOP_STILL_IMAGES, ...OPENING_SCENES])];
 }

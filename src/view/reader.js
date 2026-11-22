@@ -8,11 +8,12 @@ import { SPEAKER_NAMES } from '../lines/opening.js';
 import { DAY_SPEAKERS } from '../lines/days.js';
 import { play } from './audio.js';
 import { artUrl } from './art-map.js';
+import { HOT_HINTS, splitHint } from './hints.js';
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 export const TAP_GUARD_MS = 260; // 一句剛出來的一小段時間不收點（連點不會跳句）
-// 可選互動的提示字（劇本 v5.8「引導照通用提示規則」寫明的字）：熱點出現時顯示在閱讀框上方，點過就收起來
-export const HOT_HINTS = { cat: '摸摸龍眼', bed: '點床躺下' };
+// 熱點的提示字（通用提示規則，字在 view/hints.js）：熱點出現時顯示在閱讀框上方，點過就收起來
+export { HOT_HINTS };
 export const SKIP_ARM_MS = 900; // 「跳過自白」出現後多久才收點
 export const SKIP_LABEL = '跳過自白';
 // 名牌：開場（德叔、我）＋第一天起（房東、店長、店員、坤伯）
@@ -50,7 +51,8 @@ export function createReader(root, app) {
       hintEl.setAttribute('aria-hidden', 'true');
       root.appendChild(hintEl);
     }
-    hintEl.textContent = text;
+    const [main, small] = splitHint(text); // 可選的「（也可以直接翻頁）」用小一號的字
+    hintEl.innerHTML = `${esc(main)}${small ? `<small>${esc(small)}</small>` : ''}`;
     hintEl.hidden = false;
   };
 
@@ -176,6 +178,8 @@ export function createReader(root, app) {
       if (hots.length) place();
     },
     clearHot() { this.hot([]); },
+    // 沒有熱點的提示字（關卡：推門、按住騎、岔路；小圖、停一拍、提款機、鑰匙放吧台）：下一次 hot()／clearHot() 就收起來
+    hint(text) { setHint(text || null); },
     hideBox() { box.hidden = true; },
     hide() {
       finish(false);

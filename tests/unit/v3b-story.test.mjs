@@ -14,8 +14,7 @@ import { load, persist, SAVE_KEY, OTHER_KEYS } from '../../src/story/save.js';
 import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, CAT_SPOTS, allArt } from '../../src/story/manifest.js';
 import { NODE_DIRECTION, SCENE_DIRECTION } from '../../src/story/direction.js';
 import { SAVE_KEY as V3A_KEY } from '../../src/save.js';
-import { shopScene } from '../../src/view/shop.js';
-import { shopScene as v3aShop } from '../../src/view/scenes.js';
+import { srcOf, SHOP_STILL_DAY, SHOP_STILL_NIGHT } from '../../src/view/art-map.js';
 
 const root = (p) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
 const read = (p) => readFileSync(root(p), 'utf8');
@@ -340,7 +339,7 @@ test('回顧：只列讀過的頁與選過的答案，不重複、不出現另�
   }
 });
 
-test('回顧與環視不改進度：讀 history／currentPage 前後狀態相同（關掉後回到原頁、不重選）', () => {
+test('回顧不改進度：讀 history／currentPage 前後狀態相同（關掉後回到原頁、不重選）', () => {
   const s = afterOpening();
   while (S.currentPage(SRC, s).kind !== 'choice') S.advance(SRC, s, s.at);
   const before = clone(s);
@@ -385,7 +384,8 @@ test('美術對照表：劇本的每個 background／portrait／focus 都查得�
     for (const [k, v] of Object.entries(group)) {
       if (!v) continue;
       assert.ok(['ready', 'none'].includes(v.status), k);
-      if (v.status === 'ready' && v.kind !== 'pano') assert.ok(files.has(`${v.src}.webp`), k);
+      if (v.status === 'ready' && v.src) assert.ok(files.has(`${v.src}.webp`), k);
+      assert.notEqual(v.kind, 'pano', `${k}：店內環景已拔掉`);
       if (v.status === 'none') assert.ok(!v.src && v.fallback, `${k}：沒有圖就不能要圖，要寫 fallback`);
     }
   }
@@ -414,7 +414,9 @@ test('新到的十張 v3 美術都接進對照表；外出背景沿用 county_ro
   assert.equal(FOCUS.badge.src, 'prop_v3_id_badge');
   assert.equal(FOCUS.handover.src, 'prop_v3_handover_folder');
   assert.equal(FOCUS.bag.src, 'prop_v3_cloth_bag');
-  assert.deepEqual(['shopMorning', 'shopEvening'].map((k) => BACKGROUNDS[k].kind), ['pano', 'pano'], '店內沿用畫師店面');
+  assert.deepEqual(['shopMorning', 'shopEvening'].map((k) => BACKGROUNDS[k].kind), ['still', 'still'], '店內環景已拔掉：店內也是靜照');
+  assert.equal(BACKGROUNDS.shopMorning.src, srcOf(SHOP_STILL_DAY));
+  assert.equal(BACKGROUNDS.shopEvening.src, srcOf(SHOP_STILL_NIGHT));
   assert.equal(PORTRAITS.deshu.src, 'char_deshu_stand');
   const main = read('src/main.js');
   assert.doesNotMatch(main, /drawShape|granny|grannySit/, '執行畫面不畫粗稿人形');
@@ -432,13 +434,11 @@ test('老太太：每個外出背景都在遠處、大小相同不逐日逼近�
   assert.match(read('index.html'), /\.st-lady \{[^}]*pointer-events: none;/);
 });
 
-test('店內故事鏡頭：德叔立繪放大時店面裡的德叔不畫（不會同時兩個德叔）；龍眼沿用 sleep／sit', () => {
-  const withDeshu = shopScene({ mode: 'seated', deshu: null, day: 1 });
-  assert.ok(!withDeshu.items.some((it) => it.id === 'deshu'));
-  assert.ok(v3aShop({ mode: 'seated', day: 1 }).items.some((it) => it.id === 'deshu'), 'v3a 預設不變');
+test('店內故事（三天 AVG）：店內背景是靜照，不再進環景；龍眼位置名沿用 sleep／sit', () => {
   for (const c of Object.values(CAT_SPOTS)) assert.match(c.img, /^cat_longan_(sleep|sit)$/);
-  const main = read('src/main.js');
-  assert.match(main, /deshu: page\.portrait === 'deshu' \? null : 'stand'/);
+  const main = read('src/main.js').replace(/\/\/.*$/gm, '');
+  assert.doesNotMatch(main, /storyShop|bg\.kind === 'pano'|pano/);
+  assert.match(main, /<img class="st-bg-img" src="\$\{artUrl\(bg\.src\)\}" alt="">/);
 });
 
 /* ---------- 執行畫面（原始碼層面的界線） ---------- */
@@ -456,13 +456,13 @@ test('執行畫面不再載入泡咖啡、機關、送咖啡、夢想 360 的模
     assert.ok(!rel.includes(bad), `不應載入 ${bad}`);
   }
   assert.ok(rel.includes('src/story/state.js') && rel.includes('src/view/opening.js'));
-  const code = read('src/main.js').replace(/\/\/.*$/gm, ''); // 只看程式，不看註解
+  const code = read('src/main.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''); // 只看程式，不看註解（/* */ 與 // 都剥掉；劇本的倒數字卡寫在註解裡不算）
   assert.doesNotMatch(code, /DURATION|brewStartedAt|countdown|倒數/);
 });
 
 test('鍵盤：Enter／Space 只在故事頁推進，開場（有自己的閱讀框）不攔；按鈕、輸入框上的按鍵交還瀏覽器', () => {
   const main = read('src/main.js');
-  const kd = main.slice(main.indexOf("addEventListener('keydown', (e) => {"), main.indexOf('/* ---------- 環視'));
+  const kd = main.slice(main.indexOf("addEventListener('keydown', (e) => {"), main.indexOf('/* ---------- 回顧'));
   assert.match(kd, /if \(!state \|\| state\.phase !== 'story'\) return;/);
   assert.match(kd, /e\.key !== 'Enter' && e\.key !== ' '/);
   assert.match(kd, /closest\?\.\('button, input, textarea/);
@@ -482,11 +482,12 @@ test('執行畫面接線：main.js 用到的每個 DOM id 都在 index.html；�
   assert.match(main, /renderText\(page, pages\);\s*renderedId = page\.id;/, '畫完才記眼前這一頁');
   assert.match(main, /function reset\(\) \{[^}]*renderedId = null;/, '換畫面先清掉');
   assert.match(main, /canChoose\(performance\.now\(\)\) \|\| renderedId !== page\.id \|\| logOpen\) return;/);
-  // 回顧／環視按鈕自己擋掉冒泡，不會順便推頁；回顧層在 #story 外面（點不穿）
-  assert.match(main, /\$\('st-look'\)\.onclick = \(e\) => \{ e\.stopPropagation\(\);/);
+  // 回顧按鈕自己擋掉冒泡，不會順便推頁；回顧層在 #story 外面（點不穿）。環視（#st-look、#look）已拔掉
   assert.match(main, /\$\('st-log'\)\.onclick = \(e\) => \{ e\.stopPropagation\(\);/);
+  assert.doesNotMatch(main, /st-look|look-back|look-log|enterLook/);
+  assert.doesNotMatch(html, /id="st-look"|id="look"|環視/);
   const story = html.slice(html.indexOf('<section id="story"'), html.indexOf('</section>', html.indexOf('<section id="story"')));
-  assert.ok(!story.includes('id="log"') && !story.includes('id="look"'));
+  assert.ok(!story.includes('id="log"'));
 });
 
 test('版面：閱讀框約 28–34%、字 18–20px、行高 1.6、按鈕至少 44px；回顧蓋住整個畫面', () => {

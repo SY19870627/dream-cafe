@@ -5,17 +5,17 @@
 // 劇本規則在 story/script.js、讀到哪一頁與選項在 story/state.js（純邏輯，有單元測試）；美術代號只查 story/manifest.js。
 import * as S from './story/state.js';
 import { load, persist as saveTo, resetFromUrl } from './story/save.js';
-import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, STORY_YAW, CAT_SPOTS, CUP, artUrl } from './story/manifest.js';
-import { Pano } from './view/pano.js';
-import { shopScene, TONE, WINDOW_TABLE, TABLE_CUP, SEATED, seatFit } from './view/shop.js';
+import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, artUrl } from './story/manifest.js';
 import { showOpening, showScene } from './view/opening.js';
 import { showDay, showCard, createProps, PLACES, HOT_LABELS, cueOf } from './view/days.js';
+import { showShop, resetPet } from './view/shop-still.js';
 import { createReader } from './view/reader.js';
+import { GATE_HINTS, tapHint } from './view/hints.js';
 import { unlock, play, setAmbient, setEngine } from './view/audio.js';
-import { preload, preloadIdle, warm, img, ready } from './view/art.js';
+import { preload, preloadIdle, warm } from './view/art.js';
 import { BOOT_ART, LATER_ART, actArt } from './view/boot-art.js';
-import { sceneAt } from './lines/opening.js';
-import { DAY_ACT_VIEW, DAY_TITLES, tapsOf } from './lines/days.js';
+import { sceneAt, OPENING_CARDS } from './lines/opening.js';
+import { DAY_ACT_VIEW, DAY_TITLES, SHOP_STILL_ACTS, tapsOf } from './lines/days.js';
 import { debugOn } from './debug/flag.js'; // 只有這個除錯檔是靜態載入；面板本身在 ?debug=1 時才動態 import()
 
 const $ = (id) => document.getElementById(id);
@@ -30,13 +30,10 @@ let state = null;
 const save = () => saveTo(state);
 
 let token = 0; // 換畫面時讓上一段還在等的流程作廢
-let onTap = null;
-let mode = 'read'; // read 閱讀（固定鏡頭）／ look 店內環視
 let logOpen = false;
-let renderedId = null; // 閱讀框裡「玩家眼前那一頁」的 id；沒有顯示閱讀頁時是 null（淡入淡出中、環視、開場）
+let renderedId = null; // 閱讀框裡「玩家眼前那一頁」的 id；沒有顯示閱讀頁時是 null（淡入淡出中、開場）
 const gate = S.createGate();
 const shown = { bg: null, portrait: null, focus: null }; // 目前畫面上的東西（沒變就不重建，避免閃）
-const pano = new Pano($('pano'), { onTap: (it) => onTap?.(it) });
 
 addEventListener('pointerdown', unlock, { capture: true });
 addEventListener('keydown', unlock, { capture: true });
@@ -52,42 +49,37 @@ function fadeThen(fn, color = '#1a1612', ms = 650) {
 // 換畫面：清掉上一個畫面的 UI 與流程（跟網址 ?reset=1 清存檔無關，那個在開機的 resetFromUrl）
 function reset() {
   token++;
-  onTap = null;
   renderedId = null;
   sceneCtl?.stop();
   sceneCtl = null;
-  looking = null; // 看看店裡：換畫面時不還原舊場景，直接收起
-  $('shop-look').hidden = true;
-  $('shop-back').hidden = true;
-  $('shop-look-hint').hidden = true;
-  pano.pause(); // 店內 360 先停：要畫店裡的畫面會 setScene，迴圈再接著跑；其他畫面（DOM、字卡、夜路）不再疊著畫
   cloth(false);
   reader.hide();
   props.hide();
+  $('op-read').classList.remove('nobox');
   $('app').classList.remove('focusing');
   $('opening').hidden = true;
   $('story').hidden = true;
-  $('look').hidden = true;
-  $('pano').hidden = false;
-  $('pano').classList.remove('reading');
-  pano.enabled = true;
 }
 
 function go() {
   reset();
   if (state.phase === 'opening') return opening();
-  mode = S.isEnd(state) ? 'look' : 'read';
   render({ forward: false });
 }
 
 /* ---------- 開場（劇本 v3.8 第一幕～第四幕）與第一～四天（劇本 v4.4）；每一幕、每一句都存檔，只往前 ---------- */
 // 第一幕～第二幕：DOM 畫面整幕自己處理（view/opening.js 的 showOpening）
-// 第三幕～第一晚：閱讀框一句一句（view/reader.js），畫面是店內 360（pano）或 DOM 畫面（view/opening.js 的 showScene）
-// 第一～四天：同一套閱讀框；店裡用店內 360，其他地方用整張背景圖（view/days.js 的 showDay），特寫與關卡在 #op-prop
+// 第三幕～第一晚：閱讀框一句一句（view/reader.js），畫面是店內 2D 定景（view/shop-still.js）或 DOM 畫面（view/opening.js 的 showScene）
+// 第一～四天：同一套閱讀框；店裡用店內 2D 定景，其他地方用整張背景圖（view/days.js 的 showDay），特寫與關卡在 #op-prop
+// 店內環景（canvas 2.5D）與「看看店裡」已拔掉（承峰 2026-11-21 20:48）
 // 每晚自白最後一句（睡著）一出現就存成隔天早上；第四天睡著後是「待續」。不會進三天故事。
 const reader = createReader($('op-read'), $('app'));
 const props = createProps($('op-prop'), $('app'));
-const DOM_ACTS = ['office', 'title', 'mailbox', 'letter'];
+// DOM 畫面整幕自己處理的幕：開場（辦公室、標題、收到信、信、特休前一晚）與接回場（resend，開場同一間辦公室）
+const DOM_ACTS = ['office', 'title', 'mailbox', 'letter', 'eve', 'resend'];
+// 開機讀檔後第一次進畫面：讀檔落在倒數字卡或其後，先重出這一段最近的字卡（S.resumeCardOf），再回原句。開場（還沒有字卡）不出。
+// 跳關（除錯面板）、換幕都不再出（只有開機這一次）。
+let resumeCard = true;
 const SHOP_ACTS = ['deshu', 'sit', 'coffee', 'stay'];
 let sceneCtl = null; // 目前的 DOM 畫面（換畫面時停掉動畫與計時器）
 let clothTimer = 0; // 布擦杯子，一下一下
@@ -101,22 +93,40 @@ function cloth(on) {
 
 function opening() {
   const act = state.opening.act;
+  if (resumeCard) { // 開機讀檔：先重出這一段最近的字卡（字卡淡出後再進原本那一幕、原本那一句）
+    resumeCard = false;
+    const card = S.resumeCardOf(state);
+    if (card) return replayCard(card);
+  }
   if (act === S.END_ACT) return openingScene('end'); // 研發咖啡之後（帶咖啡去公司之前）：待續
   if (DAY_ACT_VIEW[act] === 'card') return dayCard(act);
-  if (DAY_ACT_VIEW[act] === 'shop') return openingShop(act);
+  if (OPENING_CARDS[act]) return dayCard(act, OPENING_CARDS[act]); // 開場的倒數字卡（前 4 天、前 2 天）
+  if (SHOP_ACTS.includes(act) || SHOP_STILL_ACTS.includes(act)) return openingShop(act); // 店內 2D 定景（第一天起的店裡也是 still，背景是店內靜照）
   if (DAY_ACT_VIEW[act] === 'still') return dayScene(act);
-  if (SHOP_ACTS.includes(act)) return openingShop(act);
-  $('pano').hidden = true;
   if (DOM_ACTS.includes(act)) {
-    setAmbient(act === 'office' ? 'hum' : null);
+    setAmbient(act === 'office' || act === 'resend' ? 'hum' : null);
     showOpening($('opening'), act, {
       state,
       persist: save,
-      go: (a) => { if (S.setOpeningAct(state, a)) { save(); go(); } },
+      // 換幕：先存檔；fade＝淡出淡入（信讀完、接回場按「下班」）
+      go: (a, opt = {}) => { if (S.setOpeningAct(state, a)) { save(); if (opt.fade) fadeThen(go, '#0d0b0a', 900); else go(); } },
     });
     return;
   }
   return openingScene(act);
+}
+
+// 讀檔時重出的字卡：只是看，不改存檔；淡出後回到存檔那一幕
+async function replayCard(card) {
+  const my = token;
+  reader.hide();
+  props.hide();
+  setAmbient(null);
+  const ctl = showCard($('opening'), card, S.CARD_TEXTS[card]);
+  sceneCtl = ctl;
+  const ok = await ctl.intro();
+  if (!ok || my !== token) return;
+  fadeThen(go, '#0d0b0a', 650);
 }
 
 // 換到下一幕（淡出淡入）
@@ -182,6 +192,7 @@ async function runLines(act, { look, gate, optional, tap }) {
       reader.skip(false);
       reader.hideBox();
       reader.passive();
+      reader.hint(tapHint(t, shown)); // 提示字（通用提示規則，必做不加「也可以直接翻頁」）；有熱點的會由 reader.hot 再設一次同一句
       const ok = t === 'pause' ? await reader.next() : await tap?.(t, b);
       reader.clearHot();
       if (my !== token || !ok) return false;
@@ -203,6 +214,7 @@ async function runLines(act, { look, gate, optional, tap }) {
     if (b.gate) {
       reader.clearHot();
       reader.passive();
+      reader.hint(GATE_HINTS[b.gate]); // 把門推開／按住畫面，往前騎／點左邊或右邊的路（鑰匙拿給德叔的提示由 props.gate 自己畫）
       ok = await gate(b.gate, b);
       if (ok && my === token) S.passGate(state, b.gate); // 岔路在 gate 裡已經記下選擇
     } else {
@@ -271,244 +283,45 @@ async function openingScene(act) {
   nextAct(act, act === 'road' || act === 'return' ? '#f3dfb8' : '#000', act === 'temple' ? 1100 : 650);
 }
 
-/* ---------- 店裡（推門之後、坐下、喝咖啡、晚上回來） ---------- */
-// 龍眼在店裡的位置（開場）。seq＝照劇本換動作的順序（每一步的原圖、停多久；dx／dy／s 是在這個位置上的微調，佔貓圖寬高）：
-//   chair：跳上靠窗那張椅子，踩兩圈（knead_v2：只有貓、沒有凳子，直接站在椅面上，身體小小上下 bob）→ 趴下（sleep）→ 耳朵轉過來（ears_turn）
-//   feet：蹭完坐在我腳邊；沒點貓就舔前腳（lick_paw），點過就坐著（sit）
-//   earsBack：磨豆機響，耳朵往後壓一下（ears_back）→ 坐著（sit），沒有走
-// 貓的原圖都是同一張 512×384 畫布、腳線對齊，換圖不會跳位置。
-// knead_v2 腳底在 y349，sleep 的底線在 y339：踩奶時往上移 10px，腳踩在 sleep 趴的同一條椅面上。
-const KNEAD_ON_SLEEP_LINE = -(349 - 339) / 384;
-// 踩奶：整隻貓小小地上下 bob（正弦；幅度佔貓圖高、每秒幾下），看得出在踩
-const KNEAD_BOB = { amp: 0.018, hz: 1.7 };
-const kneadBob = (now) => Math.sin((now / 1000) * Math.PI * 2 * KNEAD_BOB.hz) * KNEAD_BOB.amp;
-const OP_CAT = {
-  doorway: { angle: 6, depth: 0.9, y: 0.99, h: 0.11, img: 'cat_longan_walk' },
-  chair: { angle: 38, depth: 0.64, y: 0.765, h: 0.075, img: 'cat_longan_sleep', seq: [
-    { img: 'cat_longan_knead_v2', ms: 2200, dy: KNEAD_ON_SLEEP_LINE, bob: true },
-    { img: 'cat_longan_sleep', ms: 1600 },
-    { img: 'cat_longan_ears_turn_v2', s: 1.05 },
-  ] },
-  shoes: { angle: 25, depth: 0.82, y: 0.97, h: 0.1, img: 'cat_longan_walk', flip: true },
-  rub: { angle: 21, depth: 0.86, y: 0.985, h: 0.11, img: 'cat_longan_walk' },
-  feet: { angle: 21, depth: 0.86, y: 0.985, h: 0.105, img: 'cat_longan_sit', lick: true },
-  earsBack: { angle: 21, depth: 0.86, y: 0.985, h: 0.105, img: 'cat_longan_sit', seq: [{ img: 'cat_longan_ears_back_v2', ms: 1800 }, { img: 'cat_longan_sit' }] },
-  // 第一～四天（劇本 v4.4）：
-  nap: { angle: 38, depth: 0.64, y: 0.765, h: 0.075, img: 'cat_longan_sleep' }, // 趴在靠窗那張（我對面的）椅子上
-  bar: { angle: 12, depth: 0.43, y: 0.655, h: 0.07, img: 'cat_longan_sit' }, // 跳上吧台
-  mat: { angle: 8, depth: 0.88, y: 0.99, h: 0.1, img: 'cat_longan_sit' }, // 門邊的地墊上，看我的鞋
-  under: { angle: 40, depth: 0.7, y: 0.95, h: 0.07, img: 'cat_longan_sleep' }, // 我的椅子底下
-  front: { angle: 24, depth: 0.86, y: 0.985, h: 0.105, img: 'cat_longan_sit' }, // 自己走出來，坐在我面前（可以從頭順到尾巴）
-};
-const DESHU_AT = { // 德叔在店面裡的樣子（立繪出來時店面裡不畫，不會同時兩個德叔）
-  stand: { pose: 'stand' },
-  brew: { pose: 'brew' },
-  broom: { pose: 'broom' }, // 晚上回來：德叔還在，拿著掃把
-  serveTable: { pose: 'serve', angle: 58, depth: 0.42, y: 0.86, h: 0.46 }, // 站在靠窗那張桌子後面
-};
-const CAT_ASPECT = 512 / 384;
-const pet = { at: 0, done: false }; // 點貓：怡君的手入鏡摸頭，龍眼把頭頂上來（done：點過就不舔前腳）
-const PET_MS = 2800;
-const sip = { at: 0 }; // 拿起杯子喝一口
-const catClock = { key: null, at: 0 }; // 龍眼換到這個位置的時間（照 seq 換動作）
-
-// 這個位置現在該用哪一張貓圖
-function catStep(spot) {
-  if (!spot.seq) return { img: spot.lick && !pet.done ? 'cat_longan_lick_paw_v2' : spot.img };
-  let t = performance.now() - catClock.at;
-  for (const st of spot.seq) {
-    if (st.ms == null || t < st.ms) return st;
-    t -= st.ms;
-  }
-  return spot.seq.at(-1);
-}
-// 怡君的手（char_v3b_yijun_hand_v2，800×600）：內容框 (330,0)–(504,152)，袖口貼齊上緣（從畫面上方伸進來），指尖約 (332,147)。
-// 與貓圖同比例（1 原圖 px＝1 貓圖 px），手掌到指尖約 120px，差不多一個貓頭大。指尖落在頂頭圖（headbump_v2，512×384）的頭頂。
-const HAND = { src: 'char_v3b_yijun_hand_v2', w: 800, h: 600, tip: [332, 147], box: [330, 0, 504, 152] };
-const HEAD_TOP = [205, 58]; // headbump_v2 抬起來的頭頂（左耳與右耳之間偏前）
-// 袖口那一截淡掉（原圖不改，畫到另一張畫布上再擦）：看起來是從鏡頭外伸進來，不是一截浮在空中的袖子
-let handFaded = null;
-function fadedHand() {
-  if (handFaded) return handFaded;
-  const im = img(HAND.src);
-  if (!ready(im)) return null;
-  const c = document.createElement('canvas');
-  c.width = HAND.w;
-  c.height = HAND.h;
-  const g = c.getContext('2d');
-  g.drawImage(im, 0, 0);
-  g.globalCompositeOperation = 'destination-in';
-  const fade = g.createLinearGradient(0, 0, 0, 48);
-  fade.addColorStop(0, 'rgba(0,0,0,0)');
-  fade.addColorStop(1, 'rgba(0,0,0,1)');
-  g.fillStyle = fade;
-  g.fillRect(0, 0, HAND.w, HAND.h);
-  return (handFaded = c);
-}
-// 貓：照劇本換動作；摸頭時換成頂頭（headbump），怡君的小手從上方伸進來，指尖落在頭頂（char_v3b_yijun_hand_v2）
-const drawCat = (spot) => (g, w, h) => {
-  const now = performance.now();
-  const petting = spot.pet && pet.at && now - pet.at < PET_MS;
-  const st = petting ? { img: 'cat_longan_headbump_v2' } : catStep(spot);
-  const im = img(st.img);
-  if (!ready(im)) return;
-  const k = st.s || 1;
-  g.save();
-  if (spot.flip) { g.translate(w, 0); g.scale(-1, 1); }
-  g.translate(w / 2 + (st.dx || 0) * w, h + ((st.dy || 0) + (st.bob ? kneadBob(now) : 0)) * h);
-  g.drawImage(im, (-w / 2) * k, -h * k, w * k, h * k);
-  g.restore();
-  if (!petting) return;
-  const hand = fadedHand();
-  if (!hand) return;
-  const e = (now - pet.at) / PET_MS;
-  const inK = Math.min(1, e / 0.18); // 伸進來
-  const outK = Math.max(0, (e - 0.82) / 0.18); // 收回去
-  const away = (1 - inK) + outK;
-  const stroke = Math.sin(e * Math.PI * 6) * inK * (1 - outK); // 摸兩三下（沿著手的方向前後）
-  const u = w / 512; // 貓圖 1px 在畫面上多大；手用同一個比例
-  // 指尖 HAND.tip 對準頭頂 HEAD_TOP；沒摸到時往上收（從上方進出，不從旁邊）
-  const hx = (HEAD_TOP[0] - HAND.tip[0]) * u + stroke * 6 * u;
-  const hy = (HEAD_TOP[1] - HAND.tip[1]) * u - away * (HAND.box[3] + 40) * u - stroke * 4 * u;
-  g.save();
-  g.globalAlpha = 1 - outK * 0.6;
-  g.drawImage(hand, hx, hy, HAND.w * u, HAND.h * u);
-  g.restore();
-};
-
-// 坐下後的閱讀框（SEATED、seatFit 在 view/shop.js，有單元測試）
-// 對面那張椅子上的龍眼：跳上來踩兩圈（knead_v2，沒有凳子，腳底 y349 踩在椅面上、小小上下 bob）→ 趴下（sleep）
-const ACROSS_SEQ = [{ img: 'cat_longan_knead_v2', ms: 2400, dy: (384 - 349) / 384, bob: true }, { img: 'cat_longan_sleep', s: 0.8, dx: 0.06, dy: 0.02 }];
-function seatedScene(look) {
-  const night = look.night || 0;
-  const draw = (g, W, H) => {
-    const { s, ox, oy } = seatFit(W, H);
-    const P = (x, y) => [ox + x * s, oy + y * s];
-    g.fillStyle = '#1c130d';
-    g.fillRect(0, 0, W, H);
-    const bg = img(SEATED.src);
-    if (ready(bg)) g.drawImage(bg, ox, oy, SEATED.w * s, SEATED.h * s);
-    // 窗外：傍晚還有一點暮色，越來越暗（到 night 1 就是原圖的夜色）
-    const dusk = Math.max(0, 1 - night) * 0.9;
-    if (dusk > 0.01) {
-      const [wx, wy] = P(SEATED.window.x, SEATED.window.y);
-      const ww = SEATED.window.w * s;
-      const wh = SEATED.window.h * s;
-      g.save();
-      g.globalCompositeOperation = 'screen';
-      const sky = g.createLinearGradient(0, wy, 0, wy + wh);
-      sky.addColorStop(0, `rgba(235,150,90,${dusk})`);
-      sky.addColorStop(0.45, `rgba(170,110,110,${dusk * 0.75})`);
-      sky.addColorStop(1, `rgba(90,70,60,${dusk * 0.5})`);
-      g.fillStyle = sky;
-      g.fillRect(wx, wy, ww, wh);
-      g.restore();
-    }
-    // 龍眼跳上對面那張椅子
-    if (look.cat === 'across') {
-      const t = performance.now() - catClock.at;
-      const st = t < ACROSS_SEQ[0].ms ? ACROSS_SEQ[0] : ACROSS_SEQ[1];
-      const im = img(st.img);
-      if (ready(im)) {
-        const k = st.s || 1;
-        const cw = SEATED.across.w * s * 1.05 * k;
-        const ch = cw / CAT_ASPECT;
-        const [cx, cy] = P(SEATED.across.x, SEATED.across.y);
-        g.drawImage(im, cx - cw / 2 + (st.dx || 0) * cw, cy - ch + ((st.dy || 0) + (st.bob ? kneadBob(performance.now()) : 0)) * ch, cw, ch);
-      }
-    }
-    // 杯子（既有 prop_cup）：我右手邊、把手朝右；點了拿起來喝一口
-    const cup = img(CUP.src);
-    if (ready(cup)) {
-      const r = cupRect();
-      const k = sip.at ? Math.min(1, (performance.now() - sip.at) / 1500) : 1;
-      const up = Math.sin(k * Math.PI);
-      const h = r.h * (1 + up * 0.35);
-      const w = (h * cup.naturalWidth) / cup.naturalHeight;
-      g.drawImage(cup, r.x + r.w / 2 - w / 2 - up * W * 0.08, r.y + r.h - h - up * H * 0.12, w, h);
-    }
-  };
-  return { background: draw, items: [], foreground: null, tint: null };
-}
-const cupRect = () => {
-  const { s, ox, oy } = seatFit(pano.W, pano.H);
-  const h = SEATED.cup.h * s;
-  const w = h * (600 / 420);
-  return { x: ox + SEATED.cup.x * s - w / 2, y: oy + SEATED.cup.y * s - h, w, h };
-};
-
-function openingShopScene(act, look) {
-  if (look.cat !== catClock.key) { catClock.key = look.cat; catClock.at = performance.now(); }
-  if (act === 'coffee') return seatedScene(look);
-  const d = look.deshu ? DESHU_AT[look.deshu] : null;
-  const tone = look.tone === 'morning' ? 'morning' : 'dusk'; // 第一～四天：早上用早上的色溫
-  const sc = shopScene({ mode: 'enter', deshu: d && !d.angle ? d.pose : null, day: 0, tone });
-  const night = look.night || 0;
-  const items = sc.items.filter((it) => it.id !== 'longan');
-  const win = items.find((it) => it.id === 'window');
-  if (win && night >= 0.5) win.img = 'window_night_clear';
-  items.push({ id: 'chairA', angle: 38, depth: 0.63, y: 0.9, h: 0.3, img: 'chair', ...(act === 'sit' ? { hit: true, glow: true, label: '椅子', showLabel: true } : {}) });
-  // 靠窗那張桌（畫師原圖 prop_v3b_window_table）；杯子放在龍眼剛才那個位子的右手邊，把手朝右
-  items.push({ id: 'wintable', angle: 53, depth: 0.6, y: 0.93, h: 0.26, img: 'prop_v3b_window_table', size: WINDOW_TABLE.size });
-  // 杯子跟著桌子走（桌子原圖像素定位，見 shop.js TABLE_CUP），不再自己用角度／高度擺，任何畫面大小都在桌面上
-  if (look.cup) items.push({ id: 'cup', parent: 'wintable', at: TABLE_CUP.at, depth: 0.6, z: 0.605, img: 'prop_cup', aspect: TABLE_CUP.size[0] / TABLE_CUP.size[1] });
-  if (d?.angle) items.push({ id: 'deshu-out', angle: d.angle, depth: d.depth, y: d.y, h: d.h, img: `char_deshu_${d.pose}` });
-  const spot = OP_CAT[look.cat];
-  if (spot) items.push({ id: 'longan', angle: spot.angle, depth: spot.depth, y: spot.y, h: spot.h, aspect: CAT_ASPECT, draw: drawCat({ ...spot, pet: look.cat === 'rub' || look.cat === 'feet' || look.cat === 'front' }) });
-  sc.items = items;
-  // 天色：傍晚的暖橘 → 晚上：外面暗了，店裡只剩燈（暖、暗一點，不變灰）；第一～四天的早上用早上的色溫
-  sc.tint = night > 0 ? `rgba(${Math.round(120 - 70 * night)},${Math.round(60 - 30 * night)},${Math.round(20 + 8 * night)},${(0.28 + 0.14 * night).toFixed(3)})` : TONE[tone];
-  return sc;
-}
-
+/* ---------- 店裡（推門之後、點椅子坐下、喝咖啡、晚上回來；第一天起的店裡）：店內 2D 定景（view/shop-still.js） ---------- */
+// 店內環景與「看看店裡／回座位」已拔掉（承峰 2026-11-21 20:48）：背景是一張靜照（進門／站著用店內定版圖 SHOP_STILL_NIGHT／SHOP_STILL_DAY；點椅子坐下後 coffee 用靠窗特寫 SHOP_STILL_SEATED，見 art-map.js），
+// 德叔不說話時、龍眼、桌上的杯子疊在上面；點椅子、摸龍眼、點杯子都是 2D 熱點（熱點跟著畫面上的元素走，不再算環景投影）。
+// 德叔立繪、閱讀框、音效照舊：開場依 set.portrait；第一天起德叔開口的那一句出立繪（坤伯、花斑貓依台詞出半身／貓圖）。
 async function openingShop(act) {
   const my = token;
-  const day = !!DAY_ACT_VIEW[act]; // 第一天起的店裡：德叔開口的那一句出立繪（坤伯沒有立繪，只有名牌）
+  const day = !!DAY_ACT_VIEW[act];
   setAmbient('shop', act === 'stay' ? 0.7 : 1);
-  $('opening').hidden = true;
-  const show = (lk, { yaw } = {}) => {
-    pano.setScene(openingShopScene(act, lk), yaw != null ? { yaw } : {});
-    pano.scene.locked = act !== 'sit';
-    pano.enabled = act === 'sit';
-  };
-  if (act === 'sit') { // 店內 360：標「椅子」的熱點會發光；可拖曳轉視角；點椅子坐下，點其他地方不會坐下
-    reader.hide();
-    $('pano').classList.remove('reading');
-    show({ deshu: 'stand', cat: 'feet', cup: true }, { yaw: 24 });
-    // 引導（通用提示規則）：一進 360 鏡頭先自動慢慢轉到椅子停一下，再交給玩家拖；提示字「點椅子坐下」（必做，不加「也可以直接翻頁」）
-    pano.turnTo(SIT_YAW, 1600);
-    setTimeout(() => { if (my === token) sitHint(true); }, 1900);
-    onTap = (it) => {
-      if (it?.id !== 'chairA') return;
-      onTap = null;
-      sitHint(false);
-      play('place');
-      nextAct('sit', '#3a2a20');
-    };
-    return;
-  }
   if (day && state.opening.line === 0 && DAY_TITLES[act]) { // 店裡開始的一天（第二天　回咖啡館）：先出章名卡
     reader.hide();
     const card = showCard($('opening'), act, DAY_TITLES[act]);
     sceneCtl = card;
     const ok = await card.intro();
     if (!ok || my !== token) return;
-    sceneCtl = null;
-    $('opening').hidden = true;
   }
-  $('pano').classList.add('reading');
-  const lookable = SHOP_LOOK_ACTS.includes(act) || day; // 坐下以後，人在店裡：閱讀框角落常駐「看看店裡」
-  let first = true;
-  let lastLine = -1;
+  const shop = showShop($('opening'), act, { seated: act === 'coffee' }); // 坐下喝咖啡：德叔不在畫面裡（說話時出立繪，站右手邊）
+  sceneCtl = shop;
+  if (act === 'sit') {
+    // 點椅子坐下（必做，承峰 23:14「保留，改在 2D 圖上點」）：那張看得到的椅子發光加箭頭，提示字「點椅子坐下」。
+    // 點了才坐下（進 coffee）；不點就留在進門定景，點其他地方不會坐下。不自動坐下，也不轉鏡頭。
+    reader.hide();
+    shop.beat({ deshu: 'stand', cat: 'feet', cup: true, night: 1 });
+    $('op-read').classList.add('nobox'); // 沒有閱讀框：提示字放低一點，不蓋在椅子上
+    reader.passive();
+    reader.hideBox();
+    reader.hot([{ id: 'chair', label: '椅子', need: true, rect: elRect(shop.hot('chair')),
+      onTap: () => {
+        if (my !== token) return;
+        reader.clearHot();
+        play('place');
+        nextAct('sit', '#3a2a20');
+      } }]);
+    return;
+  }
   const done = await runLines(act, {
     look: (i, lk, b) => {
-      if (lookable) shopLookOn(act, i !== lastLine && lastLine >= 0); // 翻頁後第一次引導不再出現
-      lastLine = i;
-      const yaw = act === 'coffee' ? STORY_YAW : (lk.yaw ?? 0);
-      const portrait = day ? b.who === 'deshu' : lk.portrait; // 第一～四天：德叔說話時出立繪，店面裡的德叔不畫（不會同時兩個德叔）
-      show(portrait && day ? { ...lk, deshu: null } : lk, first ? { yaw } : {});
-      if (!first) pano.turnTo(yaw, 900);
-      first = false;
+      // 第一～四天：德叔說話時（與把鑰匙遞給他的那一下）出立繪，畫面裡的德叔不畫（不會同時兩個德叔）
+      const portrait = day ? (b.who === 'deshu' || b.gate === 'keyGive') : lk.portrait;
+      shop.beat(portrait ? { ...lk, deshu: null } : lk);
       // 晚上回來：德叔拿著掃把；坐下喝咖啡時德叔站到右手邊（aside），不擋住桌上的杯子；劇本寫德叔微笑的那一句用微笑的立繪
       const face = b.face === 'smile' ? 'char_deshu_smile' : PORTRAITS.deshu.src;
       const cue = day && !portrait ? cueOf(b) : null; // 第一～四天：坤伯說話出半身立繪（依台詞切差分）；花斑貓撥龍眼乾
@@ -516,37 +329,24 @@ async function openingShop(act) {
       else reader.portrait(portrait ? (act === 'stay' ? 'char_deshu_broom' : face) : null, act === 'coffee' ? 'aside' : 'center');
       cloth(!!lk.cloth);
     },
-    gate: async (name) => { // 店裡的關卡（把鑰匙拖向德叔）：關卡期間不出「看看店裡」
-      shopLookOff();
-      const ok = await dayGate(name);
-      if (lookable && my === token) shopLookOn(act, true);
-      return ok;
-    },
-    tap: async (name) => { // 店裡：小圖點一下（斗笠、龍眼乾）、點包包裡的鑰匙放到吧台上
-      shopLookOff();
-      let ok = true;
-      if (name === 'mini') ok = await props.peek();
-      else if (name === 'keyBar') ok = await props.tapItem('keyBar');
-      return ok;
+    gate: (name) => dayGate(name), // 第一天早上把鑰匙拖向德叔（立繪）或吧台方位
+    tap: (name) => { // 店裡：小圖點一下（斗笠、龍眼乾）、點包包裡的鑰匙放到吧台
+      if (name === 'mini') return props.peek();
+      if (name === 'keyBar') return props.tapItem('keyBar', { target: shop.hot('bar') }); // 放置目標框在店內定版圖的吧台檯面上
+      return Promise.resolve(true);
     },
     optional: (name) => {
-      if (name === 'cat') {
-        return [{ id: 'cat', label: '龍眼', rect: () => { const it = pano.scene?.items.find((x) => x.id === 'longan'); return it ? pano.project(it) : null; },
-          onTap: () => { pet.at = performance.now(); pet.done = true; play('purr'); } }]; // 手入鏡摸頭、頭頂上來、呼嚕
+      if (name === 'cat') { // 摸摸龍眼：手入鏡摸頭、頭頂上來、呼嚕
+        return [{ id: 'cat', label: '龍眼', rect: elRect(shop.hot('cat')), onTap: () => { shop.pet(); play('purr'); } }];
       }
-      if (name === 'cup' && day) { // 第一～四天：店裡桌上的杯子（點了喝一口）
-        return [{ id: 'cup', label: '杯子', rect: itemRect('cup'),
-          onTap: () => { pano.flash.set('cup', performance.now()); setTimeout(() => play('sip'), 350); setTimeout(() => play('place'), 1400); } }];
-      }
-      if (name === 'cup') {
-        return [{ id: 'cup', label: '杯子', rect: cupRect,
-          onTap: () => { sip.at = performance.now(); setTimeout(() => play('sip'), 350); setTimeout(() => play('place'), 1400); } }];
+      if (name === 'cup') { // 點杯子喝一口
+        return [{ id: 'cup', label: '杯子', rect: elRect(shop.hot('cup')),
+          onTap: () => { shop.sip(); setTimeout(() => play('sip'), 350); setTimeout(() => play('place'), 1400); } }];
       }
       return [];
     },
   });
   cloth(false);
-  shopLookOff(true);
   if (!done || my !== token) return;
   const last = S.ACT_LINES[act].at(-1);
   if (last?.linger) { // 最後一句之後停一拍再淡出（德叔的微笑）：先存成下一幕（字卡出現前自動存檔），字收起來、立繪留著
@@ -565,92 +365,13 @@ async function openingShop(act) {
   nextAct(act, act === 'stay' ? '#0d0b0a' : act === 'coffee' ? '#000' : '#3a2a20', act === 'stay' ? 900 : 650);
 }
 
-/* ---------- 看看店裡（坐下以後，人在店裡）：閱讀框角落的小按鈕；點了回到店內 360 自由看，按「回座位」回到原本那一句，劇情不動 ---------- */
-// 第一次出現：按鈕發光、箭頭指著它，閱讀框上方一行提示。只出現一次（點過或翻頁後不再引導），按鈕照常留著。
-const SHOP_LOOK_ACTS = ['coffee', 'stay'];
-const SHOP_LOOK = { label: '看看店裡', back: '回座位', hint: '點「看看店裡」，可以四處看看。' };
-const SIT_YAW = 38; // 標「椅子」的那張椅子（chairA）在店內 360 的角度
-let lookGuide = 'pending'; // pending：還沒引導過／on：正在引導／done：引導過了（這次開著的頁面裡）
-let looking = null; // 正在看看店裡：{ scene, yaw, prop }（回座位時還原）
-function shopLookOn(act, turned) {
-  const btn = $('shop-look');
-  btn.textContent = SHOP_LOOK.label;
-  btn.hidden = false;
-  btn.onclick = (e) => { e.stopPropagation(); enterShopLook(act); };
-  if (lookGuide === 'on' && turned) lookGuide = 'done';
-  if (lookGuide === 'pending') lookGuide = 'on';
-  const guiding = lookGuide === 'on';
-  btn.classList.toggle('guide', guiding);
-  const h = $('shop-look-hint');
-  h.classList.remove('sit');
-  h.textContent = SHOP_LOOK.hint;
-  h.hidden = !guiding;
-}
-function endLookGuide() {
-  lookGuide = 'done';
-  $('shop-look').classList.remove('guide');
-  $('shop-look-hint').hidden = true;
-}
-// 收起「看看店裡」（關卡、小圖、換幕）；end：這一幕結束，引導算看過了
-function shopLookOff(end = false) {
-  if (looking) exitShopLook();
-  $('shop-look').hidden = true;
-  $('shop-look-hint').hidden = true;
-  if (end && lookGuide === 'on') endLookGuide();
-}
-function enterShopLook(act) {
-  if (looking) return;
-  if (lookGuide !== 'done') endLookGuide();
-  looking = { scene: pano.scene, yaw: pano.yaw, prop: $('op-prop').hidden, reading: $('pano').classList.contains('reading') };
-  const lk = sceneAt(S.ACT_LINES[act], state.opening.line);
-  const sc = openingShopScene('look', { ...lk, portrait: false, deshu: lk.deshu || 'stand', cup: act === 'coffee' ? true : lk.cup });
-  sc.locked = false;
-  $('op-read').hidden = true;
-  $('op-prop').hidden = true;
-  $('pano').classList.remove('reading');
-  pano.setScene(sc);
-  pano.enabled = true;
-  $('shop-look').hidden = true;
-  const back = $('shop-back');
-  back.textContent = SHOP_LOOK.back;
-  back.hidden = false;
-  back.onclick = (e) => { e.stopPropagation(); exitShopLook(); };
-  play('tap');
-}
-function exitShopLook() {
-  const L = looking;
-  if (!L) return;
-  looking = null;
-  $('shop-back').hidden = true;
-  $('pano').classList.toggle('reading', L.reading);
-  pano.setScene(L.scene, { yaw: L.yaw });
-  if (pano.scene) pano.scene.locked = true;
-  pano.enabled = false;
-  $('op-read').hidden = false;
-  $('op-prop').hidden = L.prop;
-  $('shop-look').hidden = false;
-}
-// 點椅子坐下的提示字（店內 360，閱讀框沒出來時）
-function sitHint(on) {
-  const h = $('shop-look-hint');
-  h.textContent = on ? '點椅子坐下' : '';
-  h.hidden = !on;
-  h.classList.toggle('sit', on);
-}
-// 店內 360 裡某個物件在畫面上的位置（熱點跟著它走）
-const itemRect = (id) => () => {
-  const it = pano.scene?.items.find((x) => x.id === id);
-  return it ? pano.project(it) : null;
-};
-
-/* ---------- 字卡（「第二天」「三天後」）：只有一張卡，淡出後進下一幕 ---------- */
-async function dayCard(act) {
+/* ---------- 字卡（倒數字卡、「第二天」「三天後」）：只有一張卡，淡出後進下一幕 ---------- */
+async function dayCard(act, text) {
   const my = token;
-  $('pano').hidden = true;
   reader.hide();
   props.hide();
   setAmbient(null);
-  const ctl = showCard($('opening'), act);
+  const ctl = showCard($('opening'), act, text);
   sceneCtl = ctl;
   const ok = await ctl.intro();
   if (!ok || my !== token) return;
@@ -661,7 +382,6 @@ async function dayCard(act) {
 async function dayScene(act) {
   const my = token;
   const lines = S.ACT_LINES[act];
-  $('pano').hidden = true;
   warm(actArt(lines)); // 這一幕的背景如果背景預載還沒輪到，現在先開始抓
   const ctl = showDay($('opening'), act, { state, lines });
   sceneCtl = ctl;
@@ -713,61 +433,17 @@ async function dayGate(name) {
 
 // 從開頭再看一次（只重設 v3b 自己的存檔；不碰 v3a 與第一版的鍵）
 function restart() {
-  pet.done = false;
+  resetPet();
   state = S.newStoryState();
   save();
   fadeThen(go, '#15171c');
 }
 
-/* ---------- 故事閱讀 ---------- */
-// 店內故事鏡頭：固定朝吧台；立繪是德叔時，店面裡的德叔不畫（不會同時兩個德叔）；杯子已在桌上
-function storyShop(page, bg) {
-  const spot = CAT_SPOTS[page.cat] || CAT_SPOTS.shelfSleep;
-  const onTable = page.cat === 'table';
-  const sc = shopScene({
-    mode: 'seated',
-    deshu: page.portrait === 'deshu' ? null : 'stand',
-    day: 1,
-    tone: bg.tone,
-    cat: onTable ? { ...spot, hidden: true } : spot,
-  });
-  const table = sc.foreground;
-  sc.foreground = (g, W, H, t) => {
-    table?.(g, W, H, t);
-    const cup = img(CUP.src);
-    if (ready(cup)) {
-      const h = H * 0.085;
-      const w = (h * cup.naturalWidth) / cup.naturalHeight;
-      g.drawImage(cup, W * 0.86 - w / 2, H * 0.935 - h, w, h);
-    }
-    if (onTable) { // 龍眼在她位子旁邊（桌面上）
-      const cat = img(spot.img);
-      if (ready(cat)) {
-        const h = H * spot.h;
-        const w = (h * cat.naturalWidth) / cat.naturalHeight;
-        g.drawImage(cat, W * 0.2 - w / 2, H * 0.95 - h, w, h);
-      }
-    }
-  };
-  return sc;
-}
-
+/* ---------- 故事閱讀（三天 AVG 模組；執行畫面不會進來，phase === 'story' 才畫） ---------- */
+// 店內背景也是整張靜照（BACKGROUNDS 的 shopMorning／shopEvening 是 kind: 'still'，不再進環景）
 function renderBackground(page) {
   const bg = BACKGROUNDS[page.background] || BACKGROUNDS.shopMorning;
   const holder = $('st-bg');
-  if (bg.kind === 'pano') {
-    holder.hidden = true;
-    holder.innerHTML = '';
-    shown.bg = null;
-    $('pano').hidden = false;
-    $('pano').classList.toggle('reading', mode === 'read');
-    const sc = storyShop(page, bg);
-    sc.locked = mode === 'read';
-    pano.enabled = mode !== 'read';
-    pano.setScene(sc, mode === 'read' ? { yaw: STORY_YAW } : {});
-    return bg;
-  }
-  $('pano').hidden = true;
   holder.hidden = false;
   if (shown.bg !== page.background) {
     shown.bg = page.background;
@@ -871,30 +547,26 @@ function render({ forward }) {
     save();
     page = pages.find((p) => p.id === state.at);
   }
-  if (page.kind === 'end') mode = 'look';
   const bg = renderBackground(page);
   setAmbient(bg.ambient, page.ambientLevel);
   if (forward) for (const name of page.sfx) play(name);
-  if (mode === 'look') {
-    renderedId = null;
-    $('story').hidden = true;
-    $('look').hidden = false;
-    $('look-back').hidden = page.kind === 'end';
-    return;
-  }
-  $('look').hidden = true;
   $('story').hidden = false;
   renderPortrait(page);
   renderFocus(page);
   $('st-scene').innerHTML = page.sceneTitle ? fmt(page.sceneTitle) : '';
-  $('st-look').hidden = bg.kind !== 'pano';
+  if (page.kind === 'end') { // 結尾：只留背景與回顧（環視已拔掉）
+    $('st-box').hidden = true;
+    $('st-choices').hidden = true;
+    renderedId = null;
+    return;
+  }
   renderText(page, pages);
   renderedId = page.id;
 }
 
 // 推頁一律用畫面上正在顯示的那一頁 id：還沒畫出來（例如開場淡出中按 Enter）或已換頁的舊點擊都不會多推
 function tryAdvance() {
-  if (state.phase !== 'story' || logOpen || mode !== 'read' || !renderedId || $('story').hidden) return;
+  if (state.phase !== 'story' || logOpen || !renderedId || $('story').hidden) return;
   const page = S.currentPage(source, state);
   if (!page || page.id !== renderedId || (page.kind !== 'line' && page.kind !== 'title')) return;
   if (!gate.canAdvance(performance.now())) return;
@@ -919,22 +591,6 @@ addEventListener('keydown', (e) => {
   tryAdvance();
 });
 
-/* ---------- 環視（只在店內；回來還是原來那一頁） ---------- */
-function enterLook() {
-  document.activeElement?.blur?.(); // 按鈕收起後焦點不留在看不見的按鈕上（之後的 Enter／Space 才會推頁）
-  mode = 'look';
-  render({ forward: false });
-  pano.resize();
-}
-function exitLook() {
-  if (S.isEnd(state)) return;
-  document.activeElement?.blur?.();
-  mode = 'read';
-  render({ forward: false });
-}
-$('st-look').onclick = (e) => { e.stopPropagation(); enterLook(); };
-$('look-back').onclick = exitLook;
-
 /* ---------- 回顧（只列讀過的頁與選過的答案；蓋住畫面，點不穿） ---------- */
 function openLog() {
   const items = S.history(source, state);
@@ -955,7 +611,6 @@ function closeLog() {
   if (S.currentPage(source, state)?.kind === 'choice') gate.arm(performance.now()); // 回到選項頁：剛關掉的那一下不會落在選項上
 }
 $('st-log').onclick = (e) => { e.stopPropagation(); openLog(); };
-$('look-log').onclick = openLog;
 $('log-close').onclick = closeLog;
 $('log').addEventListener('click', (e) => e.stopPropagation());
 $('log').addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -984,7 +639,7 @@ function debugJump(act, line) {
   const s = S.jumpState(state, act, line);
   if (!s) return false;
   state = s;
-  pet.done = false;
+  resetPet();
   save();
   $('fade').classList.remove('on');
   go();

@@ -12,8 +12,8 @@ import * as D from '../../src/day.js';
 import { COMPANY_STEPS } from '../../src/day.js';
 import { INTERACTIONS, recognize, ambientLevel } from '../../src/dreams/interact.js';
 import { ROUTE, START, DURATION, SOUND_EVENTS, drawMachine, progress } from '../../src/machine.js';
-import { dreamScene, shopScene, EXIT_LABEL } from '../../src/view/scenes.js';
-import { MIN_HIT, TAP_SLOP } from '../../src/view/pano.js';
+// v3a 的夢想場景組裝（view/scenes.js）與店內環景（view/pano.js）已隨環景拔掉（承峰 2026-11-21 20:48）刪除；
+// 這裡只留夢想資料、文字、手勢判斷等純資料的回歸。
 import { sequence } from '../../src/story/script.js';
 import { drawShape, ASPECT } from '../../src/view/draft.js';
 import { RIDE_MS, drawRide, drawCounter, drawSleeve, drawLeave, talkBeats } from '../../src/view/company.js';
@@ -100,38 +100,9 @@ test('老太太：每場都在、不可點、不標示，天數越後越近', ()
     assert.equal(d.granny.labeled, false);
     assert.ok(d.granny.depth > last, `${d.id} 比前一天近`);
     last = d.granny.depth;
-    const { scene } = dreamScene(d.id);
-    const g = scene.items.filter((it) => it.id === 'granny');
-    assert.equal(g.length, 1, '每場一位');
-    assert.ok(!g[0].hit, '不可點');
-    assert.ok(!g[0].label && !g[0].showLabel, '不標示');
   }
   const dist = DREAMS.map((d) => d.granny.distanceM);
   assert.deepEqual([...dist].sort((a, b) => b - a), dist, '距離逐日變短');
-});
-
-test('夢想場景：每個物件可點、有場景內出口回店，出口不是工具列選單', () => {
-  for (const id of DREAM_ORDER) {
-    const { scene, dream } = dreamScene(id);
-    const objs = scene.items.filter((it) => it.kind === 'object');
-    assert.equal(objs.length, dream.objects.length);
-    assert.ok(objs.every((o) => o.hit));
-    const exits = scene.items.filter((it) => it.kind === 'exit');
-    assert.equal(exits.length, 1);
-    assert.equal(exits[0].label, EXIT_LABEL);
-    assert.ok(Number.isFinite(exits[0].angle));
-    const clickable = scene.items.filter((it) => it.hit);
-    assert.equal(clickable.length, dream.objects.length + 1, '除了物件與出口沒有別的可點');
-  }
-});
-
-test('店裡：開場時椅子可點；帶回來的東西上架可點，龍眼每天靠近一點', () => {
-  const sit = shopScene({ mode: 'sit', day: 0 });
-  assert.ok(sit.items.find((it) => it.id === 'seat')?.hit);
-  const s = shopScene({ mode: 'seated', day: 3, takeaways: DREAM_ORDER.slice(0, 3) });
-  assert.equal(s.items.filter((it) => it.takeaway).length, 3);
-  const depths = [1, 2, 3, 4, 5].map((day) => shopScene({ day }).items.find((it) => it.id === 'longan').depth);
-  assert.deepEqual([...depths].sort((a, b) => a - b), depths);
 });
 
 test('開場沿用第一版原字的部分一字不差（劇本 v5.6 的開場另由 v3b-opening 測試逐字對 docs/劇本.md）', () => {
@@ -243,31 +214,13 @@ test('v3b 執行畫面不自動上架、不用計時器推頁或換天（legacy�
   for (const m of main.matchAll(/setTimeout\(([^;]*)/g)) assert.doesNotMatch(m[1], /advance|choose|render/, '計時器不推頁');
 });
 
-test('夢想互動：每條恰好一個、對上 fable 稿的目標物件，與轉頭手勢分開', () => {
+test('夢想互動：每條恰好一個、對上 fable 稿的目標物件', () => {
   for (const id of DREAM_ORDER) {
     const def = INTERACTIONS[id];
     const text = DREAM_TEXT.find((d) => d.id === id);
     assert.equal(def.target, text.interaction.target, `${id} 的互動物件照稿`);
-    const { scene } = dreamScene(id);
-    const g = scene.items.filter((it) => it.gesture);
-    assert.equal(g.length, 1, `${id} 只有一個可觸發的互動`);
-    assert.equal(g[0].id, def.target);
-    assert.equal(g[0].kind, 'object', '互動掛在物件上（點它仍出那一行字）');
-    assert.ok(g[0].hit);
-    // 做過之後重建場景：沒有可觸發的互動，畫的是做完的樣子
-    const after = dreamScene(id, { interacted: true }).scene;
-    assert.equal(after.items.filter((it) => it.gesture).length, 0);
   }
-  const by = (id, k) => dreamScene(id, { interacted: true }).scene.items.find((it) => it.id === k);
-  assert.equal(by('rain-quilt-tv', 'quilt').opt.pulled, true);
-  assert.ok(by('hut-heater-hands', 'hands'));
-  assert.equal(by('watch-dog-eat-play', 'ball').angle, 96);
-  assert.equal(by('watch-dog-eat-play', 'dog').angle, 88, '狗追到球旁邊');
-  assert.equal(by('read-in-cafe', 'book').opt.turned, true);
-  assert.equal(by('door-coffee-smell', 'door').opt.open, true);
   assert.ok(ambientLevel('door-coffee-smell', false) < ambientLevel('door-coffee-smell', true), '推門後聲音變大');
-  // 帶回物還在（球丟出去還是那顆球）
-  assert.ok(by('watch-dog-eat-play', 'ball').hit);
 });
 
 test('夢想互動的手勢判斷：方向與距離對了才算，輕點不算', () => {
@@ -282,13 +235,6 @@ test('夢想互動的手勢判斷：方向與距離對了才算，輕點不算',
   assert.equal(recognize('flip', { dx: -60, dy: 5 }), true);
   assert.equal(recognize('flip', { dx: 5, dy: -60 }), false);
   assert.equal(recognize('push', { dx: 70, dy: 10 }), true);
-});
-
-test('畫面上拖曳在互動物件上交給物件、在空白處轉頭（原始碼）', () => {
-  const src = read('src/view/pano.js');
-  assert.match(src, /const gesture = hit\?\.item\.gesture \? hit\.item : null;/);
-  assert.match(src, /if \(start\.gesture\) \{\s*this\.dragFeedback/);
-  assert.match(src, /this\.onGesture\(it, \{ dx/);
 });
 
 test('德叔上杯那句是規格書原文', () => {
@@ -323,9 +269,8 @@ test('送咖啡的畫面：騎車 10 秒、櫃台、杯套、離開都畫得出�
   drawSleeve(g, 390, 844);
 });
 
-test('可點範圍至少 44px；拖曳超過 10px 不算點', () => {
-  assert.ok(MIN_HIT >= 44);
-  assert.ok(TAP_SLOP >= 8);
+test('可點範圍至少 44px（按鈕與閱讀層熱點）', () => {
+  assert.match(read('src/view/reader.js'), /const w = Math\.max\(44, r\.w\);\s*const hh = Math\.max\(44, r\.h\);/);
   const html = read('index.html');
   assert.match(html, /button \{[^}]*min-height: 44px; min-width: 44px;/);
   assert.match(html, /<script type="module" src="src\/main\.js">/);

@@ -1,8 +1,8 @@
 // 畫師美術（assets/art/*.webp；v5.6 定版圖在 assets/art-v56/）：只讀取、照原檔顯示，不修改、不重新壓縮。
 import { debugOn, onGithack, directAssetUrl } from '../debug/flag.js';
-import { artUrl } from './art-map.js';
+import { artUrl, srcOf, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY } from './art-map.js';
 const cache = new Map();
-// 只有 ?debug=1：圖用 CORS 載入（raw.githack 會把圖轉到 raw.githubusercontent.com，不加的話店內 360 的畫布會被汙染、回報截不了圖）。
+// 只有 ?debug=1：圖用 CORS 載入（raw.githack 會把圖轉到 raw.githubusercontent.com，不加的話畫布會被汙染、回報截不了圖）。
 // 一般玩家不加，載入方式和以前一樣。
 const CORS = (() => { try { return debugOn(globalThis.location?.search); } catch { return false; } })();
 const HREF = (() => { try { return String(globalThis.location?.href || ''); } catch { return ''; } })();
@@ -55,21 +55,23 @@ export function warm(names) {
   for (const n of names) img(n);
 }
 
-export const SHOP_ART = [
-  'char_deshu_stand', 'char_deshu_brew', 'char_deshu_serve', 'cat_longan_sleep', 'cat_longan_sit', 'backbar',
-  'window_day_clear', 'chair', 'prop_cup', 'pendant_lamp', 'kettleSet', 'plant', 'radio', 'bookshelf', 'tex_counter_front',
-  'tex_wall_plaster', 'tex_floor_wood', 'tex_wood_top',
-];
-// 開場（v3.8）：辦公室、信箱、鑰匙（房間枕頭旁）、店裡的貓與晚上的窗；
+// 店內 2D 定景（view/shop-still.js）：店內靜照（art-map.js 的 SHOP_STILL_NIGHT／SHOP_STILL_SEATED／SHOP_STILL_DAY）、德叔、龍眼、杯子、摸頭的手。
+// 店內環景的貼圖（吧台、牆與地板材質、吊燈、書架、收音機……）已不引用、不預載（檔案留在 assets/art）。
+export const SHOP_ART = [...new Set([
+  srcOf(SHOP_STILL_NIGHT), srcOf(SHOP_STILL_SEATED), srcOf(SHOP_STILL_DAY),
+  'char_deshu_stand', 'char_deshu_brew', 'char_deshu_serve', 'char_deshu_broom', 'cat_longan_sleep', 'cat_longan_sit', 'cat_longan_walk', 'prop_cup',
+  'char_v3b_yijun_hand_v2', 'cat_longan_headbump_v2', 'cat_longan_knead_v2', 'cat_longan_ears_turn_v2', 'cat_longan_ears_back_v2', 'cat_longan_lick_paw_v2',
+].filter(Boolean))];
+// 開場（v3.8）：辦公室、鑰匙（房間枕頭旁）；
 // 三合院外觀（傍晚／晚上）、機車（未發動／發動／車燈／路面光錐）、夜路上車燈照到的鐵皮工寮與土地公廟、庭埕（晚上）、護龍房間（畫師 v3b 原圖）
 export const OPENING_ART = [
-  'scene_office_night', 'scene_mailboxes', 'key', 'cat_longan_walk', 'window_night_clear',
+  'scene_office_night', 'key', 'cat_longan_walk',
   'scene_v3b_sanheyuan_dusk_v2', 'scene_v3b_sanheyuan_night_v2', 'prop_v3b_scooter_off_v2', 'prop_v3b_scooter_on_v2', 'prop_v3b_scooter_beam_v2',
   'prop_v3b_iron_shed_night_v2', 'prop_v3b_tudigong_night_v2', 'scene_v3b_courtyard_night_v2', 'scene_v3b_room_night',
-  // 第二批（v3b 項目 8–15）：點貓的手與頂頭、貓的各種動作、德叔拿掃把、靠窗木桌、信封滑出鑰匙、躺下的視角、坐下看得到窗的夜景
+  // 第二批（v3b 項目 8–15）：點貓的手與頂頭、貓的各種動作、德叔拿掃把、信封滑出鑰匙、躺下的視角
   'char_v3b_yijun_hand_v2', 'cat_longan_headbump_v2', 'cat_longan_stretch_v3b_v2', 'cat_longan_knead_v2', 'cat_longan_ears_turn_v2',
-  'cat_longan_ears_back_v2', 'cat_longan_lick_paw_v2', 'cat_longan_sleep_flip_v2', 'char_deshu_broom', 'prop_v3b_window_table',
-  'prop_v3b_envelope_key_v2', 'scene_v3b_bed_pov_night', 'scene_v3b_shop_window_night_seated',
+  'cat_longan_ears_back_v2', 'cat_longan_lick_paw_v2', 'cat_longan_sleep_flip_v2', 'char_deshu_broom',
+  'prop_v3b_envelope_key_v2', 'scene_v3b_bed_pov_night',
   // 第三批（_v2 重畫）：上面已換成 _v2 檔名；新增發動後路面的光錐（疊在機車下層）
   'prop_v3b_scooter_road_light_v2',
 ];
