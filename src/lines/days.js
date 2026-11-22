@@ -307,7 +307,8 @@ export const DAY_LINES = {
     { text: '花斑貓跳上椅子，用手去撥袋子裡的龍眼乾。', set: { ...SIDE }, sfx: ['hop'] },
     { text: '一顆龍眼乾滾到桌上，牠自己嚇了一跳。', sfx: ['tick'] },
     { who: 'kunbo', text: '欸，這個不是給你吃的啦。' },
-    { text: '外面天色慢慢暗下來。店裡很安靜，只有剝殼的聲音。', set: { night: 0.6 } },
+    // 入夜：傍晚圖交叉淡化到夜景定版圖（shop-still.js 的 fadesBetween），之後停在夜景、不疊天色（與 d5brew 開頭一致）
+    { text: '外面天色慢慢暗下來。店裡很安靜，只有剝殼的聲音。', set: { night: 1 } },
     { text: '我又剝了一顆。', sfx: ['tick'] },
     { text: '……這個味道，不知道跟咖啡搭不搭。' },
     { who: 'me', text: '德叔，我們可以出一款咖啡嗎？', set: { ...COUNTER } },

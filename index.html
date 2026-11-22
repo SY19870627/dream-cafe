@@ -548,12 +548,14 @@
     color: #ffe7b0; text-shadow: 0 1px 4px rgba(0,0,0,.85); }
 
   /* ---------- 店內 2D 定景（src/view/shop-still.js；店內環景已拔掉） ----------
-     背景是 art-map.js 的 SHOP_STILL_NIGHT／SHOP_STILL_DAY（進門／站著：scene_shop_interior_night_lit_v2）與
+     背景是 art-map.js 的 SHOP_STILL_NIGHT／SHOP_STILL_DAY／SHOP_STILL_DUSK（進門／站著：scene_shop_interior_night_lit_v2；答謝開頭傍晚：art-v59/scene_shop_interior_dusk_v1）與
      SHOP_STILL_SEATED（坐下喝咖啡：scene_v3b_shop_window_night_seated）；
      座標都是 .op-art 的百分比＝原圖（1170×2532）上的位置。燈是亮的：不再疊壓暗的濾鏡 */
   .op-shop { padding: 0; background: #1c130d; --cat-h: .3466%; } /* --cat-h：貓圖（512×384）寬 1% 時，高佔原圖高的比例（.75 × 1170 ÷ 2532） */
   .sh-cam { position: absolute; inset: 0; transition: transform .9s ease; transform-origin: 62% 62%; }
   .op-shop[data-frame="side"] .sh-cam { transform: scale(1.07); } /* 靠窗那一側：往窗邊推近一點 */
+  /* 坤伯答謝天暗下來：傍晚圖（複製一張疊在上面）淡掉、露出夜景定版圖；時間與 shop-still.js 的 BG_FADE_MS 一致 */
+  .sh-bg-old { pointer-events: none; opacity: 1; transition: opacity 1.2s ease, transform 1.4s ease; }
   .sh-sky { position: absolute; mix-blend-mode: screen; pointer-events: none; opacity: 0; transition: opacity 1.2s; }
   .sh-sky[data-kind="dusk"] { background: linear-gradient(rgba(235,150,90,1), rgba(170,110,110,.75) 45%, rgba(90,70,60,.5)); }
   .sh-sky[data-kind="morning"] { background: linear-gradient(rgba(190,215,235,.95), rgba(230,225,200,.7)); }

@@ -1,6 +1,6 @@
 // 畫師美術（assets/art/*.webp；v5.6 定版圖在 assets/art-v56/）：只讀取、照原檔顯示，不修改、不重新壓縮。
 import { debugOn, onGithack, directAssetUrl } from '../debug/flag.js';
-import { artUrl, srcOf, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY } from './art-map.js';
+import { artUrl, srcOf, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY, SHOP_STILL_DUSK } from './art-map.js';
 const cache = new Map();
 // 只有 ?debug=1：圖用 CORS 載入（raw.githack 會把圖轉到 raw.githubusercontent.com，不加的話畫布會被汙染、回報截不了圖）。
 // 一般玩家不加，載入方式和以前一樣。
@@ -58,7 +58,7 @@ export function warm(names) {
 // 店內 2D 定景（view/shop-still.js）：店內靜照（art-map.js 的 SHOP_STILL_NIGHT／SHOP_STILL_SEATED／SHOP_STILL_DAY）、德叔、龍眼、杯子、摸頭的手。
 // 店內環景的貼圖（吧台、牆與地板材質、吊燈、書架、收音機……）已不引用、不預載（檔案留在 assets/art）。
 export const SHOP_ART = [...new Set([
-  srcOf(SHOP_STILL_NIGHT), srcOf(SHOP_STILL_SEATED), srcOf(SHOP_STILL_DAY),
+  srcOf(SHOP_STILL_NIGHT), srcOf(SHOP_STILL_SEATED), srcOf(SHOP_STILL_DAY), srcOf(SHOP_STILL_DUSK),
   'char_deshu_stand', 'char_deshu_brew', 'char_deshu_serve', 'char_deshu_broom', 'cat_longan_sleep', 'cat_longan_sit', 'cat_longan_walk', 'prop_cup',
   'char_v3b_yijun_hand_v2', 'cat_longan_headbump_v2', 'cat_longan_knead_v2', 'cat_longan_ears_turn_v2', 'cat_longan_ears_back_v2', 'cat_longan_lick_paw_v2',
 ].filter(Boolean))];

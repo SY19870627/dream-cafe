@@ -168,8 +168,10 @@ export const OPENING_LINES = {
     // （畫面留在我和龍眼，德叔只看得到肩膀。水滾，接著很細的水聲，斷了一次，又接上。不能操作。）
     { text: '香味一路到門口。', sfx: ['boil', 'thinPour'], wait: 2600 },
     { text: '德叔端著杯子走出吧台，放在靠窗那張桌上，龍眼剛才那個位子的右手邊。把手朝右。',
-      set: { deshu: 'serveTable', cup: true }, sfx: ['place'] },
-    { who: 'deshu', text: '泡好了。坐下喝看看。', set: { portrait: true, deshu: null } },
+      // char_deshu_serve 立繪手上就端著那一杯：這句桌上還沒有杯子（不然畫面上兩個杯子）
+      set: { deshu: 'serveTable', cup: false } },
+    // 放下之後桌上的杯子才出現（place 音效在這句）。沒有桌旁空手的德叔立繪：放下後 2D 德叔退場、改出對話立繪
+    { who: 'deshu', text: '泡好了。坐下喝看看。', set: { portrait: true, deshu: null, cup: true }, sfx: ['place'] },
   ],
 
   // 第四幕：坐下後的閱讀框（背景是看得到窗的店內夜景；夜裡到東山，窗外已經是黑的）

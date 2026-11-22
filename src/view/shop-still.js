@@ -3,12 +3,14 @@
 // 背景圖只從 art-map.js 的常數來（換圖只改那裡的 src）：
 //   進門／站在店裡（deshu、sit、stay、晚上回來）＝SHOP_STILL_NIGHT → scene_shop_interior_night_lit_v2（承峰 2026-11-21 23:47 定版）
 //   第一天起早上的店裡＝SHOP_STILL_DAY → art-v59/scene_shop_interior_day_v1（承峰 2026-11-22 17:20 接進遊戲；與 v2 同構圖，位置共用）
+//   坤伯答謝開頭（傍晚、還沒入夜）＝SHOP_STILL_DUSK → art-v59/scene_shop_interior_dusk_v1（承峰 2026-11-22 19:16 接進遊戲；同構圖）；
+//     天暗下來那句交叉淡化到 SHOP_STILL_NIGHT，之後停在夜景
 //   點了椅子、坐下喝咖啡（coffee，opts.seated）＝SHOP_STILL_SEATED → scene_v3b_shop_window_night_seated（靠窗特寫）
 // 兩張的構圖不同，位置分兩套：*_STAND／SHOP_CHAIR／SHOP_BAR 對準 v2；SHOP_WINDOW／SHOP_CUP／CAT_2D.feetSeated／CAT_2D.across 對準靠窗特寫。
 // 位置都是 .op-art 的百分比（相對 1170×2532 整張圖）。
 // 沒有 canvas、沒有動畫迴圈：換動作用計時器換圖，摸頭與喝一口用 CSS 動畫。
 import { makeStage } from './days.js';
-import { srcOf, artUrl, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY } from './art-map.js';
+import { srcOf, artUrl, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY, SHOP_STILL_DUSK } from './art-map.js';
 
 const art = (ref) => artUrl(ref);
 
@@ -31,7 +33,10 @@ export const DESHU_2D = {
   stand: { img: 'char_deshu_stand', x: 85.5, y: 51.3, h: 24, clip: BAR_TOP }, // 吧台後面、磨豆機旁
   brew: { img: 'char_deshu_brew', x: 85.5, y: 51.3, h: 24, clip: BAR_TOP },
   broom: { img: 'char_deshu_broom', x: 38, y: 70, h: 41 }, // 晚上回來：拿著掃把，站在兩張桌子之間的地上
-  serveTable: { img: 'char_deshu_serve', x: 40, y: 67, h: 40 }, // 端杯子走到兩張桌子之間（站位沿用舊值，這次沒改；杯子已改放在左側靠窗桌，見 SHOP_CUP_STAND）
+  // 端杯子：剛把杯子放在左側靠窗桌（SHOP_CUP_STAND），人站在靠窗桌那張椅子的右手邊走道上（兩桌之間、緊貼左桌）。
+  // h40 時立繪最左緣（左手）約 x 51% − 134px ≈ 463px，在左椅椅背／椅座右緣（約 450px）右邊，不疊在椅子上；
+  // 手上那杯約 x 497–566px、y ~1080，離桌上杯子（約 x 192–323、杯底 y 1258）很遠；腳底 y 67% 與靠窗桌前腳同一層地板。
+  serveTable: { img: 'char_deshu_serve', x: 51, y: 67, h: 40 },
 };
 // 龍眼：x＝貓圖中心、y＝腳線、w＝貓圖寬（佔原圖寬；貓圖都是 512×384、腳線對齊）。閱讀框蓋住原圖約 78% 以下，地上的位置放在框的上緣。
 // seq：照劇本換動作（每一步的原圖、停多久；dy 是貓圖高的比例、s 是放大）
@@ -73,18 +78,26 @@ export function resetPet() { petted = false; }
 
 const pct = (n) => `${n}%`;
 // 第 i 句的天色：morning 早上（用白天正式圖 SHOP_STILL_DAY，光線與窗外已畫好，不疊：alpha 0）／
-// dusk 傍晚（夜圖上疊，night 0–1 越來越暗）／晚上（night 1：原圖的夜色，不再壓暗）
+// dusk 傍晚還沒入夜（用傍晚正式圖 SHOP_STILL_DUSK，窗外傍晚已畫好，不疊：alpha 0）／
+// 晚上（night 1：夜景定版圖原圖的夜色，不再壓暗）。沒寫 tone 也沒入夜的句子照舊在夜圖窗上疊傍晚天色
 export function skyOf(look = {}) {
   const night = look.night || 0;
-  if (look.tone === 'morning' && !night) return { kind: 'morning', alpha: 0 };
+  if ((look.tone === 'morning' || look.tone === 'dusk') && !night) return { kind: look.tone, alpha: 0 };
   const alpha = Math.max(0, 1 - night) * 0.9;
   return { kind: 'dusk', alpha: Number(alpha.toFixed(3)) };
 }
-// 這一句用哪一張：坐下喝咖啡＝靠窗特寫；其他＝早上／晚上的店內定版圖
+// 這一句用哪一張：坐下喝咖啡＝靠窗特寫；入夜（night 為真）＝夜景定版圖；早上＝白天圖；傍晚還沒入夜＝傍晚圖
 export const stillOf = (look = {}, seated = false) => {
   if (seated) return SHOP_STILL_SEATED;
-  return look.tone === 'morning' && !look.night ? SHOP_STILL_DAY : SHOP_STILL_NIGHT;
+  if (look.night) return SHOP_STILL_NIGHT;
+  if (look.tone === 'morning') return SHOP_STILL_DAY;
+  if (look.tone === 'dusk') return SHOP_STILL_DUSK;
+  return SHOP_STILL_NIGHT;
 };
+// 換底圖要不要交叉淡化：只有同一幕裡從傍晚圖換成夜景（坤伯答謝「外面天色慢慢暗下來」）才淡；
+// 進幕、跳關、第一次 beat（from 是 null）直接到這一句的圖，不從 showShop 初始的夜圖淡過去
+export const fadesBetween = (from, to) => from === SHOP_STILL_DUSK && to === SHOP_STILL_NIGHT;
+export const BG_FADE_MS = 1200; // 與 .sh-sky 的 1.2s 一致（index.html 的 .sh-bg-old）
 // 這一張的窗與杯子位置（進門／站著＝v2；坐下＝靠窗特寫）
 export const layoutOf = (seated = false) => (seated
   ? { window: SHOP_WINDOW, cup: SHOP_CUP }
@@ -126,6 +139,22 @@ export function showShop(root, act, opts = {}) {
   let catKey;
   let spot = null;
   let petTimer = 0;
+  let shown = null; // 上一次 beat 用的定景（null＝這一幕還沒 beat：第一次直接換，不淡）
+  let fadeTimer = 0;
+  let oldBg = null; // 交叉淡化時疊在上面、正在淡掉的舊底圖
+  const dropOld = () => { clearTimeout(fadeTimer); if (oldBg) oldBg.remove(); oldBg = null; };
+  // 舊底圖複製一張疊在新圖上面（窗的天色、德叔、貓都在它上面），再把它淡掉：兩張圖疊著淡，不是瞬間切
+  const crossFade = (fromSrc) => {
+    dropOld();
+    oldBg = bg.cloneNode(false);
+    oldBg.classList.remove('sh-bg');
+    oldBg.classList.add('sh-bg-old');
+    oldBg.src = fromSrc;
+    bg.after(oldBg);
+    void oldBg.offsetWidth;
+    oldBg.style.opacity = '0';
+    fadeTimer = setTimeout(dropOld, BG_FADE_MS + 100);
+  };
   const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
   const step = (st) => {
     const src = art(st.img);
@@ -155,8 +184,14 @@ export function showShop(root, act, opts = {}) {
   };
   const ctl = {
     beat(look = {}) {
-      const ref = srcOf(stillOf(look, seated));
-      if (ref && bg.getAttribute('src') !== art(ref)) bg.src = art(ref);
+      const id = stillOf(look, seated);
+      const ref = srcOf(id);
+      if (ref && bg.getAttribute('src') !== art(ref)) {
+        if (fadesBetween(shown, id)) crossFade(bg.getAttribute('src'));
+        else dropOld();
+        bg.src = art(ref);
+      }
+      shown = id;
       el.dataset.frame = look.frame || 'counter';
       const s = skyOf(look);
       sky.dataset.kind = s.kind;
@@ -198,7 +233,7 @@ export function showShop(root, act, opts = {}) {
       void cup.offsetWidth;
       cup.classList.add('sip');
     },
-    stop() { clearTimers(); clearTimeout(petTimer); },
+    stop() { clearTimers(); clearTimeout(petTimer); dropOld(); },
   };
   return ctl;
 }

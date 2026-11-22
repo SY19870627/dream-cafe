@@ -97,7 +97,10 @@ test('店內環景（canvas 2.5D）已拔掉：沒有 Pano、沒有 #pano；店�
   assert.doesNotMatch(main, /Pano|pano|requestAnimationFrame/);
   assert.doesNotMatch(read('index.html'), /id="pano"|#pano/);
   assert.doesNotMatch(code('src/view/shop-still.js'), /requestAnimationFrame|getContext/);
-  assert.match(code('src/view/shop-still.js'), /stop\(\) \{ clearTimers\(\); clearTimeout\(petTimer\); \}/);
+  const stopBody = code('src/view/shop-still.js').match(/stop\(\) \{([^}]*)\}/)?.[1] ?? '';
+  assert.match(stopBody, /\bclearTimers\(\);/, 'stop() 要清掉店內計時器');
+  assert.match(stopBody, /\bclearTimeout\(petTimer\);/, 'stop() 要清掉摸貓計時器');
+  assert.match(stopBody, /\bdropOld\(\);/, 'stop() 要清掉交叉淡化留下的舊底圖');
   // 換畫面（reset）：停掉目前畫面（店內 2D 定景也是 sceneCtl）
   const reset = main.match(/function reset\(\) \{([\s\S]*?)\n\}/)[1];
   assert.match(reset, /sceneCtl\?\.stop\(\);/);

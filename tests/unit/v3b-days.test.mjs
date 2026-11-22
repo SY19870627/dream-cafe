@@ -837,8 +837,8 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
     if (s.src) assert.ok(has(refOf(id)), `${id}：缺 ${artUrl(refOf(id))}`);
     for (const v of Object.keys(s.variants || {})) assert.ok(has(refOf(id, v)), `${id}／${v}：缺 ${artUrl(refOf(id, v))}`);
     if (s.status !== 'ready') assert.ok(s.temp, `${id} 暫代方式`);
-    // 新圖只放 assets/art-v56/；例外：白天店內圖 bg_shop_day 在 assets/art-v59/（承峰 2026-11-22 17:20）
-    if (s.dir) assert.ok(s.dir.startsWith('art-v56/') || (id === 'bg_shop_day' && s.dir === 'art-v59'), `${id}：新圖只放 assets/art-v56/（白天店內圖在 art-v59）`);
+    // 新圖只放 assets/art-v56/；例外：白天店內圖 bg_shop_day（承峰 2026-11-22 17:20）、傍晚店內圖 bg_shop_dusk（19:16）在 assets/art-v59/
+    if (s.dir) assert.ok(s.dir.startsWith('art-v56/') || (['bg_shop_day', 'bg_shop_dusk'].includes(id) && s.dir === 'art-v59'), `${id}：新圖只放 assets/art-v56/（白天／傍晚店內圖在 art-v59）`);
   }
   for (const n of ART_MAP_FILES) assert.ok(has(n), n);
   assert.equal(artUrl('scene_county_road'), 'assets/art/scene_county_road.webp', '舊圖仍在 assets/art/');
@@ -926,9 +926,18 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   assert.equal(srcOf('bg_shop_day'), 'art-v59/scene_shop_interior_day_v1');
   assert.equal(artUrl(srcOf('bg_shop_day')), 'assets/art-v59/scene_shop_interior_day_v1.webp');
   assert.deepEqual(webpSize(readFileSync(root('assets/art-v59/scene_shop_interior_day_v1.webp'))), [1170, 2532], '白天店內圖是直式 1170×2532');
+  // 傍晚店內正式圖 art-v59/scene_shop_interior_dusk_v1（承峰 2026-11-22 19:16「傍晚店內圖可以，接進遊戲」）：坤伯答謝開頭
+  assert.equal(ART_MAP.bg_shop_dusk.status, 'ready');
+  assert.equal(ART_MAP.bg_shop_dusk.dir, 'art-v59');
+  assert.equal(ART_MAP.bg_shop_dusk.src, 'scene_shop_interior_dusk_v1');
+  assert.ok(!('temp' in ART_MAP.bg_shop_dusk));
+  assert.equal(srcOf('bg_shop_dusk'), 'art-v59/scene_shop_interior_dusk_v1');
+  assert.equal(artUrl(srcOf('bg_shop_dusk')), 'assets/art-v59/scene_shop_interior_dusk_v1.webp');
+  assert.deepEqual(webpSize(readFileSync(root('assets/art-v59/scene_shop_interior_dusk_v1.webp'))), [1170, 2532], '傍晚店內圖是直式 1170×2532');
+  assert.match(ART_MAP.bg_shop_night.use, /答謝天暗之後/);
   assert.equal(ART_MAP.bg_shop_seated.src, 'scene_v3b_shop_window_night_seated', '坐下喝咖啡仍用靠窗特寫');
-  // 夜景只接 v2 這一張（art-1121 的第一版店內圖不進專案）；白天圖在 art-v59，不進 assets/art
-  assert.deepEqual(ART_MAP_FILES.filter((r) => /scene_shop_interior/.test(r)).sort(), ['art-v59/scene_shop_interior_day_v1', 'scene_shop_interior_night_lit_v2']);
+  // 夜景只接 v2 這一張（art-1121 的第一版店內圖不進專案）；白天、傍晚圖在 art-v59，不進 assets/art
+  assert.deepEqual(ART_MAP_FILES.filter((r) => /scene_shop_interior/.test(r)).sort(), ['art-v59/scene_shop_interior_day_v1', 'art-v59/scene_shop_interior_dusk_v1', 'scene_shop_interior_night_lit_v2']);
   assert.deepEqual(readdirSync(root('assets/art')).filter((f) => /^scene_shop_interior/.test(f)), ['scene_shop_interior_night_lit_v2.webp'], '只有定版 v2 在 assets/art/');
   assert.ok(!('ui_shop_look' in ART_MAP) && !('bg_shop' in ART_MAP), '環景與「看看店裡」的格子拿掉');
   const view = code('src/view/days.js');

@@ -44,12 +44,16 @@ export const ART_MAP = {
   // 店內 2D 定景（店內環景與「看看店裡」已拔掉，承峰 2026-11-21 20:48）。見下面 SHOP_STILL_NIGHT／SHOP_STILL_DAY／SHOP_STILL_SEATED。
   // 店內定版圖 scene_shop_interior_night_lit_v2（承峰 2026-11-21 23:47「店內圖定版」）：晚上燈亮、左邊一扇窗、右邊吧台（一排杯子、磨豆機）、兩張桌子。
   // 進門／站在店裡用這張；椅子、德叔、龍眼、杯子、窗、吧台的位置都在 shop-still.js 對準這張（SHOP_CHAIR、*_STAND）。
-  bg_shop_night: { use: '晚上、燈亮著的店內：進門、點椅子坐下、晚上回來、坤伯答謝、研發咖啡', planned: 'scene_shop_interior_night_lit_v2', status: 'ready', src: 'scene_shop_interior_night_lit_v2' },
+  // 坤伯答謝開頭改用傍晚圖 bg_shop_dusk；「外面天色慢慢暗下來」那句交叉淡化到這張，之後停在夜景。
+  bg_shop_night: { use: '晚上、燈亮著的店內：開場進門、點椅子坐下、晚上回來；坤伯答謝天暗之後；研發咖啡（答謝開頭改用傍晚圖）', planned: 'scene_shop_interior_night_lit_v2', status: 'ready', src: 'scene_shop_interior_night_lit_v2' },
   // 點了椅子坐下（coffee）之後：靠窗坐下的特寫（杯子、對面椅子上的龍眼、窗的位置對準這張；檔案原樣留著，不覆寫）
   bg_shop_seated: { use: '坐下喝咖啡：靠窗坐下的特寫（桌上的杯子、對面椅子上的龍眼）', planned: 'scene_v3b_shop_window_night_seated', status: 'ready', src: 'scene_v3b_shop_window_night_seated' },
   // 早上店內正式圖 scene_shop_interior_day_v1（承峰 2026-11-22 17:20「白天店內圖可以，接進遊戲」；1170×2532，放在 assets/art-v59/，不進 assets/art）。
   // 與夜景 v2 同構圖（椅子、吧台、窗的位置沿用 *_STAND／SHOP_CHAIR／SHOP_BAR）；早晨光線與窗外白天已畫在圖上，不再疊天色。
   bg_shop_day: { use: '早上的店內：第一天挑豆、第二天回店、三天後', planned: 'scene_shop_interior_day_v1', status: 'ready', dir: 'art-v59', src: 'scene_shop_interior_day_v1' },
+  // 傍晚店內正式圖 scene_shop_interior_dusk_v1（承峰 2026-11-22 19:16「傍晚店內圖可以，接進遊戲」；1170×2532，放在 assets/art-v59/，不進 assets/art）。
+  // 與夜景 v2 同構圖（位置沿用 *_STAND）；傍晚窗外與光線已畫在圖上，不再疊天色。
+  bg_shop_dusk: { use: '傍晚的店內：三天後坤伯來答謝的開頭（天暗下來之前）', planned: 'scene_shop_interior_dusk_v1', status: 'ready', dir: 'art-v59', src: 'scene_shop_interior_dusk_v1' },
   bg_office: { use: '開場：辦公室', planned: 'scene_office_night', status: 'ready', src: 'scene_office_night' },
   bg_sanheyuan_dusk: { use: '開場：三合院外（傍晚）。劇本 v5.8 是「夜裡，東山。」，三合院外三幕都用晚上那張；這張不再出場（檔案留著）', planned: 'scene_v3b_sanheyuan_dusk_v2', status: 'ready', src: 'scene_v3b_sanheyuan_dusk_v2' },
   bg_sanheyuan_night: { use: '開場：三合院外（夜裡到東山、晚上發動、晚上回來）', planned: 'scene_v3b_sanheyuan_night_v2', status: 'ready', src: 'scene_v3b_sanheyuan_night_v2' },
@@ -95,12 +99,14 @@ export const ART_MAP = {
 };
 
 // 店內定景。換圖只改 src（不要改 id）。
-// SHOP_STILL_NIGHT：晚上、燈亮、進門／點椅子坐下之前／晚上回來／答謝／研發 → scene_shop_interior_night_lit_v2（定版）
+// SHOP_STILL_NIGHT：晚上、燈亮、進門／點椅子坐下之前／晚上回來／答謝天暗之後／研發 → scene_shop_interior_night_lit_v2（定版）
+// SHOP_STILL_DUSK：坤伯答謝開頭（傍晚、還沒入夜）→ art-v59/scene_shop_interior_dusk_v1（傍晚正式圖，不疊天色）。
 // SHOP_STILL_SEATED：點了椅子、坐下喝咖啡（coffee）→ scene_v3b_shop_window_night_seated（靠窗特寫）
 // SHOP_STILL_DAY：早上店裡（第一天挑豆、第二天回店、三天後）→ art-v59/scene_shop_interior_day_v1（白天正式圖，不疊天色）。
 export const SHOP_STILL_NIGHT = 'bg_shop_night';
 export const SHOP_STILL_SEATED = 'bg_shop_seated';
 export const SHOP_STILL_DAY = 'bg_shop_day';
+export const SHOP_STILL_DUSK = 'bg_shop_dusk';
 
 // 程式疊在圖上的字（不指望圖上有字）
 export const OVERLAY_TEXT = {

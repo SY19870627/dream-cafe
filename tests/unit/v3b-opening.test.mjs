@@ -15,8 +15,8 @@ import { load, persist, SAVE_KEY } from '../../src/story/save.js';
 import { OPENING_ART, SHOP_ART } from '../../src/view/art.js';
 import { doorView, DOOR_FADE_MS } from '../../src/view/opening.js';
 import { PORTRAIT_PLACE } from '../../src/view/reader.js';
-import { SHOP_CHAIR, SHOP_CUP, SHOP_WINDOW, SHOP_WINDOW_STAND, SHOP_CUP_STAND, SHOP_BAR, CAT_2D, DESHU_2D, KNEAD_ON_SLEEP_LINE, PET_MS, skyOf, stillOf, layoutOf, cupShown } from '../../src/view/shop-still.js';
-import { ART_MAP, srcOf, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY } from '../../src/view/art-map.js';
+import { SHOP_CHAIR, SHOP_CUP, SHOP_WINDOW, SHOP_WINDOW_STAND, SHOP_CUP_STAND, SHOP_BAR, CAT_2D, DESHU_2D, KNEAD_ON_SLEEP_LINE, PET_MS, skyOf, stillOf, layoutOf, cupShown, fadesBetween, BG_FADE_MS } from '../../src/view/shop-still.js';
+import { ART_MAP, srcOf, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY, SHOP_STILL_DUSK } from '../../src/view/art-map.js';
 import { walk } from './walk.mjs';
 
 const root = (p) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
@@ -584,8 +584,16 @@ test('演出：德叔第一句只有聲音（先不出立繪、擦杯子聲）�
   assert.equal(at('deshu', brew).portrait, false, '畫面留在我和龍眼');
   assert.equal(at('deshu', brew).frame, 'side', '畫面推近我和龍眼（靠窗那一側）');
   const serve = brew + 1;
-  assert.equal(at('deshu', serve).cup, true, '德叔把杯子放在靠窗那張桌');
+  // char_deshu_serve 立繪手上就端著那一杯：端杯那句桌上還沒有杯子（不會同時兩個杯子）；放下之後（下一句）才出現、place 在那句
+  assert.equal(at('deshu', serve).deshu, 'serveTable');
+  assert.equal(at('deshu', serve).cup, false, '德叔還端在手上，桌上沒有杯子');
+  assert.ok(!(L.deshu[serve].sfx || []).includes('place'), '桌上還空著，不放 place');
+  assert.equal(at('deshu', serve + 1).cup, true, '德叔把杯子放在靠窗那張桌');
+  assert.equal(at('deshu', serve + 1).deshu, null, '沒有桌旁空手立繪：放下後 2D 德叔退場');
+  assert.equal(at('deshu', serve + 1).portrait, true);
+  assert.deepEqual(L.deshu[serve + 1].sfx, ['place']);
   assert.equal(L.deshu.at(-1).text, '泡好了。坐下喝看看。');
+  assert.equal(serve + 1, L.deshu.length - 1);
   assert.equal(at('coffee', L.coffee.length - 1).night, 1, '窗外暗下來');
   assert.ok(at('room', 2).lying);
 });
@@ -789,16 +797,43 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   assert.match(shop, /cup\.hidden = !cupShown\(look, seated\);/);
   for (const b of L.coffee) if (b.optional === 'cup') assert.ok(cupShown(at('coffee', L.coffee.indexOf(b)), true), '點杯子那句杯子看得到');
   assert.match(shop, /const seated = !!opts\.seated;/);
-  assert.match(shop, /srcOf\(stillOf\(look, seated\)\)/);
+  assert.match(shop, /const id = stillOf\(look, seated\);\s*const ref = srcOf\(id\);/);
   assert.deepEqual(skyOf({ night: 1 }), { kind: 'dusk', alpha: 0 }, '晚上：原圖的夜色，不再疊壓暗濾鏡');
-  assert.equal(skyOf({ tone: 'dusk', night: 0 }).alpha, 0.9);
-  assert.equal(skyOf({ tone: 'dusk' }).alpha, 0.9, '傍晚（night 未設）仍在夜圖的窗上疊天色');
+  // 傍晚還沒入夜用傍晚正式圖（窗外傍晚已畫好）：不再疊天色濾鏡（承峰 2026-11-22 19:16）
+  assert.deepEqual(skyOf({ tone: 'dusk', night: 0 }), { kind: 'dusk', alpha: 0 });
+  assert.deepEqual(skyOf({ tone: 'dusk' }), { kind: 'dusk', alpha: 0 }, '傍晚用傍晚圖，不疊天色');
+  assert.deepEqual(skyOf({ tone: 'dusk', night: 1 }), { kind: 'dusk', alpha: 0 });
   // 早上用白天正式圖（光線與窗外白天已畫好）：不再疊天色濾鏡
   assert.deepEqual(skyOf({ tone: 'morning' }), { kind: 'morning', alpha: 0 }, '早上不疊天色');
   assert.equal(stillOf({ tone: 'morning' }), SHOP_STILL_DAY);
-  assert.equal(stillOf({ tone: 'dusk' }), SHOP_STILL_NIGHT, '傍晚仍用夜圖');
-  assert.equal(stillOf({ tone: 'dusk', night: 1 }), SHOP_STILL_NIGHT);
+  assert.equal(stillOf({ tone: 'dusk' }), SHOP_STILL_DUSK, '傍晚還沒入夜用傍晚圖');
+  assert.equal(stillOf({ tone: 'dusk', night: 0 }), SHOP_STILL_DUSK);
+  assert.equal(stillOf({ tone: 'dusk', night: 1 }), SHOP_STILL_NIGHT, '入夜用夜景定版');
   assert.equal(stillOf({ night: 1 }), SHOP_STILL_NIGHT);
+  assert.equal(stillOf({ tone: 'dusk' }, true), SHOP_STILL_SEATED);
+  // 坤伯答謝：開頭傍晚圖、窗上不疊；「外面天色慢慢暗下來」起夜景定版、不疊；研發咖啡開頭是夜景
+  {
+    const T = D.DAY_LINES.d5thanks;
+    const dark = T.findIndex((b) => b.text === '外面天色慢慢暗下來。店裡很安靜，只有剝殼的聲音。');
+    assert.ok(dark > 0);
+    assert.equal(OP.sceneAt(T, 0).tone, 'dusk');
+    for (let i = 0; i < T.length; i++) {
+      const lk = OP.sceneAt(T, i);
+      assert.equal(stillOf(lk), i < dark ? SHOP_STILL_DUSK : SHOP_STILL_NIGHT, `d5thanks 第 ${i} 句`);
+      assert.equal(skyOf(lk).alpha, 0, `d5thanks 第 ${i} 句窗上不疊天色`);
+    }
+    assert.equal(OP.sceneAt(T, dark).night, 1, '天暗那句入夜（與 d5brew 開頭一致）');
+    assert.equal(stillOf(OP.sceneAt(D.DAY_LINES.d5brew, 0)), SHOP_STILL_NIGHT, '研發咖啡仍用夜景定版');
+    // 交叉淡化只在同一幕傍晚 → 夜景；進幕／跳關（還沒 beat：null）直接到這句的圖，不從初始夜圖淡過去
+    assert.equal(fadesBetween(SHOP_STILL_DUSK, SHOP_STILL_NIGHT), true);
+    assert.equal(fadesBetween(null, SHOP_STILL_DUSK), false);
+    assert.equal(fadesBetween(null, SHOP_STILL_NIGHT), false);
+    assert.equal(fadesBetween(SHOP_STILL_NIGHT, SHOP_STILL_DUSK), false);
+    assert.equal(fadesBetween(SHOP_STILL_DAY, SHOP_STILL_NIGHT), false);
+    assert.ok(BG_FADE_MS >= 1000 && BG_FADE_MS <= 1200);
+    assert.match(shop, /if \(fadesBetween\(shown, id\)\) crossFade\(/);
+    assert.match(read('index.html'), /\.sh-bg-old \{[^}]*transition: opacity 1\.2s/);
+  }
   assert.match(main, /showShop\(\$\('opening'\), act, \{ seated: act === 'coffee' \}\)/);
   // 劇本 v5.7：坐下後窗外已經是黑的（夜裡到東山）；店裡站著那一段窗外也是夜色
   for (let i = 0; i < L.coffee.length; i++) assert.equal(at('coffee', i).night, 1, `coffee 第 ${i} 句窗外是黑的`);
@@ -940,7 +975,10 @@ test('店內 2D 定景：定版圖 v2 上的椅子（點椅子坐下的目標）
   assert.deepEqual(webpSize(readFileSync(root('assets/art/scene_shop_interior_night_lit_v2.webp'))), [1170, 2532], '定版圖原尺寸');
   assert.equal(srcOf(SHOP_STILL_DAY), 'art-v59/scene_shop_interior_day_v1');
   assert.deepEqual(webpSize(readFileSync(root('assets/art-v59/scene_shop_interior_day_v1.webp'))), [1170, 2532], '白天店內圖原尺寸');
-  assert.ok(SHOP_ART.includes('scene_shop_interior_night_lit_v2') && SHOP_ART.includes('scene_v3b_shop_window_night_seated') && SHOP_ART.includes('art-v59/scene_shop_interior_day_v1'), '三張店內圖都開機預載');
+  assert.equal(srcOf(SHOP_STILL_DUSK), 'art-v59/scene_shop_interior_dusk_v1');
+  assert.deepEqual(webpSize(readFileSync(root('assets/art-v59/scene_shop_interior_dusk_v1.webp'))), [1170, 2532], '傍晚店內圖原尺寸');
+  assert.ok(SHOP_ART.includes('scene_shop_interior_night_lit_v2') && SHOP_ART.includes('scene_v3b_shop_window_night_seated') && SHOP_ART.includes('art-v59/scene_shop_interior_day_v1')
+    && SHOP_ART.includes('art-v59/scene_shop_interior_dusk_v1'), '四張店內圖都開機預載');
   // 吧台檯面（一排杯子與磨豆機，約 y 880–1015）；德叔站在吧台後面，檯面以下被擋住
   assert.ok(Math.abs(SHOP_BAR.top - (880 / 2532) * 100) < 1 && Math.abs(SHOP_BAR.top + SHOP_BAR.height - (1015 / 2532) * 100) < 1);
   for (const k of ['stand', 'brew']) {
