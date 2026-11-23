@@ -167,7 +167,7 @@ export const OPENING_LINES = {
     { text: '然後他整個身體靠上來，從頭到尾巴在我小腿上蹭過去，掉頭再蹭一次。', set: { cat: 'rub' }, optional: 'cat' }, // 點貓：手入鏡摸頭、頭頂上來；不點：蹭完坐在腳邊舔前腳（cat feet）
     { who: 'deshu', text: '那隻貓叫龍眼，是這間三合院的主人，而妳是新老闆。', set: { ...COUNTER, portrait: true, deshu: null, cat: 'feet' } },
     { who: 'me', text: '龍眼。' },
-    { text: '他沒理我，尾巴勾了一下我的腳踝。', set: { ...SIDE, portrait: false, deshu: 'stand' } },
+    { text: '他沒理我，尾巴勾了一下我的腳踝。', set: { ...SIDE, portrait: false, deshu: 'stand' }, sfx: ['meow'] }, // 承峰 2026-11-23 22:07 v510 第 7 項：短貓叫一次
     { text: '德叔彎腰，從吧台下面拿出一個杯子，沖了水。吧台上那排洗好的，他沒有動。', set: { ...COUNTER, deshu: 'brew' }, sfx: ['rinse'] },
     // （音效：磨豆機，短短一陣。）→ 德叔開口；我本來要拒絕，話嚥了回去
     { who: 'deshu', text: '老闆要不要試一下咖啡？', sfx: ['grind'], wait: 900 },
@@ -241,7 +241,8 @@ export const OPENING_LINES = {
   room: [
     { text: '我穿過庭埕。龍眼跟到一半就坐下來，沒有再跟。', set: { place: 'yard' } },
     { text: '房間不大。我把鑰匙從口袋拿出來，放在枕頭旁邊。', set: { place: 'room' }, optional: 'bed' },
-    { text: '外面有蟲在叫，遠一點的地方有狗叫了幾聲，又停了。', set: { lying: true }, mono: true },
+    // 承峰 2026-11-23 22:07 v510 第 8 項：這一句開始環境聲從房間底噪切到小聲的夏夜蟲鳴（ambient），遠處狗叫一次（dog）
+    { text: '外面有蟲在叫，遠一點的地方有狗叫了幾聲，又停了。', set: { lying: true }, mono: true, sfx: ['dog'], ambient: ['insects', 0.35] },
     { text: '棉被真的有曬過，德叔沒有騙我。', mono: true },
     { text: '蓋起來暖暖的，跟我在市區拿去投幣烘衣機、剛烘好拿出來的棉被一樣暖。', mono: true },
     { text: '可是他說老老闆交代過，要留一個房間讓我睡。', mono: true },

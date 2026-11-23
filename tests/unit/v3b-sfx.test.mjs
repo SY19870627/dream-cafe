@@ -42,7 +42,7 @@ test('檔名對照：駝峰名稱對到連字號檔名；新拆出的名稱都�
 
 test('audio.js：每個有錄音的名稱都留著合成退路；錄音用 fetch cors 載、接 master、不另建 <audio>', () => {
   const src = read('src/view/audio.js');
-  const AMBIENT = new Set(['rain', 'heater', 'room', 'cafe', 'shop', 'fan', 'grinder', 'hum', 'wind', 'lobby', 'store', 'scooter', 'engine']);
+  const AMBIENT = new Set(['rain', 'heater', 'room', 'cafe', 'shop', 'fan', 'grinder', 'hum', 'wind', 'lobby', 'store', 'scooter', 'engine', 'insects']);
   for (const n of [...Object.keys(SFX_FILES), ...SFX_SYNTH_ONLY]) {
     if (AMBIENT.has(n)) assert.match(src, new RegExp(`name === '${n}'`), `環境聲 ${n} 沒有合成退路`);
     else assert.ok(src.includes(`case '${n}':`), `音效 ${n} 沒有合成退路`);

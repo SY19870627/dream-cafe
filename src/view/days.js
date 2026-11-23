@@ -24,7 +24,7 @@ export const PLACES = {
   roomMorning: placeOf('bg_room_morning', { ambient: 'room' }), // 護龍早上定版背景，不再疊早晨色調
   basin: placeOf('bg_basin', { tone: 'morning', ambient: 'room', basin: true }), // 暫代：CSS 洗手台與鏡子
   road: placeOf('bg_road', { ambient: 'wind' }), // 下山、省道
-  mailbox: placeOf('bg_mailbox', { ambient: 'wind', fit: 'mbox' }), // 租屋處信箱：定版空信箱 scene_mailboxes_empty（橫圖，門都關著、沒信封；不再用帶信封的 scene_mailboxes.webp）
+  mailbox: placeOf('bg_mailbox', { ambient: 'quiet', fit: 'mbox' }), // 'quiet'＝信箱走廊安靜、不放環境聲（承峰 2026-11-23 22:07 v510 第 5 項，不再用風聲，也不落到 room）；租屋處信箱：定版空信箱 scene_mailboxes_empty（橫圖，門都關著、沒信封；不再用帶信封的 scene_mailboxes.webp）
   stairs: placeOf('bg_stairs', { ambient: 'room' }), // v5.6 定版：樓梯間
   home: placeOf('bg_home', { ambient: 'room', home: true }), // v5.6 定版：八月的租屋房間
   atm: placeOf('bg_atm', { ambient: 'wind' }), // v5.6 定版：銀行外的提款機

@@ -57,6 +57,8 @@ FAQ 載明：把效果音放進遊戲並在 GitHub 上連音檔一起公開，�
 - 雨が降る1（rain）https://soundeffect-lab.info/sound/environment/
 - 扇風機の弱回転（fan）、エアコン（hum）https://soundeffect-lab.info/sound/machine/
 - 風が吹く1（wind）https://soundeffect-lab.info/sound/environment/
+- 夏の田舎の夜（insects）https://soundeffect-lab.info/sound/animal/
+- 猫の鳴き声1（meow）https://soundeffect-lab.info/sound/animal/
 
 ### Freesound（Creative Commons 0）
 
@@ -73,7 +75,7 @@ FAQ 載明：把效果音放進遊戲並在 GitHub 上連音檔一起公開，�
 - Cat_Purr（purr）uniuniversal https://freesound.org/people/uniuniversal/sounds/621006/
 - Foley_Natural_Wood_Bed_Creaks_Mono（creak）Nox_Sound https://freesound.org/people/Nox_Sound/sounds/570599/
 - Space Heater, Seamless Loop（heater）HECKFRICKER https://freesound.org/people/HECKFRICKER/sounds/753544/
-- Bedroom ambience（room）mernantau https://freesound.org/people/mernantau/sounds/766159/
+- RoomTone07（room）richwise https://freesound.org/people/richwise/sounds/474832/
 - Closed Store, Closed Café（shop、cafe）LilMati https://freesound.org/people/LilMati/sounds/363455/
 - Empty Office Space Room Tone with Aircon SFX（lobby）Soup_UnderScore https://freesound.org/people/Soup_UnderScore/sounds/708021/
 - Convenience Store Interior Ambiance（store）JohnsonBrandEditing https://freesound.org/people/JohnsonBrandEditing/sounds/244309/

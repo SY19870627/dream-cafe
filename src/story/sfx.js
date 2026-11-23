@@ -22,9 +22,11 @@ export const SFX_FILES = { // 【待定】
   chime: 'chime', // 【待定】第一天走進超商（電梯仍是合成的 ding）
   creakWindow: 'creak-window', // 【待定】打開房間窗戶
   creakDrawer: 'creak-drawer', // 【待定】拉開書桌抽屜
+  meow: 'meow', // 【待定】德叔那幕：尾巴勾了一下腳踝（短貓叫，播一次）
   // 循環環境聲
   rain: 'rain', heater: 'heater', room: 'room', cafe: 'cafe', shop: 'shop', fan: 'fan', grinder: 'grinder', hum: 'hum', // 【待定】
   wind: 'wind', lobby: 'lobby', store: 'store', scooter: 'scooter', engine: 'engine', // 【待定】
+  insects: 'insects', // 【待定】夏夜蟲鳴：三合院外、房間裡躺下後
 }; // 【待定】
 
 // 沒有真實錄音、維持合成的名稱
@@ -32,7 +34,7 @@ export const SFX_SYNTH_ONLY = ['tap', 'memory', 'ding']; // 【待定】
 
 // 每個名稱的額外增益（預設 1）：環境聲略低，免得蓋過配樂
 export const SFX_GAIN = { // 【待定】
-  wind: 0.8, room: 0.8, lobby: 0.8, // 【待定】
+  wind: 0.8, room: 0.8, lobby: 0.8, insects: 0.8, // 【待定】
   engine: 0.75, scooter: 0.75, // 【待定】
 }; // 【待定】
 

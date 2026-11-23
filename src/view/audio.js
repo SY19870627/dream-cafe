@@ -416,6 +416,7 @@ function synth(name) { // 【待定】
       break;
     case 'cloth': noise({ dur: 0.32, gain: 0.05, freq: 2200, q: 0.6 }); break; // 布擦杯子，一下
     case 'rinse': noise({ dur: 0.9, gain: 0.05, freq: 1300, q: 0.7 }); break; // 杯子沖水
+    case 'meow': tone(620, { dur: 0.22, gain: 0.05, type: 'triangle', to: 900 }); tone(900, { at: 0.2, dur: 0.35, gain: 0.04, type: 'triangle', to: 520 }); break; // 短貓叫（錄音載不到時）
     case 'hop': tone(140, { dur: 0.14, gain: 0.08, to: 80 }); noise({ dur: 0.08, gain: 0.04, freq: 500, q: 0.8 }); break; // 貓跳上／跳下
     case 'boil': // 水滾：低沉的滾聲加幾顆氣泡
       noise({ dur: 1.6, gain: 0.07, freq: 380, q: 0.6, type: 'lowpass' });
@@ -577,6 +578,7 @@ function synthAmbient(name, g, nodes) { // 【待定】
   else if (name === 'grinder') { loopNoise(700, 0.4, 0.02); loopNoise(2600, 4, 0.012); }
   else if (name === 'hum') { hum(120, 0.02, 'sawtooth'); loopNoise(3000, 1, 0.006); }
   else if (name === 'wind') { loopNoise(380, 0.4, 0.05, 'lowpass'); loopNoise(1200, 0.6, 0.012); }
+  else if (name === 'insects') { loopNoise(4200, 8, 0.012); loopNoise(5600, 10, 0.008); } // 夏夜蟲鳴：輕的高頻細聲
   else if (name === 'lobby' || name === 'store') { loopNoise(300, 0.4, 0.025, 'lowpass'); hum(100, 0.004); }
   else if (name === 'scooter') { hum(70, 0.05, 'sawtooth'); loopNoise(300, 0.5, 0.05, 'lowpass'); }
   else if (name === 'engine') { // 騎在黑路上：怠速／往前騎由 setEngine() 調轉速

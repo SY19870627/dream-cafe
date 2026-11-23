@@ -103,13 +103,15 @@ const DOM_ACTS = ['office', 'title', 'mailbox', 'letter', 'eve', 'resend'];
 let resumeCard = true;
 const SHOP_ACTS = ['deshu', 'sit', 'coffee', 'stay'];
 let sceneCtl = null; // 目前的 DOM 畫面（換畫面時停掉動畫與計時器）
-let clothTimer = 0; // 布擦杯子，一下一下
+let clothTimer = 0; // 布擦杯子：擦一兩下就停（承峰 2026-11-23 22:07 v510 第 4 項：不循環）
+let clothOn = false;
 
 function cloth(on) {
-  if (!on) { clearInterval(clothTimer); clothTimer = 0; return; }
-  if (clothTimer) return;
+  if (!on) { clearTimeout(clothTimer); clothTimer = 0; clothOn = false; return; }
+  if (clothOn) return;
+  clothOn = true;
   play('cloth');
-  clothTimer = setInterval(() => play('cloth'), 900);
+  clothTimer = setTimeout(() => { clothTimer = 0; play('cloth'); }, 900); // 再一下就停
 }
 
 function opening() {
@@ -269,6 +271,13 @@ const elRect = (el) => (base) => {
 };
 
 /* ---------- 三合院外、黑路、岔路、廟、庭埕與房間、待續 ---------- */
+// 房間這一幕第 i 句的環境聲：開頭是房間底噪（room）；「外面有蟲在叫」那一句起換成句子上的 ambient（小聲蟲鳴）。讀檔落在後面的句子也對得上。
+function roomAmbient(i) {
+  let amb = ['room', 1];
+  for (const b of (S.ACT_LINES.room || []).slice(0, Math.max(0, i) + 1)) if (b.ambient) amb = b.ambient;
+  return amb;
+}
+
 async function openingScene(act) {
   const my = token;
   const ctl = showScene($('opening'), act, {
@@ -279,8 +288,9 @@ async function openingScene(act) {
   sceneCtl = ctl;
   if (act === 'end') { setAmbient(null); reader.hide(); props.hide(); return; }
   if (act === 'ride' || act === 'fork' || act === 'temple') { setAmbient('engine'); setEngine(0); }
-  else if (act === 'room') setAmbient('room');
-  else setAmbient('wind', act === 'road' ? 0.6 : 0.45);
+  else if (act === 'room') setAmbient(...roomAmbient(state.opening.line));
+  else if (act === 'road' || act === 'depart') setAmbient('insects', 0.6); // 三合院外（熄火後、發動前）：夏夜蟲鳴（承峰 2026-11-23 22:07 v510 第 5 項，不再用風聲）
+  else setAmbient('wind', 0.45);
 
   if (act === 'depart') { // 點機車「發動」：引擎聲、車燈亮、轉到路上（不點就留在三合院外）
     reader.hide();
@@ -294,7 +304,7 @@ async function openingScene(act) {
     if (!ok || my !== token) return;
   }
   const done = await runLines(act, {
-    look: (i, lk) => ctl.beat(i, lk),
+    look: (i, lk) => { ctl.beat(i, lk); if (act === 'room') setAmbient(...roomAmbient(i)); },
     gate: (name) => ctl.gate(name),
     optional: (name) => (name === 'bed' ? [{
       id: 'bed', label: '床', rect: elRect(ctl.hot('bed')),
@@ -314,7 +324,7 @@ async function openingScene(act) {
 async function openingShop(act) {
   const my = token;
   const day = !!DAY_ACT_VIEW[act];
-  setAmbient('shop', act === 'stay' ? 0.7 : 1);
+  setAmbient(null); // 店裡安靜：不再循環 shop 底噪，只在德叔磨豆那一句播一次 grind（約 5 秒，承峰 2026-11-23 22:07 v510 第 6 項）
   if (day && state.opening.line === 0 && DAY_TITLES[act]) { // 店裡開始的一天（第二天　回咖啡館）：先出章名卡
     reader.hide();
     const card = showCard($('opening'), act, DAY_TITLES[act]);
@@ -423,7 +433,7 @@ async function dayScene(act) {
       current = lk;
       ctl.beat(i, lk);
       const amb = PLACES[lk.place]?.ambient || 'room';
-      if (amb !== ambient) { ambient = amb; setAmbient(amb, amb === 'room' ? 1 : 0.6); }
+      if (amb !== ambient) { ambient = amb; setAmbient(amb === 'quiet' ? null : amb, amb === 'room' ? 1 : 0.6); } // 'quiet'（信箱）：不放環境聲
       const cue = cueOf(b); // 房東、店長、店員、坤伯：半身立繪，依台詞切差分（沒對上的句子用底卡）
       reader.portrait(cue ? cue.src : null, cue?.place, cue?.alt);
     },

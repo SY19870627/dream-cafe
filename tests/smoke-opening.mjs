@@ -133,12 +133,10 @@ try {
   const letterText = await page.locator('.op-letter').innerText();
   for (const t of ['我年紀大了，現在不住那裡。店想交給妳經營，屋子也一起留給妳。那間屋子冬天曬得到太陽，住下來很舒服，而咖啡館坐起來也是暖的。', '我沒有要強迫妳辭職，只是咖啡館比較遠，擔心妳應付不來。']) if (!letterText.includes(t)) fail(`信少了劇本那一句：${t}`);
   for (const o of ['若妳尚未辭職', '附件']) if (letterText.includes(o)) fail(`信還有劇本沒有的字：${o}`);
+  // 承峰 2026-11-23 22:07 v510 第 2 項：信件畫面沒有鑰匙按鈕與鑰匙特寫
+  if (await page.locator('#op-attach').count()) fail('信件畫面還有鑰匙按鈕 #op-attach');
+  if (await page.locator('#op-keyshot').count()) fail('信件畫面還有鑰匙特寫 #op-keyshot');
   await snap('letter');
-  await page.locator('#op-attach').click();
-  await sleep(1700);
-  if (!(await page.evaluate(() => { const im = document.querySelector('#op-keyshot:not([hidden]) .envkey'); return im?.complete && im.naturalWidth === 1024 && im.src.includes('prop_v3b_envelope_key_v2'); }))) fail('鑰匙特寫不是 prop_v3b_envelope_key_v2 原圖');
-  await snap('letter-key');
-  await page.locator('#op-keyshot').click();
   const after = ['信裡說，台南東山有一間老三合院，正廳是咖啡館，屋子和店都想交給我。', '寫信的人我沒見過，東山我也沒去過。', '辭職這件事，我沒有想過。', '我把信摺好，和信封一起放在摺疊桌上。鑰匙留在信封裡。'];
   for (let i = 0; i < after.length; i++) {
     const t = ((await page.locator('#op-after').textContent()) || '').replace('▾', '');

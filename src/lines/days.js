@@ -107,7 +107,7 @@ export const DAY_LINES = {
   // 護龍，早上（窗外有雞叫，遠處有機車發動的聲音）→ 洗手台（可點水龍頭；鏡子裡是帶缺點的角色卡；不點她自己開水，劇情照走）
   d1wake: [
     { text: '我是被雞叫醒的。', set: { place: 'roomMorning', prop: null, mini: null }, sfx: ['rooster'] },
-    { text: '雖然臨時在外面過夜，但這是我這半年睡得最好的一次。', sfx: ['engineStart'] },
+    { text: '雖然臨時在外面過夜，但這是我這半年睡得最好的一次。' },
     { text: '手機還有百分之十一。充電器在租屋處，我昨天出門的時候沒想過會在外面過夜。' },
     { text: '水很冰。', set: { place: 'basin' }, optional: 'faucet' },
     { text: '我關掉銅色的水龍頭抬起頭，木頭框的鏡子剛好照到我整張臉。' },
@@ -262,7 +262,7 @@ export const DAY_LINES = {
     { who: 'deshu', text: '妳等一下。' }, // 【待定】
     { text: '德叔走到門邊，拿了一樣東西回來。' }, // 【待定】
     // （德叔從門邊拿了一頂斗笠給我。）【小圖：斗笠】
-    { who: 'deshu', text: '好阿。太陽很大，這頂妳戴著。', set: { mini: 'hat' }, tap: 'mini' },
+    { who: 'deshu', text: '太陽很大，這頂妳戴著。', set: { mini: 'hat' }, tap: 'mini' },
   ],
   // 村子的路上（拿著筆記本，一戶一戶敲門）→ 花斑貓（可點，跟著走）→ 坤伯家的院子 → 點空罐子 →【小圖：空罐子的標籤】
   d5village: [

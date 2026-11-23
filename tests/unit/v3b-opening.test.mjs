@@ -160,7 +160,8 @@ test('第二幕「收到信」（v5.9，第一次收到）：房間旁白三句�
   const letter = view.slice(view.indexOf("if (act === 'letter')"), view.indexOf("if (act === 'eve')"));
   assert.doesNotMatch(letter, /op-next|L\.next|api\.go\('road'\)/, '信件畫面沒有「出發去東山」');
   assert.match(letter, /if \(k >= L\.afterLines\.length - 1\) \{\s*if \(leaving\) return;\s*leaving = true;\s*play\('tap'\);\s*api\.go\('t2card', \{ fade: true \}\);/);
-  assert.match(view, /<button type="button" class="op-attach" id="op-attach" aria-label="\$\{L\.keyLabel\}"><svg[^`]*?<\/svg><\/button>/);
+  // 承峰 2026-11-23 22:07 v510 第 2 項：信件畫面沒有鑰匙按鈕（#op-attach）與鑰匙特寫（#op-keyshot）
+  assert.doesNotMatch(letter, /op-attach|op-keyshot|L\.keyLabel|play\('keys'\)/, '信件畫面沒有鑰匙按鈕與特寫');
   assert.ok(S.OPENING_ACTS.includes('mailbox'), '幕 id 沿用，舊存檔不會壞');
   const s = S.newStoryState();
   assert.equal(S.setOpeningAct(s, 'title'), true);
@@ -794,8 +795,8 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   // 12. 桌上的杯子：店內 2D 定景的佔位圖本身有桌子，杯子仍是 prop_cup 疊在桌面上（不再疊環景用的靠窗木桌）
   assert.doesNotMatch(main + shop, /drawTable|tex_wood_top|prop_v3b_window_table/);
   assert.match(shop, /class="sh-cup" src="\$\{art\('prop_cup'\)\}"/);
-  // 13. 附件：鑰匙從信封滑出的特寫用原圖（不改蜡封）
-  assert.match(view, /<img class="envkey" src="\$\{art\('prop_v3b_envelope_key_v2'\)\}"/);
+  // 13. 附件：信件畫面的鑰匙特寫已拿掉（承峰 2026-11-23 22:07 v510 第 2 項；原圖檔與預載留著）
+  assert.doesNotMatch(view, /class="envkey"|op-keyshot/);
   assert.doesNotMatch(view, /art\('envelope'\)/);
   // 14. 點床：切到躺在床上的視角（燈一直亮），床板聲；最後一句（不點床）也是這張，但不擋翻頁
   assert.match(view, /class="op-bedpov"><div class="op-art"><img class="op-art-img" src="\$\{art\('scene_v3b_bed_pov_night'\)\}"/);

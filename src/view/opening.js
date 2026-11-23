@@ -218,22 +218,9 @@ export function showOpening(root, act, api) {
         ${L.paragraphs.map((p) => `<p class="indent">${esc(p)}</p>`).join('')}
         <p class="indent op-letter-close">${esc(L.closing)}</p>
         <p class="op-letter-sign">${esc(L.signature)}</p>
-        <button type="button" class="op-attach" id="op-attach" aria-label="${L.keyLabel}"><svg width="40" height="18" viewBox="0 0 44 20" aria-hidden="true"><circle cx="9" cy="10" r="7" fill="none" stroke="#8a6d3b" stroke-width="3"/><path d="M16 10h26M34 10v6M39 10v5" stroke="#8a6d3b" stroke-width="3" fill="none"/></svg></button>
       </article>
-      <button type="button" class="op-caption op-after" id="op-after"><span class="op-after-text">${esc(L.afterLines[0])}</span><span class="st-more" aria-hidden="true">▾</span></button>
-      <div class="op-keyshot" id="op-keyshot" hidden aria-hidden="true">
-        <div class="op-keyshot-in"><img class="envkey" src="${art('prop_v3b_envelope_key_v2')}" alt=""></div>
-      </div>`);
-    // 可選：點附件，鑰匙從信封滑出來的特寫（畫師原圖 prop_v3b_envelope_key_v2，只疊一點滑入的動畫；不點也能出發）
-    const shot = el.querySelector('#op-keyshot');
-    el.querySelector('#op-attach').onclick = () => {
-      shot.hidden = false;
-      shot.classList.remove('play');
-      void shot.offsetWidth;
-      shot.classList.add('play');
-      play('keys');
-    };
-    shot.onclick = () => { shot.hidden = true; };
+      <button type="button" class="op-caption op-after" id="op-after"><span class="op-after-text">${esc(L.afterLines[0])}</span><span class="st-more" aria-hidden="true">▾</span></button>`);
+    // 信件畫面沒有鑰匙按鈕與鑰匙特寫（承峰 2026-11-23 22:07 v510 第 2 項拿掉）
     // 信後旁白：一句一句點；最後一句再點一下就淡出，接字卡「我單方面辭退老闆前 2 天」（這裡沒有「出發去東山」）
     const after = el.querySelector('#op-after');
     const afterText = after.querySelector('.op-after-text');
