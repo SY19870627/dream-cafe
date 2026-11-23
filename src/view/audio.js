@@ -63,6 +63,7 @@ function silence() { // 【待定】
 
 function makeSlot() { // 【待定】
   const el = document.createElement('audio'); // 【待定】不放進 DOM、沒有 controls，畫面上沒有下載入口
+  el.crossOrigin = 'anonymous'; // 【待定】必須在設 src／load() 之前；預覽站音檔 301 到別的網域，沒設的話 MediaElementSource 會輸出靜音
   el.preload = 'none'; // 【待定】換到這首才開始抓
   el.setAttribute('playsinline', ''); // 【待定】
   const gain = ctx.createGain(); // 【待定】
