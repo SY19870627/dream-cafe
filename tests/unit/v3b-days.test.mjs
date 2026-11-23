@@ -299,7 +299,7 @@ test('承峰 2026-11-22 17:15 核准的三處補句：超商轉場（黑底三�
   assert.equal(store[0].set.place, 'black', '前三句在黑底');
   for (let i = 0; i < 3; i++) assert.equal(OP.sceneAt(store, i).place, 'black', `第 ${i} 句黑底`);
   assert.equal(store[3].set.place, 'store', '第四句淡入超商');
-  assert.deepEqual(store[3].sfx, ['ding'], '進門音效移到第四句');
+  assert.deepEqual(store[3].sfx, ['chime'], '進門音效移到第四句（超商的進門鈴錄音，不是電梯的 ding）');
   assert.ok(!store[4].sfx && !store[4].set, '店長那句不再帶進門音效、不再換場景');
   for (let i = 3; i < store.length; i++) assert.equal(OP.sceneAt(store, i).place, 'store');
   assert.deepEqual(placesOf(store), ['black', 'store']);

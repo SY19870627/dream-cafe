@@ -161,8 +161,11 @@ test('靜音鍵與音樂接線：右上角 44px、在 #log 與 #fade 之間；ma
 
 test('標題署名：同一塊 .op-credit 裡分行列製作人員與四首曲子（作者一首一行），保留三個連結；沒有【待定】', () => {
   const MARKS = /【(待定|待確認|新增互動)】/;
-  const all = [...OP.TITLE.staff, OP.TITLE.music.label, ...OP.TITLE.music.lines, OP.TITLE.music.source, OP.TITLE.music.note];
+  const all = [...OP.TITLE.staff, OP.TITLE.music.label, ...OP.TITLE.music.lines, OP.TITLE.music.source, OP.TITLE.music.sfx, OP.TITLE.music.note];
   for (const t of all) assert.ok(!MARKS.test(t), t);
+  // 承峰 11/23 20:22：加一行效果音出處，接在 source 後、note 前
+  assert.equal(OP.TITLE.music.source, '出處：DOVA-SYNDROME（OpenTracks）');
+  assert.equal(OP.TITLE.music.sfx, '效果音：効果音ラボ、Freesound（CC0）');
   assert.deepEqual(OP.TITLE.music.lines, Object.values(TRACKS).map((t) => `${t.title} — ${t.author}`));
   assert.equal(OP.TITLE.links.length, 3);
   assert.ok(!OP.TITLE.music.lines.some((l) => /すもち、のる|のる、/.test(l)));
@@ -176,4 +179,6 @@ test('標題署名：同一塊 .op-credit 裡分行列製作人員與四首曲�
   assert.doesNotMatch(view, /TITLE\.credit\}・/); // 【待定】
   assert.equal(OP.TITLE.music.note, '請勿將遊戲內音檔另行下載或改作他用'); // 【待定】
   assert.match(view, /<p class="op-credit-note">\$\{esc\(TITLE\.music\.note\)\}<\/p><\/div>\s*<\/div>`/); // 【待定】
+  // 樣板順序：…source → sfx（同一 map 的最後一項）→ op-credit-note（最底下）
+  assert.match(view, /TITLE\.music\.source, TITLE\.music\.sfx\]\.map\(\(t\) => `<p>\$\{esc\(t\)\}<\/p>`\)\.join\(''\)\}<p class="op-credit-note">\$\{esc\(TITLE\.music\.note\)\}<\/p>/);
 });

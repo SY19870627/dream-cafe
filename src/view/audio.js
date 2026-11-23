@@ -1,8 +1,11 @@
-// 音效與環境聲：全部用 WebAudio 即時合成，不用外部音檔。
+// 音效與環境聲：真實錄音（對照表在 story/sfx.js，音檔路徑只寫在那裡），用 fetch（cors）＋ decodeAudioData 解成 AudioBuffer 播；
+// 載不到或解不開的名稱退回原本的 WebAudio 合成。tap、memory、ding（電梯）沒有錄音，維持合成。
+// 預覽站音檔會 301 到別的網域：fetch 用 cors、不帶憑證，跟音樂同一個原因；不另外建 <audio>。
 // 背景音樂：曲目表在 story/music.js（音檔路徑只寫在那裡），用 <audio>（ogg＋mp3 兩個 source）接進同一個 AudioContext 的音樂支線。
 // 瀏覽器要求第一次觸控之後才能出聲：unlock() 掛在 pointerdown／pointerup／touchend／click／keydown（main.js）。
-// 支線：master 0.6 → { sfx／環境聲（直接接 master，增益數字照舊）、music 0.4 }。靜音＝master 0.15 秒降到 0，音樂暫停。
+// 支線：master 0.6 → { sfx／環境聲（錄音與合成都直接接 master；錄音另有 story/sfx.js 的每名稱增益）、music 0.4 }。靜音＝master 0.15 秒降到 0，音樂暫停。
 import { TRACKS } from '../story/music.js'; // 【待定】
+import { SFX_FILES, sfxFiles, sfxGain } from '../story/sfx.js'; // 【待定】
 
 let ctx = null;
 let master = null;
@@ -33,6 +36,7 @@ export function unlock() {
   musicBus.connect(master); // 【待定】
   ctx.onstatechange = () => { if (ctx.state === 'running') wakeMusic(); }; // 【待定】
   blessPool(); // 【待定】
+  preloadSfx(pendingAmbient); // 【待定】背景先抓錄音（目前要用的環境聲排第一）
   if (pendingAmbient) setAmbient(pendingAmbient, pendingLevel);
   applyMusic(); // 【待定】解鎖前記著的音樂（pending）：第一次出聲 2.5 秒淡入
 }
@@ -275,8 +279,86 @@ function noise({ at = 0, dur = 0.2, gain = 0.2, freq = 2000, q = 1, type = 'band
   s.stop(t + dur + 0.05);
 }
 
+/* ---------- 真實錄音（音效與環境聲） ---------- */
+// 每個名稱一份狀態：{ buf, failed, p }；buf＝解好的 AudioBuffer，failed＝兩種格式都載不到（之後一律合成）
+const sfxState = new Map(); // 【待定】
+const SFX_LATE = 700; // 【待定】毫秒：錄音還在載、超過這麼久才到就不補放（短音效晚響很怪）
+
+function decode(data) { // 【待定】舊 Safari 的 decodeAudioData 只有 callback
+  return new Promise((res, rej) => { // 【待定】
+    const p = ctx.decodeAudioData(data, res, rej); // 【待定】
+    p?.then?.(res, rej); // 【待定】
+  }); // 【待定】
+} // 【待定】
+
+async function fetchBuffer(urls) { // 【待定】ogg 先；抓不到或解不開（舊 Safari 不吃 Vorbis）就換 mp3
+  for (const url of urls) { // 【待定】
+    try { // 【待定】
+      const r = await fetch(url, { mode: 'cors', credentials: 'omit' }); // 【待定】預覽站會 301 到別的網域
+      if (!r.ok) continue; // 【待定】
+      return await decode(await r.arrayBuffer()); // 【待定】
+    } catch { /* 換下一個格式 */ } // 【待定】
+  } // 【待定】
+  return null; // 【待定】
+} // 【待定】
+
+// 開始載入（只載一次）；沒有錄音的名稱回傳 null
+function loadSfx(name) { // 【待定】
+  if (sfxState.has(name)) return sfxState.get(name); // 【待定】
+  const files = sfxFiles(name); // 【待定】
+  if (!files || !ctx || typeof fetch !== 'function') return null; // 【待定】
+  const s = { buf: null, failed: false, p: null }; // 【待定】
+  s.p = fetchBuffer(Object.values(files)).then((buf) => { // 【待定】sfxFiles 的順序就是 ogg 先、mp3 後
+    if (buf) s.buf = buf; else s.failed = true; // 【待定】
+    return buf; // 【待定】
+  }); // 【待定】
+  sfxState.set(name, s); // 【待定】
+  return s; // 【待定】
+} // 【待定】
+
+// 解鎖後在背景把全部錄音抓下來（同時最多 4 個）；first 排第一
+function preloadSfx(first) { // 【待定】
+  const names = Object.keys(SFX_FILES); // 【待定】
+  if (first && names.includes(first)) names.unshift(...names.splice(names.indexOf(first), 1)); // 【待定】
+  const next = () => { // 【待定】
+    const n = names.shift(); // 【待定】
+    if (!n) return; // 【待定】
+    const s = loadSfx(n); // 【待定】
+    if (s) s.p.then(next); else next(); // 【待定】
+  }; // 【待定】
+  for (let i = 0; i < 4; i++) next(); // 【待定】
+} // 【待定】
+
+function fireBuffer(name, buf) { // 【待定】
+  const s = ctx.createBufferSource(); // 【待定】
+  s.buffer = buf; // 【待定】
+  const g = ctx.createGain(); // 【待定】
+  g.gain.value = sfxGain(name); // 【待定】
+  s.connect(g).connect(master); // 【待定】接 master：靜音鍵一起管
+  s.start(); // 【待定】
+} // 【待定】
+
+// 播錄音；回傳 false＝這個名稱要用合成
+function playFile(name) { // 【待定】
+  const s = loadSfx(name); // 【待定】
+  if (!s || s.failed) return false; // 【待定】
+  if (s.buf) { fireBuffer(name, s.buf); return true; } // 【待定】
+  const asked = Date.now(); // 【待定】還在載：載到了而且不太晚才放；載不到就補合成
+  s.p.then((buf) => { // 【待定】
+    if (!ctx || Date.now() - asked > SFX_LATE) return; // 【待定】
+    if (buf) fireBuffer(name, buf); else synth(name); // 【待定】
+  }); // 【待定】
+  return true; // 【待定】
+} // 【待定】
+
 export function play(name) {
   if (!ctx) return;
+  if (playFile(name)) return; // 【待定】
+  synth(name); // 【待定】
+}
+
+// 原本的 WebAudio 合成（錄音載不到時的退路；tap、memory、ding 只有這個）
+function synth(name) { // 【待定】
   switch (name) {
     case 'key': noise({ dur: 0.04, gain: 0.25, freq: 3200, q: 2 }); break;
     case 'send': // 送出：一聲「咻」加一聲輕響
@@ -287,18 +369,21 @@ export function play(name) {
     case 'keys': // 信封裡的鑰匙
       for (let i = 0; i < 6; i++) tone(3000 + Math.random() * 2000, { at: i * 0.09, dur: 0.12, gain: 0.05, type: 'triangle' });
       break;
-    case 'door': noise({ dur: 0.6, gain: 0.12, freq: 300, q: 0.7 }); break;
+    case 'door':
+    case 'doorIron': noise({ dur: 0.6, gain: 0.12, freq: 300, q: 0.7 }); break;
     case 'bell': // 風鈴
       [1568, 2093, 2637, 1760].forEach((f, i) => tone(f, { at: i * 0.12 + Math.random() * 0.05, dur: 1.8, gain: 0.07 }));
       break;
     case 'pour': noise({ dur: 1.4, gain: 0.08, freq: 900, q: 0.6 }); break;
-    case 'tick': tone(1800, { dur: 0.05, gain: 0.06, type: 'square' }); break;
+    case 'tick':
+    case 'tickBowl': tone(1800, { dur: 0.05, gain: 0.06, type: 'square' }); break;
     case 'grind': for (let i = 0; i < 16; i++) noise({ at: i * 0.12, dur: 0.1, gain: 0.08, freq: 2500, q: 3 }); break;
     case 'water': noise({ dur: 2.5, gain: 0.05, freq: 600, q: 0.5 }); break;
     case 'domino': tone(900 + Math.random() * 200, { dur: 0.08, gain: 0.12, type: 'triangle' }); noise({ dur: 0.05, gain: 0.1, freq: 2500 }); break;
     case 'plop': tone(600, { dur: 0.25, gain: 0.18, to: 180 }); break;
     case 'sip': noise({ dur: 0.5, gain: 0.05, freq: 1500, q: 0.5 }); break;
-    case 'page': noise({ dur: 0.35, gain: 0.12, freq: 3500, q: 0.4 }); break;
+    case 'page':
+    case 'pageBag': noise({ dur: 0.35, gain: 0.12, freq: 3500, q: 0.4 }); break;
     case 'place': tone(320, { dur: 0.18, gain: 0.12, type: 'triangle' }); break;
     case 'tap': tone(660, { dur: 0.12, gain: 0.05 }); break;
     case 'memory': tone(523, { dur: 1.6, gain: 0.05 }); tone(784, { at: 0.2, dur: 1.6, gain: 0.04 }); break;
@@ -306,7 +391,8 @@ export function play(name) {
     // v3b 演出用
     case 'buzz': for (let i = 0; i < 2; i++) tone(140, { at: i * 0.32, dur: 0.22, gain: 0.08, type: 'sawtooth' }); break; // 手機震動
     case 'drip': tone(900, { dur: 0.18, gain: 0.08, to: 420 }); break; // 鋁盆滴水
-    case 'ding': tone(1046, { dur: 0.9, gain: 0.06 }); tone(784, { at: 0.35, dur: 1.2, gain: 0.05 }); break; // 電梯
+    case 'ding': // 電梯（沒有錄音）
+    case 'chime': tone(1046, { dur: 0.9, gain: 0.06 }); tone(784, { at: 0.35, dur: 1.2, gain: 0.05 }); break; // 電梯
     case 'beep': tone(1480, { dur: 0.12, gain: 0.05, type: 'square' }); break; // 閘門
     // 開場（劇本 v3.8 第三、四幕）
     case 'engineStart': // 機車發動：起動馬達一陣，接著引擎轉起來
@@ -344,11 +430,13 @@ export function play(name) {
       for (let i = 0; i < 18; i++) noise({ at: 1.5 + i * 0.075, dur: 0.07, gain: 0.06, freq: 140, q: 0.9, type: 'lowpass' });
       break;
     case 'creak': // 床板
+    case 'creakWindow': // 錄音載不到時：窗戶、抽屜也用這個
+    case 'creakDrawer':
       tone(190, { dur: 0.45, gain: 0.05, type: 'sawtooth', to: 150 });
       noise({ dur: 0.3, gain: 0.04, freq: 700, q: 4 });
       tone(170, { at: 0.5, dur: 0.3, gain: 0.03, type: 'sawtooth', to: 140 });
       break;
-    // 第一～四天（劇本 v4.4）：都是 WebAudio 合成，沒有外部音檔
+    // 第一～四天（劇本 v4.4）
     case 'shutter': // 底片相機的快門：喀一聲＋簧片
       noise({ dur: 0.04, gain: 0.3, freq: 2600, q: 1.5 });
       noise({ at: 0.06, dur: 0.07, gain: 0.22, freq: 1500, q: 2 });
@@ -359,7 +447,7 @@ export function play(name) {
     case 'rewind': // 倒片：沙沙
       for (let i = 0; i < 4; i++) noise({ at: i * 0.06, dur: 0.05, gain: 0.06, freq: 3000, q: 1.2 });
       break;
-    // 劇本 v5.6：窗外的雞叫、樓梯間的拖鞋聲（都是合成）
+    // 劇本 v5.6：窗外的雞叫、樓梯間的拖鞋聲
     case 'rooster': // 遠遠的雞叫：幾段往上滑再拉長的聲音
       tone(520, { dur: 0.18, gain: 0.04, type: 'sawtooth', to: 780 });
       tone(780, { at: 0.2, dur: 0.22, gain: 0.04, type: 'sawtooth', to: 900 });
@@ -372,16 +460,23 @@ export function play(name) {
   }
 }
 
-// 環境聲（循環）：rain 雨、heater 暖氣、room 屋內、cafe 咖啡店、hum 日光燈、scooter 機車
+// 環境聲（循環）：rain 雨、heater 暖氣、room 屋內、cafe 咖啡店、hum 日光燈、scooter 機車、lobby 公司大廳、store 超商
 let pendingAmbient = null;
 let pendingLevel = 1;
-let engine = null; // { o, o2 }：環境聲 engine 的振盪器（調轉速用）
+let engine = null; // 錄音：{ rate }（playbackRate）；合成：{ o, o2 }（振盪器）
 let pendingRev = 0;
+const ENGINE_RATE = 0.2; // 【待定】錄音：怠速 1.0 → 往前騎 1.2，不要誇張到變調好笑
 // 引擎轉速：0＝怠速、1＝往前騎（只影響 engine 環境聲）
 export function setEngine(rev) {
   pendingRev = Math.max(0, Math.min(1, rev));
   if (!ctx || !engine) return;
   const t = ctx.currentTime;
+  if (engine.rate) { // 【待定】
+    engine.rate.cancelScheduledValues(t); // 【待定】
+    engine.rate.setValueAtTime(engine.rate.value, t); // 【待定】
+    engine.rate.linearRampToValueAtTime(1 + pendingRev * ENGINE_RATE, t + 0.6); // 【待定】
+    return; // 【待定】
+  } // 【待定】
   const f = 38 + pendingRev * 42;
   for (const [o, k] of [[engine.o, 1], [engine.o2, 0.5]]) {
     o.frequency.cancelScheduledValues(t);
@@ -412,6 +507,42 @@ export function setAmbient(name, level = 1) {
   g.gain.linearRampToValueAtTime(level, ctx.currentTime + 1.2);
   g.connect(master);
   const nodes = [];
+  const amb = {
+    name,
+    gain: g,
+    stopped: false, // 【待定】
+    stop() {
+      amb.stopped = true; // 【待定】還在載的錄音到了也不接
+      const t = ctx.currentTime;
+      g.gain.cancelScheduledValues(t);
+      g.gain.setValueAtTime(g.gain.value, t);
+      g.gain.linearRampToValueAtTime(0, t + 0.8);
+      setTimeout(() => nodes.forEach((n) => { try { n.stop(); } catch { /* 已停 */ } }), 900);
+    },
+  };
+  ambient = amb;
+  const s = loadSfx(name); // 【待定】有錄音就循環播錄音；載不到才合成
+  if (!s || s.failed) { synthAmbient(name, g, nodes); return; } // 【待定】
+  const startFile = (buf) => { // 【待定】
+    if (amb.stopped || ambient !== amb) return; // 【待定】
+    if (!buf) { synthAmbient(name, g, nodes); return; } // 【待定】
+    const src = ctx.createBufferSource(); // 【待定】
+    src.buffer = buf; // 【待定】
+    src.loop = true; // 【待定】檔案本身已剪成可循環
+    const pg = ctx.createGain(); // 【待定】每個名稱的增益；晚到也從 0 淡入
+    const t = ctx.currentTime; // 【待定】
+    pg.gain.setValueAtTime(0, t); // 【待定】
+    pg.gain.linearRampToValueAtTime(sfxGain(name), t + 1.2); // 【待定】
+    src.connect(pg).connect(g); // 【待定】
+    src.start(); // 【待定】
+    nodes.push(src); // 【待定】
+    if (name === 'engine') { engine = { rate: src.playbackRate }; setEngine(pendingRev); } // 【待定】怠速錄音：轉速改播放速度
+  }; // 【待定】
+  if (s.buf) startFile(s.buf); else s.p.then(startFile); // 【待定】
+}
+
+// 原本的合成環境聲（錄音載不到時的退路）
+function synthAmbient(name, g, nodes) { // 【待定】
   const loopNoise = (freq, q, gain, type = 'bandpass') => {
     const s = ctx.createBufferSource();
     s.buffer = noiseBuffer(3);
@@ -446,7 +577,7 @@ export function setAmbient(name, level = 1) {
   else if (name === 'grinder') { loopNoise(700, 0.4, 0.02); loopNoise(2600, 4, 0.012); }
   else if (name === 'hum') { hum(120, 0.02, 'sawtooth'); loopNoise(3000, 1, 0.006); }
   else if (name === 'wind') { loopNoise(380, 0.4, 0.05, 'lowpass'); loopNoise(1200, 0.6, 0.012); }
-  else if (name === 'lobby') { loopNoise(300, 0.4, 0.025, 'lowpass'); hum(100, 0.004); }
+  else if (name === 'lobby' || name === 'store') { loopNoise(300, 0.4, 0.025, 'lowpass'); hum(100, 0.004); }
   else if (name === 'scooter') { hum(70, 0.05, 'sawtooth'); loopNoise(300, 0.5, 0.05, 'lowpass'); }
   else if (name === 'engine') { // 騎在黑路上：怠速／往前騎由 setEngine() 調轉速
     const o = hum(38, 0.05, 'sawtooth');
@@ -456,15 +587,4 @@ export function setAmbient(name, level = 1) {
     engine = { o, o2 };
     setEngine(pendingRev);
   }
-  ambient = {
-    name,
-    gain: g,
-    stop() {
-      const t = ctx.currentTime;
-      g.gain.cancelScheduledValues(t);
-      g.gain.setValueAtTime(g.gain.value, t);
-      g.gain.linearRampToValueAtTime(0, t + 0.8);
-      setTimeout(() => nodes.forEach((n) => { try { n.stop(); } catch { /* 已停 */ } }), 900);
-    },
-  };
 }

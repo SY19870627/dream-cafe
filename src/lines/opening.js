@@ -58,6 +58,7 @@ export const TITLE = {
     label: '音樂：', // 【待定】
     lines: ['窓辺のドロップス — すもち', '夏空へ — ハヤシユウ', 'Chill Out Lounge — のる', 'Sweet Dreams — のる'], // 【待定】
     source: '出處：DOVA-SYNDROME（OpenTracks）', // 【待定】
+    sfx: '效果音：効果音ラボ、Freesound（CC0）', // 承峰 11/23 20:22 核定原文
     note: '請勿將遊戲內音檔另行下載或改作他用', // 【待定】OpenTracks 2026-11-20 公告的建議
   }, // 【待定】
 };

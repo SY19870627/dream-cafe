@@ -606,7 +606,7 @@ test('不出現佈置模式、溫度計、沖煮操作介面；畫面不要求�
   assert.doesNotMatch(code('src/view/opening.js'), /需要鑰匙|上鎖|locked/);
 });
 
-test('音效與環境聲用 WebAudio 合成且都有定義；音樂檔都登記在曲目表（story/music.js）', () => {
+test('音效與環境聲都有定義（錄音載不到時的合成退路也在）；音樂檔都登記在曲目表（story/music.js）', () => {
   const audio = read('src/view/audio.js');
   const names = new Set(['engineStart', 'engineOff', 'rev', 'dog', 'purr', 'creak', 'cloth', 'boil', 'thinPour', 'keys', 'door', 'bell', 'place', 'sip', 'tap', 'key', 'send', 'grind']);
   for (const b of allLines()) for (const n of b.sfx || []) names.add(n);
@@ -615,8 +615,8 @@ test('音效與環境聲用 WebAudio 合成且都有定義；音樂檔都登記�
   assert.match(audio, /export function setEngine\(/);
   // 音檔路徑只准在曲目資料檔：入口、畫面、音效程式都不寫
   for (const f of ['src/main.js', 'src/view/opening.js', 'src/view/audio.js', 'index.html']) assert.doesNotMatch(read(f), /\.(mp3|ogg|wav|m4a)\b/, f);
-  // assets/audio 裡的網頁音檔與曲目表一對一：每首 ogg＋mp3，外加 CREDITS.md；不多不少
-  const want = new Set(['CREDITS.md']);
+  // assets/audio 裡的網頁音檔與曲目表一對一：每首 ogg＋mp3，外加 CREDITS.md 與音效資料夾 sfx/（另見 v3b-sfx.test.mjs）；不多不少
+  const want = new Set(['CREDITS.md', 'sfx']);
   for (const [k, t] of Object.entries(TRACKS)) {
     assert.deepEqual(t.files, { ogg: `assets/audio/${k}.ogg`, mp3: `assets/audio/${k}.mp3` }, k);
     want.add(`${k}.ogg`);
@@ -626,7 +626,7 @@ test('音效與環境聲用 WebAudio 合成且都有定義；音樂檔都登記�
   assert.deepEqual(new Set(files), want, '多了或少了音檔');
   let total = 0;
   for (const f of files) {
-    if (f === 'CREDITS.md') continue;
+    if (f === 'CREDITS.md' || f === 'sfx') continue;
     assert.match(f, /\.(mp3|ogg)$/, `只准 .mp3／.ogg：${f}`);
     const size = statSync(root(`assets/audio/${f}`)).size;
     assert.ok(size > 0 && size <= 4 * 1024 * 1024, `${f} 超過 4 MB`);

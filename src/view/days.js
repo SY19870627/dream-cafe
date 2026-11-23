@@ -29,7 +29,7 @@ export const PLACES = {
   home: placeOf('bg_home', { ambient: 'room', home: true }), // v5.6 定版：八月的租屋房間
   atm: placeOf('bg_atm', { ambient: 'wind' }), // v5.6 定版：銀行外的提款機
   black: placeOf('bg_black', { ambient: 'wind' }), // v5.9：提款機淡出後的黑底（src null → .dy-css-black，純黑；切到超商時 .dy-place 的 opacity 淡入）
-  store: placeOf('bg_store', { ambient: 'lobby', store: true }), // 定版：超商（bg_v56_store_interior_seating_portrait；徵人海報是座位區後牆上那張有框的空白海報，程式疊字）
+  store: placeOf('bg_store', { ambient: 'store', store: true }), // 定版：超商（bg_v56_store_interior_seating_portrait；徵人海報是座位區後牆上那張有框的空白海報，程式疊字）
   village: placeOf('bg_village', { ambient: 'wind', village: true }), // v5.6 定版：村子路（_portrait_v2）
   kunyard: placeOf('bg_kunyard', { ambient: 'wind', yard: true }), // v5.6 定版：坤伯院子
   // 店內 2D 定景（畫面由 view/shop-still.js 畫，德叔、龍眼、杯子疊在上面；這裡只登記背景給預載與對照）
@@ -219,9 +219,9 @@ export function showDay(root, act, api) {
     effect(name) {
       const on = el.querySelector('.dy-place.on');
       if (name === 'faucet') { play('water'); on?.classList.add('washing'); return true; } // 出水聲，低頭洗臉，抬頭時鏡子裡是帶缺點的角色卡
-      if (name === 'mailbox') { play('door'); on?.classList.add('open'); return true; } // 鐵片門打開，裡面是空的
+      if (name === 'mailbox') { play('doorIron'); on?.classList.add('open'); return true; } // 鐵片門打開，裡面是空的
       if (name === 'wallet') { play('place'); setTimeout(() => play('buzz'), 700); on?.classList.add('counted'); return true; } // 把錢倒出來數，再看手機裡的戶頭餘額
-      if (name === 'deskDrawer') { play('creak'); on?.classList.add('open'); return true; } // 拉開：印章在最裡面，旁邊有一本存摺
+      if (name === 'deskDrawer') { play('creakDrawer'); on?.classList.add('open'); return true; } // 拉開：印章在最裡面，旁邊有一本存摺
       if (name === 'poster') { play('page'); return true; } // 畫面拉近（特寫卡由 props 疊上來）
       if (name === 'calico') { // 貓往前走，她跟在後面
         play('hop');

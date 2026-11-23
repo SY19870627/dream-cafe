@@ -120,7 +120,7 @@ export const DAY_LINES = {
   d1shop: [
     { text: '我昨天喝的那個杯子洗好了，收在德叔背後的架子上。', set: { ...SHOP, ...COUNTER, tone: 'morning', deshu: 'brew', cat: 'nap', cup: false, portrait: false } },
     { text: '別的杯子都是疊在一起的，只有那個自己放一格，把手朝右。' },
-    { text: '德叔站在吧台後面挑豆，壞的丟鐵碗，頭沒抬。', sfx: ['tick'] },
+    { text: '德叔站在吧台後面挑豆，壞的丟鐵碗，頭沒抬。', sfx: ['tickBowl'] },
     { who: 'me', text: '德叔早。' },
     { who: 'deshu', text: '早。' },
     { who: 'deshu', text: '昨天睡得好嗎？' },
@@ -128,7 +128,7 @@ export const DAY_LINES = {
     { who: 'deshu', text: '不會啦，有睡好就好。那間本來就是留給妳的，不用跟我客氣。' },
     { text: '我從口袋拿出鑰匙，遞過去。', sfx: ['keys'], gate: 'keyGive' },
     { who: 'deshu', text: '不好意思阿，我手騰不出空間來，妳先留著吧。' },
-    { text: '他兩隻手都是豆子的銀皮。吧台上也沒有一塊空的地方。', sfx: ['tick'] },
+    { text: '他兩隻手都是豆子的銀皮。吧台上也沒有一塊空的地方。', sfx: ['tickBowl'] },
     { text: '我拿著鑰匙站了一下。' },
     { who: 'me', text: '那我……下次拿來。' },
     { who: 'deshu', text: '鄉下的路碎石比較多，妳回去小心騎車阿。' },
@@ -152,7 +152,7 @@ export const DAY_LINES = {
   ],
   // 房間：窗戶下的水痕（小圖）→ 點錢包 → 點抽屜 → 存摺（小圖）
   d1home: [
-    { text: '房間很悶，我先把窗戶打開。', set: { place: 'home', prop: null, mini: null }, sfx: ['creak'] },
+    { text: '房間很悶，我先把窗戶打開。', set: { place: 'home', prop: null, mini: null }, sfx: ['creakWindow'] },
     { text: '窗戶下面那塊水痕好像又比上個月大了一點。', set: { mini: 'stain' }, tap: 'mini' },
     { text: '跟房東講過幾遍，但後面就懶得講了。' },
     { who: 'me', text: '繳完房租，剩下五千塊錢。', set: { mini: null }, tap: 'wallet' },
@@ -184,7 +184,7 @@ export const DAY_LINES = {
     { text: '我離開提款機，往回家的方向走。', set: { place: 'black', prop: null, mini: null } }, // 【待定】
     { text: '外面很熱，走沒多久就一身汗。' }, // 【待定】
     { text: '前面有一間超商。進去吹個冷氣，順便買瓶水好了。' }, // 【待定】
-    { text: '我才剛走進去，就聽到店裡有人講話很大聲。', set: { place: 'store' }, sfx: ['ding'] }, // 【待定】
+    { text: '我才剛走進去，就聽到店裡有人講話很大聲。', set: { place: 'store' }, sfx: ['chime'] }, // 【待定】
     { who: 'storeManager', text: '這個昨天就過期了，你是沒在看喔？' },
     { who: 'storeManager', text: '客人拿到櫃檯才發現，你要我怎麼跟人家講？' },
     { who: 'storeManager', text: '講幾遍了，上架前先看日期，你到底有沒有在聽？' },
@@ -291,8 +291,8 @@ export const DAY_LINES = {
     { who: 'me', text: '好，我不會講。' },
     { who: 'kunbo', text: '啊不要站著，來，吃看看啦。' },
     // （坤伯把袋子打開，放在桌子中間。）
-    { text: '袋子一打開，就有一股甜甜的、烤過的香味。', set: { ...SIDE }, sfx: ['page'] },
-    { text: '坤伯拿起一顆，拇指一壓，殼「喀」一聲就裂開了。', sfx: ['tick'] },
+    { text: '袋子一打開，就有一股甜甜的、烤過的香味。', set: { ...SIDE }, sfx: ['pageBag'] },
+    { text: '坤伯拿起一顆，拇指一壓，殼「喀」一聲就裂開了。', sfx: ['tickBowl'] },
     { who: 'kunbo', text: '來，這顆給妳。' },
     { text: '殼還有一點溫溫的。果肉黑黑亮亮，有點黏手。', set: { mini: 'longan' }, tap: 'mini' },
     { text: '咬下去軟軟的，很甜，甜完嘴巴裡還留著一點煙燻的香味。' },
@@ -309,7 +309,7 @@ export const DAY_LINES = {
     { who: 'kunbo', text: '欸，這個不是給你吃的啦。' },
     // 入夜：傍晚圖交叉淡化到夜景定版圖（shop-still.js 的 fadesBetween），之後停在夜景、不疊天色（與 d5brew 開頭一致）
     { text: '外面天色慢慢暗下來。店裡很安靜，只有剝殼的聲音。', set: { night: 1 } },
-    { text: '我又剝了一顆。', sfx: ['tick'] },
+    { text: '我又剝了一顆。', sfx: ['tickBowl'] },
     { text: '……這個味道，不知道跟咖啡搭不搭。' },
     { who: 'me', text: '德叔，我們可以出一款咖啡嗎？', set: { ...COUNTER } },
     { who: 'me', text: '用坤伯的龍眼乾，再加銀杏。' },
