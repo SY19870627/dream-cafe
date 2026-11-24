@@ -385,6 +385,7 @@ function synth(name) { // 【待定】
     case 'page':
     case 'pageBag': noise({ dur: 0.35, gain: 0.12, freq: 3500, q: 0.4 }); break;
     case 'place': tone(320, { dur: 0.18, gain: 0.12, type: 'triangle' }); break;
+    case 'wallet': noise({ dur: 0.4, gain: 0.1, freq: 2200, q: 0.5 }); break; // 打開錢包／紙鈔
     case 'tap': tone(660, { dur: 0.12, gain: 0.05 }); break;
     case 'memory': tone(523, { dur: 1.6, gain: 0.05 }); tone(784, { at: 0.2, dur: 1.6, gain: 0.04 }); break;
     case 'copier': noise({ dur: 1.6, gain: 0.05, freq: 500, q: 1.5 }); break;

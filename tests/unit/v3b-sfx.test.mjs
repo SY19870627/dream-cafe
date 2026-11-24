@@ -31,7 +31,7 @@ test('檔名對照：駝峰名稱對到連字號檔名；新拆出的名稱都�
   assert.equal(SFX_FILES.engineStart, 'engine-start');
   assert.equal(SFX_FILES.engineOff, 'engine-off');
   assert.equal(SFX_FILES.thinPour, 'thin-pour');
-  for (const [k, v] of Object.entries({ doorIron: 'door-iron', tickBowl: 'tick-bowl', pageBag: 'page-bag', chime: 'chime', creakWindow: 'creak-window', creakDrawer: 'creak-drawer', store: 'store' })) assert.equal(SFX_FILES[k], v, k);
+  for (const [k, v] of Object.entries({ doorIron: 'door-iron', tickBowl: 'tick-bowl', pageBag: 'page-bag', chime: 'chime', creakWindow: 'creak-window', creakDrawer: 'creak-drawer', store: 'store', wallet: 'wallet' })) assert.equal(SFX_FILES[k], v, k);
   assert.deepEqual(SFX_SYNTH_ONLY, ['tap', 'memory', 'ding']);
   for (const n of SFX_SYNTH_ONLY) assert.equal(sfxFiles(n), null, n);
   assert.equal(sfxFiles('toString'), null, '原型上的名稱不算');
@@ -63,6 +63,8 @@ test('呼叫點換成新拆出來的名稱', () => {
   const days = read('src/view/days.js');
   assert.match(days, /name === 'mailbox'\) \{ play\('doorIron'\)/);
   assert.match(days, /name === 'deskDrawer'\) \{ play\('creakDrawer'\)/);
+  assert.match(days, /name === 'wallet'\) \{ play\('wallet'\)/, '點錢包只播錢包聲');
+  assert.doesNotMatch(days, /name === 'wallet'\) \{ play\('place'\)/);
   assert.match(days, /store: placeOf\('bg_store', \{ ambient: 'store'/);
   const lines = read('src/lines/days.js');
   assert.match(lines, /我先把窗戶打開。', set: \{[^}]*\}, sfx: \['creakWindow'\]/);

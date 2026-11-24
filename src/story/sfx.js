@@ -10,7 +10,7 @@ export const SFX_DIR = 'assets/audio/sfx'; // 【待定】
 export const SFX_FILES = { // 【待定】
   // 短音效：沿用原名
   rooster: 'rooster', key: 'key', send: 'send', keys: 'keys', door: 'door', bell: 'bell', pour: 'pour', tick: 'tick', // 【待定】
-  grind: 'grind', water: 'water', domino: 'domino', plop: 'plop', sip: 'sip', page: 'page', place: 'place', copier: 'copier', // 【待定】
+  grind: 'grind', water: 'water', domino: 'domino', plop: 'plop', sip: 'sip', page: 'page', place: 'place', wallet: 'wallet', copier: 'copier', // 【待定】
   buzz: 'buzz', drip: 'drip', beep: 'beep', hop: 'hop', boil: 'boil', purr: 'purr', shutter: 'shutter', tape: 'tape', // 【待定】
   rewind: 'rewind', slipper: 'slipper', cloth: 'cloth', rinse: 'rinse', rev: 'rev', creak: 'creak', dog: 'dog', // 【待定】
   // 檔名有連字號、程式名稱是駝峰
@@ -34,7 +34,7 @@ export const SFX_SYNTH_ONLY = ['tap', 'memory', 'ding']; // 【待定】
 
 // 每個名稱的額外增益（預設 1）：環境聲略低，免得蓋過配樂
 export const SFX_GAIN = { // 【待定】
-  wind: 0.8, room: 0.8, lobby: 0.8, insects: 0.8, // 【待定】
+  wind: 0.55, room: 0.8, lobby: 0.8, insects: 0.8, // 【待定】wind 改為極靜戶外底噪，增益再壓低
   engine: 0.75, scooter: 0.75, // 【待定】
 }; // 【待定】
 

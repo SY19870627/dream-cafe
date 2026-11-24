@@ -23,7 +23,7 @@
 本目錄 `sfx/` 裡的音檔是為《夢境咖啡店》遊戲內效果音與環境聲轉檔後的版本，不是供人單獨下載的素材包。
 請勿把檔案抽出來重製、散布或當成素材使用。
 轉檔：來源 MP3／HQ 預覽剪出使用段落、淡入淡出，循環環境聲做交叉淡化後，轉成 44.1 kHz 單聲道、較低位元率的 MP3 與 OGG。
-轉檔日期：2026-11-23（台北時間）。
+轉檔日期：2026-11-23（台北時間）。2026-11-24（台北時間）更新：`wind` 改為「閑静な住宅街1」（剪 14–30 秒循環，loudnorm I=-32），並新增「財布を開ける」（wallet）。
 
 ### 効果音ラボ
 
@@ -43,6 +43,7 @@ FAQ 載明：把效果音放進遊戲並在 GitHub 上連音檔一起公開，�
 - 水滴3（plop）、水滴がポタポタ（drip）https://soundeffect-lab.info/sound/various/
 - ページをめくる1（page）、お菓子の袋を開ける（pageBag）https://soundeffect-lab.info/sound/various/
 - ソーサーにコーヒーカップを置く（place）https://soundeffect-lab.info/sound/various/
+- 財布を開ける（wallet）https://soundeffect-lab.info/sound/various/
 - プリンタで印刷（copier）https://soundeffect-lab.info/sound/machine/
 - 携帯電話のバイブレーション2（buzz）https://soundeffect-lab.info/sound/machine/
 - ドアチャイム1（chime）https://soundeffect-lab.info/sound/various/
@@ -56,7 +57,7 @@ FAQ 載明：把效果音放進遊戲並在 GitHub 上連音檔一起公開，�
 - 家の階段を下りる（slipper）https://soundeffect-lab.info/sound/various/
 - 雨が降る1（rain）https://soundeffect-lab.info/sound/environment/
 - 扇風機の弱回転（fan）、エアコン（hum）https://soundeffect-lab.info/sound/machine/
-- 風が吹く1（wind）https://soundeffect-lab.info/sound/environment/
+- 閑静な住宅街1（wind）https://soundeffect-lab.info/sound/environment/
 - 夏の田舎の夜（insects）https://soundeffect-lab.info/sound/animal/
 - 猫の鳴き声1（meow）https://soundeffect-lab.info/sound/animal/
 

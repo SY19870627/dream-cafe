@@ -984,9 +984,9 @@ test('店內 2D 定景：定版圖 v2 上的椅子（點椅子坐下的目標）
   assert.ok(SHOP_CHAIR.left + SHOP_CHAIR.width < SHOP_BAR.left + 10 && SHOP_CHAIR.left < 35, '是左側靠窗那張，不是右側桌');
   assert.match(read('src/view/shop-still.js'), /點椅子坐下的目標：對準 v2 左側靠窗那張桌的椅子/);
   assert.doesNotMatch(read('src/view/shop-still.js'), /最靠近鏡頭、右側桌前/);
-  // 杯子（站著看）：靠窗桌面上、白色馬克杯盆栽（右緣約 x 11%）的右手邊，不重疊；杯底中心約 (257, 1258)，杯高 3.6
-  assert.deepEqual(SHOP_CUP_STAND, { x: 22.0, y: 49.7, h: 3.6 });
-  assert.ok(Math.abs(SHOP_CUP_STAND.x - (257 / 1170) * 100) < 0.5 && Math.abs(SHOP_CUP_STAND.y - (1258 / 2532) * 100) < 0.5);
+  // 杯子（站著看）：靠窗桌面上、盆栽右手邊，整杯在桌面內側（承峰 2026-11-24 21:24 從桌緣移入）；杯底中心約 (240, 1220)，杯高 3.6
+  assert.deepEqual(SHOP_CUP_STAND, { x: 20.5, y: 48.2, h: 3.6 });
+  assert.ok(Math.abs(SHOP_CUP_STAND.x - (240 / 1170) * 100) < 0.5 && Math.abs(SHOP_CUP_STAND.y - (1220 / 2532) * 100) < 0.5);
   {
     // prop_cup 600×420、杯高 h（佔原圖高）：杯寬（佔原圖寬）＝h × 2532/1170 × 600/420；translateX(-50%) → 左緣 x − 寬/2
     const w = SHOP_CUP_STAND.h * (2532 / 1170) * (600 / 420);
@@ -1013,6 +1013,9 @@ test('店內 2D 定景：定版圖 v2 上的椅子（點椅子坐下的目標）
   assert.ok(SHOP_WINDOW_STAND.left + SHOP_WINDOW_STAND.width < 35, 'v2 左側那扇窗');
   assert.ok(SHOP_CUP.y <= 78 && SHOP_CUP_STAND.y <= 78, '杯子在閱讀框上方');
   for (const [k, c] of Object.entries(CAT_2D)) assert.ok(c.y <= 78 && c.x - c.w / 2 >= 0 && c.x + c.w / 2 <= 100, `貓 ${k}`);
+  // 龍眼 nap（d1shop／d5thanks 共用）：趴在右側桌面上，不是吧台前那張椅子
+  assert.deepEqual({ x: CAT_2D.nap.x, y: CAT_2D.nap.y, w: CAT_2D.nap.w }, { x: 78, y: 51.1, w: 22 });
+  assert.ok(CAT_2D.nap.x > 70 && CAT_2D.nap.y < 53, 'nap 在右側桌面，不是椅座（x63 y55）');
   for (const [k, d] of Object.entries(DESHU_2D)) assert.ok(d.y - d.h >= 0 && d.y <= 78, `德叔 ${k}`);
   const main = code('src/main.js');
   assert.match(main, /reader\.portrait\([^\n]*, act === 'coffee' \? 'aside' : 'center'\);/);

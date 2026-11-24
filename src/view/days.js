@@ -220,7 +220,7 @@ export function showDay(root, act, api) {
       const on = el.querySelector('.dy-place.on');
       if (name === 'faucet') { play('water'); on?.classList.add('washing'); return true; } // 出水聲，低頭洗臉，抬頭時鏡子裡是帶缺點的角色卡
       if (name === 'mailbox') { play('doorIron'); on?.classList.add('open'); return true; } // 鐵片門打開，裡面是空的
-      if (name === 'wallet') { play('place'); setTimeout(() => play('buzz'), 700); on?.classList.add('counted'); return true; } // 把錢倒出來數，再看手機裡的戶頭餘額
+      if (name === 'wallet') { play('wallet'); on?.classList.add('counted'); return true; } // 打開錢包數紙鈔（承峰 2026-11-24 21:24：不要放杯子聲與震動）
       if (name === 'deskDrawer') { play('creakDrawer'); on?.classList.add('open'); return true; } // 拉開：印章在最裡面，旁邊有一本存摺
       if (name === 'poster') { play('page'); return true; } // 畫面拉近（特寫卡由 props 疊上來）
       if (name === 'calico') { // 貓往前走，她跟在後面
