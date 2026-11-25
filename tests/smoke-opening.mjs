@@ -87,6 +87,17 @@ try {
   await sleep(2500);
   await snap('title');
   if ((await page.locator('#op-next').textContent()) !== '下班') fail('標題畫面的按鈕不是「下班」');
+  // 製作人員面板（承峰 2026-11-25）：標題上不直接列名單；按鈕打開，關閉鈕／點外面／Esc 都能關
+  if (await page.locator('.op-credit .op-staff').count()) fail('標題畫面上還直接列名單');
+  const staffOpen = async () => { await page.locator('#op-staff-btn').click(); await sleep(300); if (!(await page.locator('#op-staff-dlg').isVisible())) fail('按「製作人員」沒打開名單'); };
+  const staffClosed = async (how) => { await sleep(300); if (await page.locator('#op-staff-dlg').isVisible()) fail(`名單面板${how}關不掉`); };
+  await staffOpen();
+  const staffText = await page.locator('#op-staff-dlg .op-staff').textContent();
+  for (const t of ['分鏡：AI 產圖', '出處：DOVA-SYNDROME（OpenTracks）', '請勿將遊戲內音檔另行下載或改作他用']) if (!staffText.includes(t)) fail(`名單面板少了「${t}」`);
+  await snap('title-staff');
+  await page.keyboard.press('Escape'); await staffClosed('按 Esc');
+  await staffOpen(); await page.mouse.click(6, 6); await staffClosed('點外面');
+  await staffOpen(); await page.locator('#op-staff-x').click(); await staffClosed('按關閉鈕');
   await page.locator('#op-next').click(); // 按「下班」
 
   // 倒數字卡（劇本 v5.9）：標題的「下班」先出「我單方面辭退老闆前 4 天」，再進租屋處

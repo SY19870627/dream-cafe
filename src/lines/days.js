@@ -171,10 +171,10 @@ export const DAY_LINES = {
     { who: 'me', text: '印章還在。', set: { mini: 'sb-drawer' }, tap: 'mini' },
     { who: 'me', text: '這本是……爸幫我開的戶頭。', set: { mini: 'passbook' }, tap: 'mini' },
     { who: 'me', text: '裡面存了幾年的壓歲錢，現在只好拿出來用了。' },
-    { text: '存摺只印了前面幾行，後面都是空的。' },
+    { text: '存簿只印了前面幾行，後面都是空的。' },
     { who: 'me', text: '先去補刷，看看還有多少。' },
   ],
-  // 銀行外面的提款機（八月的下午）：刷存摺直排三格（一張圖，照台詞依序亮格；原本點存摺放進機器、CSS 一行一行印、CSS 存摺卡都拿掉）
+  // 郵局外面的提款機（八月的下午）：刷存摺直排三格（一張圖，照台詞依序亮格；原本點存摺放進機器、CSS 一行一行印、CSS 存摺卡都拿掉）
   //   第 1 格進場景自動亮起（不佔點擊）→ 第 2 格跟「每一行都是一萬。」等三句 → 第 3 格跟「裡面居然有十六萬！」→ 吐一口氣那句收起
   d1bank: [
     { text: '每一行都是一萬。', set: { place: 'atm', prop: null, mini: 'sb-atm-2' }, panel: 'sb-atm-1', tap: 'panelAuto', sfx: ['copier'] },

@@ -54,6 +54,24 @@ export function createReader(root, app) {
     const [main, small] = splitHint(text); // 可選的「（也可以直接翻頁）」用小一號的字
     hintEl.innerHTML = `${esc(main)}${small ? `<small>${esc(small)}</small>` : ''}`;
     hintEl.hidden = false;
+    hintEl.style.top = ''; hintEl.style.bottom = ''; delete hintEl.dataset.nat; // 回到預設位置（閱讀框上方），由 place() 再決定要不要讓開
+  };
+  // 熱點提示字不可壓在它指的東西上（承峰 2026-11-25：「摸摸龍眼」壓在地上的龍眼上）：預設在閱讀框上方，
+  // 跟熱點重疊時移到熱點正上方（上面放不下就放熱點正下方）。座標都相對 #app。
+  const HINT_GAP = 34; // 熱點上方 26px 有 ▼ 箭頭，提示要再高過箭頭
+  const dodge = (base, hit) => {
+    if (!hintEl || hintEl.hidden || !hit) return;
+    if (!hintEl.dataset.nat) { // 預設位置量一次（top＝相對 #app）
+      hintEl.style.top = ''; hintEl.style.bottom = '';
+      const r0 = hintEl.getBoundingClientRect();
+      hintEl.dataset.nat = `${Math.round(r0.top - base.top)},${Math.round(r0.height)}`;
+    }
+    const [top0, h] = hintEl.dataset.nat.split(',').map(Number);
+    const overlap = top0 < hit.y + hit.h && top0 + h > hit.y;
+    let top = top0;
+    if (overlap) top = hit.y - h - HINT_GAP >= 40 ? hit.y - h - HINT_GAP : hit.y + hit.h + HINT_GAP;
+    hintEl.style.top = `${Math.round(top)}px`;
+    hintEl.style.bottom = 'auto';
   };
 
   const finish = (ok) => {
@@ -103,6 +121,7 @@ export function createReader(root, app) {
       h.el.style.top = `${Math.round(r.y + r.h / 2 - hh / 2)}px`;
       h.el.style.width = `${Math.round(w)}px`;
       h.el.style.height = `${Math.round(hh)}px`;
+      if (HOT_HINTS[h.id]) dodge(base, { y: r.y + r.h / 2 - hh / 2, h: hh });
     }
     raf = hots.length ? requestAnimationFrame(place) : 0;
   };

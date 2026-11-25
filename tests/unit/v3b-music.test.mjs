@@ -159,14 +159,14 @@ test('靜音鍵與音樂接線：右上角 44px、在 #log 與 #fade 之間；ma
   assert.match(audio, /const MUSIC_BUS = 0\.4;/);
 });
 
-test('標題署名：同一塊 .op-credit 裡分行列製作人員與四首曲子（作者一首一行），保留三個連結；沒有【待定】', () => {
+test('標題署名：「製作：SY」＋三個連結＋「製作人員」按鈕；名單面板列製作人員與四首曲子（作者一首一行）；沒有【待定】', () => {
   const MARKS = /【(待定|待確認|新增互動)】/;
   const all = [...OP.TITLE.staff, OP.TITLE.music.label, ...OP.TITLE.music.lines, OP.TITLE.music.source, OP.TITLE.music.sfx, OP.TITLE.music.note];
   for (const t of all) assert.ok(!MARKS.test(t), t);
   // 承峰 11/23 20:22：加一行效果音出處，接在 source 後、note 前
   assert.equal(OP.TITLE.music.source, '出處：DOVA-SYNDROME（OpenTracks）');
   // 承峰 2026-11-25：名單加一行分鏡美術（AI 產圖，不寫手繪、不寫人名）
-  assert.ok(OP.TITLE.staff.includes('分鏡：AI 產圖（咖啡館畫師）'));
+  assert.ok(OP.TITLE.staff.includes('分鏡：AI 產圖'));
   for (const t of OP.TITLE.staff) assert.doesNotMatch(t, /手繪/, t);
   assert.equal(OP.TITLE.music.sfx, '效果音：効果音ラボ、Freesound（CC0）');
   assert.deepEqual(OP.TITLE.music.lines, Object.values(TRACKS).map((t) => `${t.title} — ${t.author}`));
@@ -181,7 +181,20 @@ test('標題署名：同一塊 .op-credit 裡分行列製作人員與四首曲�
   assert.match(view, /<div class="op-credit-row">\$\{esc\(TITLE\.credit\)\}<\/div>\s*<div class="op-credit-row">\$\{TITLE\.links\.map\(/); // 【待定】
   assert.doesNotMatch(view, /TITLE\.credit\}・/); // 【待定】
   assert.equal(OP.TITLE.music.note, '請勿將遊戲內音檔另行下載或改作他用'); // 【待定】
-  assert.match(view, /<p class="op-credit-note">\$\{esc\(TITLE\.music\.note\)\}<\/p><\/div>\s*<\/div>`/); // 【待定】
-  // 樣板順序：…source → sfx（同一 map 的最後一項）→ op-credit-note（最底下）
-  assert.match(view, /TITLE\.music\.source, TITLE\.music\.sfx\]\.map\(\(t\) => `<p>\$\{esc\(t\)\}<\/p>`\)\.join\(''\)\}<p class="op-credit-note">\$\{esc\(TITLE\.music\.note\)\}<\/p>/);
+  // 承峰 2026-11-25：標題只留「製作：SY」與三個連結，下面一顆「製作人員」按鈕；名單（含音樂出處與音檔提醒）收進面板
+  assert.equal(OP.TITLE.staffBtn, '製作人員');
+  assert.match(view, /\$\{TITLE\.links\.map\([^\n]*\n\s*<button type="button" class="op-staff-btn" id="op-staff-btn"[^>]*>\$\{esc\(TITLE\.staffBtn\)\}<\/button>\s*<\/div>/);
+  assert.match(view, /<div class="op-staff-dlg" id="op-staff-dlg" role="dialog"[^>]*hidden>/);
+  const dlg = view.slice(view.indexOf('class="op-staff-dlg"'), view.indexOf('名單面板：'));
+  assert.match(dlg, /class="op-staff-x"/);
+  assert.match(dlg, /<div class="op-staff">/);
+  assert.match(dlg, /<p class="op-credit-note">\$\{esc\(TITLE\.music\.note\)\}<\/p><\/div>/);
+  const credit = view.slice(view.indexOf('<div class="op-credit">'), view.indexOf('class="op-staff-dlg"'));
+  assert.doesNotMatch(credit, /op-staff"|TITLE\.staff\]|TITLE\.music/); // 標題上不直接列名單
+  // 關法：關閉鈕、點面板外、Esc
+  assert.match(view, /#op-staff-x'\)\.onclick = closeStaff/);
+  assert.match(view, /dlg\.onclick = \(e\) => \{ if \(!e\.target\.closest\('\.op-staff-card'\)\) closeStaff\(\); \}/);
+  assert.match(view, /e\.key === 'Escape' && !dlg\.hidden/);
+  const html = read('index.html');
+  assert.match(html, /\.op-staff-card \{[^}]*overflow-y: auto/); // 名單長了可捲動
 });

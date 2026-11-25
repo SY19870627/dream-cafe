@@ -165,8 +165,24 @@ export function showOpening(root, act, api) {
       <div class="op-credit">
         <div class="op-credit-row">${esc(TITLE.credit)}</div>
         <div class="op-credit-row">${TITLE.links.map((l) => `<a href="${l.href}" target="_blank" rel="noopener">${l.text}</a>`).join('・')}</div>
-        <div class="op-staff">${[...TITLE.staff, TITLE.music.label, ...TITLE.music.lines, TITLE.music.source, TITLE.music.sfx].map((t) => `<p>${esc(t)}</p>`).join('')}<p class="op-credit-note">${esc(TITLE.music.note)}</p></div>
-      </div>`); // 【待定】製作人員分行（同一塊署名）；第一行「製作：SY」，三個連結移到下一行（承峰 11/22 22:52）
+        <button type="button" class="op-staff-btn" id="op-staff-btn" aria-haspopup="dialog" aria-controls="op-staff-dlg">${esc(TITLE.staffBtn)}</button>
+      </div>
+      <div class="op-staff-dlg" id="op-staff-dlg" role="dialog" aria-modal="true" aria-label="${esc(TITLE.staffBtn)}" hidden>
+        <div class="op-staff-card">
+          <button type="button" class="op-staff-x" id="op-staff-x" aria-label="關閉">×</button>
+          <div class="op-staff">${[...TITLE.staff, TITLE.music.label, ...TITLE.music.lines, TITLE.music.source, TITLE.music.sfx].map((t) => `<p>${esc(t)}</p>`).join('')}<p class="op-credit-note">${esc(TITLE.music.note)}</p></div>
+        </div>
+      </div>`); // 第一行「製作：SY」，三個連結在下一行（承峰 11/22 22:52）；製作人員名單收進面板（承峰 2026-11-25）
+    // 名單面板：「製作人員」打開；關閉鈕、點面板外、Esc 關掉（名單長了在面板裡捲動）
+    const dlg = el.querySelector('#op-staff-dlg');
+    const openBtn = el.querySelector('#op-staff-btn');
+    const onKey = (e) => {
+      if (!el.isConnected) { removeEventListener('keydown', onKey, true); return; } // 已離開標題畫面
+      if (e.key === 'Escape' && !dlg.hidden) { e.preventDefault(); e.stopPropagation(); closeStaff(); } };
+    const closeStaff = () => { if (dlg.hidden) return; dlg.hidden = true; removeEventListener('keydown', onKey, true); openBtn.focus(); };
+    openBtn.onclick = () => { if (!dlg.hidden) return; dlg.hidden = false; addEventListener('keydown', onKey, true); el.querySelector('#op-staff-x').focus(); };
+    el.querySelector('#op-staff-x').onclick = closeStaff;
+    dlg.onclick = (e) => { if (!e.target.closest('.op-staff-card')) closeStaff(); };
     el.querySelector('#op-next').onclick = () => api.go('t4card');
     return;
   }

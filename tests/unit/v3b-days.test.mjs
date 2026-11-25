@@ -588,6 +588,8 @@ test('分鏡格八組（承峰 2026-11-24 提案、11-25 定版）：掛在提�
   assert.equal(H.tapHint('mini', { mini: 'sb-wallet' }), '點一下繼續');
   assert.equal(H.tapHint('panel'), '點一下繼續');
   assert.equal(H.tapHint('panelAuto'), null);
+  // 熱點提示字（例如「摸摸龍眼」）跟熱點重疊時讓開（承峰 2026-11-25）
+  assert.match(code('src/view/reader.js'), /if \(HOT_HINTS\[h\.id\]\) dodge\(base,/);
   // 提示字放在分鏡格正下方，不壓到地上的貓、立繪（承峰 2026-11-25）
   assert.match(code('src/main.js'), /sbHint\(t === 'panel' \|\| \(t === 'mini' && isStoryboard\(shown\.mini\)\)\);/);
   assert.match(css, /#op-read\.sb-hint \.opr-hint \{ top: var\(--sb-hint-top\); bottom: auto; \}/);

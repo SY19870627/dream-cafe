@@ -52,8 +52,9 @@ export const TITLE = {
     { text: 'Threads', href: 'https://www.threads.com/@ye.c.feng' },
     { text: '方格子', href: 'https://vocus.cc/user/@SY19870627' },
   ],
+  staffBtn: '製作人員', // 承峰 2026-11-25：標題只留製作與連結，名單收進這顆按鈕打開的面板
   // 製作人員（11/14 定的順序；同一塊署名裡分行，不另做一幕）。作曲者一首一行，のる兩首分開寫，不寫成合寫
-  staff: ['協作：小葉家的個人助理（Grok Bot）', '劇本協作：Claude', '程式協作：Claude', '分鏡：AI 產圖（咖啡館畫師）'], // 【待定】分鏡一行：承峰 2026-11-25 要加美術；AI 產圖、框是程式做的，不是手繪
+  staff: ['協作：小葉家的個人助理（Grok Bot）', '劇本協作：Claude', '程式協作：Claude', '分鏡：AI 產圖'], // 【待定】分鏡一行：承峰 2026-11-25 定「分鏡：AI 產圖」（框是程式做的，不是手繪；不寫助理名）
   music: { // 【待定】曲名與作者對 story/music.js 的 TRACKS（單元測試核對）
     label: '音樂：', // 【待定】
     lines: ['窓辺のドロップス — すもち', '夏空へ — ハヤシユウ', 'Chill Out Lounge — のる', 'Sweet Dreams — のる'], // 【待定】
