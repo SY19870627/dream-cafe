@@ -175,6 +175,8 @@ function preLook(lines, i) {
   return { ...lk, place: pv.place ?? lk.place, prop: pv.prop ?? null, calico: pv.calico ?? null, mini: null };
 }
 
+// 分鏡格自動亮起（刷存摺第 1 格：存摺插進機器）之後，停多久才亮下一格、出字
+const PANEL_AUTO_MS = 1500;
 // 一幕裡的句子：從存檔那一句接著；每一句說完點一下才出下一句（不點就停在這一句）
 // look(i, 畫面樣子, 句子)：把畫面擺成第 i 句的樣子；gate(name)：互動關卡；optional(name)：可選互動的熱點；
 // tap(name)：這一句的字出來之前要先做的互動（lines/days.js 的 tap：小圖點一下、點錢包、點抽屜……），做完 resolve(true)。pause（停一拍）由這裡處理。
@@ -209,16 +211,21 @@ async function runLines(act, { look, gate, optional, tap }) {
       }
     }
     for (const t of tapsOf(b)) { // 字先不出來：先做完這些（讀檔回到這一句要重做）
-      const shown = t === 'mini' ? lk : preLook(lines, i);
+      // panel／panelAuto：只在這一句字出來之前亮的分鏡格（b.panel）；畫面停在上一句的樣子（第一句就用這一句的），不帶這一句的說話人立繪
+      const panel = t === 'panel' || t === 'panelAuto';
+      const shown = t === 'mini' ? lk : panel ? { ...(i > 0 ? sceneAt(lines, i - 1) : lk), mini: b.panel } : preLook(lines, i);
       props.clear();
       props.show(shown);
-      look(i, shown, b);
+      look(i, shown, panel ? {} : b);
       reader.clearHot();
       reader.skip(false);
       reader.hideBox();
       reader.passive();
       reader.hint(tapHint(t, shown)); // 提示字（通用提示規則，必做不加「也可以直接翻頁」）；有熱點的會由 reader.hot 再設一次同一句
-      const ok = t === 'pause' ? await reader.next() : await tap?.(t, b);
+      const ok = t === 'pause' ? await reader.next()
+        : t === 'panel' ? await props.peek() // 點一下收起，才出這一句
+          : t === 'panelAuto' ? (await sleep(PANEL_AUTO_MS), my === token) // 自己亮、不佔點擊（刷存摺第 1 格），停一下接下一格
+            : await tap?.(t, b);
       reader.clearHot();
       if (my !== token || !ok) return false;
     }
@@ -438,10 +445,9 @@ async function dayScene(act) {
       reader.portrait(cue ? cue.src : null, cue?.place, cue?.alt);
     },
     gate: (name) => dayGate(name),
-    // 字出來之前要先做的：小圖點一下；點存摺放進提款機；點錢包、抽屜、徵人海報、花斑貓、空罐子（場景上的熱點）
+    // 字出來之前要先做的：小圖、分鏡格點一下；點徵人海報、花斑貓、空罐子（場景上的熱點）
     tap: (name) => {
       if (name === 'mini') return props.peek();
-      if (name === 'atm') return props.tapItem('atm');
       const el = ctl.hot(name);
       if (!el) return Promise.resolve(true); // 找不到熱點也不卡住
       return new Promise((res) => reader.hot([{ id: name, label: HOT_LABELS[name] || name, need: true, rect: elRect(el),

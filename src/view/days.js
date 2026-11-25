@@ -1,10 +1,11 @@
 // 第一天到研發咖啡的 DOM 畫面（劇本 v5.8；房東之後的畫面沿用 v5.6）：
 //   showDay()：整張背景圖的畫面（護龍早上、洗臉、下山、信箱、樓梯間、租屋房間、提款機、超商、村子路、坤伯院子）。
 //     字由閱讀框（view/reader.js）一句一句出；這裡只負責「第 i 句時長什麼樣子」與可點的位置
-//     （可選：水龍頭；可點可不點、不點就不出那一句：信箱；字出來之前要先點的：錢包、抽屜、徵人海報、花斑貓、空罐子）。
+//     （可選：水龍頭；可點可不點、不點就不出那一句：信箱；字出來之前要先點的：徵人海報、花斑貓、空罐子）。
+//     數錢、開抽屜、刷存摺原本是點 CSS 錢包／抽屜／存摺的程式動作，承峰 2026-11-24 改成分鏡格（STORYBOARDS），場景上不再畫那些 CSS 物件。
 //   showCard()：只有一張字卡的幕（「第二天」「三天後」）；店裡開始的一天的章名卡。
 //   createProps().gate('keyGive')：第一天早上把鑰匙拖向德叔（沒有接，回到手上）。
-//   createProps()：疊在閱讀框上面的一層（#op-prop）：特寫卡（pp-card）、小圖（pp-mini：先疊上來，點一下才出句子）、要點的東西。店內 2D 定景與整張背景圖都用這一層。
+//   createProps()：疊在閱讀框上面的一層（#op-prop）：特寫卡（pp-card）、小圖與分鏡格（pp-mini：先疊上來，點一下才出句子）、要點的東西。店內 2D 定景與整張背景圖都用這一層。
 // 美術：畫師原圖只讀不改（不重新壓縮、不縮圖）。圖從哪裡來、哪些是暫代，只查 view/art-map.js（換圖只改那裡）。
 //   v5.6 新圖在 assets/art-v56/，舊圖仍在 assets/art/；網址一律由 art-map.js 的 artUrl() 產生。
 //   房東、坤伯、店長、店員是半身立繪（依台詞切差分，見 LINE_CUES）；花斑貓只用 cat_huaban_*，不用龍眼貓圖；物件小圖不畫手。
@@ -143,7 +144,7 @@ function placeHtml(key, act) {
     ${p.basin ? `<div class="dy-basin" aria-hidden="true"><div class="dy-mirror"><img class="dy-face" src="${art(yijunCardFor(act))}" alt="" aria-hidden="true"><span class="dy-fog"></span></div><div class="dy-sink"></div></div>
       <div class="dy-faucet" id="dy-faucet"></div><span class="dy-water" aria-hidden="true"></span>` : ''}
     ${key === 'mailbox' ? mailboxSlot() : ''}
-    ${p.home ? '<span class="dy-stainspot" aria-hidden="true"></span><div class="dy-wallet" id="dy-wallet"><i></i><i></i></div><div class="dy-ddrawer" id="dy-ddrawer"><span class="dy-seal" aria-hidden="true"></span><span class="dy-book" aria-hidden="true"></span></div>' : ''}
+    ${p.home ? '<span class="dy-stainspot" aria-hidden="true"></span>' : ''}
     ${p.store ? `<div class="dy-poster" id="dy-poster"><span class="pp-overlay">${esc(OVERLAY_TEXT.poster)}</span></div>` : ''}
     ${p.village ? `<div class="dy-calico on-wall" id="dy-calico" aria-label="花斑貓" data-pose="sit">${calicoImgs()}</div>` : ''}
     ${p.yard ? `<div class="dy-emptycan" id="dy-emptycan"></div><div class="dy-fullcan" aria-hidden="true"></div><div class="dy-calico in-yard" aria-hidden="true" data-pose="sit">${calicoImgs()}</div>` : ''}
@@ -173,8 +174,8 @@ export function showCard(root, act, text = DAY_CARDS[act] || '') {
 /* ====================== 整張背景圖的畫面 ====================== */
 // root：#opening；act：目前這一幕；api：{ state, lines, resumed }
 // 回傳 { intro(), beat(i, look), hot(name) → 可點的元素, effect(name), stop() }
-export const HOT_IDS = { faucet: 'dy-faucet', mailbox: 'dy-mailslot', wallet: 'dy-wallet', deskDrawer: 'dy-ddrawer', poster: 'dy-poster', calico: 'dy-calico', can: 'dy-emptycan' };
-export const HOT_LABELS = { faucet: '水龍頭', mailbox: '信箱', wallet: '錢包', deskDrawer: '抽屜', poster: '徵人海報', calico: '花斑貓', can: '空罐子' };
+export const HOT_IDS = { faucet: 'dy-faucet', mailbox: 'dy-mailslot', poster: 'dy-poster', calico: 'dy-calico', can: 'dy-emptycan' };
+export const HOT_LABELS = { faucet: '水龍頭', mailbox: '信箱', poster: '徵人海報', calico: '花斑貓', can: '空罐子' };
 export function showDay(root, act, api) {
   const { alive, stage } = makeStage(root);
   const keys = placesOf(api.lines);
@@ -220,8 +221,6 @@ export function showDay(root, act, api) {
       const on = el.querySelector('.dy-place.on');
       if (name === 'faucet') { play('water'); on?.classList.add('washing'); return true; } // 出水聲，低頭洗臉，抬頭時鏡子裡是帶缺點的角色卡
       if (name === 'mailbox') { play('doorIron'); on?.classList.add('open'); return true; } // 鐵片門打開，裡面是空的
-      if (name === 'wallet') { play('wallet'); on?.classList.add('counted'); return true; } // 打開錢包數紙鈔（承峰 2026-11-24 21:24：不要放杯子聲與震動）
-      if (name === 'deskDrawer') { play('creakDrawer'); on?.classList.add('open'); return true; } // 拉開：印章在最裡面，旁邊有一本存摺
       if (name === 'poster') { play('page'); return true; } // 畫面拉近（特寫卡由 props 疊上來）
       if (name === 'calico') { // 貓往前走，她跟在後面
         play('hop');
@@ -239,21 +238,19 @@ export function showDay(root, act, api) {
 }
 
 /* ====================== 疊在閱讀框上面的一層（#op-prop） ====================== */
-// 特寫卡（CSS 形狀或原圖）：存摺、資料袋、識別證、手機、報告、紙箱、相機、便條、咖啡豆罐
+// 特寫卡（CSS 形狀或原圖）：資料袋、識別證、手機、報告、紙箱、相機、便條、咖啡豆罐、徵人海報
+// （存摺一行一行印、存摺退出來、測試品的紙袋已改成分鏡格，見下面 STORYBOARDS）
 const CARD = {
   badge: () => `<img src="${art('prop_v3_id_badge')}" alt="">`,
   bag: () => '<div class="pp-bag"><span>重要　不要丟</span></div>',
-  passbook: () => '<div class="pp-passbook"><i></i><i></i><i></i></div>',
-  printing: () => '<div class="pp-passbook printing"><i></i><i></i><i></i><i></i><i></i><i></i></div>',
   phone: () => '<div class="pp-phone"><div class="pp-input" id="pp-input"><span class="pp-typed"></span></div></div>',
   report: () => '<div class="pp-report"><span class="pp-cell"></span></div>',
   box: () => '<div class="pp-box"><i class="t1"></i><i class="t2"></i><i class="t3"></i></div>',
   camera: () => '<div class="pp-camera"><span class="pp-counter" id="pp-counter"></span><span class="pp-lever" id="pp-lever"></span><span class="pp-crank" id="pp-crank"><i></i></span><span class="pp-lens"></span></div>',
   note: () => '<div class="pp-note"><i></i><i></i><i></i></div>',
   can: () => '<div class="pp-can"></div>',
-  // 劇本 v5.6：徵人海報、測試品的紙袋（暫代 CSS；字由程式疊，見 art-map.js 的 OVERLAY_TEXT）
+  // 劇本 v5.6：徵人海報（暫代 CSS；字由程式疊，見 art-map.js 的 OVERLAY_TEXT）
   poster: () => `<div class="pp-poster"><span class="pp-overlay">${esc(OVERLAY_TEXT.poster)}</span></div>`,
-  paperbag: () => `<div class="pp-paperbag"><span class="pp-overlay">${esc(OVERLAY_TEXT.paperbag)}</span></div>`,
 };
 export const KEY_HINT = MUST_HINTS.keyGive; // 劇本 v5.8：引導照「通用提示規則」，提示字「把鑰匙拿給德叔」（字在 view/hints.js）
 // 小圖（pp-mini）：疊在原場景上（背景不切換）；先疊上來，點一下才出下面的句子，講完收掉。不畫手。
@@ -272,6 +269,57 @@ export function miniHtml(kind) {
   const overlay = kind === 'label' ? `<span class="pp-overlay mn-on-art">${esc(OVERLAY_TEXT.label)}</span>` : '';
   if (src) return `<img src="${art(src)}" alt="">${overlay}`; // 正式圖：字一樣由程式疊
   return MINI_CSS[kind] ? MINI_CSS[kind]() : '';
+}
+// 分鏡格（承峰 2026-11-24 提案、11-25 八組定版；咖啡館畫師產圖，框與紙感是程式做的，不是手繪）。
+// 跟小圖一樣疊在 .pp-mini（先疊上來，點一下才出後句，講完收掉），差在：橫式 4:3、圖裡已有黑框白邊、不畫手、圖上的字畫進圖（程式不疊字）。
+// set.mini 的值：'sb-<名>'＝單格；'sb-<名>-<n>'＝直排多格亮到第 n 格（同一張圖換句時只多亮一格，不重疊上來）。
+// 圖：assets/art-v56/S/（對照 art-map.js 的 sb_* slot）。直排圖每格 2048×1536、格距 64px 透明。
+// sfx：分鏡格第一次疊上來時的音效（沿用原本那個程式動作的音效：錢包、拉抽屜、存摺放進機器；開信封的鑰匙聲在 view/opening.js）。
+// 一場最多一組、一次最多連亮 2 格（刷存摺 3 格是提案定的例外）。
+export const STORYBOARDS = {
+  envelope: { slot: 'sb_envelope', panels: 1, sfx: 'keys' }, // 第二幕：信封口開著，信紙抽出一截（不畫鑰匙）
+  wallet: { slot: 'sb_wallet', panels: 1, sfx: 'wallet' }, // 第一天房間：錢包攤開，鈔票零錢，手機亮著
+  drawer: { slot: 'sb_drawer', panels: 1, sfx: 'creakDrawer' }, // 第一天房間：抽屜拉開，印章在最裡面，存摺露一角
+  atm: { slot: 'sb_atm', panels: 3, sfx: 'place' }, // 提款機：插槽 → 內頁一排 10,000 → 內頁特寫 160,000
+  calico: { slot: 'sb_calico', panels: 1 }, // 坤伯來答謝：花斑貓前爪還伸著，龍眼乾滾在桌上
+  brew: { slot: 'sb_brew', panels: 1 }, // 研發咖啡開頭：五杯一字排開（承峰拿掉第 2 格）
+  paperbag: { slot: 'sb_paperbag', panels: 1 }, // 研發咖啡最後：紙袋上「提神醒腦」「過目不忘」，筆擱在旁邊
+  cat: { slot: 'sb_cat', panels: 2 }, // 開場店內：龍眼聞鞋 → 貼著小腿蹭
+};
+export const SB_PANEL = { w: 2048, h: 1536, gap: 64 };
+// 'sb-atm-2' → { name: 'atm', lit: 2 }；單格或沒寫格數＝全亮；不是分鏡格 → null
+export function parseSb(m) {
+  const r = /^sb-([a-z]+)(?:-(\d+))?$/.exec(String(m || ''));
+  const sb = r && STORYBOARDS[r[1]];
+  if (!sb) return null;
+  return { name: r[1], lit: Math.max(1, Math.min(sb.panels, r[2] ? +r[2] : sb.panels)) };
+}
+// 一組分鏡的 HTML（每格一個 .sb-cell，裡面是同一張圖往上移到那一格）；lit＝先亮幾格
+export function storyboardHtml(name, lit = 1) {
+  const sb = STORYBOARDS[name];
+  const src = srcOf(sb.slot);
+  if (!src) return '';
+  const step = ((SB_PANEL.h + SB_PANEL.gap) / SB_PANEL.h) * 100; // 一格往上移多少（格高的百分比）
+  return Array.from({ length: sb.panels }, (_, i) => `<div class="sb-cell${i < lit ? ' lit' : ''}" data-panel="${i + 1}"><img src="${art(src)}" alt="" style="top:${+(-i * step).toFixed(4)}%"></div>`).join('');
+}
+// 整條的高／寬（給 CSS --r：太高時依畫面高度縮小）
+export const sbRatio = (name) => { const n = STORYBOARDS[name].panels; return +((n * SB_PANEL.h + (n - 1) * SB_PANEL.gap) / SB_PANEL.w).toFixed(4); };
+// 把 .pp-mini 元素擺成這一組分鏡（換組才重疊上來；同一組只多亮格）。回傳 true＝新疊上來
+export function applyStoryboard(el, sb, prevName = null) {
+  if (prevName === sb.name && el.querySelector('.sb-cell')) {
+    for (const c of el.querySelectorAll('.sb-cell')) c.classList.toggle('lit', +c.dataset.panel <= sb.lit);
+    el.dataset.lit = String(sb.lit);
+    return false;
+  }
+  const n = STORYBOARDS[sb.name].panels;
+  el.className = `pp-mini on sb sb-${sb.name}${n > 1 ? ' strip' : ''}`;
+  el.style.setProperty('--r', String(sbRatio(sb.name)));
+  el.dataset.kind = '';
+  el.dataset.sb = sb.name;
+  el.dataset.lit = String(sb.lit);
+  el.innerHTML = storyboardHtml(sb.name, sb.lit);
+  for (const im of el.querySelectorAll('img')) im.onerror = () => im.remove();
+  return true;
 }
 export const FILM_START = 19; // 計數窗停在 19
 export const FILM_END = 36; // 後面還有十七張
@@ -350,12 +398,21 @@ export function createProps(layer, app) {
         card.className = `pp-card${k ? ` on ${k}` : ''}`;
         card.innerHTML = k && CARD[k] ? CARD[k]() : '';
       }
-      const m = look.mini || null; // 小圖：疊上來／收掉（背景不動）
+      const m = look.mini || null; // 小圖或分鏡格：疊上來／收掉（背景不動）
       if (m !== mini && miniEl) {
+        const sb = parseSb(m);
+        const prev = parseSb(mini);
         mini = m;
-        miniEl.className = `pp-mini${m ? ` on mini-${m}` : ''}`;
-        miniEl.dataset.kind = m || '';
-        miniEl.innerHTML = m ? miniHtml(m) : '';
+        if (sb) { // 分鏡格：同一組只多亮一格；新疊上來時放原本那個動作的音效
+          if (applyStoryboard(miniEl, sb, prev?.name) && STORYBOARDS[sb.name].sfx) play(STORYBOARDS[sb.name].sfx);
+        } else {
+          miniEl.className = `pp-mini${m ? ` on mini-${m}` : ''}`;
+          miniEl.style.removeProperty('--r');
+          miniEl.dataset.kind = m || '';
+          miniEl.dataset.sb = '';
+          miniEl.dataset.lit = '';
+          miniEl.innerHTML = m ? miniHtml(m) : '';
+        }
       }
       layer.classList.toggle('counter', !!look.counter);
       counter();
@@ -578,19 +635,18 @@ export function createProps(layer, app) {
         cleanups.push(() => { miniEl?.classList.remove('ask'); finish(false); });
       });
     },
-    // 字出來之前要點的東西（疊在 #op-prop 上的按鈕）：atm＝點存摺放進提款機、keyBar＝點包包裡的鑰匙放到吧台上。點了 resolve(true)
+    // 字出來之前要點的東西（疊在 #op-prop 上的按鈕）：keyBar＝點包包裡的鑰匙放到吧台上。點了 resolve(true)
+    // （原本的 atm＝點存摺放進提款機，已改成刷存摺分鏡格第 1 格自動亮起）
     // opts.target：店內定景上的吧台檯面元素（shop-still.js 的 hot('bar')）；有的話虛線框就框在畫面上真正的吧台上
     tapItem(name, opts = {}) {
       return new Promise((resolve) => {
         let settled = false;
         const finish = (ok) => { if (settled) return; settled = true; resolve(ok); };
-        const isBook = name === 'atm';
-        const el = button(`pp-drag pp-tapitem ${isBook ? 'book' : 'key'}`, isBook ? '存摺' : '鑰匙',
-          isBook ? '<div class="pp-passbook"><i></i><i></i><i></i></div>' : `<img src="${art('key')}" alt="">`);
+        const el = button('pp-drag pp-tapitem key', '鑰匙', `<img src="${art('key')}" alt="">`);
         el.dataset.id = name;
         // 鑰匙放到吧台：虛線框「吧台」框在店內定版圖（v2）右側吧台的檯面上（一排杯子與磨豆機）；點鑰匙或把鑰匙拖進框裡都算。
         // 量不到吧台（例如不在店內定景）才退回 CSS 的預設位置
-        const bar = isBook ? null : zone('bar-drop');
+        const bar = zone('bar-drop');
         if (bar) bar.dataset.label = '吧台';
         const t = bar && opts.target?.getBoundingClientRect();
         if (t && t.width) {
@@ -605,7 +661,7 @@ export function createProps(layer, app) {
           el.disabled = true;
           el.classList.add('placed');
           bar?.classList.add('ok');
-          if (isBook) play('place'); else play('keys'); // 存摺放進機器／鑰匙放到吧台上
+          play('keys'); // 鑰匙放到吧台上
           await sleep(500);
           finish(true);
         };
@@ -617,7 +673,7 @@ export function createProps(layer, app) {
     clear() { clean(); },
     hide() {
       clean(); kind = null; mini = null; card.className = 'pp-card'; card.innerHTML = '';
-      if (miniEl) { miniEl.className = 'pp-mini'; miniEl.innerHTML = ''; miniEl.dataset.kind = ''; }
+      if (miniEl) { miniEl.className = 'pp-mini'; miniEl.innerHTML = ''; miniEl.dataset.kind = ''; miniEl.dataset.sb = ''; miniEl.dataset.lit = ''; miniEl.style.removeProperty('--r'); }
       layer.classList.remove('counter'); layer.hidden = true; app.classList.remove('focusing');
     },
   };

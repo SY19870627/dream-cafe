@@ -77,12 +77,12 @@ export const COUNTDOWN = {
 export const OPENING_CARDS = { t4card: COUNTDOWN.t4card, t2card: COUNTDOWN.t2card };
 
 /* ---------- 第二幕　收到信（第一次收到） ---------- */
-// 租屋處房間（幕 id 沿用 'mailbox'，舊存檔不會壞）：旁白三句 → 操作提示 → 點信封（只能點一次）→ 旁白換句 → 約一秒多後自動進信件畫面
+// 租屋處房間（幕 id 沿用 'mailbox'，舊存檔不會壞）：旁白三句 → 再點一下疊上開信封分鏡格（【分鏡｜待定】信封口開著，信紙抽出一截。不畫鑰匙）
+// → 點一下分鏡格收掉，進信件畫面。承峰 2026-11-24「開信封寫回劇本」：原本的點信封（CSS 抽信動畫）、提示「點信封，把信拿出來。」、
+// 遊戲後加的「我把信抽出來，從頭看起。」都拿掉（不採納）。桌上的 CSS 信封只是擺著。
 export const ROOM_LETTER = {
   lines: ['我下班回到租屋處，進了房間，把包包放在床上。', '今天我收到一封信。牛皮紙信封，拿起來裡面有東西在響。', '我在摺疊桌前坐下來，把信封放在桌上。'],
-  hint: '點信封，把信拿出來。',
-  pulled: '我把信抽出來，從頭看起。',
-  envLabel: '信封', // 只給螢幕閱讀器（aria-label），畫面上不出現
+  panel: 'sb-envelope', // 分鏡格（view/days.js 的 STORYBOARDS.envelope）
 };
 // 信：排版字，不露筆跡。標題「信」→ 信的內文 → 信後旁白（一句一句點）→ 最後一句再點一下淡出（沒有「出發去東山」）→ 字卡「前 2 天」
 export const LETTER = {
@@ -164,8 +164,9 @@ export const OPENING_LINES = {
     // （橘貓跳上靠窗那張椅子，踩兩圈趴下。）（窗邊椅子上，橘貓的耳朵轉過來。）：cat chair＝踩兩圈 → 趴下 → 耳朵轉過來
     { text: '我往裡面走了一步。', set: { ...SIDE, portrait: false, deshu: 'stand', cat: 'chair' }, sfx: ['hop'] },
     { text: '橘貓下了椅子，走過來聞我的鞋，兩隻都聞。', set: { cat: 'shoes' }, sfx: ['hop'] },
-    { text: '然後他整個身體靠上來，從頭到尾巴在我小腿上蹭過去，掉頭再蹭一次。', set: { cat: 'rub' }, optional: 'cat' }, // 點貓：手入鏡摸頭、頭頂上來；不點：蹭完坐在腳邊舔前腳（cat feet）
-    { who: 'deshu', text: '那隻貓叫龍眼，是這間三合院的主人，而妳是新老闆。', set: { ...COUNTER, portrait: true, deshu: null, cat: 'feet' } },
+    // 【分鏡｜待定】貓靠近直排二格：第 1 格（聞鞋）先亮、點一下才出這句；這句讀完亮第 2 格（蹭小腿），點一下兩格收起，再接德叔。2D 姿勢與可選摸貓照舊
+    { text: '然後他整個身體靠上來，從頭到尾巴在我小腿上蹭過去，掉頭再蹭一次。', set: { cat: 'rub', mini: 'sb-cat-1' }, tap: 'mini', optional: 'cat' }, // 點貓：手入鏡摸頭、頭頂上來；不點：蹭完坐在腳邊舔前腳（cat feet）
+    { who: 'deshu', text: '那隻貓叫龍眼，是這間三合院的主人，而妳是新老闆。', set: { ...COUNTER, portrait: true, deshu: null, cat: 'feet', mini: null }, panel: 'sb-cat-2', tap: 'panel' },
     { who: 'me', text: '龍眼。' },
     { text: '他沒理我，尾巴勾了一下我的腳踝。', set: { ...SIDE, portrait: false, deshu: 'stand' }, sfx: ['meow'] }, // 承峰 2026-11-23 22:07 v510 第 7 項：短貓叫一次
     { text: '德叔彎腰，從吧台下面拿出一個杯子，沖了水。吧台上那排洗好的，他沒有動。', set: { ...COUNTER, deshu: 'brew' }, sfx: ['rinse'] },

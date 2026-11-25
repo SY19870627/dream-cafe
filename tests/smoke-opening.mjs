@@ -109,24 +109,29 @@ try {
   await sleep(900);
   const cap = () => page.locator('#op-cap').textContent();
   if ((await cap()) !== '我下班回到租屋處，進了房間，把包包放在床上。') fail(`房間第一句不對：${await cap()}`);
-  if (!(await page.locator('#op-env').isDisabled())) fail('旁白還沒讀完就能點信封');
+  if (await page.locator('button#op-env, button.op-env').count()) fail('桌上的信封還能點（開信封已改成分鏡格）');
   await snap('letter-room');
   await page.locator('#op-roombox').click();
   await sleep(500);
   if ((await cap()) !== '今天我收到一封信。牛皮紙信封，拿起來裡面有東西在響。') fail('房間第二句不對');
-  if (!(await page.locator('#op-env').isDisabled())) fail('旁白還沒讀完就能點信封');
+  if (await page.locator('#op-sb').isVisible()) fail('旁白還沒讀完就疊上開信封分鏡格');
   await page.locator('#op-roombox').click();
   await sleep(500);
   if ((await cap()) !== '我在摺疊桌前坐下來，把信封放在桌上。') fail('房間第三句不對');
-  if ((await page.locator('#op-hint').textContent()) !== '點信封，把信拿出來。' || !(await page.locator('#op-hint').isVisible())) fail('沒有操作提示「點信封，把信拿出來。」');
-  const envBox = await page.locator('#op-env').boundingBox();
-  if (envBox.width < 44 || envBox.height < 44) fail('信封熱點小於 44px');
-  await snap('letter-room-hint');
-  await page.locator('#op-env').click();
-  await sleep(300);
-  if ((await cap()) !== '我把信抽出來，從頭看起。') fail('點信封後旁白沒換');
-  if (await page.locator('#op-hint').count()) fail('點信封後提示沒消失');
-  await waitAct('letter', 4000); // 約一秒多後自動進入信件畫面
+  if (await page.locator('#op-sb').isVisible()) fail('第三句一出來就疊上分鏡格（應該讀完再點一下）');
+  // 開信封分鏡格（承峰 2026-11-24）：第三句讀完再點一下疊上來，提示「點一下繼續」；點分鏡格收掉才進信件。不再有點信封、「我把信抽出來，從頭看起。」
+  await page.locator('#op-roombox').click();
+  await sleep(700);
+  const env = await page.evaluate(() => { const e = document.querySelector('#op-sb'); const r = e?.getBoundingClientRect(); const c = e?.querySelector('.sb-cell.lit')?.getBoundingClientRect();
+    return { on: !!e && !e.hidden && e.classList.contains('on'), sb: e?.dataset.sb, src: e?.querySelector('img')?.getAttribute('src') || '', w: r?.width || 0, cw: c?.width || 0, ch: c?.height || 0 }; });
+  if (!env.on || env.sb !== 'envelope' || !env.src.endsWith('assets/art-v56/S/sb_envelope_open_v1.webp')) fail(`沒有疊上開信封分鏡格：${JSON.stringify(env)}`);
+  if (Math.abs(env.cw / env.ch - 4 / 3) > 0.02 || env.cw > 251) fail(`開信封分鏡格不是寬度同小圖的橫式 4:3：${JSON.stringify(env)}`);
+  if ((await page.locator('#op-hint').textContent()) !== '點一下繼續' || !(await page.locator('#op-hint').isVisible())) fail('分鏡格沒有提示「點一下繼續」');
+  if ((await cap()) === '我把信抽出來，從頭看起。') fail('還有不採納的「我把信抽出來，從頭看起。」');
+  await snap('sb-envelope');
+  if ((await act()) !== 'mailbox') fail('分鏡格還沒點就進了信件');
+  await page.locator('#op-sb').click();
+  await waitAct('letter', 4000); // 分鏡格收掉後進入信件畫面
   await page.waitForSelector('.op-letter', { timeout: 5000 });
   await sleep(1000);
   if ((await page.locator('.op-letter h2').textContent()) !== '信') fail('信件標題不是「信」');
@@ -215,6 +220,7 @@ try {
   await sleep(700);
   await snap('shop-enter');
   let petted = false;
+  const seenSbOpen = []; // 貓靠近分鏡格（直排兩格）：cat-1 → cat-2
   await readUntil('泡好了。坐下喝看看。', async (cur) => {
     if (cur === '還沒打烊，位子自己挑。') {
       if ((await who()) !== '德叔') fail('名牌不是德叔');
@@ -236,8 +242,11 @@ try {
       await snap('shop-cat');
     }
     if (cur === '香味一路到門口。') await snap('shop-brew');
+    const sbCat = await page.evaluate(() => { const e = document.querySelector('#op-prop .pp-mini.on.sb'); return e ? `${e.dataset.sb}-${e.dataset.lit}` : ''; });
+    if (sbCat && !seenSbOpen.includes(sbCat)) { seenSbOpen.push(sbCat); await sleep(500); await snap(`sb-${sbCat}`); }
     if (cur.startsWith('德叔端著杯子')) { await sleep(900); await snap('shop-serve'); }
   });
+  if (seenSbOpen.join() !== 'cat-1,cat-2') fail(`貓靠近分鏡格沒有依序亮兩格：${seenSbOpen.join()}`);
   // 重新整理：接著同一句
   await page.reload();
   await waitText('泡好了。坐下喝看看。');
@@ -408,6 +417,7 @@ try {
   // 必點的熱點（錢包、抽屜、徵人海報、花斑貓、空罐子：data-need）、要拖的東西（鑰匙拖向德叔）、疊在上面要點的東西（提款機的存摺、包包裡的鑰匙）、小圖（點一下才出字）
   // 信箱是可點可不點：這裡不點（點畫面其他地方），要直接接到樓梯間的房東
   const seenMini = [];
+  const seenSb = []; // 分鏡格（名-亮到第幾格）
   const seenNames = new Set();
   const seenActs = [];
   const seenTexts = new Set();
@@ -454,6 +464,7 @@ try {
       drag: !!document.querySelector('.pp-drag:not(.pp-tapitem):not(.placed):not([disabled])') && !!document.querySelector('.pp-zone'),
       peek: !!document.querySelector('.pp-peek'),
       mini: document.querySelector('.pp-mini.on')?.dataset.kind || '',
+      sb: (() => { const e = document.querySelector('#op-prop .pp-mini.on.sb'); return e ? `${e.dataset.sb}-${e.dataset.lit}` : ''; })(),
       box: !!document.querySelector('#op-read:not([hidden]) .opr-box:not([hidden]) .st-text'),
       name: document.querySelector('#op-read .st-name')?.textContent || '',
       text: document.querySelector('#op-read .st-text')?.textContent || '',
@@ -513,9 +524,20 @@ try {
       }
     }
     if (st.mini && !seenMini.includes(st.mini)) { seenMini.push(st.mini); await sleep(500); await snap(`mini-${st.mini}`); }
+    if (st.sb && !seenSb.includes(st.sb)) {
+      seenSb.push(st.sb);
+      await sleep(550);
+      // 分鏡格：橫式 4:3、寬度不超過小圖（250px）；整條在畫面內、不蓋到閱讀框上緣
+      const g = await page.evaluate(() => { const e = document.querySelector('#op-prop .pp-mini.on.sb'); const r = e.getBoundingClientRect(); const c = e.querySelector('.sb-cell').getBoundingClientRect();
+        const box = document.querySelector('#op-read .opr-box:not([hidden])')?.getBoundingClientRect();
+        return { w: c.width, h: c.height, top: r.top, bottom: r.bottom, boxTop: box && box.height ? box.top : innerHeight }; });
+      if (Math.abs(g.w / g.h - 4 / 3) > 0.02 || g.w > 251) fail(`分鏡格 ${st.sb} 不是寬度同小圖的橫式 4:3：${JSON.stringify(g)}`);
+      if (g.top < 0 || g.bottom > g.boxTop + 1) fail(`分鏡格 ${st.sb} 超出畫面或蓋到閱讀框：${JSON.stringify(g)}`);
+      await snap(`sb-${st.sb}`);
+    }
     if (st.need.length) { await page.locator(`.opr-hotspot[data-need="1"][data-id="${st.need[0]}"]`).click(); await sleep(900); continue; }
     if (st.item.length) {
-      const want = { atm: '把存摺放進提款機', keyBar: '把鑰匙放到吧台' }[st.item[0]];
+      const want = { keyBar: '把鑰匙放到吧台' }[st.item[0]];
       if (want && (await page.locator('#op-read .opr-hint').textContent()) !== want) fail(`沒有提示字「${want}」`);
       if (st.item[0] === 'keyBar') { if (!(await page.locator('.pp-zone.bar-drop').count())) fail('鑰匙放到吧台沒有放置目標'); await snap('d2-keybar'); }
       await page.locator(`.pp-tapitem[data-id="${st.item[0]}"]`).click(); await sleep(900); continue;
@@ -558,6 +580,8 @@ try {
   if (!seenTitles.has('最底下那個抽屜')) fail(`沒看到章名：最底下那個抽屜（看到：${[...seenTitles].join('／')}）`);
   if (dragged < 1) fail('沒有拖鑰匙給德叔');
   if (seenMini.join() !== 'stain,passbook,hat,label,longan') fail(`小圖不對：${seenMini.join()}`);
+  // 分鏡格（承峰 2026-11-25 定版）：數錢、開抽屜、刷存摺依序亮三格、花斑貓、研發咖啡開頭五杯、紙袋
+  if (seenSb.join() !== 'wallet-1,drawer-1,atm-1,atm-2,atm-3,calico-1,brew-1,paperbag-1') fail(`分鏡格不對：${seenSb.join()}`);
   for (const nm of ['房東', '店長', '店員', '坤伯', '德叔', '我']) if (!seenNames.has(nm)) fail(`沒看到名牌：${nm}`);
   // 不點信箱：不出「信箱是空的……」，但房東整段照出
   if (seenTexts.has('信箱是空的，連傳單都沒有。')) fail('沒點信箱卻出了「信箱是空的……」');

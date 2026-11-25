@@ -16,9 +16,10 @@
 //   例外：第一天的空信箱 scene_mailboxes_empty 是定版橫圖（1950×1200），用信箱專用圖框整張放進去（見 bg_mailbox）。
 // - 龍眼貓（cat_longan_*）只當龍眼，不當花斑貓；花斑貓只用 cat_huaban_*。char_grandpa_* 是阿哲的阿公，不當坤伯。
 // - 物件小圖不畫手；圖上不指望有字（「農藥」「誠徵門市人員」都由程式疊）。
+// - 分鏡格（sb_*）也不畫手（貓爪可以）；圖上的字全部畫進圖（10,000／160,000、紙袋上的字），程式不疊字。
 // 程式取圖：refOf(id, 差分) → 參照（舊圖是檔名，新圖是「art-v56/B/檔名」）；artUrl(參照) → 網址。
 
-const V56 = { A: 'art-v56/A', B: 'art-v56/B', C: 'art-v56/C' };
+const V56 = { A: 'art-v56/A', B: 'art-v56/B', C: 'art-v56/C', S: 'art-v56/S' };
 
 export const ART_MAP = {
   /* ---------- 背景（整張直式圖，1170×2532） ---------- */
@@ -87,14 +88,24 @@ export const ART_MAP = {
   mini_label: { use: '小圖：空罐子的標籤（標籤留白，程式疊「農藥」）', planned: 'prop_v56_empty_can_label_v2', status: 'ready', dir: V56.C, src: 'prop_v56_empty_can_label_v2' },
   mini_longan: { use: '小圖：龍眼乾（剝開的殼、黑亮的果肉）', planned: 'prop_v56_dried_longan_v2', status: 'ready', dir: V56.C, src: 'prop_v56_dried_longan_v2' },
 
+  /* ---------- 分鏡格（#op-prop 的 pp-mini.sb；承峰 2026-11-24 提案、11-25 八組定版） ---------- */
+  // 咖啡館畫師產圖（AI 生成後由程式加框與紙感；不是手繪）。橫式 4:3，每格 2048×1536；直排圖格距 64px 透明。
+  // 取代原本用程式演的動作（點 CSS 信封抽信、點錢包數錢、點抽屜、點存摺放進提款機與 CSS 存摺、CSS 紙袋疊字）。用法見 view/days.js 的 STORYBOARDS。
+  // 刷存摺原檔是無損 8.7MB（留在 storyboard-panels/trial/，不進 repo），遊戲用有損 webp q90 轉檔。
+  sb_envelope: { use: '分鏡：開信封（第二幕，三句旁白之後；點一下收掉進信件）', planned: 'sb_envelope_open_v1', status: 'ready', dir: V56.S, src: 'sb_envelope_open_v1' },
+  sb_wallet: { use: '分鏡：數錢（第一天房間，「繳完房租，剩下五千塊錢。」之前）', planned: 'sb_wallet_count_v1', status: 'ready', dir: V56.S, src: 'sb_wallet_count_v1' },
+  sb_drawer: { use: '分鏡：開抽屜，印章在最裡面、存摺露一角（「印章還在。」之前）', planned: 'sb_drawer_seal_v2', status: 'ready', dir: V56.S, src: 'sb_drawer_seal_v2' },
+  sb_atm: { use: '分鏡：刷存摺直排三格（插槽／內頁一排 10,000／內頁特寫 160,000；照台詞依序亮）', planned: 'sb_atm_passbook_strip_v2', status: 'ready', dir: V56.S, src: 'sb_atm_passbook_strip_v2' },
+  sb_calico: { use: '分鏡：花斑貓撥龍眼乾，一顆滾到桌上（坤伯「欸，這個不是給你吃的啦。」之前）', planned: 'sb_calico_paw_v1', status: 'ready', dir: V56.S, src: 'sb_calico_paw_v1' },
+  sb_brew: { use: '分鏡：研發咖啡開頭，五杯一字排開（只亮一次就收起；承峰拿掉第 2 格）', planned: 'sb_brew_cups_v2', status: 'ready', dir: V56.S, src: 'sb_brew_cups_v2' },
+  sb_paperbag: { use: '分鏡：測試品紙袋寫好「提神醒腦」「過目不忘」，筆擱在旁邊（字畫進圖）', planned: 'sb_paperbag_writing_v2', status: 'ready', dir: V56.S, src: 'sb_paperbag_writing_v2' },
+  sb_cat: { use: '分鏡：貓靠近怡君直排兩格（聞鞋 → 貼著小腿蹭）', planned: 'sb_cat_approach_strip_v1', status: 'ready', dir: V56.S, src: 'sb_cat_approach_strip_v1' },
+
   /* ---------- 特寫卡（#op-prop 的 pp-card） ---------- */
-  pp_printing: { use: '提款機補刷：存摺一行一行印', planned: null, status: 'temp', src: null, temp: '既有 CSS .pp-passbook.printing' },
-  pp_passbook: { use: '存摺退出來（餘額十六萬）', planned: null, status: 'temp', src: null, temp: '既有 CSS .pp-passbook（不疊數字，劇本沒寫畫面上的字）' },
   pp_poster: { use: '超商的徵人海報（畫面拉近）；場景上的海報是底圖座位區後牆上那張有框的空白海報（熱點 .dy-poster 對準外框）', planned: 'prop_v3b_store_poster', status: 'temp', src: null, temp: 'CSS 白紙海報，程式疊「誠徵門市人員」（劇本沒寫薪資數字，不疊薪水）' },
-  pp_paperbag: { use: '測試品的紙袋（德叔寫上「提神醒腦，過目不忘」）', planned: 'prop_v3b_test_paperbag', status: 'temp', src: null, temp: 'CSS 牛皮紙袋，程式疊德叔寫的字' },
   pp_key: { use: '鑰匙（第一天早上拖向德叔，沒有接、回到手上；第二天點包包裡的鑰匙放到吧台上）', planned: 'key', status: 'ready', src: 'key' },
   /* 劇本 v5.8 */
-  pp_envelope: { use: '第二幕：摺疊桌上的牛皮紙信封（點了把信抽出來，只能點一次）', planned: 'prop_v58_envelope_desk', status: 'temp', src: null, temp: 'CSS 牛皮紙信封（.op-env），疊在房間原圖右邊小桌上' },
+  pp_envelope: { use: '第二幕與特休前一晚：摺疊桌上的牛皮紙信封（只是擺著，不能點；開信封改成分鏡格 sb_envelope）', planned: 'prop_v58_envelope_desk', status: 'temp', src: null, temp: 'CSS 牛皮紙信封（.op-env），疊在房間原圖右邊小桌上' },
   bg_cafe_bamboo: { use: '第一天早上店裡：吧台上攤著兩個竹篩，生豆鋪滿；德叔背後架子上自己放一格的杯子', planned: 'bg_shop_day_bar_beans', status: 'temp', src: null, temp: '用店內 2D 定景的早上底圖（SHOP_STILL_DAY，已換成白天正式圖 scene_shop_interior_day_v1）；竹篩、生豆、架子上的杯子沒有另畫' },
 };
 
@@ -112,7 +123,6 @@ export const SHOP_STILL_DUSK = 'bg_shop_dusk';
 export const OVERLAY_TEXT = {
   label: '農藥', // 空罐子的標籤（劇本：「坤伯，這上面寫的是農藥。」）
   poster: '誠徵門市人員', // 徵人海報（劇本：上面寫「誠徵門市人員」和薪水；薪水數字劇本沒寫，不疊）
-  paperbag: '提神醒腦，過目不忘', // 德叔在紙袋上寫的字
 };
 
 // 參照 → 網址：舊圖（沒有斜線）在 assets/art/；新圖（art-v56/…）在 assets/ 底下照子路徑

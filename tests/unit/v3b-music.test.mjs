@@ -82,7 +82,7 @@ test('幕內切點：d1wake 章名才進 day、d1store 下決心那句升回 100
 
   const n = cueLine('d5thanks', '外面天色慢慢暗下來。店裡很安靜，只有剝殼的聲音。');
   assert.ok(n > 0);
-  assert.deepEqual(S.ACT_LINES.d5thanks[n].set, { night: 1 }, '同一句觸發畫面入夜');
+  assert.deepEqual(S.ACT_LINES.d5thanks[n].set, { night: 1, mini: null }, '同一句觸發畫面入夜（花斑貓分鏡格也在這句收掉）');
   assert.deepEqual(musicAt('d5thanks', 0), { track: 'day', level: 0.7 }, '一進答謝不換 cafe');
   assert.deepEqual(musicAt('d5thanks', n - 1), { track: 'day', level: 0.7 });
   assert.deepEqual(musicAt('d5thanks', n), { track: 'cafe', level: 1 });

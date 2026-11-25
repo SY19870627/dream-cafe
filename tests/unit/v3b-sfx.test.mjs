@@ -62,9 +62,10 @@ test('audio.js：每個有錄音的名稱都留著合成退路；錄音用 fetch
 test('呼叫點換成新拆出來的名稱', () => {
   const days = read('src/view/days.js');
   assert.match(days, /name === 'mailbox'\) \{ play\('doorIron'\)/);
-  assert.match(days, /name === 'deskDrawer'\) \{ play\('creakDrawer'\)/);
-  assert.match(days, /name === 'wallet'\) \{ play\('wallet'\)/, '點錢包只播錢包聲');
-  assert.doesNotMatch(days, /name === 'wallet'\) \{ play\('place'\)/);
+  // 數錢、開抽屜改成分鏡格（承峰 2026-11-24）：音效跟著分鏡格疊上來時播（錢包只播錢包聲、拉抽屜聲）
+  assert.match(days, /wallet: \{ slot: 'sb_wallet', panels: 1, sfx: 'wallet' \}/, '數錢分鏡格只播錢包聲');
+  assert.match(days, /drawer: \{ slot: 'sb_drawer', panels: 1, sfx: 'creakDrawer' \}/);
+  assert.doesNotMatch(days, /name === 'wallet'\)|name === 'deskDrawer'\)/, '點錢包、點抽屜的程式動作拿掉');
   assert.match(days, /store: placeOf\('bg_store', \{ ambient: 'store'/);
   const lines = read('src/lines/days.js');
   assert.match(lines, /我先把窗戶打開。', set: \{[^}]*\}, sfx: \['creakWindow'\]/);

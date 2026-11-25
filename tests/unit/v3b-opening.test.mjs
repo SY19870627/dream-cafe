@@ -35,7 +35,7 @@ const HAS57 = existsSync(root(V57_PATH));
 const NO57 = HAS57 ? false : `沒有 ${V57_PATH}（劇本 v5.9，本機未追蹤）`;
 const V57 = HAS57 ? read(V57_PATH).replace(/\r\n/g, '\n') : '';
 // 開場畫面上的字（DOM 幕自己出的旁白：收到信、信後旁白、特休前一晚）
-const DOM_TEXTS = () => [...OP.ROOM_LETTER.lines, OP.ROOM_LETTER.pulled, ...OP.LETTER.afterLines, ...OP.EVE.lines];
+const DOM_TEXTS = () => [...OP.ROOM_LETTER.lines, ...OP.LETTER.afterLines, ...OP.EVE.lines];
 
 // 照玩家的方式從頭走完開場（到第一晚睡著）：每一句「點一下」或「做完關卡」才往下；可選互動一律不做。回傳讀到的句子。
 // 第一晚睡著後就是第一天早上（d1wake），不再停在待續。
@@ -47,7 +47,7 @@ function playOpening({ side = 'left', each = () => {} } = {}) {
 /* ---------- 字 ---------- */
 test('稿件標記【待定】【待確認】【新增互動】都已拿掉；括弧舞台指示不是字', () => {
   const texts = [
-    ...allLines().map((b) => b.text), OP.EVE.next, ...DOM_TEXTS(), OP.ROOM_LETTER.hint, OP.TITLE.next, OP.TEMPLE.back, OP.ROAD.card, ...Object.values(OP.COUNTDOWN),
+    ...allLines().map((b) => b.text), OP.EVE.next, ...DOM_TEXTS(), OP.TITLE.next, OP.TEMPLE.back, OP.ROAD.card, ...Object.values(OP.COUNTDOWN),
     OP.LETTER.title, OP.LETTER.greeting, ...OP.LETTER.paragraphs, OP.LETTER.closing, OP.LETTER.signature,
     OP.ROAD.door, OP.DEPART.start, OP.OFFICE.form, OP.OFFICE.applicant, OP.OFFICE.to, OP.OFFICE.reasonLabel, OP.OFFICE.note, OP.OFFICE.leave, OP.OFFICE.keys, OP.RESIGNATION.text,
   ];
@@ -124,8 +124,9 @@ test('第一幕：離職事由固定「從今天起，我單方面辭退您。�
 
 test('第二幕「收到信」（v5.9，第一次收到）：房間旁白三句、操作提示、點信封（只能點一次）、信的全文（含「我年紀大了」那段）、信後旁白四句、讀完淡出（沒有「出發去東山」）', () => {
   assert.deepEqual(OP.ROOM_LETTER.lines, ['我下班回到租屋處，進了房間，把包包放在床上。', '今天我收到一封信。牛皮紙信封，拿起來裡面有東西在響。', '我在摺疊桌前坐下來，把信封放在桌上。']);
-  assert.equal(OP.ROOM_LETTER.hint, '點信封，把信拿出來。');
-  assert.equal(OP.ROOM_LETTER.pulled, '我把信抽出來，從頭看起。');
+  // 承峰 2026-11-24「開信封寫回劇本」：點信封、提示「點信封，把信拿出來。」、遊戲後加的「我把信抽出來，從頭看起。」都拿掉，改成開信封分鏡格
+  assert.ok(!('hint' in OP.ROOM_LETTER) && !('pulled' in OP.ROOM_LETTER), '點信封的提示與抽信旁白拿掉');
+  assert.equal(OP.ROOM_LETTER.panel, 'sb-envelope');
   assert.equal(OP.LETTER.title, '信');
   assert.equal(OP.LETTER.greeting, '怡君：');
   assert.deepEqual(OP.LETTER.paragraphs, [
@@ -150,12 +151,13 @@ test('第二幕「收到信」（v5.9，第一次收到）：房間旁白三句�
   assert.ok(!('MAILBOX' in OP), '舊的信箱一幕（點信箱、搖起來、拿出信封）拿掉');
   const view = read('src/view/opening.js');
   assert.doesNotMatch(view, /LAWYER_LETTER|律師信|溫度基金|MAILBOX|op-box-btn|scene_mailboxes/);
-  // 房間：點信封只能點一次；點了鑰匙響、旁白換句、提示消失，約一秒多後自動進入信件畫面
+  // 房間：三句讀完再點一下，疊上開信封分鏡格（鑰匙響一聲）；點分鏡格收掉才進信件畫面。桌上的信封只是擺著（不能點、沒有抽信動畫）
   const room = view.slice(view.indexOf("if (act === 'mailbox')"), view.indexOf("if (act === 'letter')"));
-  assert.match(room, /id="op-env"[^>]*disabled/, '旁白讀完才能點信封');
-  assert.match(room, /if \(env\.disabled\) return;\s*env\.disabled = true;/);
-  assert.match(room, /play\('keys'\);\s*cap\.textContent = R\.pulled;\s*hint\.remove\(\);\s*await sleep\(1300\);\s*if \(alive\(\)\) api\.go\('letter'\);/);
-  assert.match(room, /<p class="op-hint" id="op-hint" hidden>\$\{esc\(R\.hint\)\}<\/p>/);
+  assert.doesNotMatch(room, /id="op-env"|<button[^>]*op-env|pulled|R\.hint/, '點信封與抽信動畫拿掉');
+  assert.match(room, /<span class="op-env" aria-hidden="true">/, '桌上的信封只是擺著');
+  assert.match(room, /if \(k >= R\.lines\.length - 1\) \{[\s\S]*?applyStoryboard\(panel, sb\);/, '第三句讀完才疊上分鏡格');
+  assert.match(room, /const leave = async \(\) => \{[\s\S]*?if \(alive\(\)\) api\.go\('letter'\);/, '點分鏡格收掉才進信件');
+  assert.doesNotMatch(read('index.html'), /\.op-env\.pulled|\.op-env\.call/, 'CSS 抽信動畫拿掉');
   // 信：信後旁白一句一句點，最後一句再點一下就淡出 → 字卡「我單方面辭退老闆前 2 天」（信件畫面沒有 #op-next）
   const letter = view.slice(view.indexOf("if (act === 'letter')"), view.indexOf("if (act === 'eve')"));
   assert.doesNotMatch(letter, /op-next|L\.next|api\.go\('road'\)/, '信件畫面沒有「出發去東山」');
@@ -334,7 +336,7 @@ test('開場每一句（收到信、信後旁白、特休前一晚、第三幕�
   assert.ok(body.includes(`申請人固定是${OP.OFFICE.applicant}`));
   assert.equal(OP.TITLE.credit, '製作：SY'); // 【待定】承峰 11/22 22:52：第一行「製作：SY」，連結移下一行
   assert.ok(body.includes(`（畫面下方：${OP.TITLE.credit}；下一行：${OP.TITLE.links.map((l) => l.text).join('・')}）`), '劇本標題畫面的署名要是「製作：SY」，連結在下一行'); // 【待定】
-  for (const s of [OP.OFFICE.send, OP.OFFICE.keys, OP.TITLE.next, OP.ROOM_LETTER.hint, OP.LETTER.title, OP.EVE.next, OP.ROAD.card, OP.ROAD.door, OP.DEPART.start, OP.TEMPLE.back, '摸摸龍眼', '點床躺下']) {
+  for (const s of [OP.OFFICE.send, OP.OFFICE.keys, OP.TITLE.next, OP.LETTER.title, OP.EVE.next, OP.ROAD.card, OP.ROAD.door, OP.DEPART.start, OP.TEMPLE.back, '摸摸龍眼', '點床躺下']) {
     assert.ok(body.includes(`「${s}」`), `劇本找不到「${s}」`);
   }
   // 開場裡的兩張倒數字卡（舞台指示裡寫明卡上的字）
@@ -383,7 +385,7 @@ test('劇本沒有的字不上畫面：舊信箱、舊信、舊郵件、「傍�
   // 畫面上每一串字都在劇本開場裡出現過（螢幕閱讀器用的 aria-label 除外）
   if (HAS57) {
     const { body } = scriptOpening();
-    for (const t of [...allLines().map((b) => b.text), ...DOM_TEXTS(), OP.ROOM_LETTER.hint, OP.EVE.next, OP.LETTER.title, ...Object.values(OP.OPENING_CARDS), ...OP.LETTER.paragraphs, OP.OFFICE.form, OP.OFFICE.note, OP.OFFICE.leave, OP.OFFICE.keys,
+    for (const t of [...allLines().map((b) => b.text), ...DOM_TEXTS(), OP.EVE.next, OP.LETTER.title, ...Object.values(OP.OPENING_CARDS), ...OP.LETTER.paragraphs, OP.OFFICE.form, OP.OFFICE.note, OP.OFFICE.leave, OP.OFFICE.keys,
       OP.OFFICE.applicantLabel + OP.OFFICE.applicant, OP.OFFICE.toLabel + OP.OFFICE.to, OP.OFFICE.reasonLabel + OP.RESIGNATION.text, OP.OFFICE.send, OP.OFFICE.clock, OP.OFFICE.clockAfter,
       ...OP.TITLE.lines, OP.TITLE.sub, OP.TITLE.next, OP.TITLE.credit, ...OP.TITLE.links.map((l) => l.text), OP.ROAD.card, OP.ROAD.door, OP.DEPART.start, OP.TEMPLE.back]) {
       assert.ok(body.includes(t), `劇本開場沒有：${t}`);

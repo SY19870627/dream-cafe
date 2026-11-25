@@ -148,5 +148,45 @@
     "path": "C/prop_v56_water_stain_v2.webp",
     "bytes": 132000,
     "sha256": "283ebcae70f00827533136a9392468ba8d8c7207cacabf6824b59818480b2943"
+  },
+  {
+    "path": "S/sb_atm_passbook_strip_v2.webp",
+    "bytes": 1721892,
+    "sha256": "1208cd4bea343d5ccd5334e9875133a2f2d37577f071bc776cd05948caa1c4ac"
+  },
+  {
+    "path": "S/sb_brew_cups_v2.webp",
+    "bytes": 329976,
+    "sha256": "f9e990382972c1436e99c60ba07bae4fdb3752dbf2092af286fab9ba983fdb0c"
+  },
+  {
+    "path": "S/sb_calico_paw_v1.webp",
+    "bytes": 486658,
+    "sha256": "9512389272e2fc2f29a3b435747ce5a6ec4cfed2ebe5c18f7d530d747483c9bc"
+  },
+  {
+    "path": "S/sb_cat_approach_strip_v1.webp",
+    "bytes": 787048,
+    "sha256": "7bc8b42c35fc73d608fdafc6b4a2c8de314a2ffd13fcc51987c561f19d6984f1"
+  },
+  {
+    "path": "S/sb_drawer_seal_v2.webp",
+    "bytes": 609088,
+    "sha256": "05ad736010344ab938626c77a85725d8ef7cf4e89bafeb9612850d471da186c6"
+  },
+  {
+    "path": "S/sb_envelope_open_v1.webp",
+    "bytes": 600394,
+    "sha256": "7f2899ac719369a621cfd5ce4878e99302d6338d6f03dbb6ea26e6bfd8f2e041"
+  },
+  {
+    "path": "S/sb_paperbag_writing_v2.webp",
+    "bytes": 525512,
+    "sha256": "1c432a1cda377ca6ac0dcd5efb806994340c4cb51689619927f009cf8f411d4c"
+  },
+  {
+    "path": "S/sb_wallet_count_v1.webp",
+    "bytes": 603870,
+    "sha256": "5b2183980ccaff16c2f8ca59372e043a9f45a0ca620e76cd8393e68ac6dd66a1"
   }
 ]

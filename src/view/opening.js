@@ -12,6 +12,8 @@ import { RESEND } from '../lines/days.js';
 import { play, setEngine } from './audio.js';
 import { img, ready } from './art.js';
 import { artUrl, srcOf } from './art-map.js';
+import { STORYBOARDS, parseSb, applyStoryboard } from './days.js';
+import { MUST_HINTS } from './hints.js';
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -170,42 +172,59 @@ export function showOpening(root, act, api) {
   }
 
   if (act === 'mailbox') {
-    // 第二幕：租屋處房間（畫面同第一天的房間，暫代 v5.6 房間原圖疊傍晚色調）。旁白兩句（點一下換句）→ 操作提示、信封發光
-    // → 點信封（只能點一次）：鑰匙響一聲、旁白換句、提示消失，約一秒多後自動進信件畫面。不點就留在房間。
+    // 第二幕：租屋處房間（畫面同第一天的房間，暫代 v5.6 房間原圖疊傍晚色調）。旁白三句（點一下換句）→ 第三句之後再點一下：
+    // 疊上開信封分鏡格（鑰匙響一聲）→ 點一下分鏡格收掉，進信件畫面。不點就留在房間。桌上的 CSS 信封只是擺著（不能點）。
+    // 原本的點信封、CSS 抽信動畫、提示「點信封，把信拿出來。」與「我把信抽出來，從頭看起。」都拿掉（承峰 2026-11-24 改分鏡格）。
     const R = ROOM_LETTER;
+    const sb = parseSb(R.panel);
     const el = stage('letterroom', `
       <div class="op-art">
         <img class="op-art-img" src="${artUrl(srcOf('bg_letter_room'))}" alt="">
-        <button type="button" class="op-env" id="op-env" aria-label="${R.envLabel}" disabled><span class="op-env-flap" aria-hidden="true"></span></button>
+        <span class="op-env" aria-hidden="true"><span class="op-env-flap"></span></span>
       </div>
-      <p class="op-hint" id="op-hint" hidden>${esc(R.hint)}</p>
+      <div class="pp-mini" id="op-sb" role="button" tabindex="0" aria-label="下一句" hidden></div>
+      <p class="op-hint" id="op-hint" hidden>${esc(MUST_HINTS.pause)}</p>
       <div class="op-roombox" id="op-roombox" role="button" tabindex="0" aria-live="polite"><p class="op-caption" id="op-cap">${esc(R.lines[0])}</p><span class="st-more" aria-hidden="true">▾</span></div>`);
     for (const im of el.querySelectorAll('img')) im.onerror = () => im.remove(); // 缺圖：留底色
     const box = el.querySelector('#op-roombox');
     const cap = box.querySelector('.op-caption');
-    const env = el.querySelector('#op-env');
+    const panel = el.querySelector('#op-sb');
     const hint = el.querySelector('#op-hint');
     let k = 0;
+    let shown = false;
+    let leaving = false;
+    let armed = 0;
+    const leave = async () => { // 分鏡格收掉 → 信件
+      if (!shown || leaving || performance.now() < armed) return;
+      leaving = true;
+      play('tap');
+      panel.classList.remove('on', 'ask');
+      hint.hidden = true;
+      await sleep(450);
+      if (alive()) api.go('letter');
+    };
     const more = () => {
-      if (k >= R.lines.length - 1) return;
+      if (shown) { leave(); return; }
+      if (k >= R.lines.length - 1) { // 第三句讀完：疊上分鏡格（格先出，點一下才往下）
+        shown = true;
+        armed = performance.now() + 300;
+        panel.hidden = false;
+        applyStoryboard(panel, sb);
+        panel.classList.remove('on');
+        requestAnimationFrame(() => requestAnimationFrame(() => panel.classList.add('on', 'ask')));
+        box.classList.add('done');
+        hint.hidden = false;
+        if (STORYBOARDS[sb.name].sfx) play(STORYBOARDS[sb.name].sfx); // 鑰匙響一聲（信封裡有東西在響）
+        return;
+      }
       k++;
       play('tap');
       cap.textContent = R.lines[k];
-      if (k === R.lines.length - 1) { box.classList.add('done'); env.disabled = false; env.classList.add('call'); hint.hidden = false; }
     };
     box.onclick = more;
     box.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); more(); } };
-    env.onclick = async () => {
-      if (env.disabled) return;
-      env.disabled = true;
-      env.classList.remove('call');
-      env.classList.add('pulled');
-      play('keys');
-      cap.textContent = R.pulled;
-      hint.remove();
-      await sleep(1300);
-      if (alive()) api.go('letter');
-    };
+    panel.onclick = (e) => { e.stopPropagation(); leave(); };
+    panel.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); leave(); } };
     return;
   }
 

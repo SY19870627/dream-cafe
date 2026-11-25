@@ -280,7 +280,8 @@ test('房東只提醒下禮拜交房租；錢是爸開的戶頭、壓歲錢、�
     [['d1home', 'me'], ['d1bank', 'me'], ['d1store', 'me']]);
   for (const old of ['對了，先找看看印章還在嗎，辦離職手續的時候會用到。', '太好了，不用急著馬上找工作了。', '就算再找一份工作，大概還是這樣吧。']) assert.ok(!all.includes(old), `v5.8 舊句：${old}`);
   assert.equal(find('每一行都是一萬。').act, 'd1bank');
-  assert.equal(find('每一行都是一萬。').b.tap, 'atm', '提款機：點存摺放進機器');
+  assert.equal(find('每一行都是一萬。').b.tap, 'panelAuto', '提款機：刷存摺分鏡第 1 格進場景自動亮（不佔點擊），原本點存摺放進機器拿掉');
+  assert.equal(find('每一行都是一萬。').b.panel, 'sb-atm-1');
   assert.equal(find('……可是如果不去，我大概會一直想這件事。').b.tap, 'pause', '超商：停一拍，點一下才繼續');
   // 房東：沒有當天催繳、沒有當天付清
   for (const w of ['這個月的房租，妳什麼時候要給我', '今天一定拿給您', '這個月的房租，您點一下。', '下個月不要再讓我來討。', '有錢就早點拿出來嘛']) assert.ok(!all.some((t) => t.includes(w)), w);
@@ -441,11 +442,12 @@ test('說話的人：房東、坤伯、店長、店員都有名牌與半身立�
 /* ---------- 互動 ---------- */
 test('字出來之前要先做的互動（tap）照劇本的順序；可選互動只有水龍頭；信箱可點可不點', () => {
   const taps = dayLines().flatMap(D.tapsOf);
-  assert.deepEqual(taps, ['mini', 'wallet', 'deskDrawer', 'mini', 'atm', 'poster', 'pause', 'keyBar', 'mini', 'calico', 'can', 'mini', 'mini']);
+  // 數錢、開抽屜、刷存摺、花斑貓、研發咖啡開頭、紙袋改成分鏡格（承峰 2026-11-24／25）：mini＝格先出點一下才出句；panel＝只在字出來前亮一下；panelAuto＝自動亮
+  assert.deepEqual(taps, ['mini', 'mini', 'mini', 'mini', 'panelAuto', 'poster', 'pause', 'keyBar', 'mini', 'calico', 'can', 'mini', 'mini', 'mini', 'panel', 'mini']);
   const tapAt = (t) => find(t).b.tap;
-  assert.equal(tapAt('繳完房租，剩下五千塊錢。'), 'wallet', '點桌上的錢包');
-  assert.equal(tapAt('印章還在。'), 'deskDrawer', '點抽屜');
-  assert.equal(tapAt('每一行都是一萬。'), 'atm', '提款機放存摺');
+  assert.equal(tapAt('繳完房租，剩下五千塊錢。'), 'mini', '數錢分鏡格');
+  assert.equal(tapAt('印章還在。'), 'mini', '開抽屜分鏡格');
+  assert.equal(tapAt('每一行都是一萬。'), 'panelAuto', '刷存摺第 1 格自動亮');
   assert.equal(tapAt('領這種餓不死、穿不暖的薪水，還要被這樣罵。'), 'poster', '點徵人海報');
   assert.equal(tapAt('……可是如果不去，我大概會一直想這件事。'), 'pause', '停一拍，點一下才繼續');
   assert.equal(tapAt('德叔，鑰匙我帶來了。'), 'keyBar', '鑰匙放到吧台');
@@ -458,7 +460,8 @@ test('字出來之前要先做的互動（tap）照劇本的順序；可選互�
   for (const b of opt) assert.ok(!b.gate && !b.tap, `${b.optional} 不能擋住劇情`);
   assert.deepEqual(dayLines().filter((b) => b.ifTap).map((b) => [b.ifTap, b.text]), [['mailbox', '信箱是空的，連傳單都沒有。']]);
   // 每個熱點都有元素
-  for (const n of ['faucet', 'mailbox', 'wallet', 'deskDrawer', 'poster', 'calico', 'can']) assert.ok(HOT_IDS[n], n);
+  for (const n of ['faucet', 'mailbox', 'poster', 'calico', 'can']) assert.ok(HOT_IDS[n], n);
+  for (const n of ['wallet', 'deskDrawer', 'atm']) assert.ok(!HOT_IDS[n], `${n} 的程式動作已改成分鏡格`);
   for (const id of Object.values(HOT_IDS)) assert.match(read('src/view/days.js'), new RegExp(`id="${id}"`), id);
 });
 
@@ -469,27 +472,29 @@ test('小圖五張：先疊上來（背景不切換）、點一下才出句子�
     lines.forEach((b, i) => {
       if (!D.tapsOf(b).includes('mini')) return;
       const lk = OP.sceneAt(lines, i);
+      if (String(lk.mini).startsWith('sb-')) return; // 分鏡格另有測試
       assert.ok(lk.mini, `${act} 第 ${i} 句有小圖`);
       if (i > 0) assert.equal(lk.place, OP.sceneAt(lines, i - 1).place, `${act} 第 ${i} 句：背景不切換`);
-      assert.ok(!OP.sceneAt(lines, Math.max(0, i - 1)).mini || i === 0, '前一句還沒有這張小圖');
+      const prevMini = OP.sceneAt(lines, Math.max(0, i - 1)).mini;
+      assert.ok(!prevMini || String(prevMini).startsWith('sb-') || i === 0, '前一句還沒有這張小圖（分鏡格講完直接換成小圖可以）');
       const off = lines.findIndex((x, j) => j > i && x.set && 'mini' in x.set && x.set.mini === null);
       assert.ok(off > i || OP.sceneAt(lines, lines.length - 1).mini === lk.mini, `${act}：${lk.mini} 會收掉`);
       minis.push(lk.mini);
     });
-    assert.ok(!OP.sceneAt(lines, 0).mini, `${act} 開頭沒有殘留的小圖`);
+    assert.ok(!OP.sceneAt(lines, 0).mini || (act === 'd1bank' && OP.sceneAt(lines, 0).mini === 'sb-atm-2'), `${act} 開頭沒有殘留的小圖（提款機一進場就是刷存摺分鏡格）`);
   }
   assert.deepEqual(minis, ['stain', 'passbook', 'hat', 'label', 'longan']);
   assert.deepEqual(Object.keys(MINI_SLOTS).sort(), ['hat', 'label', 'longan', 'passbook', 'stain']);
   // 水痕：點一下才出下面兩句，兩句講完收掉
   const w = find('窗戶下面那塊水痕好像又比上個月大了一點。');
   assert.equal(OP.sceneAt(D.DAY_LINES.d1home, w.i + 1).mini, 'stain');
-  assert.equal(OP.sceneAt(D.DAY_LINES.d1home, w.i + 2).mini, null);
+  assert.equal(OP.sceneAt(D.DAY_LINES.d1home, w.i + 2).mini, 'sb-wallet', '兩句講完水痕收掉，直接換成數錢分鏡格');
   const view = code('src/view/days.js');
   assert.match(read('index.html'), /<section id="op-prop" hidden><div class="pp-card"><\/div><div class="pp-mini"><\/div>/);
   assert.match(view, /peek\(\) \{/);
   assert.match(view, /const hit = button\('pp-peek', '下一句'\);/);
   const main = code('src/main.js');
-  assert.match(main, /for \(const t of tapsOf\(b\)\) \{[\s\S]*?reader\.hideBox\(\);[\s\S]*?const ok = t === 'pause' \? await reader\.next\(\) : await tap\?\.\(t, b\);[\s\S]*?\}\s*props\.clear\(\);\s*props\.show\(lk\);/, '小圖／互動做完才出字');
+  assert.match(main, /for \(const t of tapsOf\(b\)\) \{[\s\S]*?reader\.hideBox\(\);[\s\S]*?const ok = t === 'pause' \? await reader\.next\(\)[\s\S]*?: await tap\?\.\(t, b\);[\s\S]*?\}\s*props\.clear\(\);\s*props\.show\(lk\);/, '小圖／互動做完才出字');
   assert.match(main, /if \(name === 'mini'\) return props\.peek\(\);/);
   for (const k of Object.keys(MINI_SLOTS)) {
     const html = miniHtml(k);
@@ -501,13 +506,99 @@ test('小圖五張：先疊上來（背景不切換）、點一下才出句子�
   for (const c of ['.pp-passbook {', '.pp-can {', '.pp-card.badge img', '.pp-bag {', '.pp-camera {']) assert.ok(css.includes(c), `既有特寫卡 ${c}`);
 });
 
+test('分鏡格八組（承峰 2026-11-24 提案、11-25 定版）：掛在提案定的句子、一場最多一組、一次最多連亮 2 格（刷存摺 3 格例外）、講完收掉', async () => {
+  const V = await import('../../src/view/days.js');
+  const H = await import('../../src/view/hints.js');
+  assert.deepEqual(Object.keys(V.STORYBOARDS).sort(), ['atm', 'brew', 'calico', 'cat', 'drawer', 'envelope', 'paperbag', 'wallet']);
+  const FILES = { envelope: 'sb_envelope_open_v1', wallet: 'sb_wallet_count_v1', drawer: 'sb_drawer_seal_v2', atm: 'sb_atm_passbook_strip_v2',
+    calico: 'sb_calico_paw_v1', brew: 'sb_brew_cups_v2', paperbag: 'sb_paperbag_writing_v2', cat: 'sb_cat_approach_strip_v1' };
+  for (const [k, f] of Object.entries(FILES)) {
+    const sb = V.STORYBOARDS[k];
+    assert.equal(srcOf(sb.slot), `art-v56/S/${f}`, k);
+    assert.equal(ART_MAP[sb.slot].status, 'ready', k);
+    const n = sb.panels;
+    assert.deepEqual(webpSize(readFileSync(root(artUrl(srcOf(sb.slot))))), [2048, n * 1536 + (n - 1) * 64], `${k}：每格 2048×1536、直排格距 64`);
+  }
+  // 淘汰的版本不進遊戲
+  for (const old of ['sb_drawer_seal_v1', 'sb_paperbag_writing_v1', 'sb_brew_cups_strip_v1', 'sb_brew_cups_strip_v2', 'sb_atm_passbook_strip_v1']) {
+    assert.ok(!existsSync(root(`assets/art-v56/S/${old}.webp`)), `${old} 不該進遊戲`);
+    assert.ok(!ART_MAP_FILES.some((r) => r.endsWith(old)), old);
+  }
+  assert.deepEqual(Object.fromEntries(Object.entries(V.STORYBOARDS).map(([k, v]) => [k, v.panels])), { envelope: 1, wallet: 1, drawer: 1, atm: 3, calico: 1, brew: 1, paperbag: 1, cat: 2 });
+  assert.deepEqual(V.parseSb('sb-atm-2'), { name: 'atm', lit: 2 });
+  assert.deepEqual(V.parseSb('sb-wallet'), { name: 'wallet', lit: 1 });
+  assert.equal(V.parseSb('stain'), null);
+  // 掛在哪一句（照提案的【分鏡｜待定】位置）：mini＝格先出、點一下才出這句；panel＝只在這句字出來前亮；panelAuto＝自動亮
+  const all = [...D.DAY_ACTS.flatMap((act) => D.DAY_LINES[act].map((b, i) => ({ act, i, b, lines: D.DAY_LINES[act] }))),
+    ...Object.entries(OP.OPENING_LINES).flatMap(([act, ls]) => ls.map((b, i) => ({ act, i, b, lines: ls })))];
+  const at = (t) => all.find((x) => x.b.text === t);
+  const hang = [
+    ['繳完房租，剩下五千塊錢。', 'mini', 'sb-wallet'],
+    ['印章還在。', 'mini', 'sb-drawer'],
+    ['每一行都是一萬。', 'panelAuto', 'sb-atm-1'],
+    ['欸，這個不是給你吃的啦。', 'mini', 'sb-calico'],
+    ['第一版好了，妳喝喝看。', 'panel', 'sb-brew'],
+    ['好，我帶去公司。', 'mini', 'sb-paperbag'],
+    ['然後他整個身體靠上來，從頭到尾巴在我小腿上蹭過去，掉頭再蹭一次。', 'mini', 'sb-cat-1'],
+    ['那隻貓叫龍眼，是這間三合院的主人，而妳是新老闆。', 'panel', 'sb-cat-2'],
+  ];
+  for (const [t, tap, sb] of hang) {
+    const x = at(t);
+    assert.ok(x, t);
+    assert.equal(x.b.tap, tap, t);
+    assert.equal(tap === 'mini' ? OP.sceneAt(x.lines, x.i).mini : x.b.panel, sb, t);
+    if (tap === 'panel') assert.ok(!OP.sceneAt(x.lines, x.i).mini, `${t}：亮完收起才出字`);
+  }
+  assert.equal(at('每一行都是一萬。').act, 'd1bank');
+  assert.equal(at('第一版好了，妳喝喝看。').act, 'd5brew');
+  // 刷存摺：第 2 格跟「每一行都是一萬。」等三句，第 3 格跟「裡面居然有十六萬！」，吐一口氣那句收掉
+  const bank = D.DAY_LINES.d1bank;
+  assert.deepEqual(bank.map((b, i) => OP.sceneAt(bank, i).mini), ['sb-atm-2', 'sb-atm-2', 'sb-atm-2', 'sb-atm-3', 'sb-atm-3', 'sb-atm-3', null]);
+  // 研發咖啡：只在開頭亮一次（承峰拿掉第 2 格，「越排越多」只靠文字）
+  const brew = D.DAY_LINES.d5brew;
+  assert.equal(brew.filter((b) => b.panel || String(b.set?.mini || '').startsWith('sb-brew')).length, 1);
+  // 一場最多一組；一次最多連亮 2 格（刷存摺例外）
+  const acts = new Map();
+  for (const x of all) {
+    const m = [x.b.panel, x.b.set?.mini].filter((v) => String(v || '').startsWith('sb-'));
+    for (const v of m) { const set = acts.get(x.act) || new Set(); set.add(V.parseSb(v).name); acts.set(x.act, set); }
+  }
+  // 例外（都是承峰定的位置）：房間盤點（d1home）數錢格與抽屜格兩組都留（2026-11-24「開抽屜格留」，提案「這場每處只留 1 格」）；
+  // 研發咖啡（d5brew）開頭咖啡五杯與段末紙袋，一頭一尾、中間隔了整段戲（紙袋 11-24 21:36 定、咖啡 21:53 定）
+  const TWO = { d1home: ['drawer', 'wallet'], d5brew: ['brew', 'paperbag'] };
+  for (const [act, set] of acts) assert.deepEqual([...set].sort(), TWO[act] || [...set].slice(0, 1), `${act} 一場最多一組分鏡：${[...set]}`);
+  for (const [k, v] of Object.entries(V.STORYBOARDS)) assert.ok(v.panels <= 2 || k === 'atm', `${k} 一次最多連亮 2 格`);
+  // 講完收掉：每一組在幕內會收掉，或換成下一張小圖
+  for (const x of all) {
+    if (x.b.tap !== 'mini' || !String(OP.sceneAt(x.lines, x.i).mini).startsWith('sb-')) continue;
+    const later = x.lines.slice(x.i + 1).find((b) => b.set && 'mini' in b.set);
+    assert.ok(later || x.i === x.lines.length - 1, `${x.b.text}：分鏡格會收掉（幕的最後一句：換幕時 props.hide() 收掉）`);
+  }
+  // 原本的程式動作拿掉：CSS 錢包、抽屜、存摺一行一行印、CSS 紙袋、點存摺放進提款機
+  const view = code('src/view/days.js');
+  for (const w of ['dy-wallet', 'dy-ddrawer', "printing:", "paperbag: () =>", "name === 'atm'", "isBook ? 'book' : 'key'"]) assert.ok(!view.includes(w), `view/days.js 還有 ${w}`);
+  const css = read('index.html');
+  for (const w of ['.dy-wallet', '.dy-ddrawer', '.pp-passbook.printing', '.pp-paperbag', '.op-env.pulled']) assert.ok(!css.includes(w), `index.html 還有 ${w}`);
+  assert.doesNotMatch(code('src/main.js'), /props\.tapItem\('atm'\)/);
+  // 顯示：橫式 4:3、寬度同小圖、直排太高時依畫面高度縮
+  assert.match(css, /\.pp-mini\.sb \{[^}]*width: min\(64vw, 250px, calc\(54dvh \/ var\(--r, \.75\)\)\);/);
+  assert.match(css, /\.pp-mini\.sb > \.sb-cell \{[^}]*aspect-ratio: 4 \/ 3;/);
+  assert.match(V.storyboardHtml('atm', 1), /class="sb-cell lit" data-panel="1"[\s\S]*class="sb-cell" data-panel="2"[\s\S]*class="sb-cell" data-panel="3"/);
+  // 提示字：分鏡格沿用「點一下繼續」，不另寫新字；自動亮的不出提示
+  assert.equal(H.tapHint('mini', { mini: 'sb-wallet' }), '點一下繼續');
+  assert.equal(H.tapHint('panel'), '點一下繼續');
+  assert.equal(H.tapHint('panelAuto'), null);
+});
+
 test('程式疊字：徵人海報「誠徵門市人員」（劇本沒寫薪資數字，不疊薪水）、空罐子「農藥」、紙袋「提神醒腦，過目不忘」', () => {
   assert.equal(OVERLAY_TEXT.poster, '誠徵門市人員');
   assert.doesNotMatch(OVERLAY_TEXT.poster, /\d|元|薪/);
   if (HAS58) assert.ok(BODY.includes('上面寫「誠徵門市人員」和薪水'));
   assert.equal(OVERLAY_TEXT.label, '農藥');
-  assert.equal(OVERLAY_TEXT.paperbag, '提神醒腦，過目不忘');
-  assert.equal(find('「提神醒腦，過目不忘」').b.set.prop, 'paperbag');
+  // 紙袋改成分鏡格（字畫進圖，承峰 2026-11-25 定版 v2：兩行、不加標點），程式不再疊字、不再有 CSS 紙袋
+  assert.ok(!('paperbag' in OVERLAY_TEXT), '紙袋不再由程式疊字');
+  assert.ok(!find('「提神醒腦，過目不忘」').b.set, '「提神醒腦，過目不忘」這句不再疊 CSS 紙袋');
+  assert.equal(find('好，我帶去公司。').b.set.mini, 'sb-paperbag');
   assert.equal(find('領這種餓不死、穿不暖的薪水，還要被這樣罵。').b.set.prop, 'poster');
   const view = read('src/view/days.js');
   assert.match(view, /poster: \(\) => `<div class="pp-poster"><span class="pp-overlay">\$\{esc\(OVERLAY_TEXT\.poster\)\}<\/span><\/div>`/);
@@ -542,7 +633,7 @@ test('點擊提示字（通用提示規則，承峰 23:14 照建議稿補齊）�
   const H = await import('../../src/view/hints.js');
   assert.deepEqual(H.MUST_HINTS, {
     door: '把門推開', hold: '按住畫面，往前騎', fork: '點左邊或右邊的路', chair: '點椅子坐下', keyGive: '把鑰匙拿給德叔', keyBar: '把鑰匙放到吧台',
-    wallet: '點錢包數一數', deskDrawer: '點抽屜找印章', atm: '把存摺放進提款機', poster: '點座位區的徵人海報', pause: '點一下繼續',
+    poster: '點座位區的徵人海報', pause: '點一下繼續',
     calico: '點花斑貓，跟著走', can: '點地上的空罐子',
   });
   assert.deepEqual(H.MINI_HINTS, { stain: '點窗戶下面的水痕', passbook: '點存摺', hat: '點斗笠', label: '點標籤', longan: '點龍眼乾' });
@@ -554,10 +645,10 @@ test('點擊提示字（通用提示規則，承峰 23:14 照建議稿補齊）�
   assert.equal(KEY_HINT, H.MUST_HINTS.keyGive);
   for (const t of [...Object.values(H.MUST_HINTS), ...Object.values(H.MINI_HINTS)]) assert.doesNotMatch(t, /也可以直接/, `必做不加小字：${t}`);
   assert.deepEqual(H.splitHint('摸摸龍眼（也可以直接翻頁）'), ['摸摸龍眼', '（也可以直接翻頁）']);
-  assert.deepEqual(H.splitHint('點錢包數一數'), ['點錢包數一數', '']);
+  assert.deepEqual(H.splitHint('點一下繼續'), ['點一下繼續', '']);
   // 每個 tap、gate、可選互動都有提示字（keyGive 由 props.gate 自己畫）
   for (const b of dayLines()) {
-    for (const t of D.tapsOf(b)) assert.ok(H.tapHint(t, OP.sceneAt(D.DAY_LINES[find(b.text).act], find(b.text).i)), `${t}：${b.text}`);
+    for (const t of D.tapsOf(b)) if (t !== 'panelAuto') assert.ok(H.tapHint(t, OP.sceneAt(D.DAY_LINES[find(b.text).act], find(b.text).i)), `${t}：${b.text}`); // panelAuto 自動亮、不用點，沒有提示
     if (b.optional) assert.ok(H.HOT_HINTS[b.optional], b.optional);
     if (b.ifTap) assert.ok(H.HOT_HINTS[b.ifTap], b.ifTap);
   }

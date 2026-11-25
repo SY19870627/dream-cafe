@@ -25,16 +25,20 @@ import { COUNTDOWN, LETTER } from './opening.js';
 //   德叔、龍眼、杯子疊在上面；其他地方用 view/days.js 的 showDay。店內環景已拔掉（承峰 2026-11-21 20:48）。
 // 每一句（beat）除了開場就有的 who／text／set／sfx／wait／gate／optional，另外有：
 //   tap：這一句的字出來「之前」要先做的互動（字先不出來；做完才出這一句）。可以是一個或依序好幾個：
-//     mini      小圖已經疊上來，玩家點一下才出句子（set.mini 決定是哪一張小圖）
+//     mini      小圖或分鏡格已經疊上來，玩家點一下才出句子（set.mini 決定是哪一張；sb-… 是分鏡格）
+//     panel     只在這一句字出來之前亮一下的分鏡格（b.panel），點一下收起才出句子（研發咖啡開頭、貓靠近第 2 格）
+//     panelAuto 分鏡格自己亮起、不佔點擊（b.panel；刷存摺第 1 格進場景自動亮）
 //     pause     停一拍，玩家點一下才繼續
-//     wallet    點桌上的錢包　　deskDrawer 點抽屜　　atm 點存摺放進提款機　　poster 點座位區的徵人海報
+//     poster    點座位區的徵人海報
 //     keyBar    點包包裡的鑰匙，放到吧台上　　calico 點花斑貓　　can 點地上的空罐子
 //   ifTap：可點可不點、不點就不出這一句（mailbox：點了信箱才出「信箱是空的……」；不點直接接樓梯間的拖鞋聲與房東）
 //   gate：keyGive 把鑰匙拖向德叔（他兩手都在豆子裡，沒有接；拖向吧台也放不下，一樣回到手上）
 //   face：德叔這一句用哪一張臉（smile＝char_deshu_smile）；只管這一句，不累加
 //   linger：這一幕最後一句說完後停多久才淡出（毫秒）；停之前就先存成下一幕（字卡出現前自動存檔）
 //   set.mini：疊在原場景上的小圖（stain 水痕／passbook 存摺／hat 斗笠／label 空罐子的標籤／longan 龍眼乾）；null＝收掉
-//   set.prop：特寫卡（printing 存摺一行一行印／passbook 存摺／poster 徵人海報／paperbag 測試品的紙袋）
+//     也放分鏡格（承峰 2026-11-24／25 定版八組，咖啡館畫師產圖，見 view/days.js 的 STORYBOARDS）：
+//     sb-<名>＝單格；sb-<名>-<n>＝直排多格亮到第 n 格（sb-atm-1～3 刷存摺、sb-cat-1～2 貓靠近）
+//   set.prop：特寫卡（poster 徵人海報）
 // optional（可選，不做也能翻頁）：faucet 水龍頭
 
 // 說話的人（開場的德叔與我之外；名牌字）
@@ -150,33 +154,36 @@ export const DAY_LINES = {
     { who: 'landlord', text: '記得下禮拜要交房租。' },
     { who: 'me', text: '好，我記得。' },
   ],
-  // 房間：窗戶下的水痕（小圖）→ 點錢包 → 點抽屜 → 存摺（小圖）
+  // 房間：窗戶下的水痕（小圖）→ 數錢（分鏡格）→ 開抽屜（分鏡格）→ 存摺（小圖）。原本點錢包、點抽屜的 CSS 動作改成分鏡格
   d1home: [
     { text: '房間很悶，我先把窗戶打開。', set: { place: 'home', prop: null, mini: null }, sfx: ['creakWindow'] },
     { text: '窗戶下面那塊水痕好像又比上個月大了一點。', set: { mini: 'stain' }, tap: 'mini' },
     { text: '跟房東講過幾遍，但後面就懶得講了。' },
-    { who: 'me', text: '繳完房租，剩下五千塊錢。', set: { mini: null }, tap: 'wallet' },
-    { who: 'me', text: '要吃泡麵過日子了……' },
+    // 【分鏡｜待定】錢包攤開，鈔票和零錢倒在桌上，手機亮著。（螢幕不畫內容，面額不可辨識。）
+    { who: 'me', text: '繳完房租，剩下五千塊錢。', set: { mini: 'sb-wallet' }, tap: 'mini' },
+    { who: 'me', text: '要吃泡麵過日子了……', set: { mini: null } },
     { text: '包包裡還放著德叔那把咖啡館的鑰匙。' },
     { who: 'me', text: '雖然德叔有說我是咖啡館老闆，但應該是開玩笑的吧。' },
     { who: 'me', text: '哪有人會隨便找一個不認識的人當老闆。' },
     { who: 'me', text: '而且我連泡咖啡都不會。' },
     { who: 'me', text: '……先找看看印章還在嗎。哪天真的要辦離職手續，會用到。' },
-    { who: 'me', text: '印章還在。', tap: 'deskDrawer' },
+    // 【分鏡｜待定】抽屜拉開，印章在最裡面，旁邊露出存摺一角。（格收掉時直接換成存摺小圖）
+    { who: 'me', text: '印章還在。', set: { mini: 'sb-drawer' }, tap: 'mini' },
     { who: 'me', text: '這本是……爸幫我開的戶頭。', set: { mini: 'passbook' }, tap: 'mini' },
     { who: 'me', text: '裡面存了幾年的壓歲錢，現在只好拿出來用了。' },
     { text: '存摺只印了前面幾行，後面都是空的。' },
     { who: 'me', text: '先去補刷，看看還有多少。' },
   ],
-  // 銀行外面的提款機（八月的下午）：點存摺放進機器 → 一行一行印 → 存摺退出來
+  // 銀行外面的提款機（八月的下午）：刷存摺直排三格（一張圖，照台詞依序亮格；原本點存摺放進機器、CSS 一行一行印、CSS 存摺卡都拿掉）
+  //   第 1 格進場景自動亮起（不佔點擊）→ 第 2 格跟「每一行都是一萬。」等三句 → 第 3 格跟「裡面居然有十六萬！」→ 吐一口氣那句收起
   d1bank: [
-    { text: '每一行都是一萬。', set: { place: 'atm', prop: 'printing', mini: null }, tap: 'atm', sfx: ['copier'] },
+    { text: '每一行都是一萬。', set: { place: 'atm', prop: null, mini: 'sb-atm-2' }, panel: 'sb-atm-1', tap: 'panelAuto', sfx: ['copier'] },
     { text: '日期都在過年後，一年一筆，沒有斷過。', sfx: ['copier'] },
     { text: '我一直以為只有小時候那幾年。' },
-    { who: 'me', text: '裡面居然有十六萬！', set: { prop: 'passbook' }, sfx: ['beep'] },
+    { who: 'me', text: '裡面居然有十六萬！', set: { mini: 'sb-atm-3' }, sfx: ['beep'] },
     { who: 'me', text: '爸從來沒跟我講過有這麼多。' },
     { who: 'me', text: '太好了，就算真的辭職，也不用急著馬上找工作了。' },
-    { text: '我站在提款機前面，大大吐了一口氣。', set: { prop: null } },
+    { text: '我站在提款機前面，大大吐了一口氣。', set: { prop: null, mini: null } },
   ],
   // （畫面：提款機圖淡出到黑底。下面三句在黑底上出。）→ 淡入超商店內圖（進門音效）
   // 回家路上的超商（進去吹冷氣，順便買水）：店長罵店員 → 點座位區的徵人海報 → 停一拍 → 下決心
@@ -306,9 +313,10 @@ export const DAY_LINES = {
     { who: 'deshu', text: '……有啦。' },
     { text: '花斑貓跳上椅子，用手去撥袋子裡的龍眼乾。', set: { ...SIDE }, sfx: ['hop'] },
     { text: '一顆龍眼乾滾到桌上，牠自己嚇了一跳。', sfx: ['tick'] },
-    { who: 'kunbo', text: '欸，這個不是給你吃的啦。' },
+    // 【分鏡｜待定】單格：貓爪還伸著，一顆龍眼乾滾在桌上。（立繪與音效照舊）
+    { who: 'kunbo', text: '欸，這個不是給你吃的啦。', set: { mini: 'sb-calico' }, tap: 'mini' },
     // 入夜：傍晚圖交叉淡化到夜景定版圖（shop-still.js 的 fadesBetween），之後停在夜景、不疊天色（與 d5brew 開頭一致）
-    { text: '外面天色慢慢暗下來。店裡很安靜，只有剝殼的聲音。', set: { night: 1 } },
+    { text: '外面天色慢慢暗下來。店裡很安靜，只有剝殼的聲音。', set: { night: 1, mini: null } },
     { text: '我又剝了一顆。', sfx: ['tickBowl'] },
     { text: '……這個味道，不知道跟咖啡搭不搭。' },
     { who: 'me', text: '德叔，我們可以出一款咖啡嗎？', set: { ...COUNTER } },
@@ -320,8 +328,9 @@ export const DAY_LINES = {
     { who: 'kunbo', text: '免費的喔？那我一定來捏。' },
   ],
   // 另一天晚上，吧台：排了好幾個杯子，坤伯坐在旁邊 → 試到好喝 → 紙袋上寫字 → 帶去公司
+  //   開頭分鏡格（咖啡五杯，單格）：只亮一次就收起，才接德叔開口；承峰 2026-11-25 拿掉第 2 格，「越排越多」只靠文字，不再重開
   d5brew: [
-    { who: 'deshu', text: '第一版好了，妳喝喝看。', set: { ...SHOP, ...COUNTER, tone: 'dusk', night: 1, deshu: 'brew', cat: 'nap', cup: false, portrait: false, prop: null, mini: null }, sfx: ['thinPour'] },
+    { who: 'deshu', text: '第一版好了，妳喝喝看。', set: { ...SHOP, ...COUNTER, tone: 'dusk', night: 1, deshu: 'brew', cat: 'nap', cup: false, portrait: false, prop: null, mini: null }, panel: 'sb-brew', tap: 'panel', sfx: ['thinPour'] },
     { text: '我喝了一口。', sfx: ['sip'] },
     { text: '很苦，後面還有一個怪味，我吞不太下去。' },
     // （畫面：她還沒開口，坤伯直接把杯子拿過去，整杯喝完。）
@@ -334,7 +343,7 @@ export const DAY_LINES = {
     { who: 'deshu', text: '用了坤伯的龍眼乾加上我調配的比例，在這個村里敢說難喝，大概會被趕出村吧。' },
     { who: 'me', text: '……那我不敢說了。' },
     { who: 'deshu', text: '我再調調看阿。' },
-    // （畫面：吧台上的杯子越排越多。）
+    // （畫面：吧台上的杯子越排越多。）只靠文字，不亮分鏡（承峰 2026-11-25）
     { text: '試到後來那一杯，我整杯喝完了。', sfx: ['place', 'sip'] },
     { who: 'me', text: '德叔，這杯好喝。' },
     { text: '我看著空杯子。連我這種不懂咖啡的人，都想再喝一杯。', set: { ...SIDE } },
@@ -345,8 +354,9 @@ export const DAY_LINES = {
     { who: 'me', text: '給同事喝喝看，說不定他們會想來店裡。' },
     { who: 'deshu', text: '好阿。包裝還沒設計，先用這個紙袋裝。' },
     // （畫面：德叔拿起筆，在測試品的紙袋上寫字。）
-    { text: '「提神醒腦，過目不忘」', set: { prop: 'paperbag' }, sfx: ['page'] },
-    { who: 'me', text: '好，我帶去公司。' },
+    { text: '「提神醒腦，過目不忘」', sfx: ['page'] },
+    // 【分鏡｜待定】紙袋上寫好「提神醒腦」「過目不忘」，筆擱在旁邊。（字畫進圖；原本 CSS 紙袋特寫與程式疊字拿掉）
+    { who: 'me', text: '好，我帶去公司。', set: { mini: 'sb-paperbag' }, tap: 'mini' },
   ],
 };
 

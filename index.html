@@ -361,12 +361,6 @@
   .pp-card.badge img { display: block; width: min(56vw, 210px); filter: drop-shadow(0 10px 18px rgba(0,0,0,.45)); }
   .pp-passbook { position: relative; width: 150px; height: 196px; border-radius: 6px; background: linear-gradient(135deg, #2f5a4a, #234537); box-shadow: 0 10px 22px rgba(0,0,0,.45); }
   .pp-passbook i { position: absolute; left: 14%; right: 14%; height: 3px; background: rgba(240,235,220,.0); }
-  .pp-passbook.printing { background: #f4f1e6; }
-  .pp-passbook.printing i { background: #555; animation: print .6s steps(1) both; }
-  .pp-passbook.printing i:nth-child(1) { top: 14%; animation-delay: .2s; } .pp-passbook.printing i:nth-child(2) { top: 26%; animation-delay: .7s; }
-  .pp-passbook.printing i:nth-child(3) { top: 38%; animation-delay: 1.2s; } .pp-passbook.printing i:nth-child(4) { top: 50%; animation-delay: 1.7s; }
-  .pp-passbook.printing i:nth-child(5) { top: 62%; animation-delay: 2.2s; } .pp-passbook.printing i:nth-child(6) { top: 74%; animation-delay: 2.7s; }
-  @keyframes print { from { opacity: 0; } to { opacity: .8; } }
   .pp-bag { width: 230px; height: 160px; border-radius: 8px; background: rgba(214,222,226,.85); box-shadow: 0 10px 22px rgba(0,0,0,.35), inset 0 8px 0 #9aa4aa; display: flex; align-items: center; justify-content: center; }
   .pp-bag span { padding: 6px 10px; background: #fbf8ef; font-size: 15px; letter-spacing: 1px; color: #3a2e25; transform: rotate(-2deg); }
   .pp-phone { position: relative; width: 150px; height: 290px; border-radius: 22px; border: 7px solid #2c2622; background: linear-gradient(#f4f6f4, #e2e8e2); box-shadow: 0 10px 26px rgba(0,0,0,.45); }
@@ -438,16 +432,6 @@
   .dy-stainspot { position: absolute; left: 41%; top: 43.8%; width: 20.5%; height: 21%; border-radius: 40%; pointer-events: none; opacity: 0; transition: opacity .6s;
     box-shadow: 0 0 0 3px rgba(255,236,190,.55), 0 0 26px 8px rgba(255,226,160,.35); }
   .op-day.mini-stain .dy-stainspot { opacity: 1; }
-  .dy-wallet { position: absolute; left: 80%; top: 48.9%; width: 6.5%; height: 1.7%; z-index: 1; border-radius: 3px; background: linear-gradient(#7a4a32, #5a3422); box-shadow: 0 2px 4px rgba(0,0,0,.35); }
-  .dy-wallet i { position: absolute; width: 60%; height: 70%; left: 10%; top: -40%; border-radius: 2px; background: #c7d6b8; opacity: 0; transition: opacity .4s, transform .5s; }
-  .dy-wallet i + i { left: 34%; background: #e6d7a8; }
-  .dy-place.counted .dy-wallet i { opacity: 1; transform: translateY(-60%) rotate(-8deg); }
-  .dy-ddrawer { position: absolute; left: 82%; top: 52.5%; width: 18%; height: 4.6%; z-index: 1; border-radius: 3px; background: transparent; transition: transform .6s ease, background .3s; }
-  .dy-place.open .dy-ddrawer { transform: translateY(45%); background: linear-gradient(#8b6440, #6e4c2f); box-shadow: inset 0 0 0 3px #5a3d26, 0 4px 8px rgba(0,0,0,.35); }
-  .dy-seal, .dy-book { position: absolute; top: 22%; height: 56%; opacity: 0; transition: opacity .4s .3s; }
-  .dy-seal { left: 70%; width: 8%; border-radius: 3px; background: #b23a2e; }
-  .dy-book { left: 40%; width: 22%; border-radius: 2px; background: #2f5a4a; }
-  .dy-place.open .dy-seal, .dy-place.open .dy-book { opacity: 1; }
   /* 超商（定版 bg_v56_store_interior_seating_portrait，承峰 2026-11-22「超商圖定版」）：座位區後牆、吧台上方、窗戶左側畫好一張有框的空白海報。
      熱點＝海報外框（原圖 x 348–646、y 569–977）；字疊在紙面（原圖 x 358–638、y 580–967）＝外框內縮 左 3.356%／上 2.696%／右 2.685%／下 2.451%。
      不再疊 CSS 白紙、膠帶、也不旋轉（不蓋住原圖海報）。程式只疊「誠徵門市人員」（不疊薪水）；提示字「點座位區的徵人海報」（view/hints.js 的 POSTER_HINT）。
@@ -486,6 +470,19 @@
   .pp-mini.ask { animation: doorcall 2.2s ease-in-out infinite; }
   .pp-mini > img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .pp-mini > div { position: absolute; inset: 0; }
+  /* 分鏡格（.pp-mini.sb；承峰 2026-11-24／25 定版八組，咖啡館畫師產圖）：橫式 4:3，寬度同小圖（min(64vw, 250px)）；
+     黑框與白邊已畫在圖裡（框是程式做的），這裡不再加框。直排多格（刷存摺 3 格、貓靠近 2 格）是同一張圖，一格一個 .sb-cell，
+     依台詞一格一格亮（.lit），還沒亮的格先留位置；整條太高時依畫面高度縮小（--r＝整張圖的高／寬），手機上不蓋到閱讀框。 */
+  .pp-mini.sb { aspect-ratio: auto; background: transparent; border: 0; border-radius: 0; overflow: visible; box-shadow: none;
+    width: min(64vw, 250px, calc(54vh / var(--r, .75))); width: min(64vw, 250px, calc(54dvh / var(--r, .75))); }
+  .pp-mini.sb.strip { top: 5%; }
+  .pp-mini.sb > .sb-cell { position: relative; inset: auto; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; opacity: 0; transform: translateY(6px);
+    transition: opacity .45s, transform .45s; filter: drop-shadow(0 8px 16px rgba(20,10,5,.45)); }
+  .pp-mini.sb > .sb-cell + .sb-cell { margin-top: 3.125%; } /* 原圖格距 64px／寬 2048px */
+  .pp-mini.sb > .sb-cell.lit { opacity: 1; transform: none; }
+  .pp-mini.sb > .sb-cell > img { position: absolute; left: 0; width: 100%; height: auto; display: block; }
+  /* 第二幕開信封：疊在房間畫面上（不在 #op-prop），點一下收掉進信件 */
+  .op-letterroom .pp-mini.sb { z-index: 4; pointer-events: auto; cursor: pointer; }
   .pp-overlay { font-weight: 700; letter-spacing: 2px; }
   .mn-on-art { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 30px; color: #b0302a; }
   /* 空罐子小圖（prop_v56_empty_can_label_v2，1024×1024）：標籤留白在 x 285–712、y 533–862，「農藥」疊在留白中央 */
@@ -501,11 +498,8 @@
   .mn-longan { background: #3a2a1e; }
   .mn-longan i { position: absolute; left: 22%; top: 24%; width: 56%; height: 52%; border-radius: 50%; background: radial-gradient(circle at 40% 36%, #3d2a1c, #1f150e 70%); box-shadow: 0 0 0 10px #8a6038, 0 0 0 12px #6e4a2a; }
   .mn-longan i + i { left: 56%; top: 54%; width: 24%; height: 22%; background: #8a6038; box-shadow: none; }
-  /* 特寫卡：徵人海報、測試品的紙袋（字由程式疊；薪水數字劇本沒寫，不疊） */
+  /* 特寫卡：徵人海報（字由程式疊；薪水數字劇本沒寫，不疊）。測試品的紙袋已改成分鏡格（.pp-mini.sb） */
   .pp-poster { width: 210px; height: 270px; display: flex; align-items: flex-start; justify-content: center; padding-top: 40px; background: #fbfaf4; box-shadow: 0 10px 22px rgba(0,0,0,.4); font-size: 24px; color: #b0302a; }
-  .pp-paperbag { width: 200px; height: 250px; display: flex; align-items: center; justify-content: center; padding: 0 30px; background: linear-gradient(#c79e6a, #b18556); box-shadow: 0 10px 22px rgba(0,0,0,.4), inset 0 22px 0 #a77c4e;
-    font-family: "Kaiti TC", "DFKai-SB", "BiauKai", serif; font-size: 22px; line-height: 1.6; color: #2b1d12; writing-mode: vertical-rl; }
-  .pp-paperbag .pp-overlay { letter-spacing: 4px; font-weight: 400; }
   /* 點一下才出句子的整片點擊區（小圖疊上來時） */
   .pp-peek { position: absolute; inset: 0; z-index: 1; padding: 0; background: transparent; box-shadow: none; border-radius: 0; cursor: pointer; }
   .pp-tapitem { cursor: pointer; }
@@ -524,9 +518,6 @@
   .op-env { position: absolute; left: 77%; top: 45.2%; width: 15%; height: 5.6%; min-width: 44px; min-height: 44px; z-index: 2; padding: 0; background: transparent; box-shadow: none; border-radius: 6px; }
   .op-env::before { content: ""; position: absolute; left: 10%; right: 10%; top: 30%; bottom: 18%; border-radius: 2px; background: linear-gradient(#d4ab78, #b88a55); box-shadow: 0 2px 4px rgba(0,0,0,.35); }
   .op-env-flap { position: absolute; left: 10%; right: 10%; top: 30%; height: 30%; background: #a77a48; clip-path: polygon(0 0, 100% 0, 50% 100%); }
-  .op-env.call { animation: doorcall 2.2s ease-in-out infinite; }
-  .op-env:disabled { opacity: 1; cursor: default; }
-  .op-env.pulled::after { content: ""; position: absolute; left: 22%; right: 22%; top: 0; height: 46%; background: #fbf8f1; box-shadow: 0 1px 3px rgba(0,0,0,.3); animation: rise .6s ease-out both; }
   .op-roombox { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; min-height: var(--box-h); padding: 24px 22px calc(22px + env(safe-area-inset-bottom)); background: #fbf5e8;
     border-top: 5px solid var(--wood); box-shadow: 0 -6px 20px rgba(30,15,5,.35); cursor: pointer; }
   .op-roombox .op-caption { text-align: left; font-size: 19px; line-height: 1.6; color: #4b3a2e; opacity: 1; }
@@ -542,7 +533,7 @@
   .op-office.resend button.op-after.quote { font-family: "PMingLiU", "MingLiU", "Songti TC", "Noto Serif TC", serif; }
   .op-office.resend #op-next { min-width: 160px; letter-spacing: 4px; animation: floatin 1s ease-out both; }
   /* 特休前一晚：同一間房間；「出發去東山」在旁白框上方 */
-  .op-letterroom.eve .op-env { pointer-events: none; }
+  .op-letterroom .op-env { pointer-events: none; } /* 桌上的信封只是擺著（開信封改成分鏡格） */
   .op-letterroom.eve #op-next { position: absolute; left: 50%; bottom: calc(var(--box-h) + 18px); z-index: 4; min-width: 160px; transform: translateX(-50%); letter-spacing: 2px; }
   /* 第一天早上：把鑰匙拖向德叔（或吧台）：兩個都算；提示字 */
   .pp-zone.to-bar { left: 6%; top: 50%; width: 88%; height: 12%; }
