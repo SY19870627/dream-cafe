@@ -69,6 +69,7 @@ export const ACT_MUSIC = { // 【待定】
   d5card: m('day'), // 【待定】
   d5cafe: m('day'), // 【待定】
   d5village: m('day'), // 【待定】
+  d5return: m('day', 0.7), // 【待定】傍晚回店：先降到 70%，與 d5thanks 開頭銜接（不換曲，入夜才換 cafe）
   d5thanks: m('day', 0.7), // 【待定】「外面天色慢慢暗下來」與畫面入夜同一拍換 cafe（LINE_CUES）
   d5brew: m('cafe'), // 【待定】
   tbc: m('night', 0.5), // 【待定】待續：不靜音

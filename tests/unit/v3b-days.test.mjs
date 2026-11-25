@@ -622,11 +622,11 @@ test('店內環景與「看看店裡／回座位」已拔掉（承峰 2026-11-21
   }
   for (const f of ['src/view/pano.js', 'src/view/scenes.js', 'src/view/shop.js']) assert.ok(!existsSync(root(f)), `${f} 應該刪掉`);
   // 店裡的幕都是 2D 定景（still）；第一天起的店裡第一句 place 是 shop
-  for (const a of ['d1shop', 'd2cafe', 'd5cafe', 'd5thanks', 'd5brew']) {
+  for (const a of ['d1shop', 'd2cafe', 'd5cafe', 'd5return', 'd5thanks', 'd5brew']) {
     assert.equal(D.DAY_ACT_VIEW[a], 'still', a);
     assert.equal(D.DAY_LINES[a][0].set.place, 'shop', a);
   }
-  assert.deepEqual(D.SHOP_STILL_ACTS, ['d1shop', 'd2cafe', 'd5cafe', 'd5thanks', 'd5brew']);
+  assert.deepEqual(D.SHOP_STILL_ACTS, ['d1shop', 'd2cafe', 'd5cafe', 'd5return', 'd5thanks', 'd5brew']);
   assert.ok(!Object.values(D.DAY_ACT_VIEW).includes('shop'));
   for (const b of [...dayLines(), ...Object.values(OP.OPENING_LINES).flat()]) assert.ok(!b.set || !('yaw' in b.set), `還有環景角度：${b.text}`);
   // 點椅子坐下：2D 熱點（必做，不加「也可以直接翻頁」），點了才進坐下喝咖啡；不自動坐下、不轉鏡頭
@@ -684,7 +684,7 @@ test('第一晚睡著後進第一天；一路照順序走完到研發咖啡，�
   assert.equal(S.nextActOf('d5brew'), S.END_ACT, '研發咖啡之後是待續（公司那場不寫）');
   assert.equal(S.nextActOf(S.END_ACT), null);
   for (const b of dayLines()) assert.ok(seen.includes(b), `沒讀到：${b.text}`);
-  assert.deepEqual(D.DAY_ACTS, ['t1card', 'd1wake', 'd1shop', 'd1town', 'd1home', 'd1bank', 'd1store', 't0card', 'resend', 'd2card', 'd2cafe', 'd5card', 'd5cafe', 'd5village', 'd5thanks', 'd5brew']);
+  assert.deepEqual(D.DAY_ACTS, ['t1card', 'd1wake', 'd1shop', 'd1town', 'd1home', 'd1bank', 'd1store', 't0card', 'resend', 'd2card', 'd2cafe', 'd5card', 'd5cafe', 'd5village', 'd5return', 'd5thanks', 'd5brew']);
   const main = code('src/main.js');
   assert.doesNotMatch(main, /finishOpening|choosePassbook/);
   assert.equal((main.match(/if \(done === 'slept'\) return fallAsleep\(\);/g) || []).length, 1, '只有第一晚（開場 room）會睡著');
@@ -1067,4 +1067,51 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   for (const b of dayLines()) for (const n of b.sfx || []) assert.ok(audio.includes(`case '${n}':`), `沒有音效 ${n}`);
   assert.doesNotMatch(read('src/view/days.js'), /\.(mp3|ogg|wav|m4a)\b/);
   assert.ok(!existsSync(root('assets/art/art-map.js')));
+});
+
+// 回到店裡（承峰定稿）：坤伯院子之後、坤伯來答謝之前；店內傍晚定景，同一天（字卡「三天後」）
+test('d5return 回到店裡：位置、正文逐字、傍晚店內、同屬「三天後」、不加互動與小圖', () => {
+  const acts = D.DAY_ACTS;
+  assert.equal(acts.indexOf('d5return'), acts.indexOf('d5village') + 1);
+  assert.equal(acts.indexOf('d5thanks'), acts.indexOf('d5return') + 1);
+  assert.equal(S.nextActOf('d5village'), 'd5return');
+  assert.equal(S.nextActOf('d5return'), 'd5thanks');
+  assert.equal(D.DAY_ACT_VIEW.d5return, 'still');
+  assert.equal(D.DAY_ACT_NAMES.d5return, '三天後・回到店裡');
+  assert.ok(D.SHOP_STILL_ACTS.includes('d5return'));
+  const L = D.DAY_LINES.d5return;
+  assert.deepEqual(L.map((b) => [b.who || null, b.text]), [
+    [null, '離開坤伯家以後，我又多走了幾戶。回到店裡的時候，太陽已經快下山了。'],
+    [null, '我推開門，風鈴響了一下。'],
+    ['deshu', '回來了阿。'],
+    [null, '我把斗笠拿下來還他。'],
+    ['deshu', '有問到嗎？'],
+    ['me', '沒問到幾句。'],
+    ['me', '不過有遇到坤伯，在他家院子。'],
+    ['deshu', '喔，坤伯阿。'],
+    [null, '我想到牆角那桶加了農藥的水，不知道他後來倒掉了沒有。'],
+    [null, '我還沒往下講。'],
+    [null, '德叔先倒了一杯水給我。'],
+  ]);
+  for (const t of ['我就沒往下講。', '德叔也沒問，倒了一杯水給我。']) assert.equal(find(t), null, `舊稿句子：${t}`);
+  assert.equal(L[0].set.place, 'shop');
+  assert.equal(L[0].set.tone, 'dusk');
+  assert.ok(!L.some((b) => b.set && b.set.night), '還沒入夜');
+  assert.deepEqual(L[1].sfx, ['door', 'bell']);
+  for (const b of L) {
+    assert.ok(!b.tap && !b.optional && !b.gate && !b.panel, `不加互動：${b.text}`);
+    assert.ok(!b.set || (b.set.mini == null && !b.set.cup && b.set.prop == null), `不加小圖、不開杯子：${b.text}`);
+    assert.doesNotMatch(b.text, MARKS);
+  }
+  assert.equal(S.resumeCardOf(at('d5return', 5)), 'd5card');
+  assert.equal(reload(at('d5return', 5)).opening.act, 'd5return');
+  assert.equal(reload(at('d5return', 5)).opening.line, 5);
+  const script = read('docs/劇本.md').replace(/\r\n/g, '\n');
+  const a = script.indexOf('他一邊講，一邊把那桶水提到牆角，離龍眼樹遠遠的。');
+  const b = script.indexOf('\n## 回到店裡\n');
+  const c = script.indexOf('\n## 坤伯來答謝\n');
+  assert.ok(a >= 0 && a < b && b < c, '劇本：回到店裡在院子之後、坤伯來答謝之前');
+  const sec = script.slice(b, c);
+  assert.ok(!sec.includes('【待定】'));
+  for (const x of L) assert.ok(sec.includes(x.text), `劇本沒有：${x.text}`);
 });

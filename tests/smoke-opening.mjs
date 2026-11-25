@@ -581,7 +581,7 @@ try {
   await waitAct('tbc', 8000);
   await sleep(2500);
   await snap('tbc');
-  const want = ['d1wake', 'd1shop', 'd1town', 'd1home', 'd1bank', 'd1store', 'resend', 'd2card', 'd2cafe', 'd5card', 'd5cafe', 'd5village', 'd5thanks', 'd5brew'];
+  const want = ['d1wake', 'd1shop', 'd1town', 'd1home', 'd1bank', 'd1store', 'resend', 'd2card', 'd2cafe', 'd5card', 'd5cafe', 'd5village', 'd5return', 'd5thanks', 'd5brew'];
   for (const w of want) if (!seenActs.includes(w)) fail(`沒走到 ${w}（走過：${seenActs.join(' → ')}）`);
   for (const old of ['d1rent', 'd1dusk', 'd1back', 'd1ride', 'd2home', 'd2back', 'd2ride', 'd3card', 'd3morn']) if (seenActs.includes(old)) fail(`還走到 v5.7 的 ${old}`);
   if (seenActs.indexOf('d5card') !== seenActs.indexOf('d2cafe') + 1) fail(`「我相信妳一定可以的。」之後不是字卡「三天後」：${seenActs.join(' → ')}`);

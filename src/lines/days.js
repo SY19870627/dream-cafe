@@ -92,7 +92,7 @@ export const DAY_ACT_VIEW = {
   d1wake: 'still', d1shop: 'still', d1town: 'still', d1home: 'still', d1bank: 'still', d1store: 'still',
   t0card: 'card', resend: 'office',
   d2card: 'card', d2cafe: 'still',
-  d5card: 'card', d5cafe: 'still', d5village: 'still', d5thanks: 'still', d5brew: 'still',
+  d5card: 'card', d5cafe: 'still', d5village: 'still', d5return: 'still', d5thanks: 'still', d5brew: 'still',
 };
 export const DAY_ACTS = Object.keys(DAY_ACT_VIEW);
 // 跳關選單、回報用的幕名（劇本段落）。v5.9：原「第一天」那段改用事件名（前面是字卡「我單方面辭退老闆前 1 天」）
@@ -102,7 +102,7 @@ export const DAY_ACT_NAMES = {
   d1home: '房間、盤點', d1bank: '提款機', d1store: '超商',
   t0card: '字卡：我單方面辭退老闆當天　16:49', resend: '接回：16:49 的辦公室（自動送出）',
   d2card: '字卡：第二天', d2cafe: '第二天・回咖啡館',
-  d5card: '字卡：三天後', d5cafe: '三天後・咖啡館', d5village: '三天後・市調、坤伯院子', d5thanks: '三天後・坤伯來答謝', d5brew: '研發咖啡',
+  d5card: '字卡：三天後', d5cafe: '三天後・咖啡館', d5village: '三天後・市調、坤伯院子', d5return: '三天後・回到店裡', d5thanks: '三天後・坤伯來答謝', d5brew: '研發咖啡',
 };
 
 export const DAY_LINES = {
@@ -290,6 +290,20 @@ export const DAY_LINES = {
     { who: 'kunbo', text: '兩罐長得一模一樣，誰分得出來。' },
     { who: 'kunbo', text: '這桶我本來就還沒有要用啊。' },
     { text: '他一邊講，一邊把那桶水提到牆角，離龍眼樹遠遠的。', set: { bucketMoved: true } },
+  ],
+  // 傍晚，咖啡館（承峰定稿）：先側場、推門進來（門與風鈴）→ 轉吧台跟德叔講話。斗笠還德叔、德叔倒水只用句子交代（不疊小圖、不開杯子熱點）
+  d5return: [
+    { text: '離開坤伯家以後，我又多走了幾戶。回到店裡的時候，太陽已經快下山了。', set: { ...SHOP, ...SIDE, tone: 'dusk', deshu: 'stand', cat: 'nap', cup: false, portrait: false, prop: null, mini: null } },
+    { text: '我推開門，風鈴響了一下。', sfx: ['door', 'bell'] },
+    { who: 'deshu', text: '回來了阿。', set: { ...COUNTER } },
+    { text: '我把斗笠拿下來還他。' },
+    { who: 'deshu', text: '有問到嗎？' },
+    { who: 'me', text: '沒問到幾句。' },
+    { who: 'me', text: '不過有遇到坤伯，在他家院子。' },
+    { who: 'deshu', text: '喔，坤伯阿。' },
+    { text: '我想到牆角那桶加了農藥的水，不知道他後來倒掉了沒有。' },
+    { text: '我還沒往下講。' },
+    { text: '德叔先倒了一杯水給我。' },
   ],
   // 傍晚，咖啡館：坤伯推門進來，手上提著一個袋子 →【小圖：龍眼乾】→ 銀杏龍眼咖啡
   d5thanks: [

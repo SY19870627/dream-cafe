@@ -56,6 +56,7 @@ test('幕對照表涵蓋每一幕（開場、第一天起、待續）；曲目�
   assert.deepEqual(['d1town', 'd1home'].map(at), ['city@1', 'city@1']);
   assert.deepEqual(['d1bank', 'd1store'].map(at), ['city@0.5', 'city@0.5']);
   assert.deepEqual(['d2card', 'd2cafe', 'd5card', 'd5cafe', 'd5village'].map(at), Array(5).fill('day@1'));
+  assert.equal(at('d5return'), 'day@0.7', '傍晚回店：與 d5thanks 開頭同音量，中間不換曲、不提早換 cafe');
   assert.equal(at('d5thanks'), 'day@0.7');
   assert.equal(at('d5brew'), 'cafe@1');
   assert.equal(at(S.END_ACT), 'night@0.5', '待續不靜音');
