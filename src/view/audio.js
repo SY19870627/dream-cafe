@@ -405,7 +405,7 @@ function synth(name) { // 【待定】
       tone(80, { dur: 1.1, gain: 0.1, type: 'sawtooth', to: 26 });
       noise({ at: 1.0, dur: 0.06, gain: 0.08, freq: 1500, q: 3 });
       break;
-    case 'rev': // 掉頭時催一下油門
+    case 'rev': // 合成退路（錄音載不到時）；開場轉彎、迴轉已改走 setEnginePath 引擎曲線，不播這個
       tone(60, { dur: 1.2, gain: 0.1, type: 'sawtooth', to: 120 });
       noise({ dur: 1.2, gain: 0.05, freq: 320, q: 0.7, type: 'lowpass' });
       break;
@@ -468,15 +468,16 @@ let pendingLevel = 1;
 let engine = null; // 錄音：{ rate }（playbackRate）；合成：{ o, o2 }（振盪器）
 let pendingRev = 0;
 const ENGINE_RATE = 0.2; // 【待定】錄音：怠速 1.0 → 往前騎 1.2，不要誇張到變調好笑
-// 引擎轉速：0＝怠速、1＝往前騎（只影響 engine 環境聲）
-export function setEngine(rev) {
-  pendingRev = Math.max(0, Math.min(1, rev));
+const clampRev = (rev) => Math.max(0, Math.min(1, rev));
+// 引擎轉速：0＝怠速、1＝往前騎（只影響 engine 環境聲）；ramp＝錄音幾秒滑到位（合成固定 0.35 秒）
+export function setEngine(rev, ramp = 0.6) {
+  pendingRev = clampRev(rev);
   if (!ctx || !engine) return;
   const t = ctx.currentTime;
   if (engine.rate) { // 【待定】
     engine.rate.cancelScheduledValues(t); // 【待定】
     engine.rate.setValueAtTime(engine.rate.value, t); // 【待定】
-    engine.rate.linearRampToValueAtTime(1 + pendingRev * ENGINE_RATE, t + 0.6); // 【待定】
+    engine.rate.linearRampToValueAtTime(1 + pendingRev * ENGINE_RATE, t + ramp); // 【待定】
     return; // 【待定】
   } // 【待定】
   const f = 38 + pendingRev * 42;
@@ -486,6 +487,37 @@ export function setEngine(rev) {
     o.frequency.linearRampToValueAtTime(f * k, t + 0.35);
   }
 }
+// 引擎轉速曲線：steps＝[{ t, rev }, ...]，t 是從現在起算的秒數（遞增），每段直線滑過去，不急降、不抖。
+// 過彎、迴轉用這個，不另外播一次性音效（rev 錄音是冷車爆音，疊上去像要故障）。
+export function setEnginePath(steps) {
+  if (!steps.length) return;
+  pendingRev = clampRev(steps[steps.length - 1].rev);
+  if (!ctx || !engine) return;
+  const now = ctx.currentTime;
+  const params = engine.rate ? [[engine.rate, null]] : [[engine.o.frequency, 1], [engine.o2.frequency, 0.5]];
+  for (const [p, k] of params) {
+    p.cancelScheduledValues(now);
+    p.setValueAtTime(p.value, now);
+    for (const s of steps) {
+      const r = clampRev(s.rev);
+      p.linearRampToValueAtTime(k === null ? 1 + r * ENGINE_RATE : (38 + r * 42) * k, now + s.t);
+    }
+  }
+}
+// 轉彎（對齊 road.turn 1.5 秒）：輕加油 → 過彎小收油 → 出彎平順加油 → 回怠速
+export const ENGINE_TURN = Object.freeze([
+  { t: 0.3, rev: 0.5 },
+  { t: 0.85, rev: 0.28 },
+  { t: 1.25, rev: 0.58 },
+  { t: 1.5, rev: 0 },
+]);
+// 迴轉（對齊 road.uturn 1.6 秒）：更慢、更收油；輕帶油 → 壓低接近怠速 → 轉完帶一點油 → 回怠速
+export const ENGINE_UTURN = Object.freeze([
+  { t: 0.25, rev: 0.35 },
+  { t: 1.05, rev: 0.15 },
+  { t: 1.35, rev: 0.42 },
+  { t: 1.6, rev: 0 },
+]);
 // 調整目前環境聲的音量（例如推開咖啡豆行的門，磨豆機聲變大）
 export function setAmbientLevel(level) {
   pendingLevel = level;

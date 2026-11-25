@@ -9,7 +9,7 @@
 // 字全部來自 src/lines/opening.js。畫師原圖只讀不改（不重新壓縮、不縮圖）；夜路的路面是程式繪製，路上照到的東西用畫師原圖。
 import { RESIGNATION, LETTER, ROOM_LETTER, EVE, OFFICE, TITLE, ROAD, DEPART, TEMPLE } from '../lines/opening.js';
 import { RESEND } from '../lines/days.js';
-import { play, setEngine } from './audio.js';
+import { play, setEngine, setEnginePath, ENGINE_TURN, ENGINE_UTURN } from './audio.js';
 import { img, ready } from './art.js';
 import { artUrl, srcOf } from './art-map.js';
 import { STORYBOARDS, parseSb, applyStoryboard, sbHintTop } from './days.js';
@@ -424,8 +424,7 @@ export function showScene(root, act, api) {
               const side = b.classList.contains('left') ? 'left' : 'right';
               for (const o of btns) { o.disabled = true; o.classList.toggle('picked', o === b); }
               if (!api.chooseFork(side)) { res(false); return; }
-              play('rev');
-              setEngine(0.8);
+              setEnginePath(ENGINE_TURN); // 過彎：小收油再平順加油，轉完回怠速
               await road.turn(side);
               res(alive());
             };
@@ -439,8 +438,7 @@ export function showScene(root, act, api) {
           btn.onclick = async () => {
             if (btn.disabled) return;
             btn.disabled = true;
-            play('rev');
-            setEngine(0.7);
+            setEnginePath(ENGINE_UTURN); // 迴轉：更慢更收油，轉完回怠速
             await road.uturn(); // 車燈掃過路邊轉半圈
             res(alive());
           };

@@ -59,6 +59,34 @@ test('audio.js：每個有錄音的名稱都留著合成退路；錄音用 fetch
   assert.match(src, /const ENGINE_RATE = 0\.2;/);
 });
 
+test('開場轉彎、迴轉：不播 rev 錄音（冷車爆音像要故障），改走引擎轉速曲線，結束回怠速', async () => {
+  const view = read('src/view/opening.js');
+  assert.doesNotMatch(view, /play\('rev'\)/, '轉彎／迴轉不再疊 rev 錄音');
+  assert.doesNotMatch(view, /setEngine\(0\.[78]\)/, '不再把轉速停在 0.7／0.8');
+  assert.match(view, /setEnginePath\(ENGINE_TURN\);[^\n]*\n\s*await road\.turn\(side\);/);
+  assert.match(view, /setEnginePath\(ENGINE_UTURN\);[^\n]*\n\s*await road\.uturn\(\);/);
+  assert.match(view, /import \{[^}]*\bsetEnginePath\b[^}]*\bENGINE_TURN\b[^}]*\bENGINE_UTURN\b[^}]*\} from '\.\/audio\.js';/);
+  const src = read('src/view/audio.js');
+  assert.match(src, /export function setEnginePath\(steps\)/);
+  assert.match(src, /export const ENGINE_TURN = /);
+  assert.match(src, /export const ENGINE_UTURN = /);
+  const A = await import('../../src/view/audio.js');
+  assert.equal(typeof A.setEnginePath, 'function');
+  for (const [name, path, end, peak] of [['ENGINE_TURN', A.ENGINE_TURN, 1.5, 0.7], ['ENGINE_UTURN', A.ENGINE_UTURN, 1.6, 0.5]]) {
+    assert.ok(path.length >= 2, name);
+    assert.equal(path.at(-1).t, end, `${name} 對齊動畫長度`);
+    assert.equal(path.at(-1).rev, 0, `${name} 結束回怠速`);
+    let prev = 0;
+    for (const s of path) {
+      assert.ok(s.t - prev >= 0.2 - 1e-9, `${name} 每段至少 0.2 秒（${prev}→${s.t}）`);
+      assert.ok(s.rev >= 0 && s.rev <= peak, `${name} 轉速 ${s.rev} 超過 ${peak}`);
+      prev = s.t;
+    }
+  }
+  // 沒有 AudioContext 時只記下最後轉速，不丟錯
+  A.setEnginePath(A.ENGINE_TURN);
+});
+
 test('呼叫點換成新拆出來的名稱', () => {
   const days = read('src/view/days.js');
   assert.match(days, /name === 'mailbox'\) \{ play\('doorIron'\)/);
