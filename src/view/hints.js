@@ -27,7 +27,7 @@ export const MUST_HINTS = {
 // 小圖：疊上來以後點一下才出句子（依小圖是哪一張）
 export const MINI_HINTS = {
   stain: '點窗戶下面的水痕',
-  passbook: '點存摺',
+  passbook: '點存簿',
   hat: '點斗笠',
   label: '點標籤',
   longan: '點龍眼乾',

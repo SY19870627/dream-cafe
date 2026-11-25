@@ -35,7 +35,7 @@ import { COUNTDOWN, LETTER } from './opening.js';
 //   gate：keyGive 把鑰匙拖向德叔（他兩手都在豆子裡，沒有接；拖向吧台也放不下，一樣回到手上）
 //   face：德叔這一句用哪一張臉（smile＝char_deshu_smile）；只管這一句，不累加
 //   linger：這一幕最後一句說完後停多久才淡出（毫秒）；停之前就先存成下一幕（字卡出現前自動存檔）
-//   set.mini：疊在原場景上的小圖（stain 水痕／passbook 存摺／hat 斗笠／label 空罐子的標籤／longan 龍眼乾）；null＝收掉
+//   set.mini：疊在原場景上的小圖（stain 水痕／passbook 存簿／hat 斗笠／label 空罐子的標籤／longan 龍眼乾）；null＝收掉
 //     也放分鏡格（承峰 2026-11-24／25 定版八組，咖啡館畫師產圖，見 view/days.js 的 STORYBOARDS）：
 //     sb-<名>＝單格；sb-<名>-<n>＝直排多格亮到第 n 格（sb-atm-1～3 刷存摺、sb-cat-1～2 貓靠近）
 //   set.prop：特寫卡（poster 徵人海報）
@@ -154,7 +154,7 @@ export const DAY_LINES = {
     { who: 'landlord', text: '記得下禮拜要交房租。' },
     { who: 'me', text: '好，我記得。' },
   ],
-  // 房間：窗戶下的水痕（小圖）→ 數錢（分鏡格）→ 開抽屜（分鏡格）→ 存摺（小圖）。原本點錢包、點抽屜的 CSS 動作改成分鏡格
+  // 房間：窗戶下的水痕（小圖）→ 數錢（分鏡格）→ 開抽屜（分鏡格）→ 存簿（小圖）。原本點錢包、點抽屜的 CSS 動作改成分鏡格
   d1home: [
     { text: '房間很悶，我先把窗戶打開。', set: { place: 'home', prop: null, mini: null }, sfx: ['creakWindow'] },
     { text: '窗戶下面那塊水痕好像又比上個月大了一點。', set: { mini: 'stain' }, tap: 'mini' },
@@ -167,14 +167,14 @@ export const DAY_LINES = {
     { who: 'me', text: '哪有人會隨便找一個不認識的人當老闆。' },
     { who: 'me', text: '而且我連泡咖啡都不會。' },
     { who: 'me', text: '……先找看看印章還在嗎。哪天真的要辦離職手續，會用到。' },
-    // 【分鏡｜待定】抽屜拉開，印章在最裡面，旁邊露出存摺一角。（格收掉時直接換成存摺小圖）
+    // 【分鏡｜待定】抽屜拉開，印章在最裡面，旁邊露出存簿一角。（格收掉時直接換成存簿小圖）
     { who: 'me', text: '印章還在。', set: { mini: 'sb-drawer' }, tap: 'mini' },
     { who: 'me', text: '這本是……爸幫我開的戶頭。', set: { mini: 'passbook' }, tap: 'mini' },
     { who: 'me', text: '裡面存了幾年的壓歲錢，現在只好拿出來用了。' },
     { text: '存簿只印了前面幾行，後面都是空的。' },
     { who: 'me', text: '先去補刷，看看還有多少。' },
   ],
-  // 郵局外面的提款機（八月的下午）：刷存摺直排三格（一張圖，照台詞依序亮格；原本點存摺放進機器、CSS 一行一行印、CSS 存摺卡都拿掉）
+  // 郵局外面的提款機（八月的下午）：刷存簿直排三格（一張圖，照台詞依序亮格；原本點存摺放進機器、CSS 一行一行印、CSS 存摺卡都拿掉）
   //   第 1 格進場景自動亮起（不佔點擊）→ 第 2 格跟「每一行都是一萬。」等三句 → 第 3 格跟「裡面居然有十六萬！」→ 吐一口氣那句收起
   d1bank: [
     { text: '每一行都是一萬。', set: { place: 'atm', prop: null, mini: 'sb-atm-2' }, panel: 'sb-atm-1', tap: 'panelAuto', sfx: ['copier'] },

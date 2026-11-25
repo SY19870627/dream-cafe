@@ -24,7 +24,7 @@ const mem = () => {
 /* ---------- 與遊戲無關 ---------- */
 test('核心不含 dream-cafe 專屬的字（遊戲名、存檔鍵、幕名、網址、檔名、角色）', () => {
   const banned = [/dream[-_.]?cafe/i, /夢想咖啡/, /\bd\d(wake|shop|town|cafe|night)\b/, /\bopening\b/, /githack/i, /githubusercontent/i, /SY19870627/i,
-    /art\.js/, /state\.js/, /reader\.js/, /\.\.\/version\.js/, /BUILD_TIME\b/, /#app\b/, /feat\/v3b/, /店內 360/, /德叔/, /宜蓁/, /v3b/, /三合院/, /存摺/, /岔路/, /taiwan-procession/i];
+    /art\.js/, /state\.js/, /reader\.js/, /\.\.\/version\.js/, /BUILD_TIME\b/, /#app\b/, /feat\/v3b/, /店內 360/, /德叔/, /宜蓁/, /v3b/, /三合院/, /存摺/, /存簿/, /岔路/, /taiwan-procession/i];
   const files = listCoreFiles(CORE).concat('MANIFEST.json');
   assert.ok(files.length >= 12);
   for (const f of files) {

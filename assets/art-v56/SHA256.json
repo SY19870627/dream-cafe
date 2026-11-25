@@ -90,11 +90,6 @@
     "sha256": "0f8fcf9d0b767656adeee73fc1f94c657e8dab092e7911beafc1b7c4f409c2ed"
   },
   {
-    "path": "B/bg_v56_bank_atm_portrait.webp",
-    "bytes": 730870,
-    "sha256": "c91f52748fec2873eb306cda9762cb077159ed3f6c71fa77237445a8b50f7f0b"
-  },
-  {
     "path": "B/bg_v56_hulong_morning_portrait.webp",
     "bytes": 634928,
     "sha256": "9691e3914e24738ad18ecbd6bff19473cdd2198f193ff3e3c8f6c8e490edc2a0"
@@ -103,6 +98,11 @@
     "path": "B/bg_v56_kunbo_yard_portrait.webp",
     "bytes": 711772,
     "sha256": "9ca4b7452a82869aa3c0728102b49347bfc817ce9016b2df996ad3a339478ba2"
+  },
+  {
+    "path": "B/bg_v56_post_atm_portrait.webp",
+    "bytes": 749718,
+    "sha256": "a9895622ca94b4edbd66a4452bcb5c7de21f4bfd91d567646844e6983c7b9e41"
   },
   {
     "path": "B/bg_v56_rental_room_day_portrait.webp",
@@ -118,6 +118,11 @@
     "path": "B/bg_v56_store_interior_portrait.webp",
     "bytes": 765052,
     "sha256": "8767f842110ed0a307c54068ab378c04802c4f90c0e3167e5db1dea94b5fcd12"
+  },
+  {
+    "path": "B/bg_v56_store_interior_seating_portrait.webp",
+    "bytes": 933204,
+    "sha256": "3df14fdd2743747d21d88f11f98a4122590da5bece031860036b3fa9f61701e3"
   },
   {
     "path": "B/bg_v56_village_lane_portrait_v2.webp",
@@ -140,9 +145,9 @@
     "sha256": "539c93cda9c09ed32da5f51764c73973536225c119f4cf620140c24bc5afe034"
   },
   {
-    "path": "C/prop_v56_passbook_drawer_v2.webp",
-    "bytes": 123378,
-    "sha256": "4d6976b4a24b0ad5f084e8449d70803a72144301c847aca3f9a498ab9fe82cc8"
+    "path": "C/prop_v56_passbook_drawer_v3.webp",
+    "bytes": 108266,
+    "sha256": "e37b4dd8db25990a3292d8fea8faf9ce21d5831c6ac1e2c6402f4783f902b338"
   },
   {
     "path": "C/prop_v56_water_stain_v2.webp",
@@ -150,9 +155,9 @@
     "sha256": "283ebcae70f00827533136a9392468ba8d8c7207cacabf6824b59818480b2943"
   },
   {
-    "path": "S/sb_atm_passbook_strip_v2.webp",
-    "bytes": 1721892,
-    "sha256": "1208cd4bea343d5ccd5334e9875133a2f2d37577f071bc776cd05948caa1c4ac"
+    "path": "S/sb_atm_passbook_strip_v3.webp",
+    "bytes": 1401006,
+    "sha256": "60b396a6c3d7b121dc36f3607b54c7f91ced074cd973811cb8195867d6076b5c"
   },
   {
     "path": "S/sb_brew_cups_v2.webp",
@@ -170,9 +175,9 @@
     "sha256": "7bc8b42c35fc73d608fdafc6b4a2c8de314a2ffd13fcc51987c561f19d6984f1"
   },
   {
-    "path": "S/sb_drawer_seal_v2.webp",
-    "bytes": 609088,
-    "sha256": "05ad736010344ab938626c77a85725d8ef7cf4e89bafeb9612850d471da186c6"
+    "path": "S/sb_drawer_seal_v3.webp",
+    "bytes": 503726,
+    "sha256": "ef6fcc07f10c87e17cc15d700bb0d0c659c68f166798284bb26cc092bdad2524"
   },
   {
     "path": "S/sb_envelope_open_v1.webp",

@@ -510,7 +510,7 @@ test('分鏡格八組（承峰 2026-11-24 提案、11-25 定版）：掛在提�
   const V = await import('../../src/view/days.js');
   const H = await import('../../src/view/hints.js');
   assert.deepEqual(Object.keys(V.STORYBOARDS).sort(), ['atm', 'brew', 'calico', 'cat', 'drawer', 'envelope', 'paperbag', 'wallet']);
-  const FILES = { envelope: 'sb_envelope_open_v1', wallet: 'sb_wallet_count_v1', drawer: 'sb_drawer_seal_v2', atm: 'sb_atm_passbook_strip_v2',
+  const FILES = { envelope: 'sb_envelope_open_v1', wallet: 'sb_wallet_count_v1', drawer: 'sb_drawer_seal_v3', atm: 'sb_atm_passbook_strip_v3',
     calico: 'sb_calico_paw_v1', brew: 'sb_brew_cups_v2', paperbag: 'sb_paperbag_writing_v2', cat: 'sb_cat_approach_strip_v1' };
   for (const [k, f] of Object.entries(FILES)) {
     const sb = V.STORYBOARDS[k];
@@ -520,7 +520,7 @@ test('分鏡格八組（承峰 2026-11-24 提案、11-25 定版）：掛在提�
     assert.deepEqual(webpSize(readFileSync(root(artUrl(srcOf(sb.slot))))), [2048, n * 1536 + (n - 1) * 64], `${k}：每格 2048×1536、直排格距 64`);
   }
   // 淘汰的版本不進遊戲
-  for (const old of ['sb_drawer_seal_v1', 'sb_paperbag_writing_v1', 'sb_brew_cups_strip_v1', 'sb_brew_cups_strip_v2', 'sb_atm_passbook_strip_v1']) {
+  for (const old of ['sb_drawer_seal_v1', 'sb_drawer_seal_v2', 'sb_paperbag_writing_v1', 'sb_brew_cups_strip_v1', 'sb_brew_cups_strip_v2', 'sb_atm_passbook_strip_v1', 'sb_atm_passbook_strip_v2']) {
     assert.ok(!existsSync(root(`assets/art-v56/S/${old}.webp`)), `${old} 不該進遊戲`);
     assert.ok(!ART_MAP_FILES.some((r) => r.endsWith(old)), old);
   }
@@ -641,7 +641,7 @@ test('點擊提示字（通用提示規則，承峰 23:14 照建議稿補齊）�
     poster: '點座位區的徵人海報', pause: '點一下繼續',
     calico: '點花斑貓，跟著走', can: '點地上的空罐子',
   });
-  assert.deepEqual(H.MINI_HINTS, { stain: '點窗戶下面的水痕', passbook: '點存摺', hat: '點斗笠', label: '點標籤', longan: '點龍眼乾' });
+  assert.deepEqual(H.MINI_HINTS, { stain: '點窗戶下面的水痕', passbook: '點存簿', hat: '點斗笠', label: '點標籤', longan: '點龍眼乾' });
   assert.deepEqual(H.OPTIONAL_HINTS, {
     cat: '摸摸龍眼（也可以直接翻頁）', bed: '點床躺下（也可以直接翻頁）', cup: '點杯子喝一口（也可以直接翻頁）',
     faucet: '點水龍頭洗臉（也可以直接翻頁）', mailbox: '點信箱看看（也可以直接上樓）',
@@ -939,7 +939,7 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   for (const n of ART_MAP_FILES) assert.ok(has(n), n);
   assert.equal(artUrl('scene_county_road'), 'assets/art/scene_county_road.webp', '舊圖仍在 assets/art/');
   assert.equal(artUrl('art-v56/B/bg_v56_store_interior_seating_portrait'), 'assets/art-v56/B/bg_v56_store_interior_seating_portrait.webp');
-  const BG = { bg_room_morning: 'bg_v56_hulong_morning_portrait', bg_stairs: 'bg_v56_stairwell_portrait', bg_home: 'bg_v56_rental_room_day_portrait', bg_atm: 'bg_v56_bank_atm_portrait',
+  const BG = { bg_room_morning: 'bg_v56_hulong_morning_portrait', bg_stairs: 'bg_v56_stairwell_portrait', bg_home: 'bg_v56_rental_room_day_portrait', bg_atm: 'bg_v56_post_atm_portrait',
     bg_store: 'bg_v56_store_interior_seating_portrait', bg_village: 'bg_v56_village_lane_portrait_v2', bg_kunyard: 'bg_v56_kunbo_yard_portrait' };
   for (const [id, f] of Object.entries(BG)) {
     assert.equal(ART_MAP[id].status, 'ready', id);
@@ -965,10 +965,19 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   }
   assert.match(srcOf('ch_calico'), /cat_huaban/, '花斑貓用 cat_huaban');
   for (const id of ['ch_calico', 'ch_kunbo']) for (const v of [null, ...Object.keys(ART_MAP[id].variants)]) assert.doesNotMatch(refOf(id, v), /cat_longan|char_grandpa/, `${id} 不拿龍眼貓／阿公充數`);
-  const MINI = { mini_stain: 'prop_v56_water_stain_v2', mini_passbook: 'prop_v56_passbook_drawer_v2', mini_hat: 'prop_v56_douli_v2', mini_label: 'prop_v56_empty_can_label_v2', mini_longan: 'prop_v56_dried_longan_v2' };
+  const MINI = { mini_stain: 'prop_v56_water_stain_v2', mini_passbook: 'prop_v56_passbook_drawer_v3', mini_hat: 'prop_v56_douli_v2', mini_label: 'prop_v56_empty_can_label_v2', mini_longan: 'prop_v56_dried_longan_v2' };
   for (const [id, f] of Object.entries(MINI)) { assert.equal(ART_MAP[id].status, 'ready', id); assert.equal(srcOf(id), `art-v56/C/${f}`); }
   for (const k of Object.values(MINI_SLOTS)) assert.ok(ART_MAP[k], k);
   assert.match(ART_MAP.mini_label.use, /農藥/);
+  // 郵局版 v3（承峰 2026-11-25 定版）：提款機在郵局外，不再寫銀行；舊的銀行底圖與 v2 存簿小圖不進遊戲
+  assert.match(ART_MAP.bg_atm.use, /郵局外面的提款機/);
+  // 承峰 2026-11-25：劇本與台詞一律「存簿」，只有機器標示「存摺口」照實機
+  assert.doesNotMatch(read('docs/劇本.md').replaceAll('存摺口', ''), /存摺/);
+  for (const ls of Object.values(D.DAY_LINES)) for (const b of ls) assert.doesNotMatch(b.text, /存摺/, b.text);
+  assert.doesNotMatch(read('src/view/days.js'), /name === 'passbook'|'存摺'/, '沒有台詞用的「存摺拖到櫃檯」關卡已刪');
+  assert.doesNotMatch(read('src/view/art-map.js'), /銀行/);
+  for (const old of ['B/bg_v56_bank_atm_portrait', 'C/prop_v56_passbook_drawer_v2']) assert.ok(!existsSync(root(`assets/art-v56/${old}.webp`)), old);
+  assert.deepEqual(webpSize(readFileSync(root(artUrl(srcOf('mini_passbook'))))), [1024, 1024]);
   assert.deepEqual(webpSize(readFileSync(root(artUrl(srcOf('mini_label'))))), [1024, 1024], '空罐子小圖是正方形（疊字座標以 1024×1024 量）');
   assert.match(miniHtml('label'), /assets\/art-v56\/C\/prop_v56_empty_can_label_v2\.webp[\s\S]*mn-on-art[^>]*>農藥</, '標籤留白處由程式疊「農藥」');
   assert.match(read('index.html'), /\.pp-mini\.mini-label \.mn-on-art \{ left: 48\.6%; top: 68%;/);

@@ -32,7 +32,7 @@ export const ART_MAP = {
   bg_mailbox: { use: '租屋處信箱（可點一格，打開是空的）', planned: 'scene_mailboxes_empty', status: 'ready', src: 'scene_mailboxes_empty' },
   bg_stairs: { use: '租屋處樓梯間（房東下樓）', planned: 'bg_v56_stairwell_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_stairwell_portrait' },
   bg_home: { use: '租屋處房間（八月，悶；窗戶下的水痕約在原圖 y 1110–1640、桌上的錢包、抽屜）', planned: 'bg_v56_rental_room_day_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_rental_room_day_portrait' },
-  bg_atm: { use: '銀行外面的提款機（八月下午，柏油路冒熱氣）', planned: 'bg_v56_bank_atm_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_bank_atm_portrait' },
+  bg_atm: { use: '郵局外面的提款機（八月下午，柏油路冒熱氣；承峰 2026-11-25 定版郵局版）', planned: 'bg_v56_post_atm_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_post_atm_portrait' },
   // 超商：定版 bg_v56_store_interior_seating_portrait（承峰 2026-11-22「超商圖定版」；1170×2532）。有座位區，
   // 座位區後牆（吧台上方、窗戶左側）畫好一張有框的空白徵人海報：外框原圖 x 348–646、y 569–977，紙面 x 358–638、y 580–967。
   // 熱點 .dy-poster 對準外框，程式只在紙面疊「誠徵門市人員」（不疊薪水、不再疊 CSS 白紙）。
@@ -83,7 +83,7 @@ export const ART_MAP = {
   ch_passerby: { use: '路過的客人（只在旁白提到）', planned: null, status: 'none', src: null, temp: '不出現' },
   /* ---------- 小圖（疊在原場景上；先疊上來，點一下才出句子，講完收掉；不畫手） ---------- */
   mini_stain: { use: '小圖：窗戶下的水痕', planned: 'prop_v56_water_stain_v2', status: 'ready', dir: V56.C, src: 'prop_v56_water_stain_v2' },
-  mini_passbook: { use: '小圖：存摺（抽屜裡、爸幫我開的戶頭）', planned: 'prop_v56_passbook_drawer_v2', status: 'ready', dir: V56.C, src: 'prop_v56_passbook_drawer_v2' },
+  mini_passbook: { use: '小圖：抽屜裡的綠色郵局存簿（爸幫我開的戶頭；封面「郵政存簿儲金簿」是產圖時程式疊進圖，遊戲不另疊字）', planned: 'prop_v56_passbook_drawer_v3', status: 'ready', dir: V56.C, src: 'prop_v56_passbook_drawer_v3' },
   mini_hat: { use: '小圖：斗笠（德叔從門邊拿的）', planned: 'prop_v56_douli_v2', status: 'ready', dir: V56.C, src: 'prop_v56_douli_v2' },
   mini_label: { use: '小圖：空罐子的標籤（標籤留白，程式疊「農藥」）', planned: 'prop_v56_empty_can_label_v2', status: 'ready', dir: V56.C, src: 'prop_v56_empty_can_label_v2' },
   mini_longan: { use: '小圖：龍眼乾（剝開的殼、黑亮的果肉）', planned: 'prop_v56_dried_longan_v2', status: 'ready', dir: V56.C, src: 'prop_v56_dried_longan_v2' },
@@ -91,11 +91,11 @@ export const ART_MAP = {
   /* ---------- 分鏡格（#op-prop 的 pp-mini.sb；承峰 2026-11-24 提案、11-25 八組定版） ---------- */
   // 咖啡館畫師產圖（AI 生成後由程式加框與紙感；不是手繪）。橫式 4:3，每格 2048×1536；直排圖格距 64px 透明。
   // 取代原本用程式演的動作（點 CSS 信封抽信、點錢包數錢、點抽屜、點存摺放進提款機與 CSS 存摺、CSS 紙袋疊字）。用法見 view/days.js 的 STORYBOARDS。
-  // 刷存摺原檔是無損 8.7MB（留在 storyboard-panels/trial/，不進 repo），遊戲用有損 webp q90 轉檔。
+  // 郵局版 v3（承峰 2026-11-25 定版）：刷存簿、開抽屜、存簿小圖用畫師交的有損 webp 原樣放進來；無損 PNG 原檔留在 storyboard-panels/art-v56/（不進 repo）。
   sb_envelope: { use: '分鏡：開信封（第二幕，三句旁白之後；點一下收掉進信件）', planned: 'sb_envelope_open_v1', status: 'ready', dir: V56.S, src: 'sb_envelope_open_v1' },
   sb_wallet: { use: '分鏡：數錢（第一天房間，「繳完房租，剩下五千塊錢。」之前）', planned: 'sb_wallet_count_v1', status: 'ready', dir: V56.S, src: 'sb_wallet_count_v1' },
-  sb_drawer: { use: '分鏡：開抽屜，印章在最裡面、存摺露一角（「印章還在。」之前）', planned: 'sb_drawer_seal_v2', status: 'ready', dir: V56.S, src: 'sb_drawer_seal_v2' },
-  sb_atm: { use: '分鏡：刷存摺直排三格（插槽／內頁一排 10,000／內頁特寫 160,000；照台詞依序亮）', planned: 'sb_atm_passbook_strip_v2', status: 'ready', dir: V56.S, src: 'sb_atm_passbook_strip_v2' },
+  sb_drawer: { use: '分鏡：開抽屜，印章在最裡面、綠色郵局存簿露一角（「印章還在。」之前）', planned: 'sb_drawer_seal_v3', status: 'ready', dir: V56.S, src: 'sb_drawer_seal_v3' },
+  sb_atm: { use: '分鏡：刷存簿直排三格（郵局存簿插在存摺口／內頁一排 10,000／內頁特寫 160,000；照台詞依序亮）', planned: 'sb_atm_passbook_strip_v3', status: 'ready', dir: V56.S, src: 'sb_atm_passbook_strip_v3' },
   sb_calico: { use: '分鏡：花斑貓撥龍眼乾，一顆滾到桌上（坤伯「欸，這個不是給你吃的啦。」之前）', planned: 'sb_calico_paw_v1', status: 'ready', dir: V56.S, src: 'sb_calico_paw_v1' },
   sb_brew: { use: '分鏡：研發咖啡開頭，五杯一字排開（只亮一次就收起；承峰拿掉第 2 格）', planned: 'sb_brew_cups_v2', status: 'ready', dir: V56.S, src: 'sb_brew_cups_v2' },
   sb_paperbag: { use: '分鏡：測試品紙袋寫好「提神醒腦」「過目不忘」，筆擱在旁邊（字畫進圖）', planned: 'sb_paperbag_writing_v2', status: 'ready', dir: V56.S, src: 'sb_paperbag_writing_v2' },

@@ -28,7 +28,7 @@ export const PLACES = {
   mailbox: placeOf('bg_mailbox', { ambient: 'quiet', fit: 'mbox' }), // 'quiet'＝信箱走廊安靜、不放環境聲（承峰 2026-11-23 22:07 v510 第 5 項，不再用風聲，也不落到 room）；租屋處信箱：定版空信箱 scene_mailboxes_empty（橫圖，門都關著、沒信封；不再用帶信封的 scene_mailboxes.webp）
   stairs: placeOf('bg_stairs', { ambient: 'room' }), // v5.6 定版：樓梯間
   home: placeOf('bg_home', { ambient: 'room', home: true }), // v5.6 定版：八月的租屋房間
-  atm: placeOf('bg_atm', { ambient: 'wind' }), // v5.6 定版：銀行外的提款機
+  atm: placeOf('bg_atm', { ambient: 'wind' }), // 郵局版 v3 定版（2026-11-25）：郵局外的提款機
   black: placeOf('bg_black', { ambient: 'wind' }), // v5.9：提款機淡出後的黑底（src null → .dy-css-black，純黑；切到超商時 .dy-place 的 opacity 淡入）
   store: placeOf('bg_store', { ambient: 'store', store: true }), // 定版：超商（bg_v56_store_interior_seating_portrait；徵人海報是座位區後牆上那張有框的空白海報，程式疊字）
   village: placeOf('bg_village', { ambient: 'wind', village: true }), // v5.6 定版：村子路（_portrait_v2）
@@ -279,8 +279,8 @@ export function miniHtml(kind) {
 export const STORYBOARDS = {
   envelope: { slot: 'sb_envelope', panels: 1, sfx: 'keys' }, // 第二幕：信封口開著，信紙抽出一截（不畫鑰匙）
   wallet: { slot: 'sb_wallet', panels: 1, sfx: 'wallet' }, // 第一天房間：錢包攤開，鈔票零錢，手機亮著
-  drawer: { slot: 'sb_drawer', panels: 1, sfx: 'creakDrawer' }, // 第一天房間：抽屜拉開，印章在最裡面，存摺露一角
-  atm: { slot: 'sb_atm', panels: 3, sfx: 'place' }, // 提款機：插槽 → 內頁一排 10,000 → 內頁特寫 160,000
+  drawer: { slot: 'sb_drawer', panels: 1, sfx: 'creakDrawer' }, // 第一天房間：抽屜拉開，印章在最裡面，存簿露一角
+  atm: { slot: 'sb_atm', panels: 3, sfx: 'place' }, // 提款機：存摺口 → 內頁一排 10,000 → 內頁特寫 160,000
   calico: { slot: 'sb_calico', panels: 1 }, // 坤伯來答謝：花斑貓前爪還伸著，龍眼乾滾在桌上
   brew: { slot: 'sb_brew', panels: 1 }, // 研發咖啡開頭：五杯一字排開（承峰拿掉第 2 格）
   paperbag: { slot: 'sb_paperbag', panels: 1 }, // 研發咖啡最後：紙袋上「提神醒腦」「過目不忘」，筆擱在旁邊
@@ -544,9 +544,8 @@ export function createProps(layer, app) {
         let settled = false;
         const finish = (ok) => { if (settled) return; settled = true; resolve(ok); };
         cleanups.push(() => finish(false));
-        if (name === 'passbook' || name === 'badge') { // 存摺拖到櫃檯／識別證放到櫃檯（無不做選項）
-          const isBook = name === 'passbook';
-          const el = button(`pp-drag ${isBook ? 'book' : 'badge'}`, isBook ? '存摺' : '識別證', isBook ? '<div class="pp-passbook"><i></i><i></i><i></i></div>' : `<img src="${art('prop_v3_id_badge')}" alt="">`);
+        if (name === 'badge') { // 識別證放到櫃檯（無不做選項）。舊的「存摺拖到櫃檯」關卡沒有任何台詞在用，2026-11-25 刪掉
+          const el = button('pp-drag badge', '識別證', `<img src="${art('prop_v3_id_badge')}" alt="">`);
           const z = zone('counter-top');
           draggable(el, {
             target: () => z.getBoundingClientRect(),
@@ -554,8 +553,7 @@ export function createProps(layer, app) {
               el.disabled = true;
               el.classList.add('placed');
               z.classList.add('ok');
-              if (isBook) { play('copier'); await sleep(1200); play('copier'); await sleep(900); } // 印表機一行一行刷，持續很久
-              else { play('place'); await sleep(500); } // 塑膠卡碰到大理石檯面的一聲
+              play('place'); await sleep(500); // 塑膠卡碰到大理石檯面的一聲
               finish(true);
               return true;
             },
