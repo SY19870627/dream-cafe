@@ -12,7 +12,7 @@ import { RESEND } from '../lines/days.js';
 import { play, setEngine } from './audio.js';
 import { img, ready } from './art.js';
 import { artUrl, srcOf } from './art-map.js';
-import { STORYBOARDS, parseSb, applyStoryboard } from './days.js';
+import { STORYBOARDS, parseSb, applyStoryboard, sbHintTop } from './days.js';
 import { MUST_HINTS } from './hints.js';
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
@@ -214,6 +214,10 @@ export function showOpening(root, act, api) {
         requestAnimationFrame(() => requestAnimationFrame(() => panel.classList.add('on', 'ask')));
         box.classList.add('done');
         hint.hidden = false;
+        { // 提示字貼著分鏡格（跟店內、第一天起的分鏡一致：單格放在格子正上方）
+          const y = sbHintTop(panel);
+          if (y != null) { hint.classList.add('sb-under'); hint.style.setProperty('--sb-hint-top', `${y}px`); }
+        }
         if (STORYBOARDS[sb.name].sfx) play(STORYBOARDS[sb.name].sfx); // 鑰匙響一聲（信封裡有東西在響）
         return;
       }

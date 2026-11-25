@@ -588,6 +588,9 @@ test('分鏡格八組（承峰 2026-11-24 提案、11-25 定版）：掛在提�
   assert.equal(H.tapHint('mini', { mini: 'sb-wallet' }), '點一下繼續');
   assert.equal(H.tapHint('panel'), '點一下繼續');
   assert.equal(H.tapHint('panelAuto'), null);
+  // 提示字放在分鏡格正下方，不壓到地上的貓、立繪（承峰 2026-11-25）
+  assert.match(code('src/main.js'), /sbHint\(t === 'panel' \|\| \(t === 'mini' && isStoryboard\(shown\.mini\)\)\);/);
+  assert.match(css, /#op-read\.sb-hint \.opr-hint \{ top: var\(--sb-hint-top\); bottom: auto; \}/);
 });
 
 test('程式疊字：徵人海報「誠徵門市人員」（劇本沒寫薪資數字，不疊薪水）、空罐子「農藥」、紙袋「提神醒腦，過目不忘」', () => {

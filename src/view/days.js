@@ -321,6 +321,15 @@ export function applyStoryboard(el, sb, prevName = null) {
   for (const im of el.querySelectorAll('img')) im.onerror = () => im.remove();
   return true;
 }
+// 分鏡格提示字（「點一下繼續」）的 top（px，相對分鏡格所在的那一層）：單格放在格子正上方，直排放在最後一個亮著的格子正下方。
+// 用 offsetTop 量（不受疊上來時的縮放動畫影響）。沒有分鏡格 → null
+export const SB_HINT_H = 30; // 提示字一行約 22px，加一點間距
+export function sbHintTop(el) {
+  const cell = el ? [...el.querySelectorAll('.sb-cell.lit')].at(-1) : null;
+  if (!cell) return null;
+  if (!el.classList.contains('strip') && el.offsetTop >= SB_HINT_H + 6) return Math.round(el.offsetTop - SB_HINT_H);
+  return Math.round(el.offsetTop + cell.offsetTop + cell.offsetHeight + 10);
+}
 export const FILM_START = 19; // 計數窗停在 19
 export const FILM_END = 36; // 後面還有十七張
 export const REWIND_TURNS = 2; // 倒片：畫兩圈（可以慢慢轉）

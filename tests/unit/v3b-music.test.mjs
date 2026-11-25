@@ -165,6 +165,9 @@ test('標題署名：同一塊 .op-credit 裡分行列製作人員與四首曲�
   for (const t of all) assert.ok(!MARKS.test(t), t);
   // 承峰 11/23 20:22：加一行效果音出處，接在 source 後、note 前
   assert.equal(OP.TITLE.music.source, '出處：DOVA-SYNDROME（OpenTracks）');
+  // 承峰 2026-11-25：名單加一行分鏡美術（AI 產圖，不寫手繪、不寫人名）
+  assert.ok(OP.TITLE.staff.includes('分鏡：AI 產圖（咖啡館畫師）'));
+  for (const t of OP.TITLE.staff) assert.doesNotMatch(t, /手繪/, t);
   assert.equal(OP.TITLE.music.sfx, '效果音：効果音ラボ、Freesound（CC0）');
   assert.deepEqual(OP.TITLE.music.lines, Object.values(TRACKS).map((t) => `${t.title} — ${t.author}`));
   assert.equal(OP.TITLE.links.length, 3);

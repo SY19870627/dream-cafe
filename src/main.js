@@ -7,10 +7,10 @@ import * as S from './story/state.js';
 import { load, persist as saveTo, resetFromUrl } from './story/save.js';
 import { BACKGROUNDS, PORTRAITS, FOCUS, OLD_LADY, artUrl } from './story/manifest.js';
 import { showOpening, showScene } from './view/opening.js';
-import { showDay, showCard, createProps, PLACES, HOT_LABELS, cueOf } from './view/days.js';
+import { showDay, showCard, createProps, PLACES, HOT_LABELS, cueOf, sbHintTop } from './view/days.js';
 import { showShop, resetPet } from './view/shop-still.js';
 import { createReader } from './view/reader.js';
-import { GATE_HINTS, tapHint } from './view/hints.js';
+import { GATE_HINTS, tapHint, isStoryboard } from './view/hints.js';
 import { unlock, play, setAmbient, setEngine, setMusic, setMuted, isMuted, setHidden } from './view/audio.js';
 import { musicAt } from './story/music.js'; // 【待定】每一幕／每一句的音樂（曲目表與路徑只在那個檔）
 import { loadAudioPref, saveAudioPref } from './story/audio-pref.js'; // 【待定】靜音選擇（獨立鍵 dream-cafe.audio，不寫進存檔）
@@ -175,6 +175,15 @@ function preLook(lines, i) {
   return { ...lk, place: pv.place ?? lk.place, prop: pv.prop ?? null, calico: pv.calico ?? null, mini: null };
 }
 
+// 分鏡格的提示字（承峰 2026-11-25：桌機貓靠近時提示壓在地上的龍眼上）：不放在閱讀框上緣，改貼著分鏡格——
+// 單格放在格子正上方（格子下面常有坤伯等半身立繪、地上的貓）；直排（上方沒空間）放在最後一個亮著的格子正下方。
+// 位置算法在 view/days.js 的 sbHintTop；#op-prop 與 #op-read 都鋪滿 #app，座標相同。
+function sbHint(on) {
+  const read = $('op-read');
+  const y = on ? sbHintTop(document.querySelector('#op-prop .pp-mini.on.sb')) : null;
+  read.classList.toggle('sb-hint', y != null);
+  if (y != null) read.style.setProperty('--sb-hint-top', `${y}px`);
+}
 // 分鏡格自動亮起（刷存摺第 1 格：存摺插進機器）之後，停多久才亮下一格、出字
 const PANEL_AUTO_MS = 1500;
 // 一幕裡的句子：從存檔那一句接著；每一句說完點一下才出下一句（不點就停在這一句）
@@ -222,10 +231,12 @@ async function runLines(act, { look, gate, optional, tap }) {
       reader.hideBox();
       reader.passive();
       reader.hint(tapHint(t, shown)); // 提示字（通用提示規則，必做不加「也可以直接翻頁」）；有熱點的會由 reader.hot 再設一次同一句
+      sbHint(t === 'panel' || (t === 'mini' && isStoryboard(shown.mini))); // 分鏡格的「點一下繼續」放在格子正下方，不壓到地上的貓、立繪
       const ok = t === 'pause' ? await reader.next()
         : t === 'panel' ? await props.peek() // 點一下收起，才出這一句
           : t === 'panelAuto' ? (await sleep(PANEL_AUTO_MS), my === token) // 自己亮、不佔點擊（刷存摺第 1 格），停一下接下一格
             : await tap?.(t, b);
+      sbHint(false);
       reader.clearHot();
       if (my !== token || !ok) return false;
     }

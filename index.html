@@ -545,6 +545,9 @@
   #op-read .opr-hint small { font-size: 12px; letter-spacing: 0; opacity: .9; }
   /* 沒有閱讀框的時候（點椅子坐下）：提示字放低，不蓋在椅子上 */
   #op-read.nobox .opr-hint { bottom: calc(14% + env(safe-area-inset-bottom)); }
+  /* 分鏡格疊上來等點的時候：提示字貼著格子（單格在正上方、直排在最後一格正下方；view/days.js 的 sbHintTop 量好 --sb-hint-top），不壓到地上的貓與人物立繪 */
+  #op-read.sb-hint .opr-hint { top: var(--sb-hint-top); bottom: auto; }
+  .op-letterroom .op-hint.sb-under { top: var(--sb-hint-top); bottom: auto; }
   /* 第二天：把鑰匙放到吧台（框上寫「吧台」）。在店內定景上由 days.js 依吧台檯面（shop-still.js 的 SHOP_BAR）改成 px 位置；
      下面的百分比只是量不到吧台時的退路 */
   .pp-zone.bar-drop { left: 14%; top: 44%; width: 72%; height: 11%; }
