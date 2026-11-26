@@ -336,7 +336,7 @@ async function openingScene(act) {
   nextAct(act, act === 'road' || act === 'return' ? '#f3dfb8' : '#000', act === 'temple' ? 1100 : 650);
 }
 
-// 土地公廟前按「掉頭回去」（codeart 分鏡格 v2）：按鈕（引擎迴轉聲）→ 廟格先收 → 疊掉頭格（sb_ride_uturn_v2）→
+// 土地公廟前按「掉頭回去」（codeart 分鏡格；掉頭格 v3）：按鈕（引擎迴轉聲）→ 廟格先收 → 疊掉頭格（sb_ride_uturn_v3）→
 // 玩家再點一下，格子才收掉 → 回傳 true，這一幕讀完，黑幕淡出、淡入三合院外（nextAct）。不再有 1.6 秒橫掃迴轉動畫
 const SB_SWAP_MS = 450; // 分鏡格收掉的淡出時間（與 .pp-mini 的 transition 一致）
 async function turnBack(ctl) {
@@ -470,10 +470,8 @@ async function dayScene(act) {
     const ok = await ctl.intro();
     if (!ok || my !== token) return;
   }
-  let current = {};
   const done = await runLines(act, {
     look: (i, lk, b) => {
-      current = lk;
       ctl.beat(i, lk);
       const amb = PLACES[lk.place]?.ambient || 'room';
       if (amb !== ambient) { ambient = amb; setAmbient(amb === 'quiet' ? null : amb, amb === 'room' ? 1 : 0.6); } // 'quiet'（信箱）：不放環境聲
@@ -487,7 +485,7 @@ async function dayScene(act) {
       const el = ctl.hot(name);
       if (!el) return Promise.resolve(true); // 找不到熱點也不卡住
       return new Promise((res) => reader.hot([{ id: name, label: HOT_LABELS[name] || name, need: true, rect: elRect(el),
-        onTap: () => { ctl.effect(name); if (name === 'poster') props.show({ ...current, prop: 'poster' }); setTimeout(() => res(my === token), 650); } }]));
+        onTap: () => { ctl.effect(name); setTimeout(() => res(my === token), 650); } }]));
     },
     optional: (name) => { // 可選（不做也能翻頁）：水龍頭、信箱
       const label = HOT_LABELS[name];

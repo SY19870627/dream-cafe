@@ -439,7 +439,7 @@ export function showScene(root, act, api) {
   }
 
   /* ---------- 黑路、岔路、工寮與土地公廟（canvas：只有車燈照出來的一小塊路面） ---------- */
-  // 工寮、土地公廟、掉頭改成分鏡格（sb_ride_shed_v2／sb_ride_temple_v2／sb_ride_uturn_v2，疊在 #op-prop，由 main.js 依句子的 set.mini 疊）；
+  // 工寮、土地公廟、掉頭改成分鏡格（sb_ride_shed_v2／sb_ride_temple_v2／sb_ride_uturn_v3，疊在 #op-prop，由 main.js 依句子的 set.mini 疊）；
   // 分鏡格疊著時夜路停下並壓暗（.sb-dim）。不再把工寮／廟小圖畫在夜路盡頭、不再程式打光、不再有 1.6 秒橫掃迴轉動畫。
   // 離開工寮的掉頭不出畫面：只有短黑幕（ctl.blackout）與引擎聲。
   if (act === 'ride' || act === 'fork' || act === 'temple') {

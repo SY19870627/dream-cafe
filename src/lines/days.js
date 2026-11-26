@@ -38,7 +38,7 @@ import { COUNTDOWN, LETTER } from './opening.js';
 //   set.mini：疊在原場景上的小圖（stain 水痕／passbook 存簿／hat 斗笠／label 空罐子的標籤／longan 龍眼乾）；null＝收掉
 //     也放分鏡格（承峰 2026-11-24／25 定版八組，咖啡館畫師產圖，見 view/days.js 的 STORYBOARDS）：
 //     sb-<名>＝單格；sb-<名>-<n>＝直排多格亮到第 n 格（sb-atm-1～3 刷存摺、sb-cat-1～2 貓靠近）
-//   set.prop：特寫卡（poster 徵人海報）
+//   set.prop：特寫卡（徵人海報已改成分鏡格 sb-poster，現在第一天起沒有句子用特寫卡）
 // optional（可選，不做也能翻頁）：faucet 水龍頭
 
 // 說話的人（開場的德叔與我之外；名牌字）
@@ -200,8 +200,9 @@ export const DAY_LINES = {
     { who: 'storeManager', text: '對不起有用的話，我還要請你來幹嘛？' },
     { text: '店員低著頭，手上還拿著那個過期的便當。' },
     { text: '後面排隊的人都在看手機，沒有人講話。' },
-    { who: 'me', text: '領這種餓不死、穿不暖的薪水，還要被這樣罵。', set: { prop: 'poster' }, tap: 'poster' },
-    { who: 'me', text: '光在旁邊聽，我的胃就縮起來了。', set: { prop: null } },
+    // 點座位區的徵人海報 → 海報分鏡格（sb_store_poster_v3）疊上，點一下出這句；翻到下一句收掉（特寫只停一句）
+    { who: 'me', text: '領這種餓不死、穿不暖的薪水，還要被這樣罵。', set: { mini: 'sb-poster' }, tap: ['poster', 'mini'] },
+    { who: 'me', text: '光在旁邊聽，我的胃就縮起來了。', set: { mini: null } },
     { who: 'me', text: '就算辭職再找一份工作，大概還是這樣吧。' },
     { who: 'me', text: '再找一份，再被罵，再找一份……我真的要一直這樣下去嗎？' },
     { who: 'me', text: '……德叔如果是認真的呢？' },

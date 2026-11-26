@@ -229,7 +229,7 @@ export function showDay(root, act, api) {
       const on = el.querySelector('.dy-place.on');
       if (name === 'faucet') { play('water'); on?.classList.add('washing'); return true; } // 出水聲，低頭洗臉，抬頭時鏡子裡是帶缺點的角色卡
       if (name === 'mailbox') { play('doorIron'); on?.classList.add('open'); return true; } // 鐵片門打開，裡面是空的
-      if (name === 'poster') { play('page'); return true; } // 畫面拉近（特寫卡由 props 疊上來）
+      if (name === 'poster') { play('page'); return true; } // 畫面拉近（海報分鏡格 sb-poster 由這一句的 set.mini 疊上來）
       if (name === 'calico') { // 貓往前走，她跟在後面
         play('hop');
         const cat = el.querySelector('.dy-calico.on-wall');
@@ -257,8 +257,7 @@ const CARD = {
   camera: () => '<div class="pp-camera"><span class="pp-counter" id="pp-counter"></span><span class="pp-lever" id="pp-lever"></span><span class="pp-crank" id="pp-crank"><i></i></span><span class="pp-lens"></span></div>',
   note: () => '<div class="pp-note"><i></i><i></i><i></i></div>',
   can: () => '<div class="pp-can"></div>',
-  // 劇本 v5.6：徵人海報（暫代 CSS；字由程式疊，見 art-map.js 的 OVERLAY_TEXT）
-  poster: () => `<div class="pp-poster"><span class="pp-overlay">${esc(OVERLAY_TEXT.poster)}</span></div>`,
+  // 徵人海報的特寫已改成分鏡格（STORYBOARDS.poster → sb_store_poster_v3，字畫在圖上），不再有 CSS 白紙卡
 };
 export const KEY_HINT = MUST_HINTS.keyGive; // 劇本 v5.8：引導照「通用提示規則」，提示字「把鑰匙拿給德叔」（字在 view/hints.js）
 // 小圖（pp-mini）：疊在原場景上（背景不切換）；先疊上來，點一下才出下面的句子，講完收掉。不畫手。
@@ -298,6 +297,8 @@ export const STORYBOARDS = {
   shed: { slot: 'sb_ride_shed', panels: 1 }, // 夜騎：路的盡頭是鐵皮工寮（工寮那句；夜路停下並壓暗）
   temple: { slot: 'sb_ride_temple', panels: 1 }, // 夜騎：土地公廟（土地公廟那句起，一路留到按「掉頭回去」）
   uturn: { slot: 'sb_ride_uturn', panels: 1 }, // 夜騎：按「掉頭回去」後疊上，再點一下收掉、淡出回三合院外（不寫在句子上，由 main.js 的掉頭關卡疊）
+  // 2026-11：徵人海報特寫（取代 CSS 白紙特寫卡；去膠帶版 v3，字畫在圖上、程式不疊字）
+  poster: { slot: 'sb_store_poster', panels: 1 }, // 超商：點座位區的海報後疊上，點一下出「領這種餓不死……」，翻到下一句收掉
 };
 export const SB_PANEL = { w: 2048, h: 1536, gap: 64 };
 // 'sb-atm-2' → { name: 'atm', lit: 2 }；單格或沒寫格數＝全亮；不是分鏡格 → null

@@ -456,6 +456,7 @@
   /* 超商（定版 bg_v56_store_interior_seating_portrait，承峰 2026-11-22「超商圖定版」）：座位區後牆、吧台上方、窗戶左側畫好一張有框的空白海報。
      熱點＝海報外框（原圖 x 348–646、y 569–977）；字疊在紙面（原圖 x 358–638、y 580–967）＝外框內縮 左 3.356%／上 2.696%／右 2.685%／下 2.451%。
      不再疊 CSS 白紙、膠帶、也不旋轉（不蓋住原圖海報）。程式只疊「誠徵門市人員」（不疊薪水）；提示字「點座位區的徵人海報」（view/hints.js 的 POSTER_HINT）。
+     點了以後的特寫是分鏡格 sb_store_poster_v3（.pp-mini.sb.sb-poster；字畫在圖上，分鏡格上不再疊字）。
      .op-art 的比例就是 1170/2532，object-fit: cover 不裁切，百分比直接對到原圖。 */
   .dy-poster { position: absolute; left: 29.744%; top: 22.472%; width: 25.47%; height: 16.114%; z-index: 1; container-type: size; }
   .dy-poster .pp-overlay { position: absolute; left: 3.356%; top: 2.696%; right: 2.685%; bottom: 2.451%; display: flex; align-items: center; justify-content: center;
@@ -521,8 +522,7 @@
   .mn-longan { background: #3a2a1e; }
   .mn-longan i { position: absolute; left: 22%; top: 24%; width: 56%; height: 52%; border-radius: 50%; background: radial-gradient(circle at 40% 36%, #3d2a1c, #1f150e 70%); box-shadow: 0 0 0 10px #8a6038, 0 0 0 12px #6e4a2a; }
   .mn-longan i + i { left: 56%; top: 54%; width: 24%; height: 22%; background: #8a6038; box-shadow: none; }
-  /* 特寫卡：徵人海報（字由程式疊；薪水數字劇本沒寫，不疊）。測試品的紙袋已改成分鏡格（.pp-mini.sb） */
-  .pp-poster { width: 210px; height: 270px; display: flex; align-items: flex-start; justify-content: center; padding-top: 40px; background: #fbfaf4; box-shadow: 0 10px 22px rgba(0,0,0,.4); font-size: 24px; color: #b0302a; }
+  /* 徵人海報特寫、測試品的紙袋都已改成分鏡格（.pp-mini.sb；海報是 sb_store_poster_v3，字畫在圖上，不再有 CSS 白紙卡） */
   /* 點一下才出句子的整片點擊區（小圖疊上來時） */
   .pp-peek { position: absolute; inset: 0; z-index: 1; padding: 0; background: transparent; box-shadow: none; border-radius: 0; cursor: pointer; }
   .pp-tapitem { cursor: pointer; }

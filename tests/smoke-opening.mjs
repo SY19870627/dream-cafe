@@ -399,9 +399,9 @@ try {
   if ((await rideSb())?.sb !== 'temple') fail('按「掉頭回去」之前廟格沒有留著');
   if (((await page.locator('#op-turnback').textContent()) || '').trim() !== '掉頭回去') fail('掉頭按鈕不是「掉頭回去」');
   await page.locator('#op-turnback').click();
-  // 按了之後：廟格先收，再疊掉頭格（v2）；玩家再點一下，格子才收掉、黑幕淡出回三合院外
+  // 按了之後：廟格先收，再疊掉頭格（v3）；玩家再點一下，格子才收掉、黑幕淡出回三合院外
   await sleep(1200);
-  { const s = await rideSb(); if (s?.sb !== 'uturn' || !s.src.endsWith('assets/art-v56/S/sb_ride_uturn_v2.webp')) fail(`按「掉頭回去」後沒有疊掉頭格（v2）：${JSON.stringify(s)}`); }
+  { const s = await rideSb(); if (s?.sb !== 'uturn' || !s.src.endsWith('assets/art-v56/S/sb_ride_uturn_v3.webp')) fail(`按「掉頭回去」後沒有疊掉頭格（v3）：${JSON.stringify(s)}`); }
   if ((await page.locator('#op-read .opr-hint').textContent()) !== '點一下繼續') fail('掉頭格沒有提示「點一下繼續」');
   await snap('uturn');
   await sleep(2500);
@@ -614,7 +614,22 @@ try {
         return { w: c.width, h: c.height, top: r.top, bottom: r.bottom, boxTop: box && box.height ? box.top : innerHeight }; });
       if (Math.abs(g.w / g.h - 4 / 3) > 0.02 || g.w > 251) fail(`分鏡格 ${st.sb} 不是寬度同小圖的橫式 4:3：${JSON.stringify(g)}`);
       if (g.top < 0 || g.bottom > g.boxTop + 1) fail(`分鏡格 ${st.sb} 超出畫面或蓋到閱讀框：${JSON.stringify(g)}`);
+      if (st.sb === 'poster-1') { // 徵人海報特寫：分鏡格 v3（去膠帶版），格子上不疊程式字；不再有 CSS 白紙特寫卡；點一下才出「領這種……」
+        const ps = await page.evaluate(() => { const e = document.querySelector('#op-prop .pp-mini.on.sb');
+          return { src: e?.querySelector('img')?.getAttribute('src') || '', overlay: e?.querySelectorAll('.pp-overlay').length ?? -1, text: e?.textContent.trim() || '',
+            card: document.querySelectorAll('#op-prop .pp-poster').length, cardText: document.querySelector('#op-prop .pp-card')?.textContent.trim() || '' }; });
+        if (!ps.src.endsWith('assets/art-v56/S/sb_store_poster_v3.webp')) fail(`徵人海報特寫不是 sb_store_poster_v3：${JSON.stringify(ps)}`);
+        if (ps.overlay || ps.text || ps.card || ps.cardText) fail(`徵人海報分鏡格上不該疊字或白紙卡：${JSON.stringify(ps)}`);
+        if (st.box) fail('海報格還沒點，「領這種餓不死……」就先出來了');
+        if ((await page.locator('#op-read .opr-hint').textContent()) !== '點一下繼續') fail('海報格沒有提示「點一下繼續」');
+        await snap('d1-poster-sb');
+      }
       await snap(`sb-${st.sb}`);
+    }
+    if (st.text === '光在旁邊聽，我的胃就縮起來了。' && !seenTexts.has('poster-off')) { // 海報格只停一句：翻到下一句收掉
+      seenTexts.add('poster-off');
+      await sleep(600);
+      if (await page.locator('#op-prop .pp-mini.on.sb').count()) fail('翻到「光在旁邊聽……」海報格沒有收掉');
     }
     if (st.need.length) { await page.locator(`.opr-hotspot[data-need="1"][data-id="${st.need[0]}"]`).click(); await sleep(900); continue; }
     if (st.item.length) {
@@ -662,7 +677,7 @@ try {
   if (dragged < 1) fail('沒有拖鑰匙給德叔');
   if (seenMini.join() !== 'stain,passbook,hat,label,longan') fail(`小圖不對：${seenMini.join()}`);
   // 分鏡格（承峰 2026-11-25 定版＋codeart 肥料罐）：數錢、開抽屜、刷存摺依序亮三格、坤伯院子的肥料罐、花斑貓、研發咖啡開頭五杯、紙袋
-  if (seenSb.join() !== 'wallet-1,drawer-1,atm-1,atm-2,atm-3,fertilizer-1,calico-1,brew-1,paperbag-1') fail(`分鏡格不對：${seenSb.join()}`);
+  if (seenSb.join() !== 'wallet-1,drawer-1,atm-1,atm-2,atm-3,poster-1,fertilizer-1,calico-1,brew-1,paperbag-1') fail(`分鏡格不對：${seenSb.join()}`);
   for (const nm of ['房東', '店長', '店員', '坤伯', '德叔', '我']) if (!seenNames.has(nm)) fail(`沒看到名牌：${nm}`);
   // 不點信箱：不出「信箱是空的……」，但房東整段照出
   if (seenTexts.has('信箱是空的，連傳單都沒有。')) fail('沒點信箱卻出了「信箱是空的……」');

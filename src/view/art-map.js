@@ -15,7 +15,7 @@
 // - 背景只用直式（1170×2532，檔名有 _portrait）；橫版不用。村子路用 _portrait_v2。
 //   例外：第一天的空信箱 scene_mailboxes_empty 是定版橫圖（1950×1200），用信箱專用圖框整張放進去（見 bg_mailbox）。
 // - 龍眼貓（cat_longan_*）只當龍眼，不當花斑貓；花斑貓只用 cat_huaban_*。char_grandpa_* 是阿哲的阿公，不當坤伯。
-// - 物件小圖不畫手；圖上不指望有字（「農藥」「誠徵門市人員」都由程式疊）。
+// - 物件小圖不畫手；圖上不指望有字（「農藥」、超商場景上遠看的「誠徵門市人員」由程式疊）。
 // - 分鏡格（sb_*）也不畫手（貓爪可以）；圖上的字全部畫進圖（10,000／160,000、紙袋上的字），程式不疊字。
 // 程式取圖：refOf(id, 差分) → 參照（舊圖是檔名，新圖是「art-v56/B/檔名」）；artUrl(參照) → 網址。
 
@@ -49,10 +49,13 @@ export const ART_MAP = {
   // 坤伯院子的去背層（皆 1170×2532 透明對齊層，整張疊上）：取代原本兩個 CSS 色塊罐子
   //   空罐子倒在地上（原圖約 x 205–335、y 2030–2110；可點，點了淡出 → 標籤小圖）；立著的肥料罐一直留著；
   //   提水桶那句：地面補丁（蓋住原圖院子中間的水桶）＋牆角水桶淡入，之後留著
-  yard_empty_can: { use: '坤伯院子：倒在地上的空罐子（可點；點了淡出，接標籤小圖）', planned: 'prop_v56_yard_empty_can_down_v1', status: 'ready', dir: V56.C, src: 'prop_v56_yard_empty_can_down_v1' },
+  // 空罐子、地面補丁、牆角水桶改用畫師 2026-11 交的 v2（v1 原檔留在磁碟，不覆蓋、不刪，只是不再引用）。
+  //   補丁 v2 裡畫了一小截立著的肥料罐（瓶蓋與肩）：圖層維持「補丁在下、立罐（yard_fertilizer_can，一直留著）在上」，那一截被立罐蓋住。
+  //   牆角水桶 v2 放在磚屋右側、木凳右邊靠牆。
+  yard_empty_can: { use: '坤伯院子：倒在地上的空罐子（可點；點了淡出，接標籤小圖）', planned: 'prop_v56_yard_empty_can_down_v2', status: 'ready', dir: V56.C, src: 'prop_v56_yard_empty_can_down_v2' },
   yard_fertilizer_can: { use: '坤伯院子：立著、還沒開的肥料罐（一直留著）', planned: 'prop_v56_yard_fertilizer_can_stand_v1', status: 'ready', dir: V56.C, src: 'prop_v56_yard_fertilizer_can_stand_v1' },
-  yard_bucket_patch: { use: '坤伯院子：地面補丁（水桶提到牆角後，蓋住原圖上的水桶）', planned: 'prop_v56_yard_bucket_patch_v1', status: 'ready', dir: V56.C, src: 'prop_v56_yard_bucket_patch_v1' },
-  yard_bucket_corner: { use: '坤伯院子：提到牆角的水桶', planned: 'prop_v56_yard_bucket_corner_v1', status: 'ready', dir: V56.C, src: 'prop_v56_yard_bucket_corner_v1' },
+  yard_bucket_patch: { use: '坤伯院子：地面補丁（水桶提到牆角後，蓋住原圖上的水桶；疊在立著的肥料罐下面）', planned: 'prop_v56_yard_bucket_patch_v2', status: 'ready', dir: V56.C, src: 'prop_v56_yard_bucket_patch_v2' },
+  yard_bucket_corner: { use: '坤伯院子：提到牆角的水桶（磚屋右側、木凳右邊靠牆）', planned: 'prop_v56_yard_bucket_corner_v2', status: 'ready', dir: V56.C, src: 'prop_v56_yard_bucket_corner_v2' },
   // 店內 2D 定景（店內環景與「看看店裡」已拔掉，承峰 2026-11-21 20:48）。見下面 SHOP_STILL_NIGHT／SHOP_STILL_DAY／SHOP_STILL_SEATED。
   // 店內定版圖 scene_shop_interior_night_lit_v2（承峰 2026-11-21 23:47「店內圖定版」）：晚上燈亮、左邊一扇窗、右邊吧台（一排杯子、磨豆機）、兩張桌子。
   // 進門／站在店裡用這張；椅子、德叔、龍眼、杯子、窗、吧台的位置都在 shop-still.js 對準這張（SHOP_CHAIR、*_STAND）。
@@ -118,20 +121,24 @@ export const ART_MAP = {
   sb_brew: { use: '分鏡：研發咖啡開頭，五杯一字排開（只亮一次就收起；承峰拿掉第 2 格）', planned: 'sb_brew_cups_v2', status: 'ready', dir: V56.S, src: 'sb_brew_cups_v2' },
   sb_paperbag: { use: '分鏡：測試品紙袋寫好「提神醒腦」「過目不忘」，筆擱在旁邊（字畫進圖）', planned: 'sb_paperbag_writing_v2', status: 'ready', dir: V56.S, src: 'sb_paperbag_writing_v2' },
   sb_cat: { use: '分鏡：貓靠近怡君直排兩格（聞鞋 → 貼著小腿蹭）', planned: 'sb_cat_approach_strip_v1', status: 'ready', dir: V56.S, src: 'sb_cat_approach_strip_v1' },
-  // codeart 交稿（2026-11）：坤伯院子的肥料罐、夜騎三格（一律用 v2，不用 v1）
+  // codeart 交稿（2026-11）：坤伯院子的肥料罐、夜騎三格（工寮、土地公廟用 v2；掉頭用 v3；都不用 v1）
   sb_fertilizer: { use: '分鏡：坤伯瞇眼看還沒開的肥料罐（「旁邊這罐才是肥料，還沒開。」之前；點一下出這句，翻到下一句收掉）', planned: 'sb_fertilizer_can_v1', status: 'ready', dir: V56.S, src: 'sb_fertilizer_can_v1' },
   sb_ride_shed: { use: '分鏡：夜路盡頭的鐵皮工寮，後面沒有路（工寮那句；點一下收掉，短黑幕與引擎聲之後換另一條）', planned: 'sb_ride_shed_v2', status: 'ready', dir: V56.S, src: 'sb_ride_shed_v2' },
   sb_ride_temple: { use: '分鏡：路邊的土地公廟（土地公廟那句起一路留到按「掉頭回去」）', planned: 'sb_ride_temple_v2', status: 'ready', dir: V56.S, src: 'sb_ride_temple_v2' },
-  sb_ride_uturn: { use: '分鏡：在廟前掉頭（按「掉頭回去」後疊上；再點一下收掉，黑幕淡出回三合院外）', planned: 'sb_ride_uturn_v2', status: 'ready', dir: V56.S, src: 'sb_ride_uturn_v2' },
+  // 掉頭格改用 v3（畫師 2026-11 交稿；v1／v2 原檔留在磁碟，不再引用）
+  sb_ride_uturn: { use: '分鏡：在廟前掉頭（按「掉頭回去」後疊上；再點一下收掉，黑幕淡出回三合院外）', planned: 'sb_ride_uturn_v3', status: 'ready', dir: V56.S, src: 'sb_ride_uturn_v3' },
+  // 徵人海報特寫：原本是 CSS 白紙特寫卡（pp_poster，程式疊「誠徵門市人員」），2026-11 改成分鏡格 v3（去膠帶版、單格 2048×1536）。
+  // 字全部畫在圖上，程式不疊字、不疊薪水。v1／v2 已退回，不進遊戲。場景上（遠看）的海報熱點仍疊「誠徵門市人員」（見 bg_store）。
+  sb_store_poster: { use: '分鏡：超商座位區後牆的徵人海報特寫（點海報後疊上；點一下出「領這種餓不死、穿不暖的薪水，還要被這樣罵。」，翻到下一句收掉）', planned: 'sb_store_poster_v3', status: 'ready', dir: V56.S, src: 'sb_store_poster_v3' },
 
   /* ---------- 特寫卡（#op-prop 的 pp-card） ---------- */
-  pp_poster: { use: '超商的徵人海報（畫面拉近）；場景上的海報是底圖座位區後牆上那張有框的空白海報（熱點 .dy-poster 對準外框）', planned: 'prop_v3b_store_poster', status: 'temp', src: null, temp: 'CSS 白紙海報，程式疊「誠徵門市人員」（劇本沒寫薪資數字，不疊薪水）' },
   pp_key: { use: '鑰匙（第一天早上拖向德叔，沒有接、回到手上；第二天點包包裡的鑰匙放到吧台上）', planned: 'key', status: 'ready', src: 'key' },
   /* 劇本 v5.8 */
   // 摺疊桌上的牛皮紙信封（1170×2532 透明對齊層，整張疊在 bg_letter_room 上）。只是擺著，不是按鈕；開信封仍是分鏡格 sb_envelope。
   // 第二幕：前兩句桌面空；「我在摺疊桌前坐下來，把信封放在桌上。」淡入合著的；開信封分鏡格疊上的同時換成拆過的。特休前一晚整場都是拆過的
-  pp_envelope: { use: '第二幕：摺疊桌上合著的牛皮紙信封（只是擺著，不能點）', planned: 'prop_v58_envelope_desk_closed_v1', status: 'ready', dir: V56.C, src: 'prop_v58_envelope_desk_closed_v1' },
-  pp_envelope_opened: { use: '第二幕開信封之後與特休前一晚：摺疊桌上拆過的信封（只是擺著，不能點）', planned: 'prop_v58_envelope_desk_opened_v1', status: 'ready', dir: V56.C, src: 'prop_v58_envelope_desk_opened_v1' },
+  // 合著／拆過的信封改用畫師 2026-11 交的 v2（v1 原檔留在磁碟，不再引用）
+  pp_envelope: { use: '第二幕：摺疊桌上合著的牛皮紙信封（只是擺著，不能點）', planned: 'prop_v58_envelope_desk_closed_v2', status: 'ready', dir: V56.C, src: 'prop_v58_envelope_desk_closed_v2' },
+  pp_envelope_opened: { use: '第二幕開信封之後與特休前一晚：摺疊桌上拆過的信封（只是擺著，不能點）', planned: 'prop_v58_envelope_desk_opened_v2', status: 'ready', dir: V56.C, src: 'prop_v58_envelope_desk_opened_v2' },
   bg_cafe_bamboo: { use: '第一天早上店裡：吧台上攤著兩個竹篩，生豆鋪滿；德叔背後架子上自己放一格的杯子', planned: 'bg_shop_day_bar_beans', status: 'temp', src: null, temp: '用店內 2D 定景的早上底圖（SHOP_STILL_DAY，已換成白天正式圖 scene_shop_interior_day_v1）；竹篩、生豆、架子上的杯子沒有另畫' },
 };
 
@@ -148,7 +155,7 @@ export const SHOP_STILL_DUSK = 'bg_shop_dusk';
 // 程式疊在圖上的字（不指望圖上有字）
 export const OVERLAY_TEXT = {
   label: '農藥', // 空罐子的標籤（劇本：「坤伯，這上面寫的是農藥。」）
-  poster: '誠徵門市人員', // 徵人海報（劇本：上面寫「誠徵門市人員」和薪水；薪水數字劇本沒寫，不疊）
+  poster: '誠徵門市人員', // 徵人海報：只疊在超商場景上遠看的海報熱點（薪水數字劇本沒寫，不疊）；特寫是分鏡格 sb_store_poster，字畫在圖上，不疊
 };
 
 // 參照 → 網址：舊圖（沒有斜線）在 assets/art/；新圖（art-v56/…）在 assets/ 底下照子路徑

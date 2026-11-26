@@ -205,14 +205,29 @@
     "sha256": "cd24a2435c3f178777c1ff1d1a67138e9930ef759226d8d738b7e126f74f992d"
   },
   {
+    "path": "C/prop_v56_yard_bucket_corner_v2.webp",
+    "bytes": 23864,
+    "sha256": "01c3f63ec73a29cc82fbfdbc03b0e49a3d279faea36a1085b3c18b7f79815261"
+  },
+  {
     "path": "C/prop_v56_yard_bucket_patch_v1.webp",
     "bytes": 32582,
     "sha256": "f8135d48d8d5d86589900993a72ba59f3961bf98b82404b0768aea96498e2e6d"
   },
   {
+    "path": "C/prop_v56_yard_bucket_patch_v2.webp",
+    "bytes": 38704,
+    "sha256": "fc11fc19031850d11b5bb593d4b2011bb1513d696ee468d7b89769967f00d326"
+  },
+  {
     "path": "C/prop_v56_yard_empty_can_down_v1.webp",
     "bytes": 14180,
     "sha256": "c478447d7e39c08e541e811b0d80092f5ed4ff1486dcfb25801fcc60dbf621e2"
+  },
+  {
+    "path": "C/prop_v56_yard_empty_can_down_v2.webp",
+    "bytes": 10922,
+    "sha256": "743d1619aefbbee22512e0c76fc4ad455b10b55add9c034f0e5de842a5f2a74d"
   },
   {
     "path": "C/prop_v56_yard_fertilizer_can_stand_v1.webp",
@@ -225,9 +240,19 @@
     "sha256": "83eb911e506be1fd6dd77e9cfdb6db8ad5bc2349dd8ec27d688e0ff4e8702064"
   },
   {
+    "path": "C/prop_v58_envelope_desk_closed_v2.webp",
+    "bytes": 9028,
+    "sha256": "fcb88b0d32ea37fc9e652dfaf7ee17defe41e83a41a91bfc777e58a3be04ae31"
+  },
+  {
     "path": "C/prop_v58_envelope_desk_opened_v1.webp",
     "bytes": 8774,
     "sha256": "891d3a92c1067c1137252eaa0854aecb9e9a6ed0cd4dd7bc2479d8b95fdc9daf"
+  },
+  {
+    "path": "C/prop_v58_envelope_desk_opened_v2.webp",
+    "bytes": 11322,
+    "sha256": "a4b9572516e56fce458bcc8d77695490e915e525442c11c00afcb6adff98bcc2"
   },
   {
     "path": "S/sb_atm_passbook_strip_v3.webp",
@@ -283,6 +308,16 @@
     "path": "S/sb_ride_uturn_v2.webp",
     "bytes": 201952,
     "sha256": "4138e795bdd3d19927b6a310a400af3bab38f0c234c7744d0f67309febe08d5c"
+  },
+  {
+    "path": "S/sb_ride_uturn_v3.webp",
+    "bytes": 205644,
+    "sha256": "efd4d3f7e7b1e10527b55ed6f843e14aa7c218ae5a67b8b13ad8521418b810cf"
+  },
+  {
+    "path": "S/sb_store_poster_v3.webp",
+    "bytes": 668586,
+    "sha256": "381dae61b16ff797b46f18d4088aecf7e84ac0a23da6ead44285bc38e6a5a3c3"
   },
   {
     "path": "S/sb_wallet_count_v1.webp",

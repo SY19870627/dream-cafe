@@ -444,12 +444,13 @@ test('字出來之前要先做的互動（tap）照劇本的順序；可選互�
   const taps = dayLines().flatMap(D.tapsOf);
   // 數錢、開抽屜、刷存摺、花斑貓、研發咖啡開頭、紙袋改成分鏡格（承峰 2026-11-24／25）：mini＝格先出點一下才出句；panel＝只在字出來前亮一下；panelAuto＝自動亮
   // 坤伯院子：點空罐子 → 標籤小圖 → 肥料罐分鏡格（codeart 交稿：點一下出「旁邊這罐才是肥料，還沒開。」）
-  assert.deepEqual(taps, ['mini', 'mini', 'mini', 'mini', 'panelAuto', 'poster', 'pause', 'keyBar', 'mini', 'calico', 'can', 'mini', 'mini', 'mini', 'mini', 'panel', 'mini']);
+  // 超商：點徵人海報 → 海報分鏡格（sb_store_poster_v3）點一下才出句
+  assert.deepEqual(taps, ['mini', 'mini', 'mini', 'mini', 'panelAuto', 'poster', 'mini', 'pause', 'keyBar', 'mini', 'calico', 'can', 'mini', 'mini', 'mini', 'mini', 'panel', 'mini']);
   const tapAt = (t) => find(t).b.tap;
   assert.equal(tapAt('繳完房租，剩下五千塊錢。'), 'mini', '數錢分鏡格');
   assert.equal(tapAt('印章還在。'), 'mini', '開抽屜分鏡格');
   assert.equal(tapAt('每一行都是一萬。'), 'panelAuto', '刷存摺第 1 格自動亮');
-  assert.equal(tapAt('領這種餓不死、穿不暖的薪水，還要被這樣罵。'), 'poster', '點徵人海報');
+  assert.deepEqual(tapAt('領這種餓不死、穿不暖的薪水，還要被這樣罵。'), ['poster', 'mini'], '點徵人海報 → 海報分鏡格點一下');
   assert.equal(tapAt('……可是如果不去，我大概會一直想這件事。'), 'pause', '停一拍，點一下才繼續');
   assert.equal(tapAt('德叔，鑰匙我帶來了。'), 'keyBar', '鑰匙放到吧台');
   assert.equal(tapAt('貓走進一戶人家的院子，院子旁邊種了好幾棵龍眼樹。'), 'calico', '點花斑貓跟著走');
@@ -511,10 +512,11 @@ test('分鏡格八組（承峰 2026-11-24 提案、11-25 定版）：掛在提�
   const V = await import('../../src/view/days.js');
   const H = await import('../../src/view/hints.js');
   // 八組定版＋codeart 交稿四格（肥料罐、夜騎工寮／土地公廟／掉頭；夜騎一律用 v2）
-  assert.deepEqual(Object.keys(V.STORYBOARDS).sort(), ['atm', 'brew', 'calico', 'cat', 'drawer', 'envelope', 'fertilizer', 'paperbag', 'shed', 'temple', 'uturn', 'wallet']);
+  // 2026-11：掉頭格換 v3；徵人海報特寫改成分鏡格 v3（去膠帶版）
+  assert.deepEqual(Object.keys(V.STORYBOARDS).sort(), ['atm', 'brew', 'calico', 'cat', 'drawer', 'envelope', 'fertilizer', 'paperbag', 'poster', 'shed', 'temple', 'uturn', 'wallet']);
   const FILES = { envelope: 'sb_envelope_open_v1', wallet: 'sb_wallet_count_v1', drawer: 'sb_drawer_seal_v3', atm: 'sb_atm_passbook_strip_v3',
     calico: 'sb_calico_paw_v1', brew: 'sb_brew_cups_v2', paperbag: 'sb_paperbag_writing_v2', cat: 'sb_cat_approach_strip_v1',
-    fertilizer: 'sb_fertilizer_can_v1', shed: 'sb_ride_shed_v2', temple: 'sb_ride_temple_v2', uturn: 'sb_ride_uturn_v2' };
+    fertilizer: 'sb_fertilizer_can_v1', shed: 'sb_ride_shed_v2', temple: 'sb_ride_temple_v2', uturn: 'sb_ride_uturn_v3', poster: 'sb_store_poster_v3' };
   for (const [k, f] of Object.entries(FILES)) {
     const sb = V.STORYBOARDS[k];
     assert.equal(srcOf(sb.slot), `art-v56/S/${f}`, k);
@@ -527,8 +529,12 @@ test('分鏡格八組（承峰 2026-11-24 提案、11-25 定版）：掛在提�
     assert.ok(!existsSync(root(`assets/art-v56/S/${old}.webp`)), `${old} 不該進遊戲`);
     assert.ok(!ART_MAP_FILES.some((r) => r.endsWith(old)), old);
   }
-  for (const old of ['sb_ride_shed_v1', 'sb_ride_temple_v1', 'sb_ride_uturn_v1']) assert.ok(!ART_MAP_FILES.some((r) => r.endsWith(old)), `夜騎用 v2，不用 ${old}`);
-  assert.deepEqual(Object.fromEntries(Object.entries(V.STORYBOARDS).map(([k, v]) => [k, v.panels])), { envelope: 1, wallet: 1, drawer: 1, atm: 3, calico: 1, brew: 1, paperbag: 1, cat: 2, fertilizer: 1, shed: 1, temple: 1, uturn: 1 });
+  for (const old of ['sb_ride_shed_v1', 'sb_ride_temple_v1', 'sb_ride_uturn_v1', 'sb_ride_uturn_v2']) assert.ok(!ART_MAP_FILES.some((r) => r.endsWith(old)), `夜騎工寮／廟用 v2、掉頭用 v3，不用 ${old}`);
+  assert.equal(srcOf('sb_ride_uturn'), 'art-v56/S/sb_ride_uturn_v3', '夜騎掉頭格是 v3');
+  // 徵人海報：只用 v3（去膠帶版），v1／v2 已退回，不進遊戲
+  for (const old of ['sb_store_poster_v1', 'sb_store_poster_v2']) assert.ok(!ART_MAP_FILES.some((r) => r.endsWith(old)), `徵人海報不用 ${old}`);
+  assert.doesNotMatch(read('src/view/art-map.js') + code('src/view/days.js') + code('src/lines/days.js') + code('src/main.js'), /sb_store_poster_v[12]\b/, '程式不引用海報 v1／v2');
+  assert.deepEqual(Object.fromEntries(Object.entries(V.STORYBOARDS).map(([k, v]) => [k, v.panels])), { envelope: 1, wallet: 1, drawer: 1, atm: 3, calico: 1, brew: 1, paperbag: 1, cat: 2, fertilizer: 1, shed: 1, temple: 1, uturn: 1, poster: 1 });
   assert.deepEqual(V.parseSb('sb-atm-2'), { name: 'atm', lit: 2 });
   assert.deepEqual(V.parseSb('sb-wallet'), { name: 'wallet', lit: 1 });
   assert.equal(V.parseSb('stain'), null);
@@ -556,6 +562,19 @@ test('分鏡格八組（承峰 2026-11-24 提案、11-25 定版）：掛在提�
   }
   // 肥料罐格：翻到下一句收掉
   { const x = at('旁邊這罐才是肥料，還沒開。'); assert.equal(OP.sceneAt(x.lines, x.i + 1).mini, null, '肥料罐格翻到下一句收掉'); assert.equal(x.act, 'd5village'); }
+  // 徵人海報格：先點座位區的海報（熱點），格子疊上、點一下才出「領這種……」；翻到下一句收掉（特寫只停一句）
+  {
+    const x = at('領這種餓不死、穿不暖的薪水，還要被這樣罵。');
+    assert.equal(x.act, 'd1store');
+    assert.deepEqual(D.tapsOf(x.b), ['poster', 'mini']);
+    assert.equal(OP.sceneAt(x.lines, x.i).mini, 'sb-poster');
+    assert.ok(!OP.sceneAt(x.lines, x.i - 1).mini, '點海報之前沒有格子');
+    const nx = x.lines[x.i + 1];
+    assert.equal(nx.text, '光在旁邊聽，我的胃就縮起來了。');
+    assert.equal(OP.sceneAt(x.lines, x.i + 1).mini, null, '海報格翻到下一句收掉');
+    assert.ok(!('prop' in (x.b.set || {})) && !OP.sceneAt(x.lines, x.i).prop, '不再疊 CSS 白紙特寫卡（prop: poster）');
+    assert.equal(H.tapHint('mini', { mini: 'sb-poster' }), '點一下繼續');
+  }
   // 夜騎（codeart v2）：工寮那句疊工寮格（跟這句一起出，點一下收掉）；短黑幕之後土地公廟那句起疊廟格，一路留到「掉頭回去」（掉頭格由 main.js 的掉頭關卡疊）
   {
     const T = OP.OPENING_LINES.temple;
@@ -613,7 +632,7 @@ test('分鏡格八組（承峰 2026-11-24 提案、11-25 定版）：掛在提�
   assert.match(css, /#op-read\.sb-hint \.opr-hint \{ top: var\(--sb-hint-top\); bottom: auto; \}/);
 });
 
-test('程式疊字：徵人海報「誠徵門市人員」（劇本沒寫薪資數字，不疊薪水）、空罐子「農藥」、紙袋「提神醒腦，過目不忘」', () => {
+test('程式疊字：徵人海報「誠徵門市人員」（劇本沒寫薪資數字，不疊薪水）、空罐子「農藥」、紙袋「提神醒腦，過目不忘」', async () => {
   assert.equal(OVERLAY_TEXT.poster, '誠徵門市人員');
   assert.doesNotMatch(OVERLAY_TEXT.poster, /\d|元|薪/);
   if (HAS58) assert.ok(BODY.includes('上面寫「誠徵門市人員」和薪水'));
@@ -622,10 +641,18 @@ test('程式疊字：徵人海報「誠徵門市人員」（劇本沒寫薪資�
   assert.ok(!('paperbag' in OVERLAY_TEXT), '紙袋不再由程式疊字');
   assert.ok(!find('「提神醒腦，過目不忘」').b.set, '「提神醒腦，過目不忘」這句不再疊 CSS 紙袋');
   assert.equal(find('好，我帶去公司。').b.set.mini, 'sb-paperbag');
-  assert.equal(find('領這種餓不死、穿不暖的薪水，還要被這樣罵。').b.set.prop, 'poster');
+  // 徵人海報特寫改成分鏡格 sb_store_poster_v3（2026-11，去膠帶版）：字畫在圖上，不再有 CSS 白紙特寫卡，格子上不疊程式字
+  assert.equal(find('領這種餓不死、穿不暖的薪水，還要被這樣罵。').b.set.mini, 'sb-poster');
   const view = read('src/view/days.js');
-  assert.match(view, /poster: \(\) => `<div class="pp-poster"><span class="pp-overlay">\$\{esc\(OVERLAY_TEXT\.poster\)\}<\/span><\/div>`/);
-  // 場景上的海報：底圖座位區後牆上那張有框的空白海報（熱點對準外框）；字仍是程式疊「誠徵門市人員」
+  assert.doesNotMatch(code('src/view/days.js'), /pp-poster|poster: \(\) =>/, '特寫卡 CARD.poster（CSS 白紙）拿掉');
+  assert.doesNotMatch(read('index.html'), /\.pp-poster/, 'CSS 白紙海報樣式拿掉');
+  assert.doesNotMatch(code('src/main.js'), /prop: 'poster'/, '點海報後不再疊特寫卡');
+  assert.ok(!('pp_poster' in ART_MAP), '對照表不再有暫代的 pp_poster');
+  assert.equal(srcOf('sb_store_poster'), 'art-v56/S/sb_store_poster_v3');
+  const sbHtml = (await import('../../src/view/days.js')).storyboardHtml('poster', 1);
+  assert.match(sbHtml, /assets\/art-v56\/S\/sb_store_poster_v3\.webp/);
+  assert.doesNotMatch(sbHtml, /pp-overlay|誠徵門市人員|薪/, '海報分鏡格上不疊程式字、不疊薪水');
+  // 場景上（遠看）的海報：底圖座位區後牆上那張有框的空白海報（熱點對準外框）；字仍是程式疊「誠徵門市人員」，遠近對得上主標
   assert.match(view, /<div class="dy-poster" id="dy-poster"><span class="pp-overlay">\$\{esc\(OVERLAY_TEXT\.poster\)\}<\/span><\/div>/);
 });
 
@@ -972,11 +999,11 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
   assert.notEqual(srcOf('bg_letter_room'), srcOf('bg_home'));
   assert.match(read('src/view/opening.js'), /artUrl\(srcOf\('bg_letter_room'\)\)/);
   assert.doesNotMatch(read('index.html'), /\.op-letterroom \.op-art::after|\.op-env-flap|\.op-env \{/, '橘色濾鏡與 CSS 假信封拿掉');
-  assert.equal(srcOf('pp_envelope'), 'art-v56/C/prop_v58_envelope_desk_closed_v1');
-  assert.equal(srcOf('pp_envelope_opened'), 'art-v56/C/prop_v58_envelope_desk_opened_v1');
-  // 去背對齊層（codeart 交稿）：皆 1170×2532，整張疊上
-  const LAYERS = { fg_basin_mirror: 'prop_v56_basin_mirror_frame_v1', pp_envelope: 'prop_v58_envelope_desk_closed_v1', pp_envelope_opened: 'prop_v58_envelope_desk_opened_v1',
-    yard_empty_can: 'prop_v56_yard_empty_can_down_v1', yard_fertilizer_can: 'prop_v56_yard_fertilizer_can_stand_v1', yard_bucket_patch: 'prop_v56_yard_bucket_patch_v1', yard_bucket_corner: 'prop_v56_yard_bucket_corner_v1',
+  assert.equal(srcOf('pp_envelope'), 'art-v56/C/prop_v58_envelope_desk_closed_v2');
+  assert.equal(srcOf('pp_envelope_opened'), 'art-v56/C/prop_v58_envelope_desk_opened_v2');
+  // 去背對齊層（codeart 交稿）：皆 1170×2532，整張疊上。信封、空罐子、地面補丁、牆角水桶改用 2026-11 交的 v2；立著的肥料罐仍是 v1
+  const LAYERS = { fg_basin_mirror: 'prop_v56_basin_mirror_frame_v1', pp_envelope: 'prop_v58_envelope_desk_closed_v2', pp_envelope_opened: 'prop_v58_envelope_desk_opened_v2',
+    yard_empty_can: 'prop_v56_yard_empty_can_down_v2', yard_fertilizer_can: 'prop_v56_yard_fertilizer_can_stand_v1', yard_bucket_patch: 'prop_v56_yard_bucket_patch_v2', yard_bucket_corner: 'prop_v56_yard_bucket_corner_v2',
     door_glow: 'prop_v56_sanheyuan_door_glow_v1', door_fixed: 'prop_v56_sanheyuan_door_fixed_v1', door_leaf_shut: 'prop_v56_sanheyuan_door_leaf_shut_v1',
     door_leaf_ajar: 'prop_v56_sanheyuan_door_leaf_ajar_v1', door_leaf_open: 'prop_v56_sanheyuan_door_leaf_open_v1' };
   for (const [id, f] of Object.entries(LAYERS)) {
@@ -985,6 +1012,19 @@ test('素材對照表（art-map.js）：每個 slot 有用途、預定鍵、狀�
     assert.deepEqual(webpSize(readFileSync(root(artUrl(srcOf(id))))), [1170, 2532], `${f} 是 1170×2532 對齊層`);
     assert.ok(DAY_ART.includes(srcOf(id)), `${id} 有預載`);
   }
+  // 被 2026-11 新圖取代的舊檔：不再引用（程式與對照表），但檔案留在磁碟（不覆蓋、不刪）
+  const REPLACED = ['C/prop_v56_yard_empty_can_down_v1', 'C/prop_v56_yard_bucket_patch_v1', 'C/prop_v56_yard_bucket_corner_v1',
+    'C/prop_v58_envelope_desk_closed_v1', 'C/prop_v58_envelope_desk_opened_v1', 'S/sb_ride_uturn_v2'];
+  const srcReplaced = ['src/view/art-map.js', 'src/view/days.js', 'src/view/opening.js', 'src/view/boot-art.js', 'src/main.js', 'src/lines/days.js', 'src/lines/opening.js'].map(code).join('\n');
+  for (const old of REPLACED) {
+    const name = old.split('/')[1];
+    assert.ok(!ART_MAP_FILES.includes(`art-v56/${old}`), `對照表不再引用 ${old}`);
+    assert.ok(!DAY_ART.includes(`art-v56/${old}`), `不再預載 ${old}`);
+    assert.ok(!srcReplaced.includes(name), `程式不再引用 ${name}`);
+    assert.ok(existsSync(root(`assets/art-v56/${old}.webp`)), `${old} 原檔留在磁碟`);
+  }
+  // 院子圖層順序不變：補丁 → 牆角水桶 → 立著的肥料罐 → 倒著的空罐子（補丁 v2 裡那一小截肥料罐被立罐蓋住）
+  assert.match(code('src/view/days.js'), /layer\('yard_bucket_patch', 'dy-bucket-patch'\)\}\$\{layer\('yard_bucket_corner', 'dy-bucket-corner'\)\}\$\{layer\('yard_fertilizer_can', 'dy-fullcan'\)\}\$\{layer\('yard_empty_can', 'dy-emptycan-art'\)\}/);
   // 洗臉：拿掉 CSS 水槽／塑膠框；鏡框前景疊在角色卡與霧氣上面；水龍頭熱點留著
   const daysView = code('src/view/days.js');
   assert.doesNotMatch(daysView + read('index.html'), /dy-basin|dy-sink/, 'CSS 洗手台拿掉');
