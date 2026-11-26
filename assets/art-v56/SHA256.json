@@ -90,9 +90,19 @@
     "sha256": "0f8fcf9d0b767656adeee73fc1f94c657e8dab092e7911beafc1b7c4f409c2ed"
   },
   {
+    "path": "B/bg_v56_hulong_basin_morning_portrait.webp",
+    "bytes": 785280,
+    "sha256": "ffb64837ea24526002f701bb21fb70c3c8038f330179f4a2d119a5634a549ba6"
+  },
+  {
     "path": "B/bg_v56_hulong_morning_portrait.webp",
     "bytes": 634928,
     "sha256": "9691e3914e24738ad18ecbd6bff19473cdd2198f193ff3e3c8f6c8e490edc2a0"
+  },
+  {
+    "path": "B/bg_v56_hulong_morning_portrait_v2.webp",
+    "bytes": 713668,
+    "sha256": "33d5a18c48e85e50275a356f0f37eb244b8857c04b615b5fd2fcf09bb7a52c4d"
   },
   {
     "path": "B/bg_v56_kunbo_yard_portrait.webp",
@@ -130,6 +140,16 @@
     "sha256": "e4fab71874b58ab0efc9cbfbe5642a95440687e9fdc7f661f17002d2ef0a5898"
   },
   {
+    "path": "B/bg_v58_rental_room_evening_portrait.webp",
+    "bytes": 661334,
+    "sha256": "8f9c5dbc3b106535d0d2b2720a7591a9c3db31b256d4f40a281afc9bea08ca75"
+  },
+  {
+    "path": "C/prop_v56_basin_mirror_frame_v1.webp",
+    "bytes": 364398,
+    "sha256": "340a4305004379b7fdc5a195d1b7b3a9d814278e7d88c40a26a2dc15508431a7"
+  },
+  {
     "path": "C/prop_v56_douli_v2.webp",
     "bytes": 87926,
     "sha256": "d6b78cd2e88b07ae71bf030645f063570cf134a92ec1547ab49eeaf7328cfa0b"
@@ -150,9 +170,64 @@
     "sha256": "e37b4dd8db25990a3292d8fea8faf9ce21d5831c6ac1e2c6402f4783f902b338"
   },
   {
+    "path": "C/prop_v56_sanheyuan_door_fixed_v1.webp",
+    "bytes": 10274,
+    "sha256": "ca659ee89b1b7e9f8bea916576728c3be7dd6cd423605314717b657c8ca91542"
+  },
+  {
+    "path": "C/prop_v56_sanheyuan_door_glow_v1.webp",
+    "bytes": 9904,
+    "sha256": "ea1aa5c6564a93860799816255601dcd978b820a27d7ede380317130e2f20dfb"
+  },
+  {
+    "path": "C/prop_v56_sanheyuan_door_leaf_ajar_v1.webp",
+    "bytes": 10578,
+    "sha256": "1e55c10ae502ad3e5d1c678b17a6c04ada8983aecce240e36f7069529d7d5aa2"
+  },
+  {
+    "path": "C/prop_v56_sanheyuan_door_leaf_open_v1.webp",
+    "bytes": 9124,
+    "sha256": "161268e1394fd026ace1669c616c6180802b260b63f2643bbf2bf7f45c4bc9fb"
+  },
+  {
+    "path": "C/prop_v56_sanheyuan_door_leaf_shut_v1.webp",
+    "bytes": 10288,
+    "sha256": "31c221d0cdd801d63a8417b9ba6030e0df85f810d6a3152fd0010d378d175e2b"
+  },
+  {
     "path": "C/prop_v56_water_stain_v2.webp",
     "bytes": 132000,
     "sha256": "283ebcae70f00827533136a9392468ba8d8c7207cacabf6824b59818480b2943"
+  },
+  {
+    "path": "C/prop_v56_yard_bucket_corner_v1.webp",
+    "bytes": 27080,
+    "sha256": "cd24a2435c3f178777c1ff1d1a67138e9930ef759226d8d738b7e126f74f992d"
+  },
+  {
+    "path": "C/prop_v56_yard_bucket_patch_v1.webp",
+    "bytes": 32582,
+    "sha256": "f8135d48d8d5d86589900993a72ba59f3961bf98b82404b0768aea96498e2e6d"
+  },
+  {
+    "path": "C/prop_v56_yard_empty_can_down_v1.webp",
+    "bytes": 14180,
+    "sha256": "c478447d7e39c08e541e811b0d80092f5ed4ff1486dcfb25801fcc60dbf621e2"
+  },
+  {
+    "path": "C/prop_v56_yard_fertilizer_can_stand_v1.webp",
+    "bytes": 18438,
+    "sha256": "11dfaa4c257575f3111d243702a3867d2b6d15ee95d680615907478731fe4297"
+  },
+  {
+    "path": "C/prop_v58_envelope_desk_closed_v1.webp",
+    "bytes": 7862,
+    "sha256": "83eb911e506be1fd6dd77e9cfdb6db8ad5bc2349dd8ec27d688e0ff4e8702064"
+  },
+  {
+    "path": "C/prop_v58_envelope_desk_opened_v1.webp",
+    "bytes": 8774,
+    "sha256": "891d3a92c1067c1137252eaa0854aecb9e9a6ed0cd4dd7bc2479d8b95fdc9daf"
   },
   {
     "path": "S/sb_atm_passbook_strip_v3.webp",
@@ -185,9 +260,29 @@
     "sha256": "7f2899ac719369a621cfd5ce4878e99302d6338d6f03dbb6ea26e6bfd8f2e041"
   },
   {
+    "path": "S/sb_fertilizer_can_v1.webp",
+    "bytes": 531080,
+    "sha256": "545dfa27172ef313fabb8f362ed2e1fb183459035d656d8e23a6583a59af83f9"
+  },
+  {
     "path": "S/sb_paperbag_writing_v2.webp",
     "bytes": 525512,
     "sha256": "1c432a1cda377ca6ac0dcd5efb806994340c4cb51689619927f009cf8f411d4c"
+  },
+  {
+    "path": "S/sb_ride_shed_v2.webp",
+    "bytes": 140818,
+    "sha256": "2a65b2fa13a25b651e07e5688aa62a438725bca9f2b24fa3c28f230e2e926296"
+  },
+  {
+    "path": "S/sb_ride_temple_v2.webp",
+    "bytes": 193858,
+    "sha256": "d762283eb2ef600f4e43e788119b7121b0c1542b953905f3d8d7002f3f43001f"
+  },
+  {
+    "path": "S/sb_ride_uturn_v2.webp",
+    "bytes": 201952,
+    "sha256": "4138e795bdd3d19927b6a310a400af3bab38f0c234c7744d0f67309febe08d5c"
   },
   {
     "path": "S/sb_wallet_count_v1.webp",

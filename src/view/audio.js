@@ -511,7 +511,7 @@ export const ENGINE_TURN = Object.freeze([
   { t: 1.25, rev: 0.58 },
   { t: 1.5, rev: 0 },
 ]);
-// 迴轉（對齊 road.uturn 1.6 秒）：更慢、更收油；輕帶油 → 壓低接近怠速 → 轉完帶一點油 → 回怠速
+// 迴轉（1.6 秒；離開工寮的短黑幕與按「掉頭回去」都用這條）：更慢、更收油；輕帶油 → 壓低接近怠速 → 轉完帶一點油 → 回怠速
 export const ENGINE_UTURN = Object.freeze([
   { t: 0.25, rev: 0.35 },
   { t: 1.05, rev: 0.15 },

@@ -23,8 +23,12 @@ const V56 = { A: 'art-v56/A', B: 'art-v56/B', C: 'art-v56/C', S: 'art-v56/S' };
 
 export const ART_MAP = {
   /* ---------- 背景（整張直式圖，1170×2532） ---------- */
-  bg_room_morning: { use: '第一天早上：護龍房間（唯一一次在護龍醒來）', planned: 'bg_v56_hulong_morning_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_hulong_morning_portrait' },
-  bg_basin: { use: '第一天早上：洗臉（鏡子裡是帶缺點的角色卡）', planned: 'scene_v3b_basin_morning', status: 'temp', src: 'scene_v3b_room_night', temp: '護龍原圖上疊 CSS 洗手台與鏡子，鏡子裡放 char_v3b_yijun_card_flawed_v4' },
+  // 護龍早上改用 _v2（畫師 2026-11 codeart 交稿）；原檔 bg_v56_hulong_morning_portrait.webp 留在磁碟，不覆蓋、不刪，只是不再引用
+  bg_room_morning: { use: '第一天早上：護龍房間（唯一一次在護龍醒來）', planned: 'bg_v56_hulong_morning_portrait_v2', status: 'ready', dir: V56.B, src: 'bg_v56_hulong_morning_portrait_v2' },
+  // 洗臉：早晨洗手台底圖（紅磚牆、木框鏡子、銅色水龍頭、石洗手台）。鏡面原圖 x 458–878、y 588–1215；銅色水龍頭 x 615–760、y 1290–1530。
+  // 鏡子裡仍由程式放角色卡（flawed_v4）、霧氣，水龍頭下淡藍水流；最上層疊鏡框前景 fg_basin_mirror，蓋住角色卡的邊。不再疊 CSS 水槽／塑膠框
+  bg_basin: { use: '第一天早上：洗臉（鏡子裡是帶缺點的角色卡）', planned: 'bg_v56_hulong_basin_morning_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_hulong_basin_morning_portrait' },
+  fg_basin_mirror: { use: '洗臉：木頭鏡框前景（1170×2532 透明對齊層，疊在鏡子裡的角色卡與霧氣上面）', planned: 'prop_v56_basin_mirror_frame_v1', status: 'ready', dir: V56.C, src: 'prop_v56_basin_mirror_frame_v1' },
   bg_road: { use: '下山的路，接省道進市區', planned: 'scene_county_road', status: 'ready', src: 'scene_county_road' },
   // 第一天「信箱是空的」：定版空信箱 scene_mailboxes_empty（承峰 2026-11-21 23:25 定版；1950×1200 橫圖，門都關著、沒有信封）。
   // 不再用 scene_mailboxes.webp（舊圖有一格門開著、畫著棕色信封；檔案原樣留著，只是不引用）。
@@ -42,6 +46,13 @@ export const ART_MAP = {
   bg_black: { use: '提款機之後、超商之前的黑底（三句旁白在黑底上出）', planned: null, status: 'none', src: null, temp: '不用圖：純 CSS 黑底（.dy-css-black）' },
   bg_village: { use: '三天後：村子的路（一戶一戶敲門；花斑貓從圍牆上跳下來）', planned: 'bg_v56_village_lane_portrait_v2', status: 'ready', dir: V56.B, src: 'bg_v56_village_lane_portrait_v2' },
   bg_kunyard: { use: '坤伯家的院子（龍眼樹、水桶、空罐子）', planned: 'bg_v56_kunbo_yard_portrait', status: 'ready', dir: V56.B, src: 'bg_v56_kunbo_yard_portrait' },
+  // 坤伯院子的去背層（皆 1170×2532 透明對齊層，整張疊上）：取代原本兩個 CSS 色塊罐子
+  //   空罐子倒在地上（原圖約 x 205–335、y 2030–2110；可點，點了淡出 → 標籤小圖）；立著的肥料罐一直留著；
+  //   提水桶那句：地面補丁（蓋住原圖院子中間的水桶）＋牆角水桶淡入，之後留著
+  yard_empty_can: { use: '坤伯院子：倒在地上的空罐子（可點；點了淡出，接標籤小圖）', planned: 'prop_v56_yard_empty_can_down_v1', status: 'ready', dir: V56.C, src: 'prop_v56_yard_empty_can_down_v1' },
+  yard_fertilizer_can: { use: '坤伯院子：立著、還沒開的肥料罐（一直留著）', planned: 'prop_v56_yard_fertilizer_can_stand_v1', status: 'ready', dir: V56.C, src: 'prop_v56_yard_fertilizer_can_stand_v1' },
+  yard_bucket_patch: { use: '坤伯院子：地面補丁（水桶提到牆角後，蓋住原圖上的水桶）', planned: 'prop_v56_yard_bucket_patch_v1', status: 'ready', dir: V56.C, src: 'prop_v56_yard_bucket_patch_v1' },
+  yard_bucket_corner: { use: '坤伯院子：提到牆角的水桶', planned: 'prop_v56_yard_bucket_corner_v1', status: 'ready', dir: V56.C, src: 'prop_v56_yard_bucket_corner_v1' },
   // 店內 2D 定景（店內環景與「看看店裡」已拔掉，承峰 2026-11-21 20:48）。見下面 SHOP_STILL_NIGHT／SHOP_STILL_DAY／SHOP_STILL_SEATED。
   // 店內定版圖 scene_shop_interior_night_lit_v2（承峰 2026-11-21 23:47「店內圖定版」）：晚上燈亮、左邊一扇窗、右邊吧台（一排杯子、磨豆機）、兩張桌子。
   // 進門／站在店裡用這張；椅子、德叔、龍眼、杯子、窗、吧台的位置都在 shop-still.js 對準這張（SHOP_CHAIR、*_STAND）。
@@ -58,13 +69,20 @@ export const ART_MAP = {
   bg_office: { use: '開場：辦公室', planned: 'scene_office_night', status: 'ready', src: 'scene_office_night' },
   bg_sanheyuan_dusk: { use: '開場：三合院外（傍晚）。劇本 v5.8 是「夜裡，東山。」，三合院外三幕都用晚上那張；這張不再出場（檔案留著）', planned: 'scene_v3b_sanheyuan_dusk_v2', status: 'ready', src: 'scene_v3b_sanheyuan_dusk_v2' },
   bg_sanheyuan_night: { use: '開場：三合院外（夜裡到東山、晚上發動、晚上回來）', planned: 'scene_v3b_sanheyuan_night_v2', status: 'ready', src: 'scene_v3b_sanheyuan_night_v2' },
+  // 三合院的雙扇門（皆 1170×2532 透明對齊層）：取代 CSS 假門板。固定扇（左，原圖 x 621–685）不動；活動扇（觀眾面對大門的右扇，x 685–748、y 1506–1706）
+  // 依拖曳淡換三張開度（關／開一道縫／全開），門後暖光跟著變亮。圖層：暖光 → 固定扇 → 活動扇 → 台階上的貓。「推門進去」由程式疊，不畫進門板
+  door_glow: { use: '三合院門：門後暖光（拖曳時跟著變亮）', planned: 'prop_v56_sanheyuan_door_glow_v1', status: 'ready', dir: V56.C, src: 'prop_v56_sanheyuan_door_glow_v1' },
+  door_fixed: { use: '三合院門：固定扇（左扇，不動）', planned: 'prop_v56_sanheyuan_door_fixed_v1', status: 'ready', dir: V56.C, src: 'prop_v56_sanheyuan_door_fixed_v1' },
+  door_leaf_shut: { use: '三合院門：活動扇關著', planned: 'prop_v56_sanheyuan_door_leaf_shut_v1', status: 'ready', dir: V56.C, src: 'prop_v56_sanheyuan_door_leaf_shut_v1' },
+  door_leaf_ajar: { use: '三合院門：活動扇開一道縫（只點一下時閃一下再彈回）', planned: 'prop_v56_sanheyuan_door_leaf_ajar_v1', status: 'ready', dir: V56.C, src: 'prop_v56_sanheyuan_door_leaf_ajar_v1' },
+  door_leaf_open: { use: '三合院門：活動扇全開', planned: 'prop_v56_sanheyuan_door_leaf_open_v1', status: 'ready', dir: V56.C, src: 'prop_v56_sanheyuan_door_leaf_open_v1' },
   bg_courtyard_night: { use: '開場：庭埕（晚上）', planned: 'scene_v3b_courtyard_night_v2', status: 'ready', src: 'scene_v3b_courtyard_night_v2' },
   bg_room_night: { use: '開場：護龍房間（晚上）', planned: 'scene_v3b_room_night', status: 'ready', src: 'scene_v3b_room_night' },
   bg_bed_pov: { use: '開場：躺下的視角', planned: 'scene_v3b_bed_pov_night', status: 'ready', src: 'scene_v3b_bed_pov_night' },
   /* 劇本 v5.8（開場第二幕　房間裡那封信） */
-  bg_letter_room: { use: 'v5.8 第二幕：租屋處房間（回到家、包包放在床上、摺疊桌上的信）。劇本：畫面同第一天的房間',
-    planned: 'bg_v58_rental_room_evening_portrait', status: 'temp', dir: V56.B, src: 'bg_v56_rental_room_day_portrait',
-    temp: '沿用第一天的 v5.6 定版房間原圖（白天、八月）；CSS 疊一層傍晚色調（.op-letterroom .op-art::after）。原圖沒有摺疊桌上的信封，信封用 CSS 疊（pp_envelope）' },
+  // 傍晚的租屋處房間正式圖（傍晚光已畫在圖上，不再疊橘色濾鏡）；摺疊桌上的信封是去背層 pp_envelope／pp_envelope_opened
+  bg_letter_room: { use: 'v5.8 第二幕與特休前一晚：租屋處房間（傍晚；回到家、包包放在床上、摺疊桌上的信）',
+    planned: 'bg_v58_rental_room_evening_portrait', status: 'ready', dir: V56.B, src: 'bg_v58_rental_room_evening_portrait' },
   /* ---------- 角色 ---------- */
   ch_deshu: { use: '德叔立繪（店裡說話時）', planned: 'char_deshu_stand', status: 'ready', src: 'char_deshu_stand' },
   ch_deshu_smile: { use: '德叔微笑（「我相信妳一定可以的。」「如果包含找龍眼玩的貓客人……」）', planned: 'char_deshu_smile', status: 'ready', src: 'char_deshu_smile' },
@@ -100,12 +118,20 @@ export const ART_MAP = {
   sb_brew: { use: '分鏡：研發咖啡開頭，五杯一字排開（只亮一次就收起；承峰拿掉第 2 格）', planned: 'sb_brew_cups_v2', status: 'ready', dir: V56.S, src: 'sb_brew_cups_v2' },
   sb_paperbag: { use: '分鏡：測試品紙袋寫好「提神醒腦」「過目不忘」，筆擱在旁邊（字畫進圖）', planned: 'sb_paperbag_writing_v2', status: 'ready', dir: V56.S, src: 'sb_paperbag_writing_v2' },
   sb_cat: { use: '分鏡：貓靠近怡君直排兩格（聞鞋 → 貼著小腿蹭）', planned: 'sb_cat_approach_strip_v1', status: 'ready', dir: V56.S, src: 'sb_cat_approach_strip_v1' },
+  // codeart 交稿（2026-11）：坤伯院子的肥料罐、夜騎三格（一律用 v2，不用 v1）
+  sb_fertilizer: { use: '分鏡：坤伯瞇眼看還沒開的肥料罐（「旁邊這罐才是肥料，還沒開。」之前；點一下出這句，翻到下一句收掉）', planned: 'sb_fertilizer_can_v1', status: 'ready', dir: V56.S, src: 'sb_fertilizer_can_v1' },
+  sb_ride_shed: { use: '分鏡：夜路盡頭的鐵皮工寮，後面沒有路（工寮那句；點一下收掉，短黑幕與引擎聲之後換另一條）', planned: 'sb_ride_shed_v2', status: 'ready', dir: V56.S, src: 'sb_ride_shed_v2' },
+  sb_ride_temple: { use: '分鏡：路邊的土地公廟（土地公廟那句起一路留到按「掉頭回去」）', planned: 'sb_ride_temple_v2', status: 'ready', dir: V56.S, src: 'sb_ride_temple_v2' },
+  sb_ride_uturn: { use: '分鏡：在廟前掉頭（按「掉頭回去」後疊上；再點一下收掉，黑幕淡出回三合院外）', planned: 'sb_ride_uturn_v2', status: 'ready', dir: V56.S, src: 'sb_ride_uturn_v2' },
 
   /* ---------- 特寫卡（#op-prop 的 pp-card） ---------- */
   pp_poster: { use: '超商的徵人海報（畫面拉近）；場景上的海報是底圖座位區後牆上那張有框的空白海報（熱點 .dy-poster 對準外框）', planned: 'prop_v3b_store_poster', status: 'temp', src: null, temp: 'CSS 白紙海報，程式疊「誠徵門市人員」（劇本沒寫薪資數字，不疊薪水）' },
   pp_key: { use: '鑰匙（第一天早上拖向德叔，沒有接、回到手上；第二天點包包裡的鑰匙放到吧台上）', planned: 'key', status: 'ready', src: 'key' },
   /* 劇本 v5.8 */
-  pp_envelope: { use: '第二幕與特休前一晚：摺疊桌上的牛皮紙信封（只是擺著，不能點；開信封改成分鏡格 sb_envelope）', planned: 'prop_v58_envelope_desk', status: 'temp', src: null, temp: 'CSS 牛皮紙信封（.op-env），疊在房間原圖右邊小桌上' },
+  // 摺疊桌上的牛皮紙信封（1170×2532 透明對齊層，整張疊在 bg_letter_room 上）。只是擺著，不是按鈕；開信封仍是分鏡格 sb_envelope。
+  // 第二幕：前兩句桌面空；「我在摺疊桌前坐下來，把信封放在桌上。」淡入合著的；開信封分鏡格疊上的同時換成拆過的。特休前一晚整場都是拆過的
+  pp_envelope: { use: '第二幕：摺疊桌上合著的牛皮紙信封（只是擺著，不能點）', planned: 'prop_v58_envelope_desk_closed_v1', status: 'ready', dir: V56.C, src: 'prop_v58_envelope_desk_closed_v1' },
+  pp_envelope_opened: { use: '第二幕開信封之後與特休前一晚：摺疊桌上拆過的信封（只是擺著，不能點）', planned: 'prop_v58_envelope_desk_opened_v1', status: 'ready', dir: V56.C, src: 'prop_v58_envelope_desk_opened_v1' },
   bg_cafe_bamboo: { use: '第一天早上店裡：吧台上攤著兩個竹篩，生豆鋪滿；德叔背後架子上自己放一格的杯子', planned: 'bg_shop_day_bar_beans', status: 'temp', src: null, temp: '用店內 2D 定景的早上底圖（SHOP_STILL_DAY，已換成白天正式圖 scene_shop_interior_day_v1）；竹篩、生豆、架子上的杯子沒有另畫' },
 };
 

@@ -126,10 +126,19 @@ try {
   await sleep(500);
   if ((await cap()) !== '今天我收到一封信。牛皮紙信封，拿起來裡面有東西在響。') fail('房間第二句不對');
   if (await page.locator('#op-sb').isVisible()) fail('旁白還沒讀完就疊上開信封分鏡格');
+  // 桌上的信封（畫師去背層，codeart）：前兩句桌面空；第三句淡入合著的；開信封分鏡格疊上的同時換成拆過的。信封只是擺著（img，不是按鈕）
+  const envState = () => page.evaluate(() => {
+    const op = (s) => { const e = document.querySelector(`.op-letterroom.on ${s}`); return e ? Number(getComputedStyle(e).opacity) : -1; };
+    return { closed: op('.op-env-img.closed'), opened: op('.op-env-img.opened'), src: document.querySelector('.op-letterroom.on .op-art-img')?.getAttribute('src') || '' };
+  });
+  { const e = await envState(); if (e.closed > 0.05 || e.opened > 0.05) fail(`前兩句桌上就有信封：${JSON.stringify(e)}`); if (!e.src.endsWith('assets/art-v56/B/bg_v58_rental_room_evening_portrait.webp')) fail(`房間不是傍晚正式圖：${e.src}`); }
   await page.locator('#op-roombox').click();
-  await sleep(500);
+  await sleep(1100);
   if ((await cap()) !== '我在摺疊桌前坐下來，把信封放在桌上。') fail('房間第三句不對');
   if (await page.locator('#op-sb').isVisible()) fail('第三句一出來就疊上分鏡格（應該讀完再點一下）');
+  { const e = await envState(); if (e.closed < 0.95 || e.opened > 0.05) fail(`第三句沒有淡入合著的信封：${JSON.stringify(e)}`); }
+  if (await page.locator('.op-letterroom.on button.op-env-img, .op-letterroom.on .op-env-img[role="button"]').count()) fail('桌上的信封變成按鈕');
+  if ((await page.evaluate(() => getComputedStyle(document.querySelector('.op-letterroom.on .op-env-img.closed')).pointerEvents)) !== 'none') fail('桌上的信封會收點');
   // 開信封分鏡格（承峰 2026-11-24）：第三句讀完再點一下疊上來，提示「點一下繼續」；點分鏡格收掉才進信件。不再有點信封、「我把信抽出來，從頭看起。」
   await page.locator('#op-roombox').click();
   await sleep(700);
@@ -139,6 +148,8 @@ try {
   if (Math.abs(env.cw / env.ch - 4 / 3) > 0.02 || env.cw > 251) fail(`開信封分鏡格不是寬度同小圖的橫式 4:3：${JSON.stringify(env)}`);
   if ((await page.locator('#op-hint').textContent()) !== '點一下繼續' || !(await page.locator('#op-hint').isVisible())) fail('分鏡格沒有提示「點一下繼續」');
   if ((await cap()) === '我把信抽出來，從頭看起。') fail('還有不採納的「我把信抽出來，從頭看起。」');
+  await sleep(400);
+  { const e = await envState(); if (e.opened < 0.95 || e.closed > 0.05) fail(`開信封分鏡格疊上時桌上沒換成拆過的信封：${JSON.stringify(e)}`); }
   await snap('sb-envelope');
   if ((await act()) !== 'mailbox') fail('分鏡格還沒點就進了信件');
   await page.locator('#op-sb').click();
@@ -173,6 +184,7 @@ try {
   await waitAct('eve', 6000);
   await page.waitForSelector('.op-letterroom.eve.on', { timeout: 5000 });
   await sleep(900);
+  { const e = await envState(); if (e.opened < 0.95 || e.closed !== -1) fail(`特休前一晚桌上不是拆過的信封：${JSON.stringify(e)}`); }
   const eve = ['那封信一直擺在摺疊桌上。', '今天人資來問我，特休一天都沒請，要不要先放幾天。', '我說，去年的也是，一天都沒請，全部放著沒用。我先請了明天一天。', '明天不用上班。我想去看一眼，那間咖啡館是不是真的在那裡。', '我把鑰匙從信封裡拿出來，放進外套口袋。信留在桌上。'];
   for (let i = 0; i < eve.length; i++) {
     if ((await cap()) !== eve[i]) fail(`特休前一晚第 ${i + 1} 句不對：${await cap()}`);
@@ -198,9 +210,18 @@ try {
   await waitText('正廳的窗亮著一盞燈，門口的台階上睡著一隻橘貓。');
   await sleep(300);
   if ((await page.locator('#op-read .opr-hint').textContent()) !== '把門推開' || !(await page.locator('#op-read .opr-hint').isVisible())) fail('推門沒有提示字「把門推開」');
-  await page.locator('#op-door').click(); // 只點一下：門晃一下，不會開
+  // 去背雙扇門（codeart）：不拖兩扇都關著；只點一下活動扇開一道縫再彈回；拖夠全開。門板不蓋到台階上的貓
+  const leaves = () => page.evaluate(() => {
+    const o = (c) => { const e = document.querySelector(`.op-yard.on .op-door-art .${c}`); return e ? Math.round(Number(getComputedStyle(e).opacity) * 100) / 100 : -1; };
+    return { shut: o('dr-leaf.shut'), ajar: o('dr-leaf.ajar'), open: o('dr-leaf.open'), glow: o('dr-glow'), fixed: o('dr-fixed'),
+      knob: document.querySelectorAll('.op-door-knob').length,
+      catAbove: (() => { const c = document.querySelector('.op-yard.on .op-step-cat'); const d = document.querySelector('.op-yard.on .op-door-art'); return !c || !d || Number(getComputedStyle(c).zIndex) > Number(getComputedStyle(d).zIndex); })() };
+  });
+  { const lv = await leaves(); if (lv.shut !== 1 || lv.ajar !== 0 || lv.open !== 0 || lv.fixed !== 1 || lv.knob || !lv.catAbove) fail(`推門前門的樣子不對：${JSON.stringify(lv)}`); }
+  await page.locator('#op-door').click(); // 只點一下：活動扇開一道縫再彈回，不會開
   await sleep(900);
   if ((await text()) !== '正廳的窗亮著一盞燈，門口的台階上睡著一隻橘貓。') fail('點一下門就開了');
+  { const lv = await leaves(); if (lv.shut !== 1 || lv.open !== 0) fail(`點一下之後活動扇沒有彈回關著：${JSON.stringify(lv)}`); }
   await tapRead(); // 點旁白也不會過（要推門）
   if ((await text()) !== '正廳的窗亮著一盞燈，門口的台階上睡著一隻橘貓。') fail('沒推門就往下了');
   await snap('road-door');
@@ -209,7 +230,8 @@ try {
   if (!(await page.locator('.op-yard.lit .op-step-cat.stretch[src*="cat_longan_stretch_v3b_v2"]').count())) fail('門一開沒有伸懶腰');
   await sleep(1500);
   // 門推開、門聲風鈴過後：疊上去的假門板淡出藏起來，不留一條深色門板
-  if (await page.locator('.op-door-wrap').isVisible()) fail('門開了還留著假門板');
+  if (await page.locator('.op-door-wrap').isVisible()) fail('門開了還留著推門熱區與「推門進去」');
+  { const lv = await leaves(); if (lv.open !== 1 || lv.shut !== 0 || lv.glow !== 1 || lv.fixed !== 1) fail(`推開後不是全開、暖光全亮（固定扇不動）：${JSON.stringify(lv)}`); }
   await snap('road-open');
   // 存檔停在「門一開……」重新整理：直接是門開著的樣子，從頭到尾不出現關著的「推門進去」
   await page.reload();
@@ -348,22 +370,45 @@ try {
   await snap('fork');
   await page.locator('.op-fork.left').click();
   await waitAct('temple', 5000);
+  // 夜騎分鏡格（codeart v2）：工寮那句疊工寮格（夜路停下並壓暗）；不再把工寮／廟小圖畫在夜路盡頭
+  const rideSb = () => page.evaluate(() => { const e = document.querySelector('#op-prop .pp-mini.on.sb'); return e ? { sb: e.dataset.sb, src: e.querySelector('img')?.getAttribute('src') || '' } : null; });
+  const dimmed = () => page.evaluate(() => !!document.querySelector('.op-night-road.on.sb-dim'));
   await waitText('我挑了一條騎進去。路越騎越窄，十幾分鐘後車燈照到一間鐵皮工寮，後面沒有路了。');
-  await sleep(1500);
+  await sleep(900);
+  { const s = await rideSb(); if (s?.sb !== 'shed' || !s.src.endsWith('assets/art-v56/S/sb_ride_shed_v2.webp')) fail(`工寮那句沒有疊工寮格（v2）：${JSON.stringify(s)}`); }
+  if (!(await dimmed())) fail('工寮格疊著時夜路沒有壓暗');
   await snap('temple-hut');
-  await tapRead();
-  await waitText('我掉頭騎回岔路，換另一條。這一條繞了一大圈，車燈照到一間土地公廟。');
+  await tapRead(); // 點一下：工寮格收掉 → 短黑幕與引擎聲 → 換另一條
+  await sleep(500);
+  if (await rideSb()) fail('點一下後工寮格沒有收掉');
+  if (!(await page.evaluate(() => !!document.querySelector('.op-night-road.on.blackout')))) fail('離開工寮沒有短黑幕');
+  await waitText('我掉頭騎回岔路，換另一條。這一條繞了一大圈，車燈照到一間土地公廟。', 5000);
+  await sleep(600);
+  { const s = await rideSb(); if (s?.sb !== 'temple' || !s.src.endsWith('assets/art-v56/S/sb_ride_temple_v2.webp')) fail(`土地公廟那句沒有疊廟格（v2）：${JSON.stringify(s)}`); }
   await page.reload(); // 重新整理：接著同一句（DOM 畫面也一樣）
-  await waitText('我掉頭騎回岔路，換另一條。這一條繞了一大圈，車燈照到一間土地公廟。');
+  await waitText('我掉頭騎回岔路，換另一條。這一條繞了一大圈，車燈照到一間土地公廟。', 6000);
   if ((await act()) !== 'temple') fail('重新整理後不在廟這一幕');
-  await readUntil('回三合院的路我還認得。', async (cur) => { if (cur === '那間廟我剛才經過了。') { await sleep(1200); await snap('temple'); } });
+  await readUntil('回三合院的路我還認得。', async (cur) => {
+    await sleep(500);
+    if ((await rideSb())?.sb !== 'temple') fail(`「${cur}」時廟格沒有留著`);
+    if (cur === '那間廟我剛才經過了。') { await sleep(700); await snap('temple'); }
+  });
   await sleep(400);
   await tapRead();
   if ((await text()) !== '回三合院的路我還認得。') fail('沒按掉頭就往下了');
+  if ((await rideSb())?.sb !== 'temple') fail('按「掉頭回去」之前廟格沒有留著');
   if (((await page.locator('#op-turnback').textContent()) || '').trim() !== '掉頭回去') fail('掉頭按鈕不是「掉頭回去」');
   await page.locator('#op-turnback').click();
-  await sleep(800);
+  // 按了之後：廟格先收，再疊掉頭格（v2）；玩家再點一下，格子才收掉、黑幕淡出回三合院外
+  await sleep(1200);
+  { const s = await rideSb(); if (s?.sb !== 'uturn' || !s.src.endsWith('assets/art-v56/S/sb_ride_uturn_v2.webp')) fail(`按「掉頭回去」後沒有疊掉頭格（v2）：${JSON.stringify(s)}`); }
+  if ((await page.locator('#op-read .opr-hint').textContent()) !== '點一下繼續') fail('掉頭格沒有提示「點一下繼續」');
   await snap('uturn');
+  await sleep(2500);
+  if ((await act()) !== 'temple') fail('掉頭格還沒點就回三合院外了');
+  await page.mouse.click(195, 200); // 再點一下：格子收掉
+  await sleep(300);
+  if (await page.locator('#op-prop .pp-mini.on.sb').count()) fail('點了掉頭格沒有收掉');
 
   // 回三合院，再推門
   await waitAct('return', 6000);
@@ -483,6 +528,31 @@ try {
       title: document.querySelector('.op-day:not(.daycard) .op-card:not([hidden]) p')?.textContent || '',
     }));
     if (st.name) seenNames.add(st.name);
+    if (st.text && !seenTexts.has(st.text)) { // codeart 去背層與底圖：洗臉低頭／抬頭、坤伯院子的罐子與水桶
+      const op = (s) => page.evaluate((q) => { const e = document.querySelector(q); return e ? Number(getComputedStyle(e).opacity) : -1; }, s);
+      const wait = async (s, want, label) => { const end = Date.now() + 2500; let v = -1; while (Date.now() < end) { v = await op(s); if (Math.abs(v - want) < 0.05) return; await sleep(100); } fail(`${label}：${s} 不透明度 ${v}`); };
+      if (st.text === '水很冰。') {
+        const src = await page.evaluate(() => document.querySelector('.dy-place.on[data-place="basin"] .op-art-img')?.getAttribute('src') || '');
+        if (!src.endsWith('assets/art-v56/B/bg_v56_hulong_basin_morning_portrait.webp')) fail(`洗臉不是早晨洗手台底圖：${src}`);
+        if (await page.locator('.dy-basin, .dy-sink').count()) fail('還有 CSS 洗手台');
+        if (!(await page.locator('.dy-place.on[data-place="basin"] .dy-mirror-frame').count())) fail('沒有鏡框前景');
+        await wait('.dy-place.on[data-place="basin"] .dy-face', 0, '「水很冰。」低頭時鏡子裡不該有角色卡');
+        await snap('d1-basin-down');
+      }
+      if (st.text.startsWith('我關掉銅色的水龍頭抬起頭')) { await wait('.dy-place.on[data-place="basin"] .dy-face', 1, '抬起頭時角色卡沒淡入'); await snap('d1-basin-up'); }
+      if (st.text === '坤伯蹲在院子裡，面前放著一個水桶。') {
+        await wait('.dy-place.on[data-place="kunyard"] .dy-emptycan-art', 1, '空罐子不在地上');
+        await wait('.dy-place.on[data-place="kunyard"] .dy-fullcan', 1, '肥料罐不在');
+        await wait('.dy-place.on[data-place="kunyard"] .dy-bucket-corner', 0, '水桶還沒提就在牆角');
+      }
+      if (st.text === '……我老花眼鏡放在屋裡啦。') await wait('.dy-place.on[data-place="kunyard"] .dy-emptycan-art', 0, '坤伯拿走後空罐子還在地上');
+      if (st.text.startsWith('他一邊講，一邊把那桶水提到牆角')) {
+        await wait('.dy-place.on[data-place="kunyard"] .dy-bucket-patch', 1, '提水桶那句沒有地面補丁');
+        await wait('.dy-place.on[data-place="kunyard"] .dy-bucket-corner', 1, '提水桶那句牆角水桶沒淡入');
+        await wait('.dy-place.on[data-place="kunyard"] .dy-fullcan', 1, '肥料罐應該一直留著');
+        await snap('d5-yard-bucket');
+      }
+    }
     if (st.text) seenTexts.add(st.text);
     if (st.title && !seenTitles.has(st.title)) { seenTitles.add(st.title); await snap(`title-${seenTitles.size}`); }
     if (st.card && !seenCards.has(st.card)) { seenCards.add(st.card); await snap(`card-${seenCards.size}`); }
@@ -591,8 +661,8 @@ try {
   if (!seenTitles.has('最底下那個抽屜')) fail(`沒看到章名：最底下那個抽屜（看到：${[...seenTitles].join('／')}）`);
   if (dragged < 1) fail('沒有拖鑰匙給德叔');
   if (seenMini.join() !== 'stain,passbook,hat,label,longan') fail(`小圖不對：${seenMini.join()}`);
-  // 分鏡格（承峰 2026-11-25 定版）：數錢、開抽屜、刷存摺依序亮三格、花斑貓、研發咖啡開頭五杯、紙袋
-  if (seenSb.join() !== 'wallet-1,drawer-1,atm-1,atm-2,atm-3,calico-1,brew-1,paperbag-1') fail(`分鏡格不對：${seenSb.join()}`);
+  // 分鏡格（承峰 2026-11-25 定版＋codeart 肥料罐）：數錢、開抽屜、刷存摺依序亮三格、坤伯院子的肥料罐、花斑貓、研發咖啡開頭五杯、紙袋
+  if (seenSb.join() !== 'wallet-1,drawer-1,atm-1,atm-2,atm-3,fertilizer-1,calico-1,brew-1,paperbag-1') fail(`分鏡格不對：${seenSb.join()}`);
   for (const nm of ['房東', '店長', '店員', '坤伯', '德叔', '我']) if (!seenNames.has(nm)) fail(`沒看到名牌：${nm}`);
   // 不點信箱：不出「信箱是空的……」，但房東整段照出
   if (seenTexts.has('信箱是空的，連傳單都沒有。')) fail('沒點信箱卻出了「信箱是空的……」');

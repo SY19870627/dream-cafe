@@ -64,7 +64,10 @@ test('開場轉彎、迴轉：不播 rev 錄音（冷車爆音像要故障），
   assert.doesNotMatch(view, /play\('rev'\)/, '轉彎／迴轉不再疊 rev 錄音');
   assert.doesNotMatch(view, /setEngine\(0\.[78]\)/, '不再把轉速停在 0.7／0.8');
   assert.match(view, /setEnginePath\(ENGINE_TURN\);[^\n]*\n\s*await road\.turn\(side\);/);
-  assert.match(view, /setEnginePath\(ENGINE_UTURN\);[^\n]*\n\s*await road\.uturn\(\);/);
+  // 迴轉（codeart 分鏡格）：沒有橫掃動畫；按「掉頭回去」與離開工寮的短黑幕都走同一條迴轉曲線
+  assert.doesNotMatch(view, /road\.uturn\(\)/, '不再有 1.6 秒橫掃迴轉動畫');
+  assert.match(view, /btn\.hidden = true;\s*setEnginePath\(ENGINE_UTURN\);/, '按「掉頭回去」：引擎迴轉聲');
+  assert.match(view, /el\.classList\.add\('blackout'\);\s*setEnginePath\(ENGINE_UTURN\);\s*await sleep\(BLACKOUT_MS\);/, '離開工寮：短黑幕與引擎聲');
   assert.match(view, /import \{[^}]*\bsetEnginePath\b[^}]*\bENGINE_TURN\b[^}]*\bENGINE_UTURN\b[^}]*\} from '\.\/audio\.js';/);
   const src = read('src/view/audio.js');
   assert.match(src, /export function setEnginePath\(steps\)/);

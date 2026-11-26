@@ -23,7 +23,7 @@ const art = (ref) => artUrl(ref); // 舊圖檔名 → assets/art/；art-v56/… 
 const placeOf = (slot, extra = {}) => ({ slot, src: srcOf(slot), ...extra });
 export const PLACES = {
   roomMorning: placeOf('bg_room_morning', { ambient: 'room' }), // 護龍早上定版背景，不再疊早晨色調
-  basin: placeOf('bg_basin', { tone: 'morning', ambient: 'room', basin: true }), // 暫代：CSS 洗手台與鏡子
+  basin: placeOf('bg_basin', { ambient: 'room', basin: true }), // 早晨洗手台底圖（不再疊 CSS 洗手台、塑膠框與早晨色調）；鏡子裡的角色卡、霧氣、水流與鏡框前景見 placeHtml
   road: placeOf('bg_road', { ambient: 'wind' }), // 下山、省道
   mailbox: placeOf('bg_mailbox', { ambient: 'quiet', fit: 'mbox' }), // 'quiet'＝信箱走廊安靜、不放環境聲（承峰 2026-11-23 22:07 v510 第 5 項，不再用風聲，也不落到 room）；租屋處信箱：定版空信箱 scene_mailboxes_empty（橫圖，門都關著、沒信封；不再用帶信封的 scene_mailboxes.webp）
   stairs: placeOf('bg_stairs', { ambient: 'room' }), // v5.6 定版：樓梯間
@@ -137,17 +137,21 @@ function mailboxSlot() {
   return `<div class="dy-mailslot" id="dy-mailslot" style="${hit}"><span class="dy-mb-hole" style="${hole}" aria-hidden="true"><span class="dy-mb-door"></span></span></div>`;
 }
 
+// 整張疊上的透明對齊層（1170×2532，和底圖同尺寸；art-map.js 的 slot）
+const layer = (slot, cls) => `<img class="dy-layer ${cls}" src="${art(srcOf(slot))}" alt="" aria-hidden="true">`;
 function placeHtml(key, act) {
   const p = PLACES[key];
   return `<div class="dy-place${p.tone ? ` ${p.tone}` : ''}${p.fit ? ` ${p.fit}` : ''}" data-place="${key}" data-slot="${p.slot}"><div class="op-art">
     ${p.src ? `<img class="op-art-img" src="${art(p.src)}" alt="">` : `<div class="dy-css dy-css-${key}" aria-hidden="true"></div>`}
-    ${p.basin ? `<div class="dy-basin" aria-hidden="true"><div class="dy-mirror"><img class="dy-face" src="${art(yijunCardFor(act))}" alt="" aria-hidden="true"><span class="dy-fog"></span></div><div class="dy-sink"></div></div>
-      <div class="dy-faucet" id="dy-faucet"></div><span class="dy-water" aria-hidden="true"></span>` : ''}
+    ${p.basin ? `<div class="dy-mirror" aria-hidden="true"><img class="dy-face" src="${art(yijunCardFor(act))}" alt="" aria-hidden="true"><span class="dy-fog"></span></div>
+      <span class="dy-water" aria-hidden="true"></span>${layer('fg_basin_mirror', 'dy-mirror-frame')}
+      <div class="dy-faucet" id="dy-faucet"></div>` : ''}
     ${key === 'mailbox' ? mailboxSlot() : ''}
     ${p.home ? '<span class="dy-stainspot" aria-hidden="true"></span>' : ''}
     ${p.store ? `<div class="dy-poster" id="dy-poster"><span class="pp-overlay">${esc(OVERLAY_TEXT.poster)}</span></div>` : ''}
     ${p.village ? `<div class="dy-calico on-wall" id="dy-calico" aria-label="花斑貓" data-pose="sit">${calicoImgs()}</div>` : ''}
-    ${p.yard ? `<div class="dy-emptycan" id="dy-emptycan"></div><div class="dy-fullcan" aria-hidden="true"></div><div class="dy-calico in-yard" aria-hidden="true" data-pose="sit">${calicoImgs()}</div>` : ''}
+    ${p.yard ? `${layer('yard_bucket_patch', 'dy-bucket-patch')}${layer('yard_bucket_corner', 'dy-bucket-corner')}${layer('yard_fertilizer_can', 'dy-fullcan')}${layer('yard_empty_can', 'dy-emptycan-art')}
+      <div class="dy-emptycan" id="dy-emptycan"></div><div class="dy-calico in-yard" aria-hidden="true" data-pose="sit">${calicoImgs()}</div>` : ''}
   </div></div>`;
 }
 
@@ -207,8 +211,12 @@ export function showDay(root, act, api) {
       }
       el.classList.toggle('calico-wall', wall);
       el.classList.toggle('mini-stain', look.mini === 'stain'); // 水痕小圖疊上來時，原圖上那一段（y 1110–1640）亮一下
+      // 洗臉：「水很冰。」低頭（set.mirror false），鏡子裡沒有角色卡；「我關掉銅色的水龍頭抬起頭……」起淡入
+      el.classList.toggle('face-down', look.mirror === false);
+      // 坤伯院子：空罐子點了就淡出（can-up）；標籤小圖疊著時、坤伯拿走之後（canTaken）也不在地上（讀檔回到這幾句也對）
+      el.classList.toggle('can-label', look.mini === 'label');
       el.classList.toggle('can-taken', !!look.canTaken);
-      el.classList.toggle('bucket-moved', !!look.bucketMoved);
+      el.classList.toggle('bucket-moved', !!look.bucketMoved); // 地面補丁與牆角水桶淡入，之後留著
       ctl.ambient = PLACES[look.place]?.ambient || ctl.ambient;
     },
     hot(name) {
@@ -229,7 +237,7 @@ export function showDay(root, act, api) {
         el.classList.add('calico-go');
         return true;
       }
-      if (name === 'can') { play('place'); el.classList.add('can-up'); return true; } // 拿起來，把標籤轉到正面
+      if (name === 'can') { play('place'); el.classList.add('can-up'); return true; } // 拿起來：地上的空罐子淡出，接標籤小圖
       return true;
     },
     stop() {},
@@ -285,6 +293,11 @@ export const STORYBOARDS = {
   brew: { slot: 'sb_brew', panels: 1 }, // 研發咖啡開頭：五杯一字排開（承峰拿掉第 2 格）
   paperbag: { slot: 'sb_paperbag', panels: 1 }, // 研發咖啡最後：紙袋上「提神醒腦」「過目不忘」，筆擱在旁邊
   cat: { slot: 'sb_cat', panels: 2 }, // 開場店內：龍眼聞鞋 → 貼著小腿蹭
+  // codeart 交稿（2026-11）
+  fertilizer: { slot: 'sb_fertilizer', panels: 1 }, // 坤伯院子：瞇眼看還沒開的肥料罐（點一下出「旁邊這罐才是肥料，還沒開。」，翻到下一句收掉）
+  shed: { slot: 'sb_ride_shed', panels: 1 }, // 夜騎：路的盡頭是鐵皮工寮（工寮那句；夜路停下並壓暗）
+  temple: { slot: 'sb_ride_temple', panels: 1 }, // 夜騎：土地公廟（土地公廟那句起，一路留到按「掉頭回去」）
+  uturn: { slot: 'sb_ride_uturn', panels: 1 }, // 夜騎：按「掉頭回去」後疊上，再點一下收掉、淡出回三合院外（不寫在句子上，由 main.js 的掉頭關卡疊）
 };
 export const SB_PANEL = { w: 2048, h: 1536, gap: 64 };
 // 'sb-atm-2' → { name: 'atm', lit: 2 }；單格或沒寫格數＝全亮；不是分鏡格 → null

@@ -10,7 +10,7 @@ import { showOpening, showScene } from './view/opening.js';
 import { showDay, showCard, createProps, PLACES, HOT_LABELS, cueOf, sbHintTop } from './view/days.js';
 import { showShop, resetPet } from './view/shop-still.js';
 import { createReader } from './view/reader.js';
-import { GATE_HINTS, tapHint, isStoryboard } from './view/hints.js';
+import { GATE_HINTS, MUST_HINTS, tapHint, isStoryboard } from './view/hints.js';
 import { unlock, play, setAmbient, setEngine, setMusic, setMuted, isMuted, setHidden } from './view/audio.js';
 import { musicAt } from './story/music.js'; // 【待定】每一幕／每一句的音樂（曲目表與路徑只在那個檔）
 import { loadAudioPref, saveAudioPref } from './story/audio-pref.js'; // 【待定】靜音選擇（獨立鍵 dream-cafe.audio，不寫進存檔）
@@ -323,7 +323,8 @@ async function openingScene(act) {
   }
   const done = await runLines(act, {
     look: (i, lk) => { ctl.beat(i, lk); if (act === 'room') setAmbient(...roomAmbient(i)); },
-    gate: (name) => ctl.gate(name),
+    gate: (name) => (name === 'turnback' ? turnBack(ctl) : ctl.gate(name)),
+    tap: (name) => (name === 'blackout' && ctl.blackout ? ctl.blackout() : Promise.resolve(true)), // 離開工寮的掉頭：短黑幕與引擎聲
     optional: (name) => (name === 'bed' ? [{
       id: 'bed', label: '床', rect: elRect(ctl.hot('bed')),
       onTap: () => ctl.lieDown().then(() => { if (my === token) reader.advance(); }), // 玩家點床：躺下去，翻到下一句
@@ -333,6 +334,30 @@ async function openingScene(act) {
   if (done === 'slept') return fallAsleep(); // 第一晚睡著：淡出，直接進第一天早上（已存檔）
   if (act === 'ride') { S.setOpeningAct(state, 'fork'); save(); return go(); } // 同一條路接著騎到岔路
   nextAct(act, act === 'road' || act === 'return' ? '#f3dfb8' : '#000', act === 'temple' ? 1100 : 650);
+}
+
+// 土地公廟前按「掉頭回去」（codeart 分鏡格 v2）：按鈕（引擎迴轉聲）→ 廟格先收 → 疊掉頭格（sb_ride_uturn_v2）→
+// 玩家再點一下，格子才收掉 → 回傳 true，這一幕讀完，黑幕淡出、淡入三合院外（nextAct）。不再有 1.6 秒橫掃迴轉動畫
+const SB_SWAP_MS = 450; // 分鏡格收掉的淡出時間（與 .pp-mini 的 transition 一致）
+async function turnBack(ctl) {
+  const my = token;
+  const ok = await ctl.gate('turnback');
+  if (!ok || my !== token) return false;
+  props.show({ mini: null }); // 廟格先收
+  ctl.beat(-1, { mini: 'sb-uturn' }); // 夜路仍壓暗
+  await sleep(SB_SWAP_MS);
+  if (my !== token) return false;
+  props.show({ mini: 'sb-uturn' }); // 疊上掉頭格
+  reader.hint(MUST_HINTS.pause); // 點一下繼續（分鏡格沿用的提示字）
+  sbHint(true);
+  const tapped = await props.peek();
+  sbHint(false);
+  reader.hint(null);
+  if (!tapped || my !== token) return false;
+  props.clear(); // 拿掉整片點擊區
+  props.show({ mini: null }); // 再點一下：格子收掉
+  await sleep(SB_SWAP_MS);
+  return my === token;
 }
 
 /* ---------- 店裡（推門之後、點椅子坐下、喝咖啡、晚上回來；第一天起的店裡）：店內 2D 定景（view/shop-still.js） ---------- */

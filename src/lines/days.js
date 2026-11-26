@@ -113,8 +113,9 @@ export const DAY_LINES = {
     { text: '我是被雞叫醒的。', set: { place: 'roomMorning', prop: null, mini: null }, sfx: ['rooster'] },
     { text: '雖然臨時在外面過夜，但這是我這半年睡得最好的一次。' },
     { text: '手機還有百分之十一。充電器在租屋處，我昨天出門的時候沒想過會在外面過夜。' },
-    { text: '水很冰。', set: { place: 'basin' }, optional: 'faucet' },
-    { text: '我關掉銅色的水龍頭抬起頭，木頭框的鏡子剛好照到我整張臉。' },
+    // 低頭洗臉：鏡子裡還沒有角色卡（mirror false）；抬起頭那句才淡入
+    { text: '水很冰。', set: { place: 'basin', mirror: false }, optional: 'faucet' },
+    { text: '我關掉銅色的水龍頭抬起頭，木頭框的鏡子剛好照到我整張臉。', set: { mirror: true } },
     { text: '鼻梁和臉頰上的雀斑還是一樣多，從國中照鏡子發現後，就沒消退過。' },
     { text: '黑眼圈好明顯，也是去年的某天發現後，就一直掛在上面。' },
     { text: '衣服是昨天那套。我聞了一下袖口，還好。' },
@@ -284,9 +285,9 @@ export const DAY_LINES = {
     { text: '水桶旁邊有一個空罐子，還有一罐長得很像、還沒開的。' },
     { who: 'me', text: '坤伯，這上面寫的是農藥。', set: { mini: 'label' }, tap: ['can', 'mini'] },
     { who: 'kunbo', text: '蛤？' },
-    // （畫面：坤伯把罐子拿過去，拿得很遠，瞇著眼睛看。）
-    { who: 'me', text: '旁邊這罐才是肥料，還沒開。', set: { mini: null, canTaken: true } },
-    { who: 'kunbo', text: '……我老花眼鏡放在屋裡啦。' },
+    // （畫面：坤伯把罐子拿過去，拿得很遠，瞇著眼睛看。）→ 肥料罐分鏡格先疊上，點一下出這句，翻到下一句收掉
+    { who: 'me', text: '旁邊這罐才是肥料，還沒開。', set: { mini: 'sb-fertilizer', canTaken: true }, tap: 'mini' },
+    { who: 'kunbo', text: '……我老花眼鏡放在屋裡啦。', set: { mini: null } },
     { who: 'kunbo', text: '兩罐長得一模一樣，誰分得出來。' },
     { who: 'kunbo', text: '這桶我本來就還沒有要用啊。' },
     { text: '他一邊講，一邊把那桶水提到牆角，離龍眼樹遠遠的。', set: { bucketMoved: true } },

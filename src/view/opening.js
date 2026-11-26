@@ -6,14 +6,13 @@
 //   showScene()：三合院外（夜裡、晚上）、黑路、岔路、工寮與土地公廟、庭埕與護龍房間、待續。
 //     這些畫面的字由閱讀框（view/reader.js）一句一句出；畫面只負責「第 i 句時長什麼樣子」與互動關卡（推門、發動、按住騎、岔路、掉頭、點床）。
 // 開場這些畫面沒有「跳過」按鈕。只有睡前自白期間，閱讀框才會顯示「跳過自白」（view/reader.js）；其他幕與互動關卡都不能跳過。
-// 字全部來自 src/lines/opening.js。畫師原圖只讀不改（不重新壓縮、不縮圖）；夜路的路面是程式繪製，路上照到的東西用畫師原圖。
+// 字全部來自 src/lines/opening.js。畫師原圖只讀不改（不重新壓縮、不縮圖）；夜路的路面是程式繪製；工寮、土地公廟、掉頭是分鏡格（codeart v2，疊在 #op-prop）。
 import { RESIGNATION, LETTER, ROOM_LETTER, EVE, OFFICE, TITLE, ROAD, DEPART, TEMPLE } from '../lines/opening.js';
 import { RESEND } from '../lines/days.js';
 import { play, setEngine, setEnginePath, ENGINE_TURN, ENGINE_UTURN } from './audio.js';
-import { img, ready } from './art.js';
 import { artUrl, srcOf } from './art-map.js';
 import { STORYBOARDS, parseSb, applyStoryboard, sbHintTop } from './days.js';
-import { MUST_HINTS } from './hints.js';
+import { MUST_HINTS, isStoryboard } from './hints.js';
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -21,7 +20,35 @@ const art = (name) => `assets/art/${name}.webp`;
 
 export const HOLD_MS = 1500; // 按住騎多久翻到下一句
 export const DOOR_DRAG = 140; // 推門：拖多遠算推到底（推到 75% 才開）
-export const DOOR_FADE_MS = 1000; // 門推開後，假門板淡出多久（與 index.html 的 .op-door-wrap.gone 一致）
+export const DOOR_FADE_MS = 1000; // 門推開後，推門熱區（與「推門進去」字）淡出多久（與 index.html 的 .op-door-wrap.gone 一致）
+export const DOOR_NUDGE_MS = 280; // 只點一下：活動扇閃成「開一道縫」多久再彈回關著
+export const BLACKOUT_MS = 1600; // 離開工寮掉頭：短黑幕（含引擎聲 ENGINE_UTURN 1.6 秒）
+
+// 三合院的雙扇門（畫師去背層，art-map.js 的 door_*）：活動扇三張開度依 k（0 關～1 全開）淡換；暖光 = k。純函式，有單元測試
+//   k ≤ 0：全關；0～0.5：關 → 開一道縫；0.5～1：開一道縫 → 全開
+export function leafMix(k) {
+  const c = Math.max(0, Math.min(1, Number(k) || 0));
+  const r = (v) => Math.round(v * 1000) / 1000;
+  if (c <= 0.5) { const t = c / 0.5; return { shut: r(1 - t), ajar: r(t), open: 0, glow: r(c) }; }
+  const t = (c - 0.5) / 0.5;
+  return { shut: 0, ajar: r(1 - t), open: r(t), glow: r(c) };
+}
+// 門的圖層（整張 1170×2532 對齊層）：暖光 → 固定扇 → 活動扇（關／開一道縫／全開）；台階上的貓在這一層上面（z-index 較高），門板不會蓋到貓
+const doorArtHtml = () => `<div class="op-door-art" aria-hidden="true">
+          <img class="dr-glow" src="${artUrl(srcOf('door_glow'))}" alt="">
+          <img class="dr-fixed" src="${artUrl(srcOf('door_fixed'))}" alt="">
+          <img class="dr-leaf shut" src="${artUrl(srcOf('door_leaf_shut'))}" alt="">
+          <img class="dr-leaf ajar" src="${artUrl(srcOf('door_leaf_ajar'))}" alt="">
+          <img class="dr-leaf open" src="${artUrl(srcOf('door_leaf_open'))}" alt="">
+        </div>`;
+// 把門圖層擺成開度 k
+export function setDoorArt(artEl, k) {
+  if (!artEl) return;
+  const m = leafMix(k);
+  for (const n of ['shut', 'ajar', 'open']) { const im = artEl.querySelector(`.dr-leaf.${n}`); if (im) im.style.opacity = String(m[n]); }
+  const g = artEl.querySelector('.dr-glow');
+  if (g) g.style.opacity = String(m.glow);
+}
 
 function makeStage(root) {
   root.hidden = false;
@@ -188,15 +215,18 @@ export function showOpening(root, act, api) {
   }
 
   if (act === 'mailbox') {
-    // 第二幕：租屋處房間（畫面同第一天的房間，暫代 v5.6 房間原圖疊傍晚色調）。旁白三句（點一下換句）→ 第三句之後再點一下：
-    // 疊上開信封分鏡格（鑰匙響一聲）→ 點一下分鏡格收掉，進信件畫面。不點就留在房間。桌上的 CSS 信封只是擺著（不能點）。
+    // 第二幕：租屋處房間（傍晚正式圖 bg_letter_room，不再疊橘色濾鏡）。旁白三句（點一下換句）→ 第三句之後再點一下：
+    // 疊上開信封分鏡格（鑰匙響一聲）→ 點一下分鏡格收掉，進信件畫面。不點就留在房間。
+    // 摺疊桌上的信封是畫師去背層（pp_envelope 合著／pp_envelope_opened 拆過），只是擺著（<img aria-hidden>，不是按鈕、不能點）：
+    // 前兩句桌面空；「我在摺疊桌前坐下來，把信封放在桌上。」淡入合著的；開信封分鏡格疊上的同時換成拆過的。
     // 原本的點信封、CSS 抽信動畫、提示「點信封，把信拿出來。」與「我把信抽出來，從頭看起。」都拿掉（承峰 2026-11-24 改分鏡格）。
     const R = ROOM_LETTER;
     const sb = parseSb(R.panel);
     const el = stage('letterroom', `
       <div class="op-art">
         <img class="op-art-img" src="${artUrl(srcOf('bg_letter_room'))}" alt="">
-        <span class="op-env" aria-hidden="true"><span class="op-env-flap"></span></span>
+        <img class="op-env-img closed" src="${artUrl(srcOf('pp_envelope'))}" alt="" aria-hidden="true">
+        <img class="op-env-img opened" src="${artUrl(srcOf('pp_envelope_opened'))}" alt="" aria-hidden="true">
       </div>
       <div class="pp-mini" id="op-sb" role="button" tabindex="0" aria-label="下一句" hidden></div>
       <p class="op-hint" id="op-hint" hidden>${esc(MUST_HINTS.pause)}</p>
@@ -210,6 +240,9 @@ export function showOpening(root, act, api) {
     let shown = false;
     let leaving = false;
     let armed = 0;
+    // 桌上的信封：第三句（放在桌上）起合著；開信封分鏡格疊上時換成拆過的
+    const ENV_AT = R.lines.length - 1;
+    const envelope = (state) => { el.classList.toggle('env-closed', state === 'closed'); el.classList.toggle('env-opened', state === 'opened'); };
     const leave = async () => { // 分鏡格收掉 → 信件
       if (!shown || leaving || performance.now() < armed) return;
       leaving = true;
@@ -226,6 +259,7 @@ export function showOpening(root, act, api) {
         armed = performance.now() + 300;
         panel.hidden = false;
         applyStoryboard(panel, sb);
+        envelope('opened'); // 分鏡格疊上的同時，桌上換成拆過的信封
         panel.classList.remove('on');
         requestAnimationFrame(() => requestAnimationFrame(() => panel.classList.add('on', 'ask')));
         box.classList.add('done');
@@ -240,6 +274,7 @@ export function showOpening(root, act, api) {
       k++;
       play('tap');
       cap.textContent = R.lines[k];
+      if (k === ENV_AT) envelope('closed'); // 「我在摺疊桌前坐下來，把信封放在桌上。」：合著的信封淡入
     };
     box.onclick = more;
     box.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); more(); } };
@@ -281,12 +316,12 @@ export function showOpening(root, act, api) {
   }
 
   if (act === 'eve') {
-    // 特休前一晚（字卡「前 2 天」之後）：同一間租屋處房間，信封一直擺在桌上（不能點）。旁白一句一句點，最後一句才出「出發去東山」。
+    // 特休前一晚（字卡「前 2 天」之後）：同一間租屋處房間，整場桌上都是拆過的信封（去背層 pp_envelope_opened；不能點）。旁白一句一句點，最後一句才出「出發去東山」。
     const E = EVE;
-    const el = stage('letterroom eve', `
+    const el = stage('letterroom eve env-opened', `
       <div class="op-art">
         <img class="op-art-img" src="${artUrl(srcOf('bg_letter_room'))}" alt="">
-        <span class="op-env" aria-hidden="true"><span class="op-env-flap"></span></span>
+        <img class="op-env-img opened" src="${artUrl(srcOf('pp_envelope_opened'))}" alt="" aria-hidden="true">
       </div>
       <button type="button" id="op-next" class="primary op-eve-next" hidden>${E.next}</button>
       <div class="op-roombox" id="op-roombox" role="button" tabindex="0" aria-live="polite"><p class="op-caption" id="op-cap">${esc(E.lines[0])}</p><span class="st-more" aria-hidden="true">▾</span></div>`);
@@ -331,11 +366,12 @@ export function showScene(root, act, api) {
           <img class="off" src="${art('prop_v3b_scooter_off_v2')}" alt="">
           ${act === 'depart' ? `<img class="on" src="${art('prop_v3b_scooter_on_v2')}" alt=""><img class="beam" src="${art('prop_v3b_scooter_beam_v2')}" alt="">` : ''}
         </div>
+        ${doorArtHtml()}
         ${act === 'road' ? `<img class="op-step-cat" src="${art('cat_longan_sleep')}" alt=""><img class="op-step-cat stretch" src="${art('cat_longan_stretch_v3b_v2')}" alt="">` : ''}
         ${act === 'return' ? `<img class="op-step-cat" src="${art('cat_longan_sleep_flip_v2')}" alt="">` : ''}
         <div class="op-door-wrap" hidden>
           <div class="op-door" id="op-door" role="button" tabindex="0" aria-label="${ROAD.door}">
-            <div class="op-door-panel"><span class="op-door-knob"></span><span class="op-door-text">${ROAD.door}</span></div>
+            <div class="op-door-panel"><span class="op-door-text">${ROAD.door}</span></div>
           </div>
         </div>
       </div>
@@ -343,6 +379,8 @@ export function showScene(root, act, api) {
       ${act === 'road' ? `<div class="op-card" ${introOn ? '' : 'hidden'}><p>${esc(ROAD.card)}</p></div>` : ''}
 `);
     const doorWrap = el.querySelector('.op-door-wrap');
+    const doorArt = el.querySelector('.op-door-art');
+    setDoorArt(doorArt, 0); // 一開始兩扇都關著
     ctl.intro = async () => {
       if (!introOn) return true;
       play('engineStart');
@@ -357,8 +395,8 @@ export function showScene(root, act, api) {
       card.hidden = true;
       return alive();
     };
-    // 門開了以後，疊上去的假門板（.op-door-wrap）不留在畫面上：剛推開時淡出（DOOR_FADE_MS），讀回存檔時直接藏起來，
-    // 讓原圖的門口與暖光自己露出來；不會先閃一扇關著的「推門進去」。
+    // 門開了以後，推門熱區（.op-door-wrap，上面疊「推門進去」）不留在畫面上：剛推開時淡出（DOOR_FADE_MS），讀回存檔時直接藏起來；
+    // 門圖層停在全開（活動扇 open、暖光全亮）；不會先閃一扇關著的「推門進去」。
     const hideDoor = (fade) => {
       if (doorWrap.classList.contains('gone')) return;
       doorWrap.classList.add('gone');
@@ -370,12 +408,13 @@ export function showScene(root, act, api) {
       el.classList.toggle('lit', v.lit);
       if (v.door === 'gone') hideDoor(false);
       else doorWrap.hidden = v.door !== 'closed';
+      if (v.lit) setDoorArt(doorArt, 1); // 門已開（讀回「門一開……」）：活動扇全開、暖光全亮
     };
     ctl.gate = (name) => {
       if (name === 'door') {
         ctl.atDoor = true;
         doorWrap.hidden = false;
-        return new Promise((res) => pushDoor(el.querySelector('#op-door'), () => {
+        return new Promise((res) => pushDoor(el.querySelector('#op-door'), doorArt, () => {
           el.classList.add('lit');
           hideDoor(true); // 門聲已過、風鈴正在收尾：假門板淡出
           later(() => res(true), 650);
@@ -400,9 +439,13 @@ export function showScene(root, act, api) {
   }
 
   /* ---------- 黑路、岔路、工寮與土地公廟（canvas：只有車燈照出來的一小塊路面） ---------- */
+  // 工寮、土地公廟、掉頭改成分鏡格（sb_ride_shed_v2／sb_ride_temple_v2／sb_ride_uturn_v2，疊在 #op-prop，由 main.js 依句子的 set.mini 疊）；
+  // 分鏡格疊著時夜路停下並壓暗（.sb-dim）。不再把工寮／廟小圖畫在夜路盡頭、不再程式打光、不再有 1.6 秒橫掃迴轉動畫。
+  // 離開工寮的掉頭不出畫面：只有短黑幕（ctl.blackout）與引擎聲。
   if (act === 'ride' || act === 'fork' || act === 'temple') {
     const el = stage('night-road', `
       <canvas class="op-road-cv" aria-hidden="true"></canvas>
+      <div class="op-road-black" aria-hidden="true"></div>
       <div class="op-hold" hidden aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="26" class="bg"/><circle cx="32" cy="32" r="26" class="fg"/><path d="M26 22 L40 32 L26 42" class="arrow"/></svg></div>
       <button type="button" class="op-fork left" hidden aria-label="左邊的路"><span aria-hidden="true">‹</span></button>
       <button type="button" class="op-fork right" hidden aria-label="右邊的路"><span aria-hidden="true">›</span></button>
@@ -412,7 +455,17 @@ export function showScene(root, act, api) {
     // 遠處的狗叫，偶爾一聲
     const bark = () => { play('dog'); later(bark, 7000 + Math.random() * 9000); };
     later(bark, 2500 + Math.random() * 3000);
-    ctl.beat = (i, look) => { road.sight(look.sight || null); };
+    ctl.beat = (i, look) => { el.classList.toggle('sb-dim', isStoryboard(look.mini)); }; // 分鏡格疊著：夜路壓暗
+    // 離開工寮的掉頭（工寮格收掉之後、土地公廟那句之前）：短黑幕＋引擎迴轉聲，不出畫面
+    ctl.blackout = async () => {
+      el.classList.add('blackout');
+      setEnginePath(ENGINE_UTURN);
+      await sleep(BLACKOUT_MS);
+      if (!alive()) return false;
+      el.classList.remove('blackout');
+      await sleep(400);
+      return alive();
+    };
     ctl.gate = (name) => {
       if (name === 'hold') return holdToRide(el, road, stopFns);
       if (name === 'fork') {
@@ -438,8 +491,8 @@ export function showScene(root, act, api) {
           btn.onclick = async () => {
             if (btn.disabled) return;
             btn.disabled = true;
-            setEnginePath(ENGINE_UTURN); // 迴轉：更慢更收油，轉完回怠速
-            await road.uturn(); // 車燈掃過路邊轉半圈
+            btn.hidden = true;
+            setEnginePath(ENGINE_UTURN); // 迴轉：更慢更收油，轉完回怠速（畫面是掉頭分鏡格，由 main.js 疊）
             res(alive());
           };
         });
@@ -492,17 +545,22 @@ export function doorView(act, look, atDoor) {
   return { lit: false, door: act !== 'depart' && atDoor ? 'closed' : 'none' };
 }
 
-// 進門：拖曳推門，門推開才有門聲與風鈴（與第一次相同）。點一下門只會晃一下，不會開。門沒有鎖。
-export function pushDoor(door, onOpen) {
-  const panel = door.querySelector('.op-door-panel');
+// 進門：拖曳推門，門推開才有門聲與風鈴（與第一次相同）。門沒有鎖。第一次與回來用同一組素材、同一段程式。
+// 玩家只拖活動扇（觀眾面對大門的右扇；#op-door 熱區疊在它上面）；固定扇不動。
+//   不拖：兩扇都關著；只點一下：活動扇換成「開一道縫」再彈回關著，門不開；
+//   拖曳：三張開度淡換（leafMix），暖光跟著變亮；拖夠（75%）：全開，門聲、風鈴聲
+// art：門圖層（.op-door-art）
+export function pushDoor(door, art, onOpen) {
   door.classList.remove('open');
   let start = null;
   let opened = false;
-  const set = (k) => { panel.style.transform = `perspective(600px) rotateY(${-k * 75}deg)`; };
+  let nudgeT = 0;
+  const set = (k) => setDoorArt(art, k);
   set(0);
   const open = () => {
     if (opened) return;
     opened = true;
+    clearTimeout(nudgeT);
     set(1);
     play('door');
     play('bell');
@@ -513,23 +571,25 @@ export function pushDoor(door, onOpen) {
     if (opened) return;
     door.setPointerCapture?.(e.pointerId);
     start = { x: e.clientX, y: e.clientY };
-    panel.style.transition = 'none';
+    clearTimeout(nudgeT);
+    art?.classList.add('dragging'); // 拖的時候開度跟著手，不等淡換
   };
   door.onpointermove = (e) => {
     if (!start || opened) return;
     const d = Math.max(Math.abs(e.clientX - start.x), start.y - e.clientY, 0);
     const k = Math.min(1, d / DOOR_DRAG);
-    set(k * 0.8);
-    if (k >= 0.75) { start = null; panel.style.transition = ''; open(); }
+    set(k * 0.9);
+    if (k >= 0.75) { start = null; art?.classList.remove('dragging'); open(); }
   };
   const release = () => {
     if (!start || opened) return;
     start = null;
-    panel.style.transition = '';
-    set(0);
+    art?.classList.remove('dragging');
+    set(0.5); // 推不夠（或只點一下）：活動扇閃成開一道縫……
+    nudgeT = setTimeout(() => { if (!opened) set(0); }, DOOR_NUDGE_MS); // ……再彈回關著
     door.classList.remove('nudge');
     void door.offsetWidth;
-    door.classList.add('nudge'); // 推不夠：門晃一下回來
+    door.classList.add('nudge'); // 推不夠：門開一道縫又彈回來
   };
   door.onpointerup = release;
   door.onpointercancel = release;
@@ -590,35 +650,8 @@ function holdToRide(el, road, stopFns) {
   });
 }
 
-// 車燈照到的東西（畫師透明底原圖）：z＝站在路上多遠（0 腳下～1 遠處）；w＝寬佔畫面寬；dx＝離路中線（佔畫面寬）；
-// ax、ay＝圖上哪一點落在路面上（底部中心，依原圖的不透明範圍）
-const SIGHTS = {
-  hut: { src: 'prop_v3b_iron_shed_night_v2', z: 0.42, w: 0.56, dx: 0, ax: 0.5, ay: 727 / 768 }, // 路的盡頭，正面被車燈照到
-  temple: { src: 'prop_v3b_tudigong_night_v2', z: 0.5, w: 0.4, dx: 0.2, ax: 525 / 1024, ay: 945 / 1024 }, // 路邊的小廟
-};
-// 原圖不改：畫到另一張畫布上，再把上半部壓暗一點（車燈從下面照上去，越高越暗）
-const litCache = new Map();
-function litSprite(name) {
-  if (litCache.has(name)) return litCache.get(name);
-  const im = img(SIGHTS[name].src);
-  if (!ready(im)) return null;
-  const c = document.createElement('canvas');
-  c.width = im.naturalWidth;
-  c.height = im.naturalHeight;
-  const g = c.getContext('2d');
-  g.drawImage(im, 0, 0);
-  g.globalCompositeOperation = 'source-atop';
-  const dim = g.createLinearGradient(0, 0, 0, c.height);
-  dim.addColorStop(0, 'rgba(4,6,10,.5)');
-  dim.addColorStop(0.55, 'rgba(4,6,10,.12)');
-  dim.addColorStop(1, 'rgba(4,6,10,0)');
-  g.fillStyle = dim;
-  g.fillRect(0, 0, c.width, c.height);
-  litCache.set(name, c);
-  return c;
-}
-
-// 夜路（程式繪製）：黑底、車燈照出的一小塊柏油、中線、路邊的草；fork＝前面分成左右兩條；sight＝車燈照到的東西（畫師原圖）
+// 夜路（程式繪製）：黑底、車燈照出的一小塊柏油、中線、路邊的草；fork＝前面分成左右兩條。
+// 工寮與土地公廟不再畫在路上（改成分鏡格，見上面 showScene 的夜路）
 function nightRoad(cv, { fork = false, side = null } = {}) {
   const g = cv.getContext('2d');
   let W = 0;
@@ -628,12 +661,8 @@ function nightRoad(cv, { fork = false, side = null } = {}) {
   let off = 0;
   let bend = side === 'left' ? -1 : side === 'right' ? 1 : 0; // 車燈轉向（-1 左、1 右）
   let bendTo = bend;
-  let sweep = 0; // 掉頭：車燈掃過一圈，0..1
-  let sightName = null;
-  let sightA = 0;
   let raf = 0;
   let stopped = false;
-  for (const k of Object.keys(SIGHTS)) img(SIGHTS[k].src); // 先開始載入
   let lastT = performance.now();
   const tufts = Array.from({ length: 40 }, (_, i) => ({ z: i / 40, side: i % 2 ? 1 : -1, r: Math.random() }));
   const resize = () => {
@@ -653,7 +682,6 @@ function nightRoad(cv, { fork = false, side = null } = {}) {
     speed += (target - speed) * Math.min(1, dt * 3);
     off = (off + speed * dt * 1.4) % 1;
     bend += (bendTo - bend) * Math.min(1, dt * 2.2);
-    sightA += ((sightName ? 1 : 0) - sightA) * Math.min(1, dt * 1.5);
     const viewH = H * 0.69; // 閱讀框上方
     const hy = viewH * 0.36; // 地平線
     const cx = W / 2 + bend * W * 0.28; // 消失點跟著車燈轉向
@@ -673,9 +701,7 @@ function nightRoad(cv, { fork = false, side = null } = {}) {
     g.lineTo(W, hy);
     g.closePath();
     g.fill();
-    // 掉頭：整個畫面跟著車燈橫掃
     g.save();
-    if (sweep > 0) g.translate(-Math.sin(sweep * Math.PI * 2) * W * 0.6, 0);
     // 車燈照出來的路面（梯形，越遠越窄、越暗）
     const roadAt = (z) => { // z 0（腳下）→ 1（遠處）
       const y = viewH - (viewH - hy) * (1 - (1 - z) ** 2);
@@ -759,25 +785,6 @@ function nightRoad(cv, { fork = false, side = null } = {}) {
     dark.addColorStop(1, 'rgba(0,0,0,.97)');
     g.fillStyle = dark;
     g.fillRect(-W, 0, W * 3, H);
-    // 車燈照到的東西（畫師原圖；車燈掃到才看得見）：鐵皮工寮擋在路的盡頭，土地公廟在路邊
-    if (sightA > 0.02 && sightName && SIGHTS[sightName]) {
-      const S = SIGHTS[sightName];
-      const lit = litSprite(sightName);
-      if (lit) {
-        const p = roadAt(S.z);
-        const w = W * S.w;
-        const h = (w * lit.height) / lit.width;
-        g.save();
-        g.globalAlpha = sightA;
-        // 地上一點影子，讓東西站在路上
-        g.fillStyle = 'rgba(0,0,0,.45)';
-        g.beginPath();
-        g.ellipse(p.x + W * S.dx, p.y - 2, w * 0.46, Math.max(3, w * 0.035), 0, 0, Math.PI * 2);
-        g.fill();
-        g.drawImage(lit, p.x + W * S.dx - w * S.ax, p.y - h * S.ay, w, h);
-        g.restore();
-      }
-    }
     g.restore();
     // 龍頭的影子（畫面下緣）
     g.fillStyle = '#030303';
@@ -799,16 +806,10 @@ function nightRoad(cv, { fork = false, side = null } = {}) {
   });
   return {
     go(on) { target = on ? 1 : 0; },
-    sight(name) { sightName = name; },
     async turn(dir) { // 岔路：車燈轉向那一邊，繼續往前
       bendTo = dir === 'left' ? -1 : 1;
       target = 0.8;
       await anim(1500, () => {});
-      target = 0;
-    },
-    async uturn() { // 掉頭：車燈掃過路邊轉半圈
-      target = 0.3;
-      await anim(1600, (k) => { sweep = k < 1 ? k : 0; });
       target = 0;
     },
     stop() { stopped = true; cancelAnimationFrame(raf); removeEventListener('resize', resize); },

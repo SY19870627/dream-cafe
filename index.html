@@ -182,7 +182,6 @@
   .op-door-panel { position: relative; width: 100%; height: 100%; border-radius: 6px 6px 0 0; background: linear-gradient(90deg, #6b4528, #7b4f2f);
     transform-origin: 0 50%; transition: transform .5s cubic-bezier(.3,1.4,.5,1); display: flex; align-items: center; justify-content: center;
     border: 3px solid #4a2f1a; }
-  .op-door-knob { position: absolute; right: 14px; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: #d9a84a; }
   .op-door-text { color: #f6efe2; font-size: 16px; font-weight: 600; letter-spacing: 2px; writing-mode: vertical-rl; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
   .op-door.nudge .op-door-panel { animation: nudge .5s ease-in-out; }
   @keyframes nudge { 30% { transform: perspective(600px) rotateY(-14deg); } 60% { transform: perspective(600px) rotateY(-4deg); } }
@@ -214,15 +213,21 @@
   .op-card { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: #0d0b0a; transition: opacity .8s; }
   .op-card p { margin: 0; font-size: 21px; letter-spacing: 6px; color: #f1ece2; animation: floatin 1.6s ease-out both; }
   .op-card.out { opacity: 0; }
-  /* 推門：門板疊在畫裡那扇門上（拖夠才開；門後是暖光） */
-  /* 畫師門板座標（原圖 1170×2532）：(594,1484)–(776,1720) */
-  .op-door-wrap { position: absolute; left: 50.769%; top: 58.610%; width: 15.556%; height: 9.321%; z-index: 2; }
-  .op-yard .op-door { width: 100%; height: 100%; min-width: 44px; min-height: 44px; border-radius: 3px 3px 0 0; animation: doorcall 2.2s ease-in-out infinite; }
+  /* 推門：畫師去背雙扇門（art-map.js 的 door_*，皆 1170×2532 對齊層，整張疊上）。圖層：暖光 → 固定扇 → 活動扇（關／開一道縫／全開）→ 台階上的貓（z-index 3）。
+     活動扇三張的不透明度由 view/opening.js 的 leafMix 設（拖曳時跟著手、放開淡換）；推門後跟底圖一起往門口推近 */
+  .op-door-art { position: absolute; inset: 0; z-index: 2; pointer-events: none; transition: transform 1.4s ease; transform-origin: 58.5% 63.3%; }
+  .op-door-art img { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity .25s ease; }
+  .op-door-art.dragging img { transition: none; }
+  .op-yard.lit .op-door-art { transform: scale(1.06); }
+  /* 推門熱區：疊在活動扇上（觀眾面對大門的右扇，原圖 1170×2532 的 (685,1506)–(748,1706)）；透明，只有呼吸光圈與程式疊的「推門進去」，不畫門板、不畫門把 */
+  .op-door-wrap { position: absolute; left: 58.547%; top: 59.479%; width: 5.385%; height: 7.899%; z-index: 2; }
+  .op-yard .op-door { position: absolute; left: 50%; top: 50%; width: 100%; height: 100%; min-width: 44px; min-height: 44px; transform: translate(-50%, -50%);
+    background: transparent; border-radius: 3px 3px 0 0; animation: doorcall 2.2s ease-in-out infinite; }
   .op-yard .op-door.open { animation: none; }
-  /* 門推開後：假門板整塊淡出、藏起來（不再留一條深色門板），原圖的門口與暖光自己露出來 */
+  /* 門推開後：推門熱區與「推門進去」淡出、藏起來；門圖層停在全開 */
   .op-door-wrap.gone { opacity: 0; pointer-events: none; transition: opacity 1s ease; }
-  .op-yard .op-door-panel { border-width: 2px; border-radius: 3px 3px 0 0; background: linear-gradient(90deg, #4f3220, #5e3c25 55%, #4a2f1d); }
-  .op-yard .op-door-knob { right: 8px; width: 7px; height: 7px; }
+  .op-yard .op-door-panel { border: 0; background: transparent; transform: none; }
+  .op-yard .op-door.nudge .op-door-panel { animation: none; }
   .op-yard .op-door-text { font-size: 13px; letter-spacing: 3px; }
   @keyframes doorcall { 0%, 100% { box-shadow: inset 0 0 20px rgba(255,190,90,.6), 0 0 6px rgba(255,214,140,.25); } 50% { box-shadow: inset 0 0 20px rgba(255,190,90,.6), 0 0 18px 4px rgba(255,214,140,.65); } }
   /* 機車（畫師原圖 _v2 800×520，off／on／beam 三張對齊）：停在門前埕上、台階右邊，車頭朝左，不擋門（門 50.8%–66.3%），
@@ -254,7 +259,11 @@
 
   /* 黑路、岔路、工寮與土地公廟 */
   .op-night-road { padding: 0; background: #050608; touch-action: none; cursor: pointer; }
-  .op-road-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .op-road-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: filter .45s ease; }
+  /* 工寮／土地公廟／掉頭分鏡格疊著時：夜路停下並壓暗；離開工寮的掉頭：短黑幕（不出畫面，只有引擎聲） */
+  .op-night-road.sb-dim .op-road-cv { filter: brightness(.4); }
+  .op-road-black { position: absolute; inset: 0; z-index: 2; background: #000; opacity: 0; transition: opacity .35s ease; pointer-events: none; }
+  .op-night-road.blackout .op-road-black { opacity: 1; }
   .op-hold { position: absolute; left: 50%; top: 52%; width: 64px; height: 64px; transform: translate(-50%, -50%); pointer-events: none; opacity: .85; animation: blink 1.8s ease-in-out infinite; }
   .op-hold.down { animation: none; opacity: 1; }
   .op-hold svg { width: 100%; height: 100%; transform: rotate(-90deg); }
@@ -320,22 +329,21 @@
   .op-day.can .dy-can { opacity: 1; }
   .dy-dark { position: absolute; inset: 0; background: rgba(5,6,10,.6); opacity: 0; transition: opacity 1.2s; pointer-events: none; }
   .op-day.dark .dy-dark { opacity: 1; }
-  /* 洗手台與舊鏡子（CSS：塑膠框、邊緣水銀掉了一圈）；鏡子裡放怡君角色卡原圖 */
-  .dy-basin { position: absolute; left: 12%; top: 12%; width: 76%; height: 52%; z-index: 1; border-radius: 4px;
-    background: linear-gradient(#cfc7b6, #b9b09d); box-shadow: inset 0 0 40px rgba(60,45,30,.35); }
-  .dy-mirror { position: absolute; left: 20%; top: 8%; width: 60%; height: 52%; border: 10px solid #e2dccd; border-radius: 6px;
-    background: radial-gradient(closest-side, #aab6bb 62%, #7d8584 82%, #5c5f5a); box-shadow: 0 3px 8px rgba(0,0,0,.25); overflow: hidden; }
-  .dy-face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; pointer-events: none; }
+  /* 整張疊上的透明對齊層（1170×2532，和底圖同尺寸；view/days.js 的 layer()） */
+  .dy-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  /* 洗臉（早晨洗手台底圖 bg_v56_hulong_basin_morning_portrait）：圖層 底圖 → 鏡子裡的角色卡 → 霧氣 → 鏡框前景（fg_basin_mirror）。
+     鏡面原圖約 x 458–878、y 588–1215；角色卡框比鏡面略大（x 450–885、y 580–1222），邊緣由鏡框前景蓋住。
+     「水很冰。」低頭（.face-down）：鏡子裡沒有角色卡；「我關掉銅色的水龍頭抬起頭……」淡入 */
+  .dy-mirror { position: absolute; left: 38.462%; top: 22.907%; width: 37.179%; height: 25.355%; overflow: hidden; pointer-events: none; }
+  .dy-face { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; pointer-events: none; opacity: 1; transition: opacity .9s ease; }
+  .op-day.face-down .dy-face { opacity: 0; }
   .dy-fog { position: absolute; inset: 0; background: rgba(240,244,244,.0); }
   .dy-place.washing .dy-fog { animation: fog 2.6s ease-in-out both; }
   @keyframes fog { 30% { background: rgba(240,244,244,.75); } to { background: rgba(240,244,244,0); } }
-  .op-day.light .dy-mirror { background: radial-gradient(closest-side, #cdd8dc 62%, #8d9594 82%, #5c5f5a); }
-  .op-day.flicker .dy-basin { animation: flicker .5s steps(2) 2; }
-  @keyframes flicker { 50% { filter: brightness(1.5); } }
-  .dy-sink { position: absolute; left: 14%; bottom: 6%; width: 72%; height: 20%; border-radius: 0 0 40% 40%; background: linear-gradient(#f2efe8, #c9c3b6); }
-  .dy-faucet { position: absolute; left: 46%; top: 47%; width: 8%; height: 4%; z-index: 2; border-radius: 6px; background: linear-gradient(#d9d9d6, #8f918f); }
+  /* 銅色水龍頭（原圖約 x 615–760、y 1290–1530）：透明熱點（可選，不點也能翻頁）；淡藍水流從出水口（約 x 632、y 1440）流到洗手台 */
+  .dy-faucet { position: absolute; left: 52.564%; top: 50.948%; width: 12.393%; height: 9.479%; min-width: 44px; min-height: 44px; z-index: 2; border-radius: 8px; }
   .dy-switch { position: absolute; left: 80%; top: 26%; width: 5%; height: 3.5%; z-index: 2; border-radius: 3px; background: #f1ede4; box-shadow: inset 0 0 0 2px #c8c1b2; }
-  .dy-water { position: absolute; left: 49%; top: 51%; width: 1.2%; height: 6%; background: rgba(210,230,240,.8); opacity: 0; z-index: 2; }
+  .dy-water { position: absolute; left: 53.7%; top: 56.9%; width: 1.2%; height: 4.7%; border-radius: 0 0 40% 40%; background: linear-gradient(rgba(190,222,240,.85), rgba(170,210,235,.55)); opacity: 0; }
   .dy-place.washing .dy-water { animation: water 2.2s ease-in-out both; }
   @keyframes water { 10%, 80% { opacity: 1; } }
   /* 第一天的空信箱（art-map.js 的 bg_mailbox＝定版圖 scene_mailboxes_empty，1950×1200 橫圖，門都關著、沒有信封）：
@@ -463,13 +471,15 @@
   .op-day.calico-go .dy-calico.on-wall { transform: translate(28%, -42%) scale(.55); }
   .dy-calico.in-yard { left: 52%; top: 70%; width: 22%; transition: opacity .6s; }
   .op-day.calico-yard .dy-calico.in-yard { opacity: 1; }
-  /* 坤伯的院子：水桶畫在原圖上；空罐子（可點）、還沒開的那罐（綠色塑膠桶，貼米色標籤） */
-  .dy-emptycan, .dy-fullcan { position: absolute; border-radius: 4px 4px 3px 3px; background: linear-gradient(90deg, #66714f, #a2ad88 40%, #6e7a57); box-shadow: 0 2px 4px rgba(0,0,0,.3); }
-  .dy-emptycan::after, .dy-fullcan::after { content: ""; position: absolute; left: 18%; right: 18%; top: 42%; height: 34%; background: #d9b98c; }
-  .dy-emptycan { left: 19%; top: 77.4%; width: 4.2%; height: 3.6%; z-index: 1; transform: rotate(80deg); transition: transform .5s, opacity .5s; }
-  .op-day.can-up .dy-emptycan { transform: none; }
-  .op-day.can-taken .dy-emptycan { opacity: 0; }
-  .dy-fullcan { left: 25%; top: 76.6%; width: 4.2%; height: 3.6%; }
+  /* 坤伯的院子：水桶畫在原圖上；空罐子、立著的肥料罐、地面補丁、牆角水桶都是畫師去背層（art-map.js 的 yard_*），整張疊上。
+     空罐子倒在地上（原圖約 x 205–335、y 2030–2110）：#dy-emptycan 是透明熱點（必點）；點了淡出（.can-up），標籤小圖疊著、坤伯拿走之後也不在地上。
+     立著的肥料罐一直留著。提水桶那句（.bucket-moved）：地面補丁蓋住原圖的水桶、牆角水桶淡入，之後留著 */
+  .dy-emptycan-art { transition: opacity .5s ease; }
+  .op-day.can-up .dy-emptycan-art, .op-day.can-label .dy-emptycan-art, .op-day.can-taken .dy-emptycan-art { opacity: 0; }
+  .dy-emptycan { position: absolute; left: 17.009%; top: 79.779%; width: 12.137%; height: 3.95%; min-width: 44px; min-height: 44px; z-index: 2; border-radius: 10px; }
+  .op-day.can-up .dy-emptycan, .op-day.can-taken .dy-emptycan { pointer-events: none; }
+  .dy-bucket-patch, .dy-bucket-corner { opacity: 0; transition: opacity .9s ease; }
+  .op-day.bucket-moved .dy-bucket-patch, .op-day.bucket-moved .dy-bucket-corner { opacity: 1; }
   /* 字卡（「第二天」「三天後」、倒數字卡）：沿用 .op-card */
   .op-day.daycard { background: #0d0b0a; }
   /* 倒數字卡（「我單方面辭退老闆前 4 天」「我單方面辭退老闆當天　16:49」）：整句讀得清楚；放不下就換行（字不改），數字不拆開 */
@@ -527,10 +537,10 @@
   /* 第二幕：租屋處房間（暫代 v5.6 房間原圖，疊傍晚色調）；桌上的牛皮紙信封；下方旁白框 */
   .op-letterroom { padding: 0; background: #1c1712; }
   .op-letterroom .op-art { top: -6%; }
-  .op-letterroom .op-art::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(235,140,70,.32), rgba(80,40,20,.42)); mix-blend-mode: multiply; }
-  .op-env { position: absolute; left: 77%; top: 45.2%; width: 15%; height: 5.6%; min-width: 44px; min-height: 44px; z-index: 2; padding: 0; background: transparent; box-shadow: none; border-radius: 6px; }
-  .op-env::before { content: ""; position: absolute; left: 10%; right: 10%; top: 30%; bottom: 18%; border-radius: 2px; background: linear-gradient(#d4ab78, #b88a55); box-shadow: 0 2px 4px rgba(0,0,0,.35); }
-  .op-env-flap { position: absolute; left: 10%; right: 10%; top: 30%; height: 30%; background: #a77a48; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+  /* 摺疊桌上的信封：畫師去背層（1170×2532 對齊層，pp_envelope 合著／pp_envelope_opened 拆過），只是擺著（img、aria-hidden、不收點）。
+     傍晚光已畫在底圖上，不再疊橘色濾鏡 */
+  .op-env-img { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; opacity: 0; transition: opacity .8s ease; pointer-events: none; }
+  .op-letterroom.env-closed .op-env-img.closed, .op-letterroom.env-opened .op-env-img.opened { opacity: 1; }
   .op-roombox { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; min-height: var(--box-h); padding: 24px 22px calc(22px + env(safe-area-inset-bottom)); background: #fbf5e8;
     border-top: 5px solid var(--wood); box-shadow: 0 -6px 20px rgba(30,15,5,.35); cursor: pointer; }
   .op-roombox .op-caption { text-align: left; font-size: 19px; line-height: 1.6; color: #4b3a2e; opacity: 1; }
@@ -546,7 +556,6 @@
   .op-office.resend button.op-after.quote { font-family: "PMingLiU", "MingLiU", "Songti TC", "Noto Serif TC", serif; }
   .op-office.resend #op-next { min-width: 160px; letter-spacing: 4px; animation: floatin 1s ease-out both; }
   /* 特休前一晚：同一間房間；「出發去東山」在旁白框上方 */
-  .op-letterroom .op-env { pointer-events: none; } /* 桌上的信封只是擺著（開信封改成分鏡格） */
   .op-letterroom.eve #op-next { position: absolute; left: 50%; bottom: calc(var(--box-h) + 18px); z-index: 4; min-width: 160px; transform: translateX(-50%); letter-spacing: 2px; }
   /* 第一天早上：把鑰匙拖向德叔（或吧台）：兩個都算；提示字 */
   .pp-zone.to-bar { left: 6%; top: 50%; width: 88%; height: 12%; }

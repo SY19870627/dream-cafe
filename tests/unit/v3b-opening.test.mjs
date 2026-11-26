@@ -14,7 +14,7 @@ import * as D from '../../src/lines/days.js';
 import * as S from '../../src/story/state.js';
 import { load, persist, SAVE_KEY } from '../../src/story/save.js';
 import { OPENING_ART, SHOP_ART } from '../../src/view/art.js';
-import { doorView, DOOR_FADE_MS } from '../../src/view/opening.js';
+import { doorView, DOOR_FADE_MS, leafMix } from '../../src/view/opening.js';
 import { PORTRAIT_PLACE } from '../../src/view/reader.js';
 import { SHOP_CHAIR, SHOP_CUP, SHOP_WINDOW, SHOP_WINDOW_STAND, SHOP_CUP_STAND, SHOP_BAR, CAT_2D, DESHU_2D, KNEAD_ON_SLEEP_LINE, PET_MS, skyOf, stillOf, layoutOf, cupShown, fadesBetween, BG_FADE_MS } from '../../src/view/shop-still.js';
 import { ART_MAP, srcOf, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY, SHOP_STILL_DUSK } from '../../src/view/art-map.js';
@@ -154,7 +154,16 @@ test('第二幕「收到信」（v5.9，第一次收到）：房間旁白三句�
   // 房間：三句讀完再點一下，疊上開信封分鏡格（鑰匙響一聲）；點分鏡格收掉才進信件畫面。桌上的信封只是擺著（不能點、沒有抽信動畫）
   const room = view.slice(view.indexOf("if (act === 'mailbox')"), view.indexOf("if (act === 'letter')"));
   assert.doesNotMatch(room, /id="op-env"|<button[^>]*op-env|pulled|R\.hint/, '點信封與抽信動畫拿掉');
-  assert.match(room, /<span class="op-env" aria-hidden="true">/, '桌上的信封只是擺著');
+  // 桌上的信封是畫師去背層（合著／拆過），只是擺著：<img aria-hidden>，不是按鈕、沒有點擊處理、CSS 不收點
+  assert.match(room, /<img class="op-env-img closed" src="\$\{artUrl\(srcOf\('pp_envelope'\)\)\}" alt="" aria-hidden="true">/, '桌上合著的信封只是擺著');
+  assert.match(room, /<img class="op-env-img opened" src="\$\{artUrl\(srcOf\('pp_envelope_opened'\)\)\}" alt="" aria-hidden="true">/);
+  assert.doesNotMatch(room, /op-env[^"]*"[^>]*(role="button"|tabindex)|\.op-env-img[^\n]*\.on(click|pointer)/, '信封不是按鈕');
+  assert.match(read('index.html'), /\.op-env-img \{[^}]*pointer-events: none;/, '桌上的信封不收點');
+  // 前兩句桌面空；第三句（放在桌上）淡入合著的；開信封分鏡格疊上的同時換成拆過的
+  assert.match(room, /const ENV_AT = R\.lines\.length - 1;/);
+  assert.match(room, /if \(k === ENV_AT\) envelope\('closed'\);/);
+  assert.match(room, /applyStoryboard\(panel, sb\);\s*envelope\('opened'\);/);
+  assert.equal(OP.ROOM_LETTER.lines[2], '我在摺疊桌前坐下來，把信封放在桌上。');
   assert.match(room, /if \(k >= R\.lines\.length - 1\) \{[\s\S]*?applyStoryboard\(panel, sb\);/, '第三句讀完才疊上分鏡格');
   assert.match(room, /const leave = async \(\) => \{[\s\S]*?if \(alive\(\)\) api\.go\('letter'\);/, '點分鏡格收掉才進信件');
   assert.doesNotMatch(read('index.html'), /\.op-env\.pulled|\.op-env\.call/, 'CSS 抽信動畫拿掉');
@@ -188,7 +197,10 @@ test('特休前一晚（v5.9，字卡「前 2 天」之後）：旁白五句、�
   assert.match(eve, /<button type="button" id="op-next" class="primary op-eve-next" hidden>\$\{E\.next\}<\/button>/);
   assert.match(eve, /if \(k === E\.lines\.length - 1\) \{ box\.classList\.add\('done'\); next\.hidden = false; \}/);
   assert.match(eve, /api\.go\('road'\);/);
-  assert.match(eve, /<span class="op-env" aria-hidden="true">/, '信封只是擺著（不是按鈕）');
+  // 整場都是拆過的信封（去背層），只是擺著（不是按鈕）
+  assert.match(eve, /stage\('letterroom eve env-opened',/);
+  assert.match(eve, /<img class="op-env-img opened" src="\$\{artUrl\(srcOf\('pp_envelope_opened'\)\)\}" alt="" aria-hidden="true">/, '信封只是擺著（不是按鈕）');
+  assert.doesNotMatch(eve, /op-env-img closed|<button[^>]*op-env/, '特休前一晚沒有合著的信封、信封不能點');
   assert.equal(S.lineCount('eve'), 0, 'DOM 畫面自己出字');
 });
 
@@ -512,10 +524,27 @@ test('互動關卡：推門（第一次與回來）、按住騎、岔路、掉�
   assert.equal(OP.DEPART.start, '發動');
   assert.equal(OP.TEMPLE.back, '掉頭回去', '劇本 v5.8：按「掉頭回去」');
   const view = read('src/view/opening.js');
-  // 推門：拖夠才開（同一個 pushDoor，第一次與回來都用它）；只點一下會晃一下回來；不用鑰匙
-  assert.match(view, /if \(k >= 0\.75\) \{ start = null; panel\.style\.transition = ''; open\(\); \}/);
-  assert.match(view, /door\.classList\.add\('nudge'\); \/\/ 推不夠：門晃一下回來/);
-  assert.equal((view.match(/pushDoor\(el\.querySelector\('#op-door'\)/g) || []).length, 1, 'road 與 return 共用同一段推門');
+  // 推門：拖夠才開（同一個 pushDoor、同一組去背門，第一次與回來都用它）；只點一下活動扇開一道縫再彈回關著；不用鑰匙
+  assert.match(view, /if \(k >= 0\.75\) \{ start = null; art\?\.classList\.remove\('dragging'\); open\(\); \}/);
+  assert.match(view, /set\(0\.5\); \/\/ 推不夠（或只點一下）：活動扇閃成開一道縫……\s*nudgeT = setTimeout\(\(\) => \{ if \(!opened\) set\(0\); \}, DOOR_NUDGE_MS\);/);
+  assert.match(view, /door\.classList\.add\('nudge'\); \/\/ 推不夠：門開一道縫又彈回來/);
+  assert.equal((view.match(/pushDoor\(el\.querySelector\('#op-door'\), doorArt,/g) || []).length, 1, 'road 與 return 共用同一段推門');
+  // 開度：不拖兩扇都關著；拖曳時三張淡換、暖光跟著變亮；全開時只剩全開那張
+  assert.deepEqual(leafMix(0), { shut: 1, ajar: 0, open: 0, glow: 0 }, '不拖：關著');
+  assert.deepEqual(leafMix(0.5), { shut: 0, ajar: 1, open: 0, glow: 0.5 }, '開一道縫');
+  assert.deepEqual(leafMix(1), { shut: 0, ajar: 0, open: 1, glow: 1 }, '全開');
+  assert.deepEqual(leafMix(-1), leafMix(0));
+  assert.deepEqual(leafMix(2), leafMix(1));
+  for (let k = 0; k <= 1; k += 0.05) { const m = leafMix(k); assert.ok(Math.abs(m.shut + m.ajar + m.open - 1) < 0.002, `k=${k} 三張加起來是一扇門`); assert.ok(m.glow >= 0 && m.glow <= 1); }
+  for (let k = 0.1; k <= 1; k += 0.1) assert.ok(leafMix(k).glow > leafMix(k - 0.1).glow, '暖光跟著開度變亮');
+  // 圖層：暖光 → 固定扇 → 活動扇（關／縫／開）；門圖層在台階上的貓下面（貓 z-index 3、門 z-index 2）；不畫金色門把，「推門進去」仍由程式疊
+  assert.match(view, /<img class="dr-glow" src="\$\{artUrl\(srcOf\('door_glow'\)\)\}" alt="">\s*<img class="dr-fixed" src="\$\{artUrl\(srcOf\('door_fixed'\)\)\}" alt="">\s*<img class="dr-leaf shut"[^>]*>\s*<img class="dr-leaf ajar"[^>]*>\s*<img class="dr-leaf open"[^>]*>/);
+  assert.match(view, /\$\{doorArtHtml\(\)\}\s*\$\{act === 'road' \? `<img class="op-step-cat"/, '門圖層在貓前面（DOM 先、z-index 低）');
+  const dcss = read('index.html');
+  assert.match(dcss, /\.op-door-art \{ position: absolute; inset: 0; z-index: 2; pointer-events: none;/);
+  assert.match(dcss, /\.op-step-cat \{[^}]*z-index: 3;/);
+  assert.doesNotMatch(view + dcss, /op-door-knob/, '不再畫金色圓門把');
+  assert.match(view, /<span class="op-door-text">\$\{ROAD\.door\}<\/span>/, '「推門進去」由程式疊');
   assert.match(view, /if \(act === 'road' \|\| act === 'depart' \|\| act === 'return'\)/);
   // 按住騎：按著才累積，放開就停、引擎怠速
   assert.match(view, /if \(hold\.down\) \{ held \+= now - hold\.last; hold\.last = now; \}/);
@@ -665,6 +694,8 @@ const V3B_ART = {
   scene_v3b_room_night: [1170, 2532], scene_v3b_courtyard_night_v2: [1170, 2532],
   prop_v3b_iron_shed_night_v2: [1024, 768], prop_v3b_tudigong_night_v2: [1024, 1024],
 };
+// 夜路上車燈照到的工寮與廟：codeart 交稿後改成分鏡格（sb_ride_shed_v2／sb_ride_temple_v2），這兩張原圖只留檔案
+const V3B_SHED_TEMPLE = ['prop_v3b_iron_shed_night_v2', 'prop_v3b_tudigong_night_v2'];
 // 讀 WebP 檔頭的寬高（VP8／VP8L／VP8X）
 function webpSize(buf) {
   assert.equal(buf.toString('ascii', 0, 4), 'RIFF');
@@ -682,6 +713,12 @@ test('v3b 原圖接進開場：七類畫面都用原圖、有預載、原圖尺�
   for (const [n, size] of Object.entries(V3B_ART)) {
     assert.ok(existsSync(root(`assets/art/${n}.webp`)), `缺 ${n}.webp`);
     assert.deepEqual(webpSize(readFileSync(root(`assets/art/${n}.webp`))), size, `${n} 尺寸不對（原圖不可縮放）`);
+    // 夜路的鐵皮工寮與土地公廟改成分鏡格（codeart v2，art-v56/S）：原圖檔案留著，不再引用、不再預載
+    if (V3B_SHED_TEMPLE.includes(n)) {
+      assert.ok(!OPENING_ART.includes(n), `${n} 不再預載`);
+      assert.ok(!prog.includes(`'${n}'`), `${n} 不再畫在夜路上`);
+      continue;
+    }
     assert.ok(OPENING_ART.includes(n), `${n} 沒有預載`);
     // 劇本 v5.7「夜裡，東山。」：三合院外都是晚上，傍晚原圖不再接（檔案留著、不刪）
     if (n === 'scene_v3b_sanheyuan_dusk_v2') assert.ok(!prog.includes(`'${n}'`), '傍晚原圖不再用');
@@ -702,10 +739,12 @@ test('v3b 原圖接進開場：七類畫面都用原圖、有預載、原圖尺�
   assert.match(prog, /<img class="off" src="\$\{art\('prop_v3b_scooter_off_v2'\)\}"/);
   assert.match(prog, /act === 'depart' \? `<img class="on" src="\$\{art\('prop_v3b_scooter_on_v2'\)\}" alt=""><img class="beam" src="\$\{art\('prop_v3b_scooter_beam_v2'\)\}"/);
   assert.match(css, /\.op-yard\.beam \.op-scooter \.on, \.op-yard\.beam \.op-scooter \.beam \{ opacity: 1; \}/);
-  // 夜路：工寮與廟畫原圖（車燈照到才淡入），沒有 canvas 剪影
-  assert.match(prog, /hut: \{ src: 'prop_v3b_iron_shed_night_v2'/);
-  assert.match(prog, /temple: \{ src: 'prop_v3b_tudigong_night_v2'/);
-  assert.match(prog, /g\.drawImage\(lit,/);
+  // 夜路：工寮、廟、掉頭改成分鏡格（codeart v2，疊在 #op-prop）；不再把小圖畫在夜路盡頭、不再程式打光、不再有 1.6 秒橫掃迴轉；也沒有 canvas 剪影
+  assert.doesNotMatch(prog, /SIGHTS|litSprite|g\.drawImage\(lit,|road\.sight|sweep|uturn\(\)/);
+  assert.match(prog, /ctl\.beat = \(i, look\) => \{ el\.classList\.toggle\('sb-dim', isStoryboard\(look\.mini\)\); \};/, '分鏡格疊著時夜路壓暗');
+  assert.match(prog, /ctl\.blackout = async \(\) => \{\s*el\.classList\.add\('blackout'\);\s*setEnginePath\(ENGINE_UTURN\);/, '離開工寮：短黑幕與引擎聲');
+  assert.match(css, /\.op-night-road\.sb-dim \.op-road-cv \{ filter: brightness\(/);
+  assert.match(css, /\.op-night-road\.blackout \.op-road-black \{ opacity: 1; \}/);
   assert.doesNotMatch(prog, /燕尾|波浪鐵皮/);
   // 庭埕、房間：原圖當背景；龍眼疊在庭埕；鑰匙疊在枕頭旁；床仍是可點熱點（至少 44px）
   assert.match(prog, /art\('scene_v3b_courtyard_night_v2'\)[\s\S]*class="op-yn-cat" src="\$\{art\('cat_longan_sit'\)\}"/);
@@ -714,18 +753,23 @@ test('v3b 原圖接進開場：七類畫面都用原圖、有預載、原圖尺�
   assert.match(prog, /ctl\.lieDown = \(\) => \{ el\.classList\.add\('lying'\); play\('creak'\);/);
 });
 
-test('推門疊圖對齊畫師給的門板座標 (594,1484)–(776,1720)／1170×2532；熱區至少 44px', () => {
+test('推門熱區對準畫師去背門的活動扇 (685,1506)–(748,1706)／1170×2532（觀眾面對大門的右扇）；熱區至少 44px；門圖層整張疊上', () => {
   const css = read('index.html');
   const m = css.match(/\.op-door-wrap \{ position: absolute; left: ([\d.]+)%; top: ([\d.]+)%; width: ([\d.]+)%; height: ([\d.]+)%;/);
-  assert.ok(m, '找不到門板位置');
+  assert.ok(m, '找不到推門熱區位置');
   const [left, top, width, height] = m.slice(1).map(Number);
   const near = (a, b) => Math.abs(a - b) < 0.01;
-  assert.ok(near(left, (594 / 1170) * 100), `left ${left}`);
-  assert.ok(near(top, (1484 / 2532) * 100), `top ${top}`);
-  assert.ok(near(width, (182 / 1170) * 100), `width ${width}`);
-  assert.ok(near(height, (236 / 2532) * 100), `height ${height}`);
-  assert.ok(near(top + height, (1720 / 2532) * 100), '門底對在 y=1720');
+  assert.ok(near(left, (685 / 1170) * 100), `left ${left}`);
+  assert.ok(near(top, (1506 / 2532) * 100), `top ${top}`);
+  assert.ok(near(width, (63 / 1170) * 100), `width ${width}`);
+  assert.ok(near(height, (200 / 2532) * 100), `height ${height}`);
+  assert.ok(near(top + height, (1706 / 2532) * 100), '門底對在 y=1706');
   assert.match(css, /\.op-yard \.op-door \{[^}]*min-width: 44px; min-height: 44px;/);
+  assert.match(css, /\.op-yard \.op-door \{[^}]*background: transparent;/, '不再畫 CSS 假門板');
+  // 門圖層：整張 1170×2532 疊上，跟底圖一起推近（推門後）
+  assert.match(css, /\.op-door-art img \{ position: absolute; inset: 0; width: 100%; height: 100%;/);
+  assert.match(css, /\.op-yard\.lit \.op-door-art \{ transform: scale\(1\.06\); \}/);
+  for (const id of ['door_glow', 'door_fixed', 'door_leaf_shut', 'door_leaf_ajar', 'door_leaf_open']) assert.equal(ART_MAP[id].status, 'ready', id);
 });
 
 // 畫師 v3b 第二批原圖（項目 8–15）：檔名 → 原圖尺寸
@@ -882,11 +926,12 @@ test('第三批 _v2：18 張都在、原圖尺寸沒動、有預載；程式只�
     const n = `${old}_v2`;
     assert.ok(existsSync(root(`assets/art/${n}.webp`)), `缺 ${n}.webp`);
     assert.deepEqual(webpSize(readFileSync(root(`assets/art/${n}.webp`))), size, `${n} 尺寸不對`);
-    assert.ok(OPENING_ART.includes(n), `${n} 沒有預載`);
     assert.ok(!OPENING_ART.includes(old), `還在預載舊圖 ${old}`);
-    assert.ok(both.includes(`'${n}'`), `${n} 沒接進開場`);
     assert.ok(!both.includes(`'${old}'`), `程式還在用舊圖 ${old}`);
     assert.ok(existsSync(root(`assets/art/${old}.webp`)), `舊圖 ${old}.webp 不可刪`);
+    if (V3B_SHED_TEMPLE.includes(n)) { assert.ok(!OPENING_ART.includes(n) && !both.includes(`'${n}'`), `${n} 已改成分鏡格，不再引用`); continue; } // 工寮與廟：codeart 分鏡格
+    assert.ok(OPENING_ART.includes(n), `${n} 沒有預載`);
+    assert.ok(both.includes(`'${n}'`), `${n} 沒接進開場`);
   }
   assert.deepEqual(webpSize(readFileSync(root('assets/art/prop_v3b_scooter_road_light_v2.webp'))), [1400, 720]);
   assert.ok(OPENING_ART.includes('prop_v3b_scooter_road_light_v2'), '路面光錐沒有預載');
