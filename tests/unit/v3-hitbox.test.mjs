@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { SHOP_CHAIR, SHOP_CUP, SHOP_CUP_STAND, CAT_2D } from '../../src/view/shop-still.js';
+import { SHOP_CHAIR, SHOP_CUP, SHOP_CUP_STAND, CAT_2D, catFrame } from '../../src/view/shop-still.js';
 
 const root = (p) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
 const read = (p) => readFileSync(root(p), 'utf8');
@@ -34,7 +34,18 @@ test('店內 2D 定景（390×844）：點椅子坐下的熱點完整在畫面�
   const boxTop = H * 0.69;
   assert.ok(artY + (SHOP_CUP.y / 100) * H <= boxTop + 1, '杯子在閱讀框上方（坐下特寫）');
   assert.ok(artY + (SHOP_CUP_STAND.y / 100) * H <= boxTop + 1, '杯子在閱讀框上方（進門 v2）');
-  for (const [k, s] of Object.entries(CAT_2D)) assert.ok(artY + (s.y / 100) * H <= boxTop + 1, `貓 ${k} 的腳在閱讀框上方`);
+  // feetSeated 例外（承峰 2026-11-28 09:59 同意放寬；11:25 改到椅右地板，寬限沿用）：腳線可以進閱讀框（> 78%），
+  // 但圖框上緣（頭）要在框上緣以上；其他貓位置腳線仍 ≤ 78%
+  for (const [k, s] of Object.entries(CAT_2D)) {
+    if (k === 'feetSeated') continue;
+    assert.ok(artY + (s.y / 100) * H <= boxTop + 1, `貓 ${k} 的腳在閱讀框上方`);
+  }
+  const fs = CAT_2D.feetSeated;
+  assert.ok(fs.y > 78, 'feetSeated 腳線在 78% 以下（椅右地板）');
+  for (const img of ['cat_longan_sit', 'cat_longan_lick_paw_v2', 'cat_longan_headbump_v2']) {
+    const top = catFrame(fs, img).top;
+    assert.ok(top < 78 && artY + (top / 100) * H < boxTop, `feetSeated／${img} 的頭（圖框上緣 ${top.toFixed(1)}%）在閱讀框上方`);
+  }
 });
 
 test('坐下喝咖啡（靠窗特寫）：點杯子的熱點完整在畫面內、杯高至少 44（寬由 reader 放大到 44）', () => {

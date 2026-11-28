@@ -1,6 +1,7 @@
 // 畫師美術（assets/art/*.webp；v5.6 定版圖在 assets/art-v56/）：只讀取、照原檔顯示，不修改、不重新壓縮。
 import { debugOn, onGithack, directAssetUrl } from '../debug/flag.js';
-import { artUrl, srcOf, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY, SHOP_STILL_DUSK } from './art-map.js';
+import { artUrl, srcOf, cutRefOf, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY, SHOP_STILL_DUSK } from './art-map.js';
+import { SHOP_CUT_READY } from './shop-cut-ready.js';
 const cache = new Map();
 // 只有 ?debug=1：圖用 CORS 載入（raw.githack 會把圖轉到 raw.githubusercontent.com，不加的話畫布會被汙染、回報截不了圖）。
 // 一般玩家不加，載入方式和以前一樣。
@@ -61,6 +62,8 @@ export const SHOP_ART = [...new Set([
   srcOf(SHOP_STILL_NIGHT), srcOf(SHOP_STILL_SEATED), srcOf(SHOP_STILL_DAY), srcOf(SHOP_STILL_DUSK),
   'char_deshu_stand', 'char_deshu_brew', 'char_deshu_serve', 'char_deshu_broom', 'cat_longan_sleep', 'cat_longan_sit', 'cat_longan_walk', 'prop_cup',
   'char_v3b_yijun_hand_v2', 'cat_longan_headbump_v2', 'cat_longan_knead_v2', 'cat_longan_ears_turn_v2', 'cat_longan_ears_back_v2', 'cat_longan_lick_paw_v2',
+  // 家具切片（裁好的小圖，不是整張透明層）：只預載已經到位的（shop-cut-ready.js），沒到的不發請求
+  ...Object.entries(SHOP_CUT_READY).flatMap(([light, ids]) => Object.keys(ids).map((id) => cutRefOf(id, light))),
 ].filter(Boolean))];
 // 開場（v3.8）：辦公室、鑰匙（房間枕頭旁）；
 // 三合院外觀（傍晚／晚上）、機車（未發動／發動／車燈／路面光錐）、庭埕（晚上）、護龍房間（畫師 v3b 原圖）。

@@ -64,7 +64,7 @@ test('MANIFEST 比對：只改一邊、多一個檔、少一個檔都抓得到�
     cpSync(CORE, dir, { recursive: true });
     writeFileSync(join(dir, 'MANIFEST.json'), JSON.stringify(buildManifest(dir, { sourceCommit: 'abc1234' })));
     assert.equal(checkManifest(dir).ok, true);
-    writeFileSync(join(dir, 'queue.js'), read('queue.js').replace(/\n/g, '\r\n')); // 換行不同、內容一樣
+    writeFileSync(join(dir, 'queue.js'), read('queue.js').replace(/\r?\n/g, '\r\n')); // 換行不同、內容一樣
     assert.equal(checkManifest(dir).ok, true);
     writeFileSync(join(dir, 'queue.js'), `${read('queue.js')}\n// 只改一邊\n`);
     assert.deepEqual(checkManifest(dir).changed, ['queue.js']);

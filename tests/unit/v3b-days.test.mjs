@@ -41,11 +41,11 @@ const fakeStorage = () => {
 const at = (act, line = 0, extra = {}) => ({ v: 1, phase: 'opening', opening: { act, line, ...extra } });
 const dayLines = () => D.DAY_ACTS.flatMap((a) => D.DAY_LINES[a]);
 const find = (t) => { for (const a of D.DAY_ACTS) { const i = D.DAY_LINES[a].findIndex((b) => b.text === t); if (i >= 0) return { act: a, i, b: D.DAY_LINES[a][i] }; } return null; };
-// 劇本 v5.9（字卡倒數版；變數名沿用 V58）
-const V58_PATH = '_agent/v3b/script-v5.9.md';
+// 劇本 v5.10（字卡倒數版；變數名沿用 V58）
+const V58_PATH = '_agent/v3b/script-v5.10.md';
 const HAS58 = existsSync(root(V58_PATH));
 const V58 = HAS58 ? read(V58_PATH).replace(/\r\n/g, '\n') : '';
-const NO58 = HAS58 ? false : `沒有 ${V58_PATH}（劇本 v5.9，本機未追蹤）`;
+const NO58 = HAS58 ? false : `沒有 ${V58_PATH}（劇本 v5.10，本機未追蹤）`;
 const BODY = V58.slice(V58.indexOf('\n# 最底下那個抽屜\n'));
 // 畫面上照順序出現的句子：每一幕的閱讀框句子；接回場（resend）是 DOM 畫面自己出的四拍（送出去了／我想起信上的那一句／信上原句／其實我已經辭職了...）
 const shownLines = () => D.DAY_ACTS.flatMap((a) => (a === 'resend' ? D.RESEND.lines.map((text) => ({ text })) : D.DAY_LINES[a]));
@@ -91,7 +91,7 @@ test('第一晚自白（v5.8）：逐字、接在放鑰匙（可點床）之後�
 });
 
 /* ---------- 字 ---------- */
-test('劇本 v5.9 正文逐字：「最底下那個抽屜」起每一句對白／旁白（含接回場四拍）照順序與 _agent/v3b/script-v5.9.md 相同（舞台指示、小圖、字卡、標題、【待定】標記不是字）', { skip: NO58 }, () => {
+test('劇本 v5.10 正文逐字：「最底下那個抽屜」起每一句對白／旁白（含接回場四拍）照順序與 _agent/v3b/script-v5.10.md 相同（舞台指示、小圖、字卡、標題、【待定】標記不是字）', { skip: NO58 }, () => {
   const spoken = spokenOf(BODY);
   const mine = shownLines().map((b) => ({ who: b.who, text: b.text }));
   assert.equal(mine.length, spoken.length, '句數');

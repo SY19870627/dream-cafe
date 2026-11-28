@@ -16,7 +16,7 @@ import { load, persist, SAVE_KEY } from '../../src/story/save.js';
 import { OPENING_ART, SHOP_ART } from '../../src/view/art.js';
 import { doorView, DOOR_FADE_MS, leafMix } from '../../src/view/opening.js';
 import { PORTRAIT_PLACE } from '../../src/view/reader.js';
-import { SHOP_CHAIR, SHOP_CUP, SHOP_WINDOW, SHOP_WINDOW_STAND, SHOP_CUP_STAND, SHOP_BAR, CAT_2D, DESHU_2D, KNEAD_ON_SLEEP_LINE, PET_MS, skyOf, stillOf, layoutOf, cupShown, fadesBetween, BG_FADE_MS } from '../../src/view/shop-still.js';
+import { SHOP_CHAIR, SHOP_CUP, SHOP_WINDOW, SHOP_WINDOW_STAND, SHOP_CUP_STAND, SHOP_BAR, CAT_2D, DESHU_2D, CAT_FOOT, catFrame, CAT_H, PET_MS, skyOf, stillOf, layoutOf, cupShown, fadesBetween, BG_FADE_MS } from '../../src/view/shop-still.js';
 import { ART_MAP, srcOf, SHOP_STILL_NIGHT, SHOP_STILL_SEATED, SHOP_STILL_DAY, SHOP_STILL_DUSK } from '../../src/view/art-map.js';
 import { walk } from './walk.mjs';
 
@@ -29,10 +29,10 @@ const code = (p) => read(p).replace(/\/\/.*$/gm, ''); // 只看程式，不看�
 const L = OP.OPENING_LINES;
 const allLines = () => Object.values(L).flat();
 const MARKS = /【(待定|待確認|新增互動|不演出|已定|註)】/;
-// 劇本 v5.9（字卡倒數版，本機未追蹤）。變數名沿用 V57（第一幕、第三幕、第四幕仍是 v5.7 原字）
-const V57_PATH = '_agent/v3b/script-v5.9.md';
+// 劇本 v5.10（字卡倒數版，本機未追蹤）。變數名沿用 V57（第一幕、第三幕、第四幕仍是 v5.7 原字）
+const V57_PATH = '_agent/v3b/script-v5.10.md';
 const HAS57 = existsSync(root(V57_PATH));
-const NO57 = HAS57 ? false : `沒有 ${V57_PATH}（劇本 v5.9，本機未追蹤）`;
+const NO57 = HAS57 ? false : `沒有 ${V57_PATH}（劇本 v5.10，本機未追蹤）`;
 const V57 = HAS57 ? read(V57_PATH).replace(/\r\n/g, '\n') : '';
 // 開場畫面上的字（DOM 幕自己出的旁白：收到信、信後旁白、特休前一晚）
 const DOM_TEXTS = () => [...OP.ROOM_LETTER.lines, ...OP.LETTER.afterLines, ...OP.EVE.lines];
@@ -312,7 +312,7 @@ test('存檔版本 2：版本 1 的存檔不打回開頭；停在原「第二天
   assert.equal(S.newStoryState().v, 2);
 });
 
-// 劇本 v5.9「# 開場」到「# 最底下那個抽屜」：旁白／對白（照順序）、引用區塊（表單、標題、信）、互動裡的按鈕字
+// 劇本 v5.10「# 開場」到「# 最底下那個抽屜」：旁白／對白（照順序）、引用區塊（表單、標題、信）、互動裡的按鈕字
 function scriptOpening() {
   const md = V57;
   const body = md.slice(md.indexOf('\n# 開場\n'), md.indexOf('\n# 最底下那個抽屜\n'));
@@ -329,7 +329,7 @@ function scriptOpening() {
   return { body, spoken, quoted };
 }
 
-test('開場每一句（收到信、信後旁白、特休前一晚、第三幕到第一晚自白）照順序與劇本 v5.9 逐字相同；引用區塊與畫面字也相同', { skip: NO57 }, () => {
+test('開場每一句（收到信、信後旁白、特休前一晚、第三幕到第一晚自白）照順序與劇本 v5.10 逐字相同；引用區塊與畫面字也相同', { skip: NO57 }, () => {
   const { body, spoken, quoted } = scriptOpening();
   const mine = [
     ...DOM_TEXTS().map((text) => ({ text })),
@@ -825,10 +825,19 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
   assert.match(shop, /spot\.lick && !petted \? 'cat_longan_lick_paw_v2'/);
   // 劇本會用到的貓位置都有 2D 位置
   for (const b of allLines()) if (b.set?.cat) assert.ok(CAT_2D[b.set.cat], `貓位置 ${b.set.cat}`);
-  //    坐下以後、跳上對面椅子之前：坐在腳邊（靠窗特寫上的位置），不在杯子上
+  //    坐下以後、跳上對面椅子之前：坐在對面椅子右邊的地板（靠窗特寫上的位置；承峰 2026-11-28 11:25），不在杯子上
   assert.equal(at('coffee', 0).cat, 'feetSeated');
   assert.equal(CAT_2D.feetSeated.img, 'cat_longan_sit');
-  assert.ok(CAT_2D.feetSeated.x + CAT_2D.feetSeated.w / 2 < SHOP_CUP.x - 2, '腳邊的貓不擋杯子');
+  {
+    // 貓框（＝點貓的熱點）與杯子熱點框不重疊（不再要求貓在杯子左邊）。杯子框：杯底中心 x、寬取「杯高 × 1.5」與 44px（約 11.3%）的大者
+    const fs = CAT_2D.feetSeated;
+    const cupHalf = Math.max(((SHOP_CUP.h * 2532) / 1170) * 1.5, 11.3) / 2;
+    const cup = [SHOP_CUP.x - cupHalf, SHOP_CUP.y - SHOP_CUP.h, SHOP_CUP.x + cupHalf, SHOP_CUP.y];
+    const f = catFrame(fs, 'cat_longan_sit');
+    const cat = [f.left, f.top, f.left + f.width, f.top + fs.w * CAT_H];
+    const hit = cat[0] < cup[2] && cup[0] < cat[2] && cat[1] < cup[3] && cup[1] < cat[3];
+    assert.ok(!hit, `腳邊的貓不擋杯子熱點：貓 ${cat.map((n) => n.toFixed(1))}／杯 ${cup.map((n) => n.toFixed(1))}`);
+  }
   // 10. 傍晚台階用 sleep；回來換了一邊睡用 sleep_flip，不再 CSS 翻轉舊 sleep
   assert.match(view, /act === 'road' \? `<img class="op-step-cat" src="\$\{art\('cat_longan_sleep'\)\}"/);
   assert.match(view, /act === 'return' \? `<img class="op-step-cat" src="\$\{art\('cat_longan_sleep_flip_v2'\)\}"/);
@@ -898,7 +907,7 @@ test('第二批接線：點貓（手＋頂頭）、伸懶腰、踩兩圈、耳�
     assert.equal(fadesBetween(SHOP_STILL_NIGHT, SHOP_STILL_DUSK), false);
     assert.equal(fadesBetween(SHOP_STILL_DAY, SHOP_STILL_NIGHT), false);
     assert.ok(BG_FADE_MS >= 1000 && BG_FADE_MS <= 1200);
-    assert.match(shop, /if \(fadesBetween\(shown, id\)\) crossFade\(/);
+    assert.match(shop, /const fade = fadesBetween\(shown, id\);[\s\S]*?if \(fade\) crossFade\(/); // 切片也照這個 fade 一起淡（shop-layers.test.mjs）
     assert.match(read('index.html'), /\.sh-bg-old \{[^}]*transition: opacity 1\.2s/);
   }
   assert.match(main, /showShop\(\$\('opening'\), act, \{ seated: act === 'coffee' \}\)/);
@@ -1008,9 +1017,12 @@ test('點貓的手（_v2）從上方伸進來、指尖落在頭頂（2D：CSS �
   assert.match(css, /@keyframes pethand \{ 0% \{ opacity: 0; transform: translateY\(-32%\); \}/, '從上方進出');
   assert.equal(PET_MS, 2800);
   assert.match(css, /\.sh-hand\.go \{ animation: pethand 2\.8s/);
-  // 踩奶：無凳；腳底 y349 踩在椅面（sleep 的底線 y339）；小小上下 bob
-  assert.equal(KNEAD_ON_SLEEP_LINE, -(349 - 339) / 384);
-  assert.deepEqual(CAT_2D.chair.seq[0], { img: 'cat_longan_knead_v2', ms: 2200, dy: KNEAD_ON_SLEEP_LINE, bob: true });
+  // 踩奶：無凳；各張用自己量的腳線對到同一個 spot.y（knead_v2 y348、sleep y339），不再另加 dy 偏移；小小上下 bob
+  assert.deepEqual(CAT_2D.chair.seq[0], { img: 'cat_longan_knead_v2', ms: 2200, bob: true });
+  for (const img of ['cat_longan_knead_v2', 'cat_longan_sleep']) {
+    const f = catFrame(CAT_2D.chair, img);
+    assert.ok(Math.abs(f.top + CAT_2D.chair.w * CAT_H * (CAT_FOOT[img].y / 384) - CAT_2D.chair.y) < 1e-9, `${img} 的腳線落在椅面 y`);
+  }
   assert.equal(CAT_2D.across.seq[0].bob, true, '坐下後對面的椅子也有 bob');
   assert.match(css, /@keyframes catbob \{ from \{ translate: 0 0; \} to \{ translate: 0 -1\.8%; \} \}/);
   assert.doesNotMatch(read('src/view/shop-still.js'), /圓凳/);
@@ -1051,7 +1063,9 @@ test('店內 2D 定景：定版圖 v2 上的椅子（點椅子坐下的目標）
   assert.ok(Math.abs(SHOP_BAR.top - (880 / 2532) * 100) < 1 && Math.abs(SHOP_BAR.top + SHOP_BAR.height - (1015 / 2532) * 100) < 1);
   for (const k of ['stand', 'brew']) {
     assert.ok(DESHU_2D[k].x > SHOP_BAR.left && DESHU_2D[k].x < SHOP_BAR.left + SHOP_BAR.width, `德叔 ${k} 在吧台那一側`);
-    assert.ok(DESHU_2D[k].clip > SHOP_BAR.top && DESHU_2D[k].clip < SHOP_BAR.top + SHOP_BAR.height, `德叔 ${k} 吧台檯面以下切掉`);
+    // 站在 bar_front 後面（y-sort：z 在那片下面，見 shop-layers.test.mjs）；切片沒到位時的 fallback 仍是吧台檯面以下切掉
+    assert.equal(DESHU_2D[k].behind, 'bar_front', `德叔 ${k} 在吧台切片後面`);
+    assert.ok(DESHU_2D[k].clip > SHOP_BAR.top && DESHU_2D[k].clip < SHOP_BAR.top + SHOP_BAR.height, `德叔 ${k} 吧台檯面以下切掉（fallback）`);
   }
   // 第二天把鑰匙放到吧台：放置目標框在吧台檯面上
   assert.match(code('src/main.js'), /props\.tapItem\('keyBar', \{ target: shop\.hot\('bar'\) \}\)/);
@@ -1059,10 +1073,37 @@ test('店內 2D 定景：定版圖 v2 上的椅子（點椅子坐下的目標）
   // v2 的窗在左側
   assert.ok(SHOP_WINDOW_STAND.left + SHOP_WINDOW_STAND.width < 35, 'v2 左側那扇窗');
   assert.ok(SHOP_CUP.y <= 78 && SHOP_CUP_STAND.y <= 78, '杯子在閱讀框上方');
-  for (const [k, c] of Object.entries(CAT_2D)) assert.ok(c.y <= 78 && c.x - c.w / 2 >= 0 && c.x + c.w / 2 <= 100, `貓 ${k}`);
-  // 龍眼 nap（d1shop／d5thanks 共用）：趴在右側桌面上，不是吧台前那張椅子
-  assert.deepEqual({ x: CAT_2D.nap.x, y: CAT_2D.nap.y, w: CAT_2D.nap.w }, { x: 78, y: 51.1, w: 22 });
-  assert.ok(CAT_2D.nap.x > 70 && CAT_2D.nap.y < 53, 'nap 在右側桌面，不是椅座（x63 y55）');
+  // 貓的 y 是腳線（CAT_FOOT 量的那一列，不是圖框底邊）：每張用到的圖的腳線都在 78% 安全線以上。
+  // 例外只有 feetSeated（承峰 2026-11-28 09:59 放寬；11:25 改到椅右地板，寬限沿用）：腳線可以進閱讀框，但圖框上緣（頭）要在 78% 以上，臉露在框上方
+  for (const [k, c] of Object.entries(CAT_2D)) {
+    const relaxed = k === 'feetSeated';
+    assert.ok((relaxed || c.y <= 78) && c.x - c.w / 2 >= 0 && c.x + c.w / 2 <= 100, `貓 ${k}`);
+    for (const img of [c.img, ...(c.seq || []).map((s) => s.img), ...(c.lick ? ['cat_longan_lick_paw_v2'] : []), ...(relaxed ? ['cat_longan_headbump_v2'] : [])]) {
+      assert.ok(CAT_FOOT[img], `${k}：${img} 沒有量腳線`);
+      const f = catFrame(c, img);
+      if (relaxed) assert.ok(f.top < 78, `貓 ${k}（${img}）頭在閱讀框上方`);
+      else assert.ok(f.top + c.w * CAT_H * (CAT_FOOT[img].y / 384) <= 78 + 1e-9, `貓 ${k}（${img}）腳線在閱讀框上方`);
+    }
+  }
+  // 龍眼 nap（d1shop／d5thanks 共用）：趴在左桌（靠窗那張）桌面上（承峰 2026-11-28 09:59），不是椅座、不是右桌；
+  // 11:25 舊位置（x 23.5、y 49.7、w 18）前爪搭在前緣「看起來會掉下來」，往桌面內側移；
+  // 14:13 承峰：放回原本大小（w 18，不是 r3 的 w 12）、挪到桌心、背可以稍超過後緣
+  assert.deepEqual({ x: CAT_2D.nap.x, y: CAT_2D.nap.y, w: CAT_2D.nap.w }, { x: 19.5, y: 48.3, w: 18 });
+  assert.equal(CAT_2D.nap.on, 'table_left');
+  {
+    // 穩穩趴在左桌桌面上、不是搭在前緣：腳線（圖框中心那一欄）在後緣以下、離前緣 ≥ 20px；背（上半身）可以越出後緣
+    // 桌面（母檔實量，夜／白天／傍晚各一條，取最嚴）：後緣 y＝a·x＋c、前緣 y＝a·x＋c
+    const xc = (CAT_2D.nap.x / 100) * 1170;
+    const foot = (CAT_2D.nap.y / 100) * 2532;
+    const back = Math.max(...[[0.1692, 1125.6], [0.1653, 1128.9], [0.1639, 1127.4]].map(([a, c]) => a * xc + c));
+    const front = Math.min(...[[-0.2502, 1309.5], [-0.2606, 1316.3], [-0.2541, 1311.1]].map(([a, c]) => a * xc + c));
+    assert.ok(foot > back + 40 && foot < front - 20, `nap 腳線 ${foot.toFixed(0)} 在桌面上（後緣 ${back.toFixed(0)}、前緣 ${front.toFixed(0)}）`);
+    const f = catFrame(CAT_2D.nap, 'cat_longan_sleep');
+    const bottom = ((f.top + CAT_2D.nap.w * CAT_H) / 100) * 2532;
+    assert.ok(bottom < front - 8, `nap 圖框底邊（前爪那一列）${bottom.toFixed(0)} 不碰前緣 ${front.toFixed(0)}`);
+  }
+  assert.ok(CAT_2D.nap.x + CAT_2D.nap.w / 2 < 37, 'nap 在左桌（右緣約 x 35–37%）');
+  assert.ok(CAT_2D.nap.x < 50, 'nap 不是吧台前那張椅座（x63 y55），也不是右桌（x ≥ 60）');
   for (const [k, d] of Object.entries(DESHU_2D)) assert.ok(d.y - d.h >= 0 && d.y <= 78, `德叔 ${k}`);
   const main = code('src/main.js');
   assert.match(main, /reader\.portrait\([^\n]*, act === 'coffee' \? 'aside' : 'center'\);/);

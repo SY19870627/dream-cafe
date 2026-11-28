@@ -10,6 +10,7 @@
 //   src      ：目前畫面實際用的檔名（不含副檔名、不含資料夾）；null＝不用圖
 //   variants ：差分（同一個角色的其他動作；檔案在 <dir>/variants/）：{ 差分名: 檔名 }
 //   temp     ：目前暫代方式（status 不是 ready 時一定要寫）
+import { cutFile } from './shop-pieces.js';
 // 規則：
 // - assets/art/、assets/art-v56/、public/bg/ 只讀：不覆寫、不重新壓縮、不刪、不搬。
 // - 背景只用直式（1170×2532，檔名有 _portrait）；橫版不用。村子路用 _portrait_v2。
@@ -151,6 +152,31 @@ export const SHOP_STILL_NIGHT = 'bg_shop_night';
 export const SHOP_STILL_SEATED = 'bg_shop_seated';
 export const SHOP_STILL_DAY = 'bg_shop_day';
 export const SHOP_STILL_DUSK = 'bg_shop_dusk';
+
+// 店內家具切片（y-sort 遮擋用；排序資料見 shop-pieces.js，裁圖工具 tools/shop-cut.mjs）。
+// 畫師交與各張店內底圖逐像素對齊的 1170×2532 透明母檔，程式裁成小圖另存新檔名；原底圖、母檔都不動。
+// 不放進 ART_MAP：檔案到了才用（見 shop-cut-ready.js），還沒到的片不引用、不預載。
+// 資料夾 assets/art-v60（承峰 2026-11-28 09:59 定名）。
+export const SHOP_CUT_DIR = 'art-v60';
+// slot → 片 id 與各光線的檔名（variants 的鍵＝光線：night 夜景 v2／day 白天／dusk 傍晚／seated 靠窗特寫）
+//   檔名＝shop-pieces.js 的 cutFile（lyr_shop_{光線}_{片}_v{ver}；ver＝該片採用的母檔版本）
+const cutVariants = (id, lights) => Object.fromEntries(lights.map((l) => [l, cutFile(l, id)]));
+export const SHOP_CUT_MAP = {
+  shop_cut_bar_front: { piece: 'bar_front', use: '吧台檯面＋正面板＋檯上白杯＋磨豆機（德叔站在後面）', variants: cutVariants('bar_front', ['night', 'day', 'dusk']) },
+  shop_cut_table_left: { piece: 'table_left', use: '左桌＋後面的椅子＋桌上盆栽杯', variants: cutVariants('table_left', ['night', 'day', 'dusk']) },
+  shop_cut_chair_mid: { piece: 'chair_mid', use: '吧台前中間那張椅', variants: cutVariants('chair_mid', ['night', 'day', 'dusk']) },
+  shop_cut_table_right: { piece: 'table_right', use: '右桌（含桌後椅子）', variants: cutVariants('table_right', ['night', 'day', 'dusk']) },
+  shop_cut_chair_front_right: { piece: 'chair_front_right', use: '右前曲木椅', variants: cutVariants('chair_front_right', ['night', 'day', 'dusk']) },
+  shop_cut_table_corner: { piece: 'table_corner', use: '靠窗特寫的桌角', variants: cutVariants('table_corner', ['seated']) },
+  shop_cut_chair_back: { piece: 'chair_back', use: '靠窗特寫對面那張椅子的椅背', variants: cutVariants('chair_back', ['seated']) },
+  // 【待定】龍眼乾袋、花斑貓（店內定景）：樣子／桌位／姿勢未定案，這次不接（承峰 2026-11-28 08:19），不留會被執行的 slot
+};
+// 某片在某光線的參照（art-v60/lyr_shop_night_bar_front_v1）；沒有這個光線就 null
+export function cutRefOf(piece, light) {
+  const s = Object.values(SHOP_CUT_MAP).find((x) => x.piece === piece);
+  const f = s?.variants[light];
+  return f ? `${SHOP_CUT_DIR}/${f}` : null;
+}
 
 // 程式疊在圖上的字（不指望圖上有字）
 export const OVERLAY_TEXT = {
